@@ -86,6 +86,8 @@ import {
   parseFormattedNumber,
   useSwalshowSaveSuccessDialog,
   useSwalErrorAlert,
+  useSwalInfoAlert,
+  useSwalValidationAlert
 } from '@/NAYSA Cloud/Global/behavior';
 
 
@@ -161,7 +163,12 @@ const MSAJ = () => {
 
     branchCode: "HO",
     branchName: "Head Office",
+    WHCode:"",
+    WHName:"",
+    LocCode:"",
+    LocName:"",
     itemSingleSelect:false,
+    selectedWH:"",
 
     
     // Currency information
@@ -276,6 +283,10 @@ const MSAJ = () => {
   refDocNo2,
   remarks,
   selectedAJType,
+  WHCode,
+  WHName,
+  LocCode,
+  LocName,
 
 
   // Transaction details
@@ -297,6 +308,7 @@ const MSAJ = () => {
   selectionContext,
   selectedRowIndex,
   accountModalSource,
+  selectedWH,
 
   // Modals
   showAccountModal,
@@ -476,6 +488,11 @@ useEffect(() => {
       documentStatus:"",
       itemSingleSelect:false,
       selectedAJType:"",
+      WHCode:"",
+      WHName:"",
+      LocCode:"",
+      LocName:"",
+
       
       
       // UI state
@@ -833,7 +850,25 @@ const handleGetItem = async () => {
 
 
   const handleAddRow = async () => {
-  if (!selectedAJType) return;
+
+    let errors = []; 
+    if (!WHCode) errors.push("- Header : Warehouse");
+    if (!selectedAJType) errors.push("- Header : Adjustment Type");
+
+
+    if (errors.length > 0) {
+      const errorMessage = "The Following Fields are Required:\n" + errors.join("\n");
+
+      useSwalValidationAlert({
+            icon: "error",
+            title: "Save Failed",
+            message: errorMessage 
+             });    
+             return null;
+    }
+
+
+
     await handleOpenMSLookup(false);
     return;
 };
@@ -1261,6 +1296,7 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
 
   if (field === 'whouseCode') {
     row.whouseCode = value.whCode;
+    row.locCode = "";
     await autoFillBlanks('whouseCode', value.whCode);
   }
 
@@ -1558,21 +1594,44 @@ const handleSaveAndPrint = async (documentID) => {
 
 
 
-
-
-  const handleCloseWarehouseLookup = (row) => {
+const handleCloseWarehouseLookup = (row) => {
   if (row) {
     accountModalSource
       ? handleDetailChange(selectedRowIndex, 'whouseCode', row, false)
       : updateState({
-          WHcode: row.whCode,
-          WHname: row.whName,
-          locCode: "", 
-          locName: ""
+          WHCode: row.whCode,
+          WHName: row.whName,
+          LocCode: "", 
+          LocName: ""
         });
+    
+
+    const hasDetails = detailRows && detailRows.length > 0;
+    if (!accountModalSource && (selectedAJType === "IG" || selectedAJType === "BB") && hasDetails) {
+      
+      Swal.fire({
+        title: 'Apply to Details?',
+        text: "Do you want to apply this Warehouse to all detail items?",
+        icon: 'info',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, update all',
+        cancelButtonText: 'No, header only'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          const updatedDetails = detailRows.map((item) => ({
+            ...item,
+            whouseCode: row.whCode,
+            locCode: "",
+          }));
+          updateState({ detailRows: updatedDetails });
+        }
+      });
+    }
   }
-  updateState({ warehouseLookupOpen: false });
+  
+  updateState({ warehouseLookupOpen: false,accountModalSource:"" });
 };
+
 
 
 
@@ -1582,10 +1641,30 @@ const handleCloseLocationLookup = (row) => {
   if (row) {
     accountModalSource
       ? handleDetailChange(selectedRowIndex, 'locCode', row, false)
-      : updateState({ locCode: row.locCode, locName: row.locName });
-  }
+      : updateState({ LocCode: row.locCode, LocName: row.locName });
 
-  updateState({ locationLookupOpen: false });
+     const hasDetails = detailRows && detailRows.length > 0;
+      if (!accountModalSource && (selectedAJType === "IG" || selectedAJType === "BB") && hasDetails) {
+        
+        Swal.fire({
+          title: 'Apply to Details?',
+          text: "Do you want to apply this Location to all detail items?",
+          icon: 'info',
+          showCancelButton: true,
+          confirmButtonText: 'Yes, update all',
+          cancelButtonText: 'No, header only'
+        }).then((result) => {
+          if (result.isConfirmed) {
+            const updatedDetails = detailRows.map((item) => ({
+              ...item,
+              locCode: row.locCode,
+            }));
+            updateState({ detailRows: updatedDetails });
+        }
+      });
+    }
+  }
+  updateState({ locationLookupOpen: false, selectedWH:"" ,accountModalSource:"" });
 };
 
 
@@ -1661,7 +1740,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                     itemSingleSelect : itemSingleSelect });
   
       const endpoint ="getInvLookupMS"
-      const response = await fetchDataJson(endpoint, { userCode, whouseCode :state.whouseCode || "", locCode: state.locCode || "", docType:"MSAJ" ,tranType :itemSingleSelect? "IRR" :selectedAJType });
+      const response = await fetchDataJson(endpoint, { userCode, whouseCode :WHCode || "", locCode: LocCode || "", docType:"MSAJ" ,tranType :itemSingleSelect? "IRR" :selectedAJType });
       const custData = response?.data?.[0]?.result ? JSON.parse(response.data[0].result) : [];
   
 
@@ -1670,14 +1749,15 @@ const handleCloseBranchModal = (selectedBranch) => {
 
 
      if (custData.length === 0) {
-        useSwalErrorAlert(lookupTypes.includes(selectedAJType) ? "MS Master Data" : "MS Location Balance","No records found")
+        useSwalInfoAlert(lookupTypes.includes(selectedAJType) ? "MS Master Data" : "MS Location Balance","No records found")
          updateState({ isLoading: false });
         return; 
       }
   
       updateState({ globalLookupRow: custData,
                     globalLookupHeader:colConfig,
-                    msLookupModalOpen: true
+                    msLookupModalOpen: true,
+                    isLoading: false
         });
   
 
@@ -1718,8 +1798,8 @@ const handleCloseBranchModal = (selectedBranch) => {
 //     lotNo: item?.lotNo ?? "",
 //     bbDate: item?.bbDate ? new Date(item.bbDate).toISOString().split("T")[0] : "",
 //     qstatCode: item?.qstatCode ?? "",
-//     whouseCode: item?.whouseCode ?? state.WHcode ?? "",
-//     locCode: item?.locCode ?? state.locCode ?? "",
+//     whouseCode: item?.whouseCode ?? WHCode ?? "",
+//     locCode: item?.locCode ?? LocCode ?? "",
 //     qtyHand: formatNumber(parseFormattedNumber(item?.qtyHand ?? 0), decQty),
 //     uniqueKey: item?.uniqueKey ?? "",
 //     operation:  (selectedAJType === "IL" || selectedAJType === "IR") ? "S" : "A",
@@ -1776,8 +1856,8 @@ const handleCloseMSLookup = (selectedItems) => {
       lotNo: item?.lotNo ?? "",
       bbDate: item?.bbDate ? new Date(item.bbDate).toISOString().split("T")[0] : "",
       qstatCode: item?.qstatCode ?? "",
-      whouseCode: item?.whouseCode ?? state.WHcode ?? "",
-      locCode: item?.locCode ?? state.locCode ?? "",
+      whouseCode: item?.whouseCode ?? WHCode ?? "",
+      locCode: item?.locCode ?? LocCode ?? "",
       acctCode: "",
       sltypeCode: "",
       rcCode: "",
@@ -2047,7 +2127,7 @@ return (
                    <input
                      type="text"
                      id="WHcode"
-                     value={state.WHname || state.WHcode || ""}
+                     value={WHName || WHCode || ""}
                      readOnly
                      placeholder=" "
                      className="peer global-tran-textbox-ui"
@@ -2079,7 +2159,7 @@ return (
                    <input
                      type="text"
                      id="locName"
-                     value={state.locName || state.locCode || ""}
+                     value={LocName || ""}
                      readOnly
                      placeholder=" "
                      className="peer global-tran-textbox-ui"
@@ -2101,10 +2181,10 @@ return (
                          ? "global-tran-textbox-button-search-disabled-ui"
                          : "global-tran-textbox-button-search-enabled-ui"
                      } global-tran-textbox-button-search-ui`}
-                     disabled={isFormDisabled}
+                     disabled={isFormDisabled || WHName === ""}
                      onClick={() =>
-                       !isFormDisabled &&
-                       updateState({ locationLookupOpen: true })
+                       !isFormDisabled && WHName !== "" &&
+                       updateState({ locationLookupOpen: true,selectedWH : WHCode })
                      }
                    >
                      <FontAwesomeIcon icon={faMagnifyingGlass} />
@@ -2452,6 +2532,7 @@ return (
                       onClick={() => {
                       updateState({ selectedRowIndex: index,
                                     locationLookupOpen: true,
+                                    selectedWH:row.whouseCode,
                                     accountModalSource: "locCode"}); 
                       }}
                     />)}
@@ -3414,7 +3495,7 @@ return (
           isOpen={locationLookupOpen}
           onClose={handleCloseLocationLookup}
           source={accountModalSource}
-          filter="ActiveAll"
+          filter={"ByWH" + selectedWH}
         />
       )}
 
