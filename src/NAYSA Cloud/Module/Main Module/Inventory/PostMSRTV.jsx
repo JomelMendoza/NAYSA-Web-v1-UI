@@ -2,19 +2,21 @@ import { useState, useEffect, useRef } from "react";
 import { fetchDataJson } from "../../../Configuration/BaseURL.jsx";
 import { useSelectedHSColConfig } from "@/NAYSA Cloud/Global/selectedData";
 import GlobalGLPostingModalv1 from "../../../Lookup/SearchGlobalGLPostingv1.jsx";
-import { useHandlePostTran } from '@/NAYSA Cloud/Global/procedure';
 import { useSwalValidationAlert } from "@/NAYSA Cloud/Global/behavior";
+import { useHandlePostTran } from '@/NAYSA Cloud/Global/procedure';
 import ReactDOM from "react-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSpinner } from "@fortawesome/free-solid-svg-icons";
 
-const PostMSRR = ({ isOpen, onClose, userCode }) => {
+const PostMSRTV = ({ isOpen, onClose, userCode }) => {
   const [data, setData] = useState([]);
   const [colConfigData, setcolConfigData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modalReady, setModalReady] = useState(false);
   const alertFired = useRef(false);
   const [userPassword, setUserPassword] = useState(null);
+
+
 
   useEffect(() => {
     let isMounted = true;
@@ -25,14 +27,18 @@ const PostMSRR = ({ isOpen, onClose, userCode }) => {
       alertFired.current = false;
 
       try {
-        const endpoint = "postingMSRR";
+        const endpoint = "postingMSRTV";
         const response = await fetchDataJson(endpoint);
-
-        const rows = Array.isArray(response?.data)
-  ? response.data
-  : response?.data?.[0]?.result
-    ? JSON.parse(response.data[0].result)
-    : [];
+        // const rows = Array.isArray(response?.data)
+        // ? response.data
+        // : response?.data?.[0]?.result
+        //   ? JSON.parse(response.data[0].result)
+        //   : [];
+        const rows = response?.data?.[0]?.result
+          ? JSON.parse(response.data[0].result)
+          : [];
+          
+          console.log("Fetched MSRTV Data:", rows);
 
         if (rows.length === 0 && !alertFired.current) {
           useSwalValidationAlert({
@@ -68,32 +74,32 @@ const PostMSRR = ({ isOpen, onClose, userCode }) => {
 
   const pickDocAndBranch = (row) => {
   if (!row) return { docNo: null, branchCode: null };
-  const docNo = row.rrNo;
+  const docNo = row.rtvNo;
   const branchCode = row.branchCode;
   return { docNo, branchCode };
 };
 
 
   const handlePost = async (selectedData, userPw) => {
-    await useHandlePostTran(selectedData, userPw, "MSRR", userCode, setLoading, onClose);
+    await useHandlePostTran(selectedData, userPw, "MSRTV", userCode, setLoading, onClose);
   };
 
   const handleViewDocument = (row) => {
-    const { rrNo, branchCode } = pickDocAndBranch(row);
+    const { rtvNo, branchCode } = pickDocAndBranch(row);
 
-    if (!rrNo || !branchCode) {
+    if (!rtvNo || !branchCode) {
       useSwalValidationAlert({
         icon: "warning",
         title: "Missing keys",
-        message: "Cannot determine MSRR keys for viewing.",
+        message: "Cannot determine MSRTV keys for viewing.",
       });
       return;
     }
 
-    const MSRR_VIEW_URL = "/inventory/transactions/msrr";
+    const MSRTV_VIEW_URL = "/inventory/transactions/msrtv";
     const url =
-      `${window.location.origin}${MSRR_VIEW_URL}` +
-      `?rrNo=${encodeURIComponent(rrNo)}&branchCode=${encodeURIComponent(branchCode)}`;
+      `${window.location.origin}${MSRTV_VIEW_URL}` +
+      `?rtvNo=${encodeURIComponent(rtvNo)}&branchCode=${encodeURIComponent(branchCode)}`;
 
     window.open(url, "_blank", "noopener,noreferrer");
   };
@@ -104,7 +110,7 @@ const PostMSRR = ({ isOpen, onClose, userCode }) => {
         <GlobalGLPostingModalv1
           data={data}
           colConfigData={colConfigData}
-          title="Post MS Receiving"
+          title="Post MS Return to Vendor"
           userPassword={userPassword}
           btnCaption="Okay"
           onClose={onClose}
@@ -129,4 +135,4 @@ const PostMSRR = ({ isOpen, onClose, userCode }) => {
   );
 };
 
-export default PostMSRR;
+export default PostMSRTV;

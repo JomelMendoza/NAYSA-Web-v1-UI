@@ -49,6 +49,7 @@ import MSST from "./NAYSA Cloud/Module/Main Module/Inventory/MSST.jsx";
 import MSAJ from "./NAYSA Cloud/Module/Main Module/Inventory/MSAJ.jsx";
 import MSRTV from "./NAYSA Cloud/Module/Main Module/Inventory/MSRTV.jsx";
 import PostMSRR from "./NAYSA Cloud/Module/Main Module/Inventory/PostMSRR.jsx";
+import PostMSRTV from "./NAYSA Cloud/Module/Main Module/Inventory/PostMSRTV.jsx";
 
 // --- REFERENCE FILES ---
 import Company from "./NAYSA Cloud/Reference File/Company.jsx";
@@ -158,6 +159,7 @@ export const pageRegistry = {
   PostAPCM,
   PostAPDM,
   PostMSRR,
+  PostMSRTV,
 
   // Printing
   GLReportModal,

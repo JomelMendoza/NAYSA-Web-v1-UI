@@ -18,7 +18,7 @@ import SLMastLookupModal from "../../../Lookup/SearchSLMast.jsx";
 import CancelTranModal from "../../../Lookup/SearchCancelRef.jsx";
 import AttachDocumentModal from "../../../Lookup/SearchAttachment.jsx";
 import DocumentSignatories from "../../../Lookup/SearchSignatory.jsx";
-import PostSVI from "../Accounts Receivable/PostSVI.jsx";
+import PostMSRTV from "../Inventory/PostMSRTV.jsx";
 import AllTranHistory from "../../../Lookup/SearchGlobalTranHistory.jsx";
 import AllTranDocNo from "../../../Lookup/SearchDocNo.jsx";
 import GlobalLookupModalv1 from "../../../Lookup/SearchGlobalLookupv1.jsx";
@@ -2012,7 +2012,7 @@ return (
                     htmlFor="vendCode"
                     className="global-tran-floating-label"
                   >
-                    Payee Code <span className="text-red-500">*</span>
+                    <span className="text-red-500">* </span>Payee Code
                   </label>
                   <button
                     type="button"
@@ -2022,7 +2022,12 @@ return (
                         ? "global-tran-textbox-button-search-disabled-ui"
                         : "global-tran-textbox-button-search-enabled-ui"
                     } global-tran-textbox-button-search-ui`}
-                    onClick={() => updateState({ payeeLookupOpen: true })}
+                    // onClick={() => updateState({ payeeLookupOpen: true })}
+                    // disabled={isFormDisabled}
+                     onClick={() =>
+                       !isFormDisabled &&
+                       updateState({ payeeLookupOpen: true })
+                     }
                   >
                     <FontAwesomeIcon icon={faMagnifyingGlass} />
                   </button>
@@ -2039,13 +2044,14 @@ return (
                     onChange={(e) => updateState({ vendName: e.target.value })}
                     className="peer global-tran-textbox-ui"
                     disabled={isFormDisabled}
+                    readOnly={true}
                     onClick={() => updateState({ payeeLookupOpen: true })}
                   />
                   <label
                     htmlFor="vendName"
                     className="global-tran-floating-label"
                   >
-                    Payee Name <span className="text-red-500">*</span>
+                    <span className="text-red-500">* </span>Payee Name
                   </label>
                 </div>
                    
@@ -2075,7 +2081,7 @@ return (
                      htmlFor="WHcode"
                      className="global-tran-floating-label"
                    >
-                     Warehouse <span className="text-red-500">*</span>
+                     <span className="text-red-500">* </span>Warehouse 
                    </label>
                    <button
                      type="button"
@@ -2111,7 +2117,7 @@ return (
                      htmlFor="locName"
                      className="global-tran-floating-label"
                    >
-                     Location <span className="text-red-500">*</span>
+                     <span className="text-red-500">* </span>Location 
                    </label>
                    <button
                      type="button"
@@ -2148,7 +2154,7 @@ return (
                             className="peer global-tran-textbox-remarks-ui pt-2"
                             value={remarks}
                             onChange={(e) => updateState({ remarks: e.target.value })}
-                            // disabled={isFormDisabled}
+                            disabled={isFormDisabled}
                             maxLength={useGetFieldLength(tblFieldArray, "remarks")} 
                         />
                         <label
@@ -2188,7 +2194,7 @@ return (
               }`}
               // onClick={() => setGLActiveTab('invoice')}
             >
-              Invoice Details
+              Item Details
             </button>
           </div>
         </div>
@@ -3372,7 +3378,7 @@ return (
 
 
     {showPostingModal && (
-      <PostSVI
+      <PostMSRTV
         isOpen={showPostingModal}
         userCode={userCode}
         docType={docType}
