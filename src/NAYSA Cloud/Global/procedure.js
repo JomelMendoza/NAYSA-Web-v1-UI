@@ -119,7 +119,7 @@ export const useTransactionUpsert = async (docCode, glData, updateState, idKey, 
                 const wasNewDocCreated = !glData[idKey] && !!returnedId;
                 if (returnedErrorMsg && returnedErrorCount >0) {
                   useSwalValidationAlert({
-                        icon: "error",
+                        icon: "info",
                         title: "Save Failed",
                         message: returnedErrorMsg || "An error occurred while saving the Transaction"
                       });    
@@ -448,43 +448,23 @@ export const useHandlePostTran = async (
 
   try {
 
-    // 🔍 LOG what comes IN
-    console.group("📥 useHandlePostTran INPUT");
-    console.log("docCode:", docCode);
-    console.log("userCode:", userCode);
-    console.log("userPw:", userPw ? "✔️ provided" : "❌ missing");
-    console.log("selectedData (raw):", selectedData);
-    console.log("selectedData type:", Array.isArray(selectedData) ? "Array" : typeof selectedData);
-    console.groupEnd();
+ 
 
     const payload = {
-  userCode,
-  userPassword: userPw,
-  json_data: {
-    userCode,
-    dt1: (selectedData || []).map((row) => ({
-      rrId: row?.rrId || row?.groupId,   // ✅ extract ID only
-    })),
-  },
-};
+      userCode,
+      userPassword: userPw,
+      json_data: {
+        userCode,
+        dt1: selectedData.map((item, idx) => ({
+          lnNo: idx + 1, // number (safer for SQL)
+          groupId: item.groupId
+        })),
+      },
+    };
 
-
-    // 🚀 LOG what is being SENT
-    console.group("🚀 POST FINALIZE PAYLOAD");
-    console.log("endpoint:", "/finalize" + docCode);
-    console.log("payload object:", payload);
-    console.log("payload.json_data.dt1:", payload.json_data.dt1);
-    console.log("payload JSON string:", JSON.stringify(payload, null, 2));
-    console.groupEnd();
-
-    const { data: res } = await apiClient.post("/finalize" + docCode, payload);
-
-    // 📬 LOG what comes BACK
-    console.group("📬 FINALIZE RESPONSE");
-    console.log("raw response:", res);
-    console.log("success:", res?.success);
-    console.log("data:", res?.data);
-    console.groupEnd();
+    console.log(JSON.stringify(payload))
+ 
+    const { data: res } = await apiClient.post("/finalize"+docCode, payload);
 
     if (res?.success) {
       const postedSummary = res?.data?.[0]?.result ?? "No summary returned.";
@@ -496,6 +476,8 @@ export const useHandlePostTran = async (
       onClose?.();
       return;
     }
+
+
 
     // 200 but success=false
     Swal.fire("Posting failed", res?.message ?? "Finalize failed.", "error");

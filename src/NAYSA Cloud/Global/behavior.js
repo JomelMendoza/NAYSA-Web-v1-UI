@@ -34,7 +34,9 @@ export const useSwalValidationAlert = ({ icon = "info", title = "", message = ""
   Swal.fire({
     icon,
     title,
-    html: formattedMessage,
+    timer: 3000,
+    timerProgressBar: true, 
+    html: `<div style="text-align: left; padding: 0 10px;">${formattedMessage}</div>`,
     didOpen: () => {
       const popup = Swal.getPopup();
       if (popup) {
@@ -58,6 +60,30 @@ export const useSwalValidationAlert = ({ icon = "info", title = "", message = ""
     },
   });
 };
+
+
+
+export const useSwalvalidateRequiredFields = (fields, title) => {
+  let errors = [];
+  for (const [label, value] of Object.entries(fields)) {
+    if (!value || (Array.isArray(value) && value.length === 0)) {
+      errors.push(`- ${label}`);
+    }
+  }
+
+  if (errors.length > 0) {
+    const errorMessage = "The following fields are required:\n" + errors.join("\n");
+    useSwalValidationAlert({
+      icon: "info",
+      title: title,
+      message: errorMessage, 
+    });  
+    return false; 
+  }
+  return true; 
+};
+
+
 
 export const useSwalReturnSummary = ({ icon = "info", title = "", message = "" }) => {
   const formattedMessage = (message || "")
@@ -158,9 +184,16 @@ export const useSwalErrorAlert = (title = "Error!", message = "Something went wr
     icon: "error",
     title,
     text: message,
+    timer: 3000, // Time in milliseconds
+    timerProgressBar: true, // Optional: Shows a visual countdown bar
     customClass: {
       popup: "rounded-xl shadow-2xl",
     },
+    // Optional: ensures the timer stops if the user hovers over the alert
+    didOpen: (toast) => {
+      toast.onmouseenter = Swal.stopTimer;
+      toast.onmouseleave = Swal.resumeTimer;
+    }
   });
 };
 
@@ -169,34 +202,60 @@ export const useSwalSuccessAlert = (title = "Success!", message = "Operation com
     icon: "success",
     title,
     text: message,
+    timer: 3000,
+    timerProgressBar: true,
+    showConfirmButton: false, // Often used with timers to make it feel like a "toast"
     customClass: {
       popup: "rounded-xl shadow-2xl",
     },
+    didOpen: (toast) => {
+      toast.onmouseenter = Swal.stopTimer;
+      toast.onmouseleave = Swal.resumeTimer;
+    }
   });
 };
+
 
 export const useSwalWarningAlert = (title = "Warning!", message = "Please check your input.") => {
   return Swal.fire({
     icon: "warning",
     title,
     text: message,
+    timer: 3000,
+    timerProgressBar: true,
     confirmButtonText: "OK",
+    confirmButtonColor: "#f8bb86", // A standard warning orange for the button
     customClass: {
       popup: "rounded-xl shadow-2xl",
     },
+    didOpen: (toast) => {
+      toast.onmouseenter = Swal.stopTimer;
+      toast.onmouseleave = Swal.resumeTimer;
+    }
   });
 };
+
+
 
 export const useSwalInfoAlert = (title = "No data", message = "There is no data to export.") => {
   return Swal.fire({
     icon: "info",
     title,
     text: message,
+    timer: 3000,
+    timerProgressBar: true,
+    showConfirmButton: true, 
+    confirmButtonColor: "#3085d6", // Standard blue for Info alerts
     customClass: {
       popup: "rounded-xl shadow-2xl",
     },
+    didOpen: (toast) => {
+      toast.onmouseenter = Swal.stopTimer;
+      toast.onmouseleave = Swal.resumeTimer;
+    }
   });
 };
+
 
 export const useSwalDeleteConfirm = async (title = "Delete this item?", text = "", confirmText = "Yes, delete it") => {
   return await Swal.fire({
