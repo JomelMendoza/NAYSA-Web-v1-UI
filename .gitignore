@@ -1,19 +1,14 @@
-# dependencies
+# Node dependencies
 node_modules/
 
-# build
+# Vite
+.vite/
 dist/
 
-# vite cache
-.vite/
-
-# env files
+# Env files
 .env
 .env.*
 !.env.example
 
-# logs
+# Logs
 *.log
-
-# editor
-.vSCode/
