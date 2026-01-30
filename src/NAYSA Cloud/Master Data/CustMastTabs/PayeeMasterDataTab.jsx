@@ -459,7 +459,7 @@ const PayeeMasterDataTab = ({
       { key: "lastName", label: "Last Name", sortable: true, width: 140 },
       { key: col.tinKey, label: "TIN", sortable: true, width: 140 },
       { key: "address", label: "Address", sortable: true, width: 320 },
-      { key: col.zipKey, label: "ZIP Code", sortable: true, width: 110 },
+      // { key: col.zipKey, label: "ZIP Code", sortable: true, width: 110 },
       { key: "branchCode", label: "Branch Code", sortable: true, width: 120 },
     ];
   }, [col]);

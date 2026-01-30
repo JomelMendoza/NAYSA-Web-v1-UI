@@ -351,6 +351,17 @@ const COAMast = () => {
   // ✅ SearchGlobalReferenceTable columns
   const coaColumns = useMemo(
     () => [
+      
+      { key: "acctCode", label: "Account Code", sortable: true },
+      { key: "acctName", label: "Account Name", sortable: true },
+      { key: "acctType", label: "Account Type", sortable: true },
+      { key: "acctGroup", label: "Account Group", sortable: true },
+      { key: "acctBalance", label: "Account Balance", sortable: true },
+      { key: "reqSL", label: "SL Required", sortable: true },
+      { key: "reqRC", label: "RC Required", sortable: true },
+      { key: "classCode", label: "Account Classification", sortable: true },
+      { key: "oldCode", label: "Old Code", sortable: true },
+      { key: "active", label: "Active", sortable: true },
       {
         key: "__actions",
         label: "Actions",
@@ -384,16 +395,6 @@ const COAMast = () => {
           </div>
         ),
       },
-      { key: "acctCode", label: "Account Code", sortable: true },
-      { key: "acctName", label: "Account Name", sortable: true },
-      { key: "acctType", label: "Account Type", sortable: true },
-      { key: "acctGroup", label: "Account Group", sortable: true },
-      { key: "acctBalance", label: "Account Balance", sortable: true },
-      { key: "reqSL", label: "SL Required", sortable: true },
-      { key: "reqRC", label: "RC Required", sortable: true },
-      { key: "classCode", label: "Account Classification", sortable: true },
-      { key: "oldCode", label: "Old Code", sortable: true },
-      { key: "active", label: "Active", sortable: true },
     ],
     // important: include handlers used inside render
     // eslint-disable-next-line react-hooks/exhaustive-deps

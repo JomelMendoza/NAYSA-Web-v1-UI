@@ -610,13 +610,13 @@ useEffect(() => {
         <Card>
           <SectionHeader title="List" />
 
-          <div className="overflow-auto border border-gray-100 rounded-md">
-            <table className="min-w-full text-xs">
-              <thead className="bg-gray-50">
-                <tr className="text-gray-600">
+          <div className="overflow-auto border border-gray-100 rounded-md ">
+            <table className="min-w-full text-xs shadow-lg">
+              <thead className="bg-blue-200 border-b border-blue-300">
+                <tr className="text-blue-900">
                   <th className="text-left px-3 py-2 font-bold">Pay Term Code</th>
                   <th className="text-left px-3 py-2 font-bold">Pay Term Name</th>
-                  <th className="text-right px-3 py-2 font-bold">Due Days</th>
+                  <th className="text-left px-3 py-2 font-bold">Due Days</th>
                   {extraKey ? (
                     <th className="text-left px-3 py-2 font-bold">{extraColLabel || "AP Advances"}</th>
                   ) : null}
