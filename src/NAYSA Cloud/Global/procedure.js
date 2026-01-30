@@ -288,10 +288,6 @@ export const useUpdateRowEditEntries = async (row, field, value,currCode,currRat
 // global update of GL Entries per record
 export const useFetchTranData = async (documentNo,branchCode,docType,fieldName,direction='') => {
 
-  
-if ((!documentNo || !branchCode) && direction === '') {
-    throw new Error("Document No. or Branch Code missing.");
-  }
 
   const response = await fetchData(`get${docType}?${fieldName}=${documentNo}&branchCode=${branchCode}&direction=${direction}`);
   if (!response?.success || !response.data?.length) {
@@ -438,27 +434,57 @@ export async function useHandlePost(documentID, docCode) {
 
 
 
-//use global posting from Post Tran
-export const useHandlePostTran = async (selectedData, userPw,docCode,userCode,setLoading,onClose) => {
+// use global posting from Post Tran
+export const useHandlePostTran = async (
+  selectedData,
+  userPw,
+  docCode,
+  userCode,
+  setLoading,
+  onClose
+) => {
 
   setLoading(true);
 
   try {
 
-    const payload = {
-      userCode,
-      userPassword: userPw,
-      json_data: {
-        userCode,
-        dt1: selectedData.map((groupId, idx) => ({
-          lnNo: idx + 1, // number (safer for SQL)
-          groupId,
-        })),
-      },
-    };
+    // 🔍 LOG what comes IN
+    console.group("📥 useHandlePostTran INPUT");
+    console.log("docCode:", docCode);
+    console.log("userCode:", userCode);
+    console.log("userPw:", userPw ? "✔️ provided" : "❌ missing");
+    console.log("selectedData (raw):", selectedData);
+    console.log("selectedData type:", Array.isArray(selectedData) ? "Array" : typeof selectedData);
+    console.groupEnd();
 
- 
-    const { data: res } = await apiClient.post("/finalize"+docCode, payload);
+    const payload = {
+  userCode,
+  userPassword: userPw,
+  json_data: {
+    userCode,
+    dt1: (selectedData || []).map((row) => ({
+      rrId: row?.rrId || row?.groupId,   // ✅ extract ID only
+    })),
+  },
+};
+
+
+    // 🚀 LOG what is being SENT
+    console.group("🚀 POST FINALIZE PAYLOAD");
+    console.log("endpoint:", "/finalize" + docCode);
+    console.log("payload object:", payload);
+    console.log("payload.json_data.dt1:", payload.json_data.dt1);
+    console.log("payload JSON string:", JSON.stringify(payload, null, 2));
+    console.groupEnd();
+
+    const { data: res } = await apiClient.post("/finalize" + docCode, payload);
+
+    // 📬 LOG what comes BACK
+    console.group("📬 FINALIZE RESPONSE");
+    console.log("raw response:", res);
+    console.log("success:", res?.success);
+    console.log("data:", res?.data);
+    console.groupEnd();
 
     if (res?.success) {
       const postedSummary = res?.data?.[0]?.result ?? "No summary returned.";
@@ -475,14 +501,19 @@ export const useHandlePostTran = async (selectedData, userPw,docCode,userCode,se
     Swal.fire("Posting failed", res?.message ?? "Finalize failed.", "error");
 
   } catch (err) {
+
+    // ❌ LOG ERROR IN DETAIL
+    console.group("❌ FINALIZE ERROR");
+    console.error("error object:", err);
+    console.error("status:", err?.response?.status);
+    console.error("response data:", err?.response?.data);
+    console.groupEnd();
+
     const status = err?.response?.status;
     const data   = err?.response?.data || {};
     const code   = data.error || "";
     const msg    = data.message || "Something went wrong.";
 
-   
-
-    // --- Soft/business validation (do NOT logout) ---
     if (status === 422) {
       if (code === "INVALID_CREDENTIALS") {
         Swal.fire("Invalid password", msg || "Please try again.", "warning");
@@ -494,15 +525,15 @@ export const useHandlePostTran = async (selectedData, userPw,docCode,userCode,se
       }
     }
 
-    // --- True permission issues (still no auto-logout here; interceptor handles that globally) ---
     if (status === 403 && (code === "USER_INACTIVE" || code === "USER_MISMATCH")) {
-      const title = code === "USER_INACTIVE" ? "Blocked" : "Blocked";
-      const text  = code === "USER_INACTIVE" ? (msg || "User is inactive.") : "Authenticated user does not match userCode.";
-      Swal.fire(title, text, "warning");
+      const text =
+        code === "USER_INACTIVE"
+          ? (msg || "User is inactive.")
+          : "Authenticated user does not match userCode.";
+      Swal.fire("Blocked", text, "warning");
       return { success: false, code, message: text };
     }
 
-    // Unknown errors
     Swal.fire("Error", msg, "error");
     return { success: false, code: code || "UNKNOWN", message: msg };
 
@@ -510,6 +541,7 @@ export const useHandlePostTran = async (selectedData, userPw,docCode,userCode,se
     setLoading(false);
   }
 };
+
 
 
 

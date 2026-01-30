@@ -3,7 +3,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faTimes, faSpinner } from "@fortawesome/free-solid-svg-icons";
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 
-const LocationLookupModal = ({ isOpen, onClose, filter = "ActiveAll" }) => {
+const LocationLookupModal = ({ isOpen, onClose, filter = "ActiveAll", whCode = "" }) => {
   const [location, setLocation] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [filters, setFilters] = useState({ locCode: "", locName: "", whCode: "" });
@@ -21,8 +21,10 @@ const LocationLookupModal = ({ isOpen, onClose, filter = "ActiveAll" }) => {
     (async () => {
       setLoading(true);
       try {
+
+        const apiFilter = whCode ? `ByWH${whCode}` : filter;
         const { data: result } = await apiClient.get("location/lookupLocation", {
-          params: { filter },
+          params: { filter: apiFilter },
         });
 
         const rows =
@@ -71,6 +73,8 @@ const LocationLookupModal = ({ isOpen, onClose, filter = "ActiveAll" }) => {
   };
 
   if (!isOpen) return null;
+
+  
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 sm:p-6 lg:p-8 animate-fade-in">

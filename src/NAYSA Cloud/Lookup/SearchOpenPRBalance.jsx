@@ -83,12 +83,15 @@ const loadDetails = async () => {
       alert("Select at least one detail");
       return;
     }
-
-    onClose({
-      header,
-      details: selectedDetails
-    });
-  };
+    
+    const groupId =
+    header.GroupId || header.GROUP_ID || header.groupId || ""; 
+    
+  onClose({
+    header: { ...header, groupId },
+    details: selectedDetails.map(d => ({ ...d, groupId })),
+  });
+};
 
   useEffect(() => {
     if (!isOpen) return;

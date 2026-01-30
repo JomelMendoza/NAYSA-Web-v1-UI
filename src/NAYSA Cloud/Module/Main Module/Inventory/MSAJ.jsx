@@ -2355,7 +2355,7 @@ return (
                         onKeyDown={async (e) => {
                             if (e.key === "Enter") {
                                 e.preventDefault();
-                                const value = e.target.value;
+                                const value = e.target.value;   
                                 const num = parseFormattedNumber(value);
                                 if (!isNaN(num)) {
                                     await handleDetailChange(index, "quantity", num, true);
@@ -2365,7 +2365,7 @@ return (
                         }}
                     />
                 </td>
-
+                        
 
 
                 <td className="global-tran-td-ui">

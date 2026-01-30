@@ -32,6 +32,10 @@ import LocationLookupModal from "../../../Lookup/SearchLocation.jsx";
 import COAMastLookupModal from "../../../Lookup/SearchCOAMast.jsx";
 import SLMastLookupModal from "../../../Lookup/SearchSLMast.jsx";
 import ATCLookupModal from "../../../Lookup/SearchATCRef.jsx";
+import QstatLookupModal from "../../../Lookup/SearchQStatRef.jsx";
+import AllTranDocNo from "../../../Lookup/SearchDocNo.jsx";
+import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
+
 
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 
@@ -75,6 +79,11 @@ import {
   useSwalshowSaveSuccessDialog,
 } from "@/NAYSA Cloud/Global/behavior";
 
+import {
+  useGetCurrentDay,
+  useFormatToDate,
+} from '@/NAYSA Cloud/Global/dates';
+
 // Header
 import Header from "@/NAYSA Cloud/Components/Header";
 
@@ -87,6 +96,8 @@ const MSRR = (item) => {
   const { user } = useAuth();
 
   const [topTab, setTopTab] = useState("details"); // "details" | "history"
+
+  const [focusedCell, setFocusedCell] = useState(null); 
 
   const [state, setState] = useState({
     // HS Option / Currency
@@ -136,6 +147,7 @@ const MSRR = (item) => {
     attention: "",
     vendCode: "",
     vendName: "",
+    selectedWH: "",
 
     // Currency information (not used by sproc_PHP_PR but kept for UI consistency)
     currCode: "",
@@ -165,6 +177,8 @@ const MSRR = (item) => {
     payTerm: "",
     userCode: user?.USER_CODE || "NSI",
     selectedPOStatus: "",
+    selectedRowIndex: null,
+    showAllTranDocNo:false,
 
     // Detail lines (PR dt1)
     detailRows: [],
@@ -191,10 +205,12 @@ const MSRR = (item) => {
     specsTempText: "",
 
     // Warehouse / Location header values
-    WHcode: "", // keep same key you already destructure
-    WHname: "",
-    locCode: "",
-    locName: "",
+    WHCode: "", // keep same key you already destructure
+    WHName: "",
+    LocCode:"",
+    LocName:"",
+    decQty: 6,
+    decUcost: 6,
 
     // RC Lookup modal (table)
     rcLookupModalOpen: false,
@@ -203,6 +219,8 @@ const MSRR = (item) => {
     // Modal flags
     warehouseLookupOpen: false,
     locationLookupOpen: false,
+    accountModalSource: null,
+    showQstatModal:false,
 
     msLookupModalOpen: false,
     tblFieldArray: [],
@@ -245,6 +263,7 @@ const MSRR = (item) => {
     isFetchDisabled,
     poNo,
     selectedPOType,
+    selectedRowIndex,
 
     glCurrMode,
     glCurrDefault,
@@ -256,6 +275,7 @@ const MSRR = (item) => {
     defaultCurrRate,
     poStatus,
     RRDate,
+    accountModalSource,
 
     // Header
     branchCode,
@@ -263,6 +283,8 @@ const MSRR = (item) => {
     payTerm,
     WHcode,
     tblFieldArray,
+    decQty,
+    decUcost,
 
     // Responsibility Center
     rcCode,
@@ -281,6 +303,10 @@ const MSRR = (item) => {
 
     vendCode,
     vendName,
+    LocCode,
+  LocName,
+  WHCode,
+  WHName,
 
     poTranTypes,
     poTypes,
@@ -312,10 +338,12 @@ const MSRR = (item) => {
     showAttachModal,
     showSignatoryModal,
     showPostModal,
+    showQstatModal,
 
     // RC Lookup
     rcLookupModalOpen,
     rcLookupContext,
+    showAllTranDocNo,
 
     msLookupModalOpen,
   } = state;
@@ -427,227 +455,224 @@ const MSRR = (item) => {
     closeSpecsModal();
   };
 
-  const LoadingSpinner = () => (
-    <div className="global-tran-spinner-main-div-ui">
-      <div className="global-tran-spinner-sub-div-ui">
-        <FontAwesomeIcon
-          icon={faSpinner}
-          spin
-          size="2x"
-          className="text-blue-500 mb-2"
-        />
-        <p>Please wait...</p>
-      </div>
-    </div>
-  );
+
 
   // ==========================
   // INITIAL LOAD / RESET
   // ==========================
 
   const handleClosePOOpenModal = async (selection) => {
-    // closed without selection
-    if (!selection) {
-      updateState({ poLookupModalOpen: false });
-      return;
-    }
-
-    const { header, details } = selection;
-
-    const vendCodeFromDetail = details?.[0]?.VEND_CODE ?? "";
-
-    const vatCodes = [
-      ...new Set((details || []).map((d) => d.VAT_CODE).filter(Boolean)),
-    ];
-
-    const vatRatePairs = await Promise.all(
-      vatCodes.map(async (code) => [code, await fetchVatRate(code)]),
-    );
-
-    const vatRateMap = Object.fromEntries(vatRatePairs);
-
-    const vendNameFromDetail = details?.[0]?.VEND_NAME ?? ""; // if you later include it
-
-    // ✅ warehouse from PO header (hidden but fetched)
-    const whCode = header?.WhCode ?? header?.WH_CODE ?? header?.whCode ?? "";
-    const whName = header?.WhName ?? header?.WH_NAME ?? header?.whName ?? "";
-
-    // ✅ fetch location by warehouse
-    const locRow = await fetchLocationByWarehouse(whCode);
-    const locCode = locRow?.locCode || "";
-    const locName = locRow?.locName || "";
-
-    updateState({
-      poLookupModalOpen: false,
-      poNo: header?.PoNo || "",
-      branchCode: header?.BC || branchCode,
-      rcCode: header?.RcCode || rcCode,
-
-      // ✅ vendor from Header (VendCode/VendName), fallback to Detail (VEND_CODE)
-      vendCode:
-        header?.VendCode ?? header?.Vend_Code ?? vendCodeFromDetail ?? "",
-      vendName:
-        header?.VendName ?? header?.Vend_Name ?? vendNameFromDetail ?? "",
-
-      WHcode: header?.WhCode ?? header?.WH_CODE ?? header?.whCode ?? "",
-      WHname: header?.WhName ?? header?.WH_NAME ?? header?.whName ?? "",
-
-      // ✅ set location in MSRR header
-      locCode,
-      locName,
-    });
-
-    // 2) map selected PO detail lines into MSRR detailRows
-    const newRows = (details || []).map((r, idx) => {
-      const poQty = Number(r.PO_QUANTITY ?? 0);
-      const rrQty = Number(r.QTY_BALANCE ?? poQty - Number(r.RR_QTY ?? 0));
-      const unitCost = Number(r.UNIT_COST ?? 0);
-
-      const gross = Number(r.GROSS_AMOUNT ?? poQty * unitCost);
-      const discAmt = Number(r.DISC_AMOUNT ?? 0);
-      const vatAmt = Number(r.VAT_AMOUNT ?? 0);
-      const net = Number(r.NET_AMOUNT ?? gross - discAmt); // VAT may already be included depending on your design
-
-      const categ =
-        r.CATEG_CODE ??
-        r.categCode ??
-        r.categ_code ??
-        r.GROUP_ID ??
-        r.groupId ??
-        "";
-
-      return {
-        lN: Number(r.LINE_NO) || idx + 1,
-
-        // internal
-        invType: r.INV_TYPE || "",
-        poStatus: r.PO_STATUS || "",
-        groupId: categ,
-        categCode: categ,
-
-        // item
-        itemCode: r.ITEM_CODE || "",
-        itemName: r.ITEM_NAME || "",
-        itemSpecs: r.ITEM_SPECS || "",
-
-        uomCode: r.UOM_CODE || "",
-        uomCode2: r.UOM_CODE2 || "",
-        uomQty2: String(r.UOM_QTY2 ?? 0),
-
-        // quantities
-        poQty: String(poQty),
-        rrQty: String(rrQty),
-
-        // currency/costing
-        currCode: r.CURR_CODE || "PHP",
-        unitCost: String(unitCost),
-
-        // amounts
-        amount: String(r.ITEM_AMOUNT ?? gross), // Amount column
-        grossAmount: String(gross),
-        discRate: String(r.DISC_RATE ?? 0),
-        discAmount: String(discAmt),
-        vatCode: r.VAT_CODE || "",
-        vatAmount: String(vatAmt),
-        netAmount: String(net),
-
-        // date
-        dateNeeded: r.DEL_DATE ? String(r.DEL_DATE).substring(0, 10) : "",
-
-        vatCode: r.VAT_CODE || "",
-        vatRate:
-          vatRateMap?.[r.VAT_CODE] !== undefined
-            ? String(vatRateMap[r.VAT_CODE])
-            : "",
-
-        // if you have VAT rate ref table later
-        lotNo: "",
-        bbDate: "",
-        qcStatus: "",
-        whName: header?.WhName ?? header?.WH_NAME ?? header?.whName ?? "",
-        locName: locName, // ✅ use fetched location, not old state
-        freeQty: "0.000000",
-      };
-    });
-
-    updateState({ detailRows: newRows });
-  };
-
-  const fetchLocationByWarehouse = async (whCode) => {
-    if (!whCode) return null;
-
-    const payload = { json_data: { whCode } };
-    const res = await postRequest("location/getByWarehouse", payload);
-
-    if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
-      return res.data[0]; // { locCode, locName, ... }
-    }
-    return null;
-  };
-
-  useEffect(() => {
-  const whCode = state.WHcode;
-  if (!whCode) {
-    updateState({ locCode: "", locName: "" });
+  // closed without selection
+  if (!selection) {
+    updateState({ poLookupModalOpen: false });
     return;
   }
 
-  (async () => {
-    const locRow = await fetchLocationByWarehouse(whCode);
-    updateState({
-      locCode: locRow?.locCode ?? "",
-      locName: locRow?.locName ?? "",
-    });
-  })();
-}, [state.WHcode]);
+  const header = selection?.header || {};
+  const details = Array.isArray(selection?.details) ? selection.details : [];
+
+  const vendCodeFromDetail = details?.[0]?.VEND_CODE ?? details?.[0]?.vendCode ?? "";
+  const vendNameFromDetail = details?.[0]?.VEND_NAME ?? details?.[0]?.vendName ?? "";
+
+  // prefetch VAT rates for all vat codes used in details (optional but ok)
+  const vatCodes = [
+    ...new Set(details.map((d) => d?.VAT_CODE ?? d?.vatCode).filter(Boolean)),
+  ];
+  const vatRatePairs = await Promise.all(
+    vatCodes.map(async (code) => [code, await fetchVatRate(code)]),
+  );
+  const vatRateMap = Object.fromEntries(vatRatePairs);
+
+  // Header fields
+  updateState({
+    poLookupModalOpen: false,
+
+    poNo: header?.PoNo ?? header?.PO_NO ?? header?.poNo ?? "",
+    branchCode: header?.BC ?? header?.branchCode ?? branchCode,
+    rcCode: header?.RcCode ?? header?.RC_CODE ?? header?.rcCode ?? rcCode,
+
+    // Vendor from header then fallback to detail
+    vendCode:
+      header?.VendCode ??
+      header?.VEND_CODE ??
+      header?.vendCode ??
+      vendCodeFromDetail ??
+      "",
+    vendName:
+      header?.VendName ??
+      header?.VEND_NAME ??
+      header?.vendName ??
+      vendNameFromDetail ??
+      "",
+
+    // Warehouse from header (your sproc returns WhCode/WhName)
+    WHCode: header?.WhCode ?? header?.WH_CODE ?? header?.whCode ?? "",
+    WHName: header?.WhName ?? header?.WH_NAME ?? header?.whName ?? "",
+
+    // keep existing MSRR location header (PO open header has no loc in your sproc)
+    LocCode: state?.LocCode ?? "",
+    LocName: state?.LocName ?? "",
+  });
+
+  // Map PO detail -> MSRR detailRows (IMPORTANT: include groupId per line)
+  const newRows = details.map((r, idx) => {
+    const poQty = Number(r?.PO_QUANTITY ?? r?.poQty ?? 0);
+    const rrQty = Number(
+      r?.QTY_BALANCE ??
+        r?.qtyBalance ??
+        (poQty - Number(r?.RR_QTY ?? r?.rrQty ?? 0)),
+    );
+
+    const unitCost = Number(r?.UNIT_COST ?? r?.unitCost ?? 0);
+
+    const gross = Number(r?.GROSS_AMOUNT ?? r?.grossAmount ?? poQty * unitCost);
+    const discAmt = Number(r?.DISC_AMOUNT ?? r?.discAmount ?? 0);
+    const vatCode = String(r?.VAT_CODE ?? r?.vatCode ?? "").trim();
+    const vatAmt = Number(r?.VAT_AMOUNT ?? r?.vatAmount ?? 0);
+    const net = Number(r?.NET_AMOUNT ?? r?.netAmount ?? gross - discAmt);
+
+    const groupId = String(r?.GROUP_ID ?? r?.groupId ?? "").trim();
+    const categCode = String("BARCODE").trim();
+
+    const pickedVatRate = vatCode ? Number(vatRateMap[vatCode] ?? 0) : 0;
+
+    return {
+      lN: idx + 1,
+
+      // ✅ this is what your sproc consumes and inserts to MSRR_DT1.GROUP_ID
+      groupId,
+
+      invType: String(r?.INV_TYPE ?? r?.invType ?? "").trim(),
+
+      itemCode: String(r?.ITEM_CODE ?? r?.itemCode ?? "").trim(),
+      itemName: String(r?.ITEM_NAME ?? r?.itemName ?? "").trim(),
+      uomCode: String(r?.UOM_CODE ?? r?.uomCode ?? "").trim(),
+      itemSpecs: String(r?.ITEM_SPECS ?? r?.itemSpecs ?? "").trim(),
+      categCode,
+
+      // quantities
+      poQty: poQty,
+      rrQty: rrQty,
+      freeQty: 0,
+
+      // amounts
+      unitCost: unitCost,
+      grossAmt: gross,
+      discAmt: discAmt,
+      netAmt: net,
+      vatCode: vatCode,
+      vatAmt: vatAmt,
+      vatRate: pickedVatRate,
+
+      // optional refs
+      poLineNo: String(r?.LINE_NO ?? r?.poLineno ?? "").trim(),
+      currCode: String(r?.CURR_CODE ?? r?.currCode ?? state?.currCode ?? "").trim(),
+      whouseCode: String(r?.WH_CODE ?? r?.whCode ?? header?.WhCode ?? state?.WHCode ?? "").trim(),
+      locCode: String(r?.LOC_CODE ?? r?.locCode ?? state?.LocCode ?? "").trim(),
+    };
+  });
+
+  updateState({ detailRows: newRows });
+  updateTotalsDisplay(newRows); // keep your existing totals function
+};
+
+
+ useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "F1") { e.preventDefault(); updateState({showAllTranDocNo:true}); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  
 
 
   const handleReset = () => {
-    loadDocDropDown();
-    loadDocControl();
-    loadCompanyData();
+  loadDocDropDown();
+  loadDocControl();
+  loadCompanyData();
 
-    const today = new Date().toISOString().split("T")[0];
+  const today = new Date().toISOString().split("T")[0];
 
-    updateState({
-      header: { rr_date: today },
-      branchCode: "HO",
-      branchName: "Head Office",
-      cutoffCode: "",
-      poNo: "",
-      drNo: "",
-      siNo: "",
-      rcCode: "",
-      rcName: "",
-      reqRcCode: "",
-      reqRcName: "",
-      vendCode: "",
-      vendName: "",
-      dateNeeded: today, // <-- DEFAULT TO TODAY
-      refPoNo1: "",
-      refPrNo2: "",
-      remarks: "",
-      documentNo: "",
-      documentID: "",
-      documentStatus: "",
-      activeTab: "basic",
-      isLoading: false,
-      showSpinner: false,
-      isDocNoDisabled: false,
-      isSaveDisabled: false,
-      isResetDisabled: false,
-      isFetchDisabled: false,
-      status: "OPEN",
-      noReprints: "0",
-      poCancelled: "",
-      detailRows: [],
-      rcLookupModalOpen: false,
-      rcLookupContext: "",
-      msLookupModalOpen: false,
-    });
+  updateState({
+    // ======================
+    // HEADER
+    // ======================
+    header: { rr_date: today },
 
-    updateTotalsDisplay(0);
-  };
+    branchCode: "HO",
+    branchName: "Head Office",
+    cutoffCode: "",
+    poNo: "",
+
+    drNo: "",
+    siNo: "",
+    siDate: null,              // ✅ CLEAR SI DATE
+
+    rcCode: "",
+    rcName: "",
+    reqRcCode: "",
+    reqRcName: "",
+
+    vendCode: "",
+    vendName: "",
+
+    // ======================
+    // WAREHOUSE / LOCATION
+    // ======================
+    WHCode: "",                // ✅ CLEAR HEADER WH
+    WHName: "",
+    LocCode: "",               // ✅ CLEAR HEADER LOCATION
+    LocName: "",
+    selectedWH: "",
+
+    // ======================
+    // DOCUMENT INFO
+    // ======================
+    documentNo: "",
+    documentID: "",
+    documentStatus: "",
+    status: "OPEN",
+
+    dateNeeded: today,
+    refPoNo1: "",
+    refPrNo2: "",
+    remarks: "",
+    noReprints: "0",
+    poCancelled: "",
+
+    // ======================
+    // UI FLAGS
+    // ======================
+    activeTab: "basic",
+    isLoading: false,
+    showSpinner: false,
+    isDocNoDisabled: false,
+    isSaveDisabled: false,
+    isResetDisabled: false,
+    isFetchDisabled: false,
+
+    // ======================
+    // DETAILS
+    // ======================
+    detailRows: [],            // DT1
+    detailRowsGL: [],          // ✅ CLEAR GENERAL LEDGER (DT2)
+
+    // ======================
+    // MODALS
+    // ======================
+    rcLookupModalOpen: false,
+    rcLookupContext: "",
+    msLookupModalOpen: false,
+    warehouseLookupOpen: false,
+    locationLookupOpen: false,
+    accountModalSource: "",
+  });
+
+  updateTotalsDisplay(0);
+};
+
 
   const handleOpenVatLookup = (rowIndex) => {
     if (isFormDisabled) return;
@@ -662,7 +687,7 @@ const MSRR = (item) => {
     if (!vat || rowIndex === null || rowIndex === undefined) return;
 
     const updatedRows = [...detailRows];
-    const row = { ...updatedRows[rowIndex] };
+    let row = { ...updatedRows[rowIndex] };
 
     // set VAT code always
     row.vatCode = vat?.vatCode || "";
@@ -804,144 +829,159 @@ const MSRR = (item) => {
     }
   };
 
+    const LoadingSpinner = () => (
+    <div className="global-tran-spinner-main-div-ui">
+      <div className="global-tran-spinner-sub-div-ui">
+        <FontAwesomeIcon
+          icon={faSpinner}
+          spin
+          size="2x"
+          className="text-blue-500 mb-2"
+        />
+        <p>Please wait...</p>
+      </div>
+    </div>
+  );
+
   // ==========================
   // FETCH (GET) – PR HEADER + DT1
   // ==========================
 
-  const fetchTranData = async (rrNo, _branchCode) => {
-    const resetState = () => {
-      updateState({
-        documentNo: "",
-        documentID: "",
-        isDocNoDisabled: false,
-        isFetchDisabled: false,
-      });
-      updateTotalsDisplay(0);
-    };
-
+  const fetchTranData = async (rrNo, branchCode, direction = "") => {
+  try {
     updateState({ isLoading: true });
 
-    try {
-      const res = await useFetchTranData(rrNo, _branchCode, docType, "rrNo");
+    const resp = await apiClient.get("/getMSRR", {
+      params: {
+        branchCode,
+        rrNo,
+        direction, // F/P/N/L or ''
+      },
+    });
 
-      // ✅ handle Laravel format: { success:true, data:[{ result:"{...}" }] }
-      let data = res;
-      if (res?.success && Array.isArray(res?.data)) {
-        const raw = res.data?.[0]?.result;
-        data = raw ? JSON.parse(raw) : null;
-      }
+    const row = resp?.data?.data?.[0];
+    const jsonStr = row?.result ?? row?.RESULT ?? row?.JsonResult ?? null;
 
-      // ✅ RR "not found" must check rrHdId (or rrNo)
-      if (!data?.rrHdId) {
-        Swal.fire({
-          icon: "info",
-          title: "No Records Found",
-          text: "Transaction does not exist.",
-        });
-        return resetState();
-      }
-
-      const rrDateForHeader = data.rrDate
-        ? new Date(data.rrDate).toISOString().split("T")[0]
-        : "";
-
-      // ✅ Map RR dt1 -> your table expects rrQty field
-      const retrievedDetailRows = (data.dt1 || []).map((item, idx) => ({
-        lineNo: item.lN ?? String(idx + 1),
-
-        // references
-        prNo: item.prNo ?? "",
-        LineNo: item.LineNo ?? "",
-        poNo: item.poNo ?? "",
-        poLineNo: item.poLineNo ?? "",
-
-        rcCode: item.rcCode ?? "",
-        invType: item.invType ?? "",
-
-        itemCode: item.itemCode ?? "",
-        itemName: item.itemName ?? "",
-        uomCode: item.uomCode ?? "",
-
-        // ✅ RR quantity from backend is rrQuantity
-        rrQty: formatNumber(item.rrQuantity ?? 0, 6),
-        whName: item.whouseCode ?? "", // ✅ so details show something
-        locName: item.locCode ?? "",
-
-        // optional other amounts if your grid shows them
-        unitCost: formatNumber(item.unitCost ?? 0, 6),
-        grossAmount: formatNumber(item.grossAmount ?? 0, 2),
-        discRate: formatNumber(item.discRate ?? 0, 2),
-        discAmount: formatNumber(item.discAmount ?? 0, 2),
-        netAmount: formatNumber(item.netAmount ?? 0, 2),
-        vatCode: item.vatCode ?? "",
-        vatAmount: formatNumber(item.vatAmount ?? 0, 2),
-        itemAmount: formatNumber(item.itemAmount ?? 0, 2),
-
-        itemSpecs: item.itemSpecs ?? "",
-        lotNo: item.lotNo ?? "",
-        bbDate: item.bbDate
-          ? new Date(item.bbDate).toISOString().split("T")[0]
-          : "",
-        qstatCode: item.qstatCode ?? "",
-
-        whouseCode: item.whouseName ?? "",
-        locCode: item.locName ?? "",
-      }));
-
-      // ✅ total should be RR qty (not qtyNeeded)
-      const totalRRQty = retrievedDetailRows.reduce(
-        (acc, r) => acc + (parseFormattedNumber(r.rrQty) || 0),
-        0,
-      );
-      updateTotalsDisplay(totalRRQty);
-
-      // ✅ Update state using RR keys
-      updateState({
-        documentStatus: data.status ?? "OPEN",
-        status: data.status ?? "OPEN",
-
-        documentID: data.rrHdId,
-        documentNo: data.rrNo,
-
-        branchCode: data.branchCode ?? _branchCode,
-
-        header: {
-          rr_date: rrDateForHeader,
-        },
-
-        vendCode: data.vendCode ?? "",
-        vendName: data.vendName ?? "",
-        poNo: data.poNo ?? "",
-        drNo: data.drNo ?? "",
-        siNo: data.siNo ?? "",
-        currCode: data.currCode ?? "PHP",
-        currRate: formatNumber(data.currRate ?? 1, 6),
-
-        WHcode: data.whouseCode ?? "",
-        WHname: data.whouseCode ?? "", // ✅ fallback display
-        locCode: data.locCode ?? "",
-        locName: data.locCode ?? "",
-
-        remarks: data.remarks ?? "",
-        noReprints: data.noReprints ?? "0",
-
-        detailRows: retrievedDetailRows,
-
-        isDocNoDisabled: true,
-        isFetchDisabled: true,
-      });
-    } catch (error) {
-      console.error("Error fetching transaction data:", error);
-      Swal.fire({
-        icon: "error",
-        title: "Fetch Error",
-        text: error.message,
-      });
-      resetState();
-    } finally {
+    if (!jsonStr) {
       updateState({ isLoading: false });
+      return;
     }
-  };
+
+    const parsed = typeof jsonStr === "string" ? JSON.parse(jsonStr) : jsonStr;
+
+    if (!parsed || !parsed.rrId) {
+      updateState({ isLoading: false });
+      return;
+    }
+
+    // -----------------------------
+    // HEADER (MSRR)
+    // -----------------------------
+    updateState({
+      documentNo: parsed.rrNo || "",
+      documentID: parsed.rrId || "",
+      documentDate: parsed.rrDate || null,
+      cutoffCode: parsed.cutoffCode || "",
+
+      poNo: parsed.poNo || "",
+      prNo: parsed.prNo || "",
+
+      vendCode: parsed.vendCode || "",
+      vendName: parsed.vendName || "",
+
+      WHcode: parsed.whCode || "",
+      LocCode: parsed.locCode || "",
+
+      drNo: parsed.drNo || "",
+      siNo: parsed.siNo || "",
+      siDate: parsed.siDate || null,
+
+      vatCode: parsed.vatCode || "",
+      rrAmount: parsed.rrAmount ?? 0,
+      rrVat: parsed.rrVat ?? 0,
+
+      refDocNo1: parsed.refrrNo1 || "",
+      refDocNo2: parsed.refrrNo2 || "",
+
+      remarks: parsed.remarks || "",
+      documentStatus: parsed.rrStatus || "",
+    });
+
+    const rrStat = String(parsed.rrStatus || "").toUpperCase();
+
+updateState({
+  documentStatus: rrStat,
+
+  // ✅ this drives the header "Transaction Status"
+  status:
+    rrStat === "F" ? "FINALIZED" :
+    rrStat === "X" ? "CANCELLED" :
+    rrStat === "C" ? "CLOSED" :
+    "OPEN",
+});
+
+    
+
+    const dt1 = Array.isArray(parsed.dt1) ? parsed.dt1 : [];
+
+    const vatCodes = [...new Set(dt1.map(d => d.vatCode).filter(Boolean))];
+    const vatRatePairs = await Promise.all(vatCodes.map(async code => [code, await fetchVatRate(code)]));
+    const vatRateMap = Object.fromEntries(vatRatePairs);
+
+    const mappedDT1 = dt1.map((r, idx) => ({
+      lN: Number(r.lnNo ?? idx + 1),
+
+      itemCode: r.itemNo || "",
+      itemName: r.itemName || "",      
+      itemSpecs: r.itemSpecs || "",
+
+      rrQty: String(r.quantity ?? 0),
+      freeQty: String(r.freeQuantity ?? 0),
+
+      amount: String(r.itemAmount ?? 0),
+      vatCode: r.vatCode || "",
+      vatRate: String(vatRateMap[r.vatCode] ?? 0),
+      vatAmount: String(r.vatAmount ?? 0),
+
+      qsCode: r.qsCode || "",
+      whCode: r.whCode || "",
+      locCode: r.locCode || "",
+
+      uomCode: r.uomCode || "",
+      unitCost: String(r.unitCost ?? 0),
+      netAmount: String(r.netAmount ?? 0),
+      lotNo: r.lotNo || "",
+      controlNo: r.controlNo || "",
+    }));
+
+    const dt2 = Array.isArray(parsed.dt2) ? parsed.dt2 : [];
+    const mappedDT2 = dt2.map((g, i) => ({
+      id: i + 1,
+      recNo: g.recNo || "",
+      acctCode: g.acctCode || "",
+      rcCode: g.rcCode || "",
+      sltypeCode: g.sltypeCode || "",
+      slCode: g.slCode || "",
+      particular: g.particular || "",
+      debit: Number(g.debit ?? 0),
+      credit: Number(g.credit ?? 0),
+      vatCode: g.vatCode || "",
+      atcCode: g.atcCode || "",
+      dt1Lineno: g.dt1Lineno || "",
+    }));
+
+    updateState({
+      detailRows: mappedDT1,
+      detailRowsGL: mappedDT2,
+    });
+
+  } catch (e) {
+    console.error("fetchTranData error:", e);
+  } finally {
+    updateState({ isLoading: false });
+  }
+};
+
 
   const handleCloseMSLookup = (selectedItem) => {
     if (!selectedItem) {
@@ -953,7 +993,7 @@ const MSRR = (item) => {
 
     const newRow = {
       invType: "MS",
-      groupId: selectedItem.categCode || "",
+      groupId: "",
       poStatus: status || "",
       itemCode: selectedItem.itemCode || "",
       itemName: selectedItem.itemName || "",
@@ -1114,32 +1154,111 @@ const MSRR = (item) => {
   };
 
   const handleCloseWarehouseLookup = (row) => {
-    if (!row) {
-      updateState({ warehouseLookupOpen: false });
-      return;
+    if (row) {
+      accountModalSource
+        ? handleDetailChange(selectedRowIndex, 'whouseCode', row, false)
+        : updateState({
+            WHCode: row.whCode,
+            WHName: row.whName,
+            LocCode: "", 
+            LocName: ""
+          });
+      
+  
+      const hasDetails = detailRows && detailRows.length > 0;
+      if (!accountModalSource && hasDetails) {
+        
+        Swal.fire({
+          title: 'Apply to Details?',
+          text: "Do you want to apply this Warehouse to all detail items?",
+          icon: 'info',
+          showCancelButton: true,
+          confirmButtonText: 'Yes, update all',
+          cancelButtonText: 'No, header only'
+        }).then((result) => {
+          if (result.isConfirmed) {
+            const updatedDetails = detailRows.map((item) => ({
+              ...item,
+              whouseCode: row.whCode,
+              LocCode: "",
+            }));
+            updateState({ detailRows: updatedDetails });
+          }
+        });
+      }
     }
-
-    updateState({
-      warehouseLookupOpen: false,
-      WHcode: row?.whCode ?? "",
-      WHname: row?.whName ?? "",
-    });
+    
+    updateState({ warehouseLookupOpen: false,accountModalSource:"" });
   };
 
   const handleCloseLocationLookup = (row) => {
-    if (!row) {
-      updateState({ locationLookupOpen: false });
-      return;
-    }
+  if (row) {
+    const pickedLocCode = row.locCode ?? row.LocCode ?? "";
+    const pickedLocName = row.locName ?? row.LocName ?? "";
 
-    updateState({
-      locationLookupOpen: false,
-      locCode: row?.locCode ?? "",
-      locName: row?.locName ?? "",
-      // optional: if you want to auto-set WH based on selected location:
-      // WHcode: row?.whCode ?? state.WHcode,
-    });
-  };
+    // If Location lookup is opened from DETAIL row (accountModalSource = "LocCode")
+    if (accountModalSource) {
+      const updated = [...(detailRows || [])];
+      const idx = selectedRowIndex;
+
+      if (idx !== null && idx !== undefined && idx >= 0) {
+        updated[idx] = {
+          ...updated[idx],
+          LocCode: pickedLocCode,
+          locName: pickedLocName, // optional display name if you want it
+        };
+        updateState({ detailRows: updated });
+      }
+    } else {
+      // Header location
+      updateState({
+        LocCode: pickedLocCode,
+        LocName: pickedLocName,
+      });
+
+      // Apply to all details prompt
+      const hasDetails = detailRows && detailRows.length > 0;
+      if (hasDetails) {
+        Swal.fire({
+          title: "Apply to Details?",
+          text: "Do you want to apply this Location to all detail items?",
+          icon: "info",
+          showCancelButton: true,
+          confirmButtonText: "Yes, update all",
+          cancelButtonText: "No, header only",
+        }).then((result) => {
+          if (result.isConfirmed) {
+            const updatedDetails = detailRows.map((item) => ({
+              ...item,
+              LocCode: pickedLocCode,
+              locName: pickedLocName,
+            }));
+            updateState({ detailRows: updatedDetails });
+          }
+        });
+      }
+    }
+  }
+
+  updateState({
+    locationLookupOpen: false,
+    selectedWH: "",
+    accountModalSource: "",
+  });
+};
+
+  const handleCloseQStatLookup = (picked) => {
+  if (picked && selectedRowIndex !== null && selectedRowIndex !== undefined) {
+    const code = picked?.qstatCode ?? picked?.QSTAT_CODE ?? "";
+    const name = picked?.qstatName ?? picked?.QSTAT_NAME ?? "";
+
+    handleDetailChange(selectedRowIndex, "qstatCode", code, { qstatName: name });
+  }
+
+  updateState({ showQstatModal: false });
+};
+
+
 
   const recalcMSRRRow = (row) => {
     const rrQty = parseFormattedNumber(row.rrQty || 0);
@@ -1166,29 +1285,115 @@ const MSRR = (item) => {
     };
   };
 
-  const handleDetailChange = (index, field, value) => {
-    const updatedRows = [...detailRows];
-    let row = { ...updatedRows[index] };
+  const handleDetailChange = async (index, field, value, extraData = {}) => {
+  const rows = Array.isArray(detailRows) ? detailRows : [];
+  const updatedRows = [...rows];
 
-    if (["rrQty", "freeQty", "unitCost", "vatRate"].includes(field)) {
-      row[field] = value.replace(/[^0-9.]/g, "");
-    } else {
-      row[field] = value;
-    }
+  // ✅ guard: invalid index or row not found
+  if (index === null || index === undefined || index < 0 || !updatedRows[index]) return;
 
-    // ✅ recompute amounts EXCLUDING free quantity
-    row = recalcMSRRRow(row);
+  // clone row (so we never mutate state directly)
+  let row = { ...updatedRows[index] };
 
-    updatedRows[index] = row;
-    updateState({ detailRows: updatedRows });
+  // ✅ helper: replicate header row (index 0) to blank rows only
+  const autoFillBlanks = async (fieldName, newValue, extra = {}) => {
+    // replicate ONLY when editing first row
+    if (index !== 0) return;
 
-    // ✅ totals should count ONLY RR qty (not free)
-    const totalRRQty = updatedRows.reduce(
-      (acc, r) => acc + parseFormattedNumber(r.rrQty || 0),
-      0,
+    const hasBlanks = updatedRows.some(
+      (r, i) =>
+        i !== 0 &&
+        (!r?.[fieldName] || String(r[fieldName]).trim() === "")
     );
-    updateTotalsDisplay(totalRRQty);
+
+    if (!hasBlanks) return;
+
+    const fieldLabels = {
+      acctCode: "Account Code",
+      rcCode: "RC Code",
+      slCode: "SL Code",
+      whouseCode: "Warehouse",
+      LocCode: "Location",
+      qstatCode: "Quality Status",
+    };
+
+    const result = await Swal.fire({
+      title: "Replicate Data?",
+      text: `Do you want to copy this ${fieldLabels[fieldName] || fieldName} to all blank rows?`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#3085d6",
+      cancelButtonColor: "#d33",
+      confirmButtonText: "Yes, copy it!",
+      cancelButtonText: "No",
+    });
+
+    if (!result.isConfirmed) return;
+
+    updatedRows.forEach((r, i) => {
+      if (i === 0) return;
+
+      const cur = updatedRows[i] || {};
+      const isBlank = !cur[fieldName] || String(cur[fieldName]).trim() === "";
+
+      if (isBlank) {
+        updatedRows[i] = {
+          ...cur,
+          [fieldName]: newValue,
+          ...extra,
+        };
+      }
+    });
+
+    updateState({ detailRows: [...updatedRows] });
   };
+
+  // ✅ normalize lookup objects (just in case someone passes the whole row object)
+  let normalizedValue = value;
+
+  if (value && typeof value === "object") {
+    // common lookup patterns
+    if (field === "qstatCode") normalizedValue = value.qstatCode ?? value.QSTAT_CODE ?? "";
+    if (field === "LocCode") normalizedValue = value.locCode ?? value.LOC_CODE ?? "";
+    if (field === "whouseCode") normalizedValue = value.whCode ?? value.WH_CODE ?? value.whouseCode ?? "";
+    if (field === "acctCode") normalizedValue = value.acctCode ?? value.ACCT_CODE ?? "";
+    if (field === "rcCode") normalizedValue = value.rcCode ?? value.RC_CODE ?? "";
+    if (field === "slCode") normalizedValue = value.slCode ?? value.SL_CODE ?? "";
+  }
+
+  // ✅ numeric fields sanitize
+  if (["rrQty", "freeQty", "unitCost", "vatRate"].includes(field)) {
+    row[field] = String(normalizedValue ?? "").replace(/[^0-9.]/g, "");
+  } else {
+    row[field] = normalizedValue ?? "";
+  }
+
+  // ✅ apply any extra lookup fields (names, etc.)
+  if (extraData && typeof extraData === "object") {
+    row = { ...row, ...extraData };
+  }
+
+  // ✅ recompute amounts only when needed
+  if (["rrQty", "freeQty", "unitCost", "vatRate"].includes(field)) {
+    row = recalcMSRRRow(row);
+  }
+
+  updatedRows[index] = row;
+  updateState({ detailRows: updatedRows });
+
+  // ✅ replicate only for header-like fields (codes)
+  if (["acctCode", "rcCode", "slCode", "whouseCode", "LocCode", "qstatCode"].includes(field)) {
+    await autoFillBlanks(field, row[field], extraData);
+  }
+
+  // ✅ totals should count ONLY RR qty (not free)
+  const totalRRQty = updatedRows.reduce(
+    (acc, r) => acc + parseFormattedNumber(r?.rrQty || 0),
+    0
+  );
+  updateTotalsDisplay(totalRRQty);
+};
+
 
   const totalDebitGL = (state.detailRowsGL || []).reduce(
     (sum, r) => sum + parseFormattedNumber(r?.debit || 0),
@@ -1202,9 +1407,32 @@ const MSRR = (item) => {
 
   const diffGL = totalDebitGL - totalCreditGL;
 
-  // ==========================
-  // SAVE / UPSERT (PR + DT1)
-  // ==========================
+ const handleDocNoBlur = () => {
+
+    if (!state.documentID && state.documentNo && state.branchCode) { 
+        fetchTranData(state.documentNo,state.branchCode);
+    }
+};
+
+const handleApplyAllWarehouseLocation = (whCode, locCode) => {
+  // update header
+  updateState({
+    whCode,
+    locCode,
+  });
+
+  // 🔥 propagate to detail rows
+  const updatedRows = detailRows.map((row) => ({
+    ...row,
+    whCode,
+    locCode,
+  }));
+
+  updateState({
+    detailRows: updatedRows,
+  });
+};
+
   // ==========================
   // SAVE / UPSERT (MSRR + DT1 + DT2)
   // ==========================
@@ -1245,8 +1473,8 @@ const MSRR = (item) => {
         branchCode: state.branchCode,
 
         // NEW vs EDIT
-        rrNo: isNew ? "" : state.documentNo || "",
-        rrHdId: isNew ? "" : state.documentID || "",
+        rrNo: documentNo || "",
+        rrHdId: documentID || "",
 
         rrDate:
           header?.rr_date ||
@@ -1265,7 +1493,7 @@ const MSRR = (item) => {
         currRate: Number(state.currRate || 1),
 
         whouseCode: state.WHcode || "",
-        locCode: state.locCode || "",
+        LocCode: state.LocCode || "",
 
         remarks: state.remarks || "",
         userCode: state.userCode || "",
@@ -1280,8 +1508,10 @@ const MSRR = (item) => {
 
           rrQuantity: parseFormattedNumber(r.rrQty || 0),
           quantity: parseFormattedNumber(r.rrQty || 0), // SP loads $.quantity
-          whCode: r.whCode || state.WHcode || "",
-          locCode: r.locCode || state.locCode || "",
+          whCode: r.whCode || state.WHCode || "",
+          LocCode: r.LocCode || state.LocCode || "",
+
+          groupId: r.groupId || "",
 
           itemName: r.itemName || "",
           uomCode: r.uomCode || "",
@@ -1307,7 +1537,7 @@ const MSRR = (item) => {
           poBalance: parseFormattedNumber(r.poBalance || 0),
 
           itemSpecs: r.itemSpecs || "",
-          categCode: r.categCode || "",
+          categCode: "BARCODE",
         })),
 
         // DT2 (GL)
@@ -1342,6 +1572,7 @@ const MSRR = (item) => {
         return;
       }
 
+        console.log("MSRR upsert response:", docType, glData, updateState);
       // ================
       // UPSERT / SAVE
       // ================
@@ -1350,10 +1581,12 @@ const MSRR = (item) => {
           docType,
           glData,
           updateState,
-          "rrHdId",
-          "rrNo",
+          'rrHdId',
+          'rrNo',
         );
 
+
+        console.log("MSRR upsert response:", res);
         // normalize row (supports: array, axios response, unwrapped response)
         const row =
           (Array.isArray(res) ? res?.[0] : null) ??
@@ -1376,16 +1609,6 @@ const MSRR = (item) => {
         // accept common key variants
         const savedId = row?.rrHdId || row?.rrId || row?.rr_id || "";
         const savedNo = row?.rrNo || row?.rr_no || "";
-
-        if (!savedId || !savedNo) {
-          console.error("MSRR Upsert response (no rrHdId/rrNo):", res);
-          Swal.fire({
-            icon: "error",
-            title: "Save Failed",
-            text: "Upsert did not return rrHdId / rrNo. Please check API response.",
-          });
-          return;
-        }
 
         // reflect auto-generated RR No / RR ID in UI
         updateState({
@@ -1636,6 +1859,19 @@ const MSRR = (item) => {
     branch: branchCode,
     doc_id: docType,
   };
+
+  const handleTranDocNoRetrieval = async (data) => {
+  await fetchTranData(data.docNo, data.branchCode || branchCode, data.key);
+  updateState({ showAllTranDocNo: data.modalClose });
+};
+
+
+
+const handleTranDocNoSelection = async (data) => {
+    
+    handleReset();
+    updateState({showAllTranDocNo: false, documentNo:data.docNo });
+};
 
   // ==========================
   // MODAL CLOSE HANDLERS
@@ -1915,48 +2151,38 @@ const MSRR = (item) => {
                   </button>
                 </div>
 
-                {/* PR No */}
+                {/* MSRR No */}
                 <div className="relative">
-                  <input
-                    type="text"
-                    id="poNo"
-                    value={state.documentNo}
-                    onChange={(e) =>
-                      updateState({ documentNo: e.target.value })
-                    }
-                    onBlur={handlePrNoBlur}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        document.getElementById("PRDate")?.focus();
-                      }
-                    }}
-                    placeholder=" "
-                    className={`peer global-tran-textbox-ui ${
-                      state.isDocNoDisabled
-                        ? "bg-blue-100 cursor-not-allowed"
-                        : ""
-                    }`}
-                    disabled={state.isDocNoDisabled}
-                  />
-                  <label htmlFor="poNo" className="global-tran-floating-label">
-                    MSRR NO.
+                        <input
+                            type="text"
+                            id="msrrNo"
+                            value={state.documentNo}
+                            onChange={(e) => updateState({ documentNo: e.target.value })}
+                            // onBlur={handleDocNoBlur}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                handleDocNoBlur();
+                                e.preventDefault(); 
+                                document.getElementById("rrDate")?.focus();
+                              }}}
+                            placeholder=" "
+                            className={`peer global-tran-textbox-ui ${state.isDocNoDisabled ? 'bg-blue-100 cursor-not-allowed' : ''}`}
+                            disabled={state.isDocNoDisabled}
+                        />
+                        <label htmlFor="msrrNo" className="global-tran-floating-label">
+                    MSRR No.
                   </label>
                   <button
-                    className={`global-tran-textbox-button-search-padding-ui ${
-                      state.isFetchDisabled || state.isDocNoDisabled
-                        ? "global-tran-textbox-button-search-disabled-ui"
-                        : "global-tran-textbox-button-search-enabled-ui"
-                    } global-tran-textbox-button-search-ui`}
-                    disabled={state.isFetchDisabled || state.isDocNoDisabled}
-                    onClick={() => {
-                      if (!state.isDocNoDisabled) {
-                        fetchTranData(state.documentNo, state.branchCode);
-                      }
-                    }}
-                  >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} />
-                  </button>
+                            className={`global-tran-textbox-button-search-padding-ui ${
+                                (state.isFetchDisabled || state.isDocNoDisabled)
+                                ? "global-tran-textbox-button-search-disabled-ui"
+                                : "global-tran-textbox-button-search-enabled-ui"
+                            } global-tran-textbox-button-search-ui`}
+                            // disabled={state.isFetchDisabled || state.isDocNoDisabled}
+                            onClick={() => {updateState({showAllTranDocNo:true})}}
+                        >
+                            <FontAwesomeIcon icon={faMagnifyingGlass} />
+                        </button>
                 </div>
 
                 {/* PR Date */}
@@ -1992,7 +2218,7 @@ const MSRR = (item) => {
                     className="peer global-tran-textbox-ui"
                   />
                   <label htmlFor="poNo" className="global-tran-floating-label">
-                    PO No
+                    Reference PO No.
                   </label>
                   <button
                     type="button"
@@ -2157,7 +2383,7 @@ const MSRR = (item) => {
                   <input
                     type="text"
                     id="WHcode"
-                    value={state.WHname || state.WHcode || ""}
+                    value={state.WHName || state.whCode || ""}
                     readOnly
                     placeholder=" "
                     className="peer global-tran-textbox-ui"
@@ -2218,17 +2444,17 @@ const MSRR = (item) => {
 
                 <div className="relative group flex-[1.3]">
                   <input
-                    type="text"
-                    id="locName"
-                    value={state.locName || state.locCode || ""} // or show locCode if you prefer
-                    readOnly
-                    placeholder=" "
-                    className="peer global-tran-textbox-ui"
-                    onClick={() =>
-                      !isFormDisabled &&
-                      updateState({ locationLookupOpen: true })
-                    }
-                  />
+                     type="text"
+                     id="locName"
+                     value={LocName || ""}
+                     readOnly
+                     placeholder=" "
+                     className="peer global-tran-textbox-ui"
+                     onClick={() =>
+                       !isFormDisabled &&
+                       updateState({ locationLookupOpen: true })
+                     }
+                   />
 
                   <label
                     htmlFor="vendCode"
@@ -2237,20 +2463,20 @@ const MSRR = (item) => {
                     Location <span className="text-red-500">*</span>
                   </label>
                   <button
-                    type="button"
-                    className={`global-tran-textbox-button-search-padding-ui ${
-                      isFetchDisabled
-                        ? "global-tran-textbox-button-search-disabled-ui"
-                        : "global-tran-textbox-button-search-enabled-ui"
-                    } global-tran-textbox-button-search-ui`}
-                    disabled={isFormDisabled}
-                    onClick={() =>
-                      !isFormDisabled &&
-                      updateState({ locationLookupOpen: true })
-                    }
-                  >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} />
-                  </button>
+                     type="button"
+                     className={`global-tran-textbox-button-search-padding-ui ${
+                       isFetchDisabled
+                         ? "global-tran-textbox-button-search-disabled-ui"
+                         : "global-tran-textbox-button-search-enabled-ui"
+                     } global-tran-textbox-button-search-ui`}
+                     disabled={isFormDisabled || WHName === ""}
+                     onClick={() =>
+                       !isFormDisabled && WHName !== "" &&
+                       updateState({ locationLookupOpen: true,selectedWH : WHCode })
+                     }
+                   >
+                     <FontAwesomeIcon icon={faMagnifyingGlass} />
+                   </button>
                   <div></div>
                 </div>
 
@@ -2529,21 +2755,22 @@ const MSRR = (item) => {
                         <input
                           type="text"
                           className="w-[120px] global-tran-td-inputclass-ui text-right"
+                          placeholder=""
                           value={row.freeQty || ""}
                           disabled={isFormDisabled}
                           onChange={(e) => {
                             const inputValue = e.target.value;
                             const sanitizedValue = inputValue.replace(
-                              /[^0-9.-]/g,
+                              /[^0-9.]/g,
                               "",
                             );
                             if (
-                              /^-?\d*\.?\d{0,2}$/.test(sanitizedValue) ||
+                              /^\d*\.?\d{0,2}$/.test(sanitizedValue) ||
                               sanitizedValue === ""
                             ) {
                               handleDetailChange(
                                 index,
-                                "quantity",
+                                "freeQty",
                                 sanitizedValue,
                                 false,
                               );
@@ -2551,7 +2778,7 @@ const MSRR = (item) => {
                           }}
                           onFocus={(e) => {
                             if (
-                              e.target.value === "0.00" ||
+                              e.target.value === "" ||
                               parseFormattedNumber(e.target.value) === 0
                             ) {
                               e.target.value = "";
@@ -2561,7 +2788,7 @@ const MSRR = (item) => {
                             const value = e.target.value;
                             const num = parseFormattedNumber(value);
                             if (!isNaN(num)) {
-                              handleDetailChange(index, "quantity", num, true);
+                              handleDetailChange(index, "freeQty", num, true);
                             }
                             setFocusedCell(null);
                           }}
@@ -2573,7 +2800,7 @@ const MSRR = (item) => {
                               if (!isNaN(num)) {
                                 handleDetailChange(
                                   index,
-                                  "quantity",
+                                  "freeQty",
                                   num,
                                   true,
                                 );
@@ -2755,53 +2982,69 @@ const MSRR = (item) => {
 
                       {/* QC Status */}
                       <td className="global-tran-td-ui relative">
-                        <div className="flex items-center">
-                          <input
-                            type="text"
-                            className="w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
-                            value={row.qstatCode || ""}
-                            readOnly
-                          />
-                          {!isFormDisabled && row.operation !== "S" && (
-                            <FontAwesomeIcon
-                              icon={faMagnifyingGlass}
-                              className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
-                              onClick={() => {
-                                updateState({
-                                  selectedRowIndex: index,
-                                  showQstatModal: true,
-                                });
-                              }}
-                            />
-                          )}
-                        </div>
-                      </td>
+                  <div className="flex items-center">
+                    <input
+                      type="text"
+                      className="w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
+                      value={row.qstatCode || ""}
+                      readOnly
+                    />
+                    {!isFormDisabled && row.operation !== "S" && (
+                    <FontAwesomeIcon 
+                      icon={faMagnifyingGlass} 
+                      className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                      onClick={() => {
+                      updateState({ selectedRowIndex: index,
+                                    showQstatModal: true}); 
+                      }}
+                    />)}
+                  </div>
+                </td>
 
                       {/* Warehouse */}
-                      <td className="global-tran-td-ui">
-                        <input
-                          type="text"
-                          className="w-[160px] global-tran-td-inputclass-ui"
-                          value={row.whName || state.WHname || ""}
-                          onChange={(e) =>
-                            handleDetailChange(index, "whName", e.target.value)
-                          }
-                          disabled={isFormDisabled}
-                        />
-                      </td>
+                      <td className="global-tran-td-ui relative">
+                  <div className="flex items-center">
+                    <input
+                      type="text"
+                      className="w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
+                       value={state.WHname || state.WHcode || ""}
+                      readOnly
+                    />
+                    {!isFormDisabled && row.operation !== "S" &&(
+                    <FontAwesomeIcon 
+                      icon={faMagnifyingGlass} 
+                      className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                      onClick={() => {
+                      updateState({ selectedRowIndex: index,
+                                    warehouseLookupOpen: true,
+                                    accountModalSource: "whouseCode"}); 
+                      }}
+                    />)}
+                  </div>
+                </td>   
 
                       {/* Location */}
-                      <td className="global-tran-td-ui">
-                        <input
-                          type="text"
-                          className="w-[160px] global-tran-td-inputclass-ui"
-                          value={row.locName || state.locName || ""}
-                          onChange={(e) =>
-                            handleDetailChange(index, "locName", e.target.value)
-                          }
-                          disabled={isFormDisabled}
-                        />
-                      </td>
+                      <td className="global-tran-td-ui relative">
+                  <div className="flex items-center">
+                    <input
+                      type="text"
+                      className="w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
+                      value={row.LocName || ""}
+                      readOnly
+                    />
+                    {!isFormDisabled && row.operation !== "S" &&(
+                    <FontAwesomeIcon 
+                      icon={faMagnifyingGlass} 
+                      className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                      onClick={() => {
+                      updateState({ selectedRowIndex: index,
+                                    locationLookupOpen: true,
+                                    selectedWH:row.whouseCode,
+                                    accountModalSource: "LocCode"}); 
+                      }}
+                    />)}
+                  </div>
+                </td>      
 
                       {/* Delete */}
                       {!isFormDisabled && (
@@ -3239,6 +3482,14 @@ const MSRR = (item) => {
         />
       )}
 
+      {showQstatModal && (
+              <QstatLookupModal
+                isOpen={showQstatModal}
+                onClose={handleCloseQStatLookup}
+                filter="ActiveAll"
+              />
+            )}
+
       {billtermModalOpen && (
         <BillTermLookupModal
           isOpen={billtermModalOpen}
@@ -3262,12 +3513,14 @@ const MSRR = (item) => {
       )}
 
       {state.locationLookupOpen && (
-        <LocationLookupModal
-          isOpen={state.locationLookupOpen}
-          onClose={handleCloseLocationLookup}
-          filter="ActiveAll"
-        />
-      )}
+  <LocationLookupModal
+    isOpen={state.locationLookupOpen}
+    onClose={handleCloseLocationLookup}
+    filter="ActiveAll"
+    whCode={state.selectedWH || state.WHcode || state.WHCode || ""}
+  />
+)}
+
 
       {custModalOpen && (
         <CustomerMastLookupModal
@@ -3283,6 +3536,17 @@ const MSRR = (item) => {
           customParam="ActiveAll"
         />
       )}
+
+      {showAllTranDocNo && (
+            <AllTranDocNo
+              isOpen={showAllTranDocNo}
+              params={{branchCode,branchName,docType,documentTitle,fieldNo : "msajNo"}}
+              onRetrieve={handleTranDocNoRetrieval}
+              onResponse={{documentNo}}
+              onSelected={handleTranDocNoSelection}
+              onClose={() => updateState({ showAllTranDocNo: false })}
+            />
+          )} 
 
       {/* COA Lookup */}
       <COAMastLookupModal
