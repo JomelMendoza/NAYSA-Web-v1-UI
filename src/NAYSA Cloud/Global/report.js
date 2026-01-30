@@ -776,7 +776,8 @@ export async function exportGenericHistoryExcel(payload, columnConfigsMap, group
     // Company/Report Info
     ws.getCell(currentRowIndex, 1).value = companyName || "";
     ws.getCell(currentRowIndex, 1).alignment = { horizontal: "left", vertical: "middle" };
-    ws.getCell(currentRowIndex, 1).font = { name: "Aptos" , size: 16, bold: true, color: { argb: "FF0000FF" }};
+    // ws.getCell(currentRowIndex, 1).font = { name: "Aptos" , size: 16, bold: true, color: { argb: "FF0000FF" }};
+        ws.getCell(currentRowIndex, 1).font = { name: "Aptos" , size: 16, bold: true, color: { argb: "FF000000" }};
     currentRowIndex++; 
     setMeta(currentRowIndex, 1, companyAddress || "");
     currentRowIndex++; 

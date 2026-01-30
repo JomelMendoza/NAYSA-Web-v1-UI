@@ -23,9 +23,10 @@ import DocumentSignatories from "../../../Lookup/SearchSignatory.jsx";
 import AllTranHistory from "../../../Lookup/SearchGlobalTranHistory.jsx";
 import RCLookupModal from "../../../Lookup/SearchRCMast.jsx";
 import MSLookupModal from "../../../Lookup/SearchMSMast.jsx";
+import AllTranDocNo from "../../../Lookup/SearchDocNo.jsx";
 
 // Configuration
-import { postRequest } from "../../../Configuration/BaseURL.jsx";
+import { postRequest, apiClient } from "../../../Configuration/BaseURL.jsx";
 import { useReset } from "../../../Components/ResetContext";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 
@@ -97,6 +98,7 @@ const PR = () => {
     isSaveDisabled: false,
     isResetDisabled: false,
     isFetchDisabled: true,
+    showAllTranDocNo:false,
 
     // Header information
     header: {
@@ -228,6 +230,7 @@ const PR = () => {
     billtermName,
     noReprints,
     prCancelled,
+    showAllTranDocNo,
 
     detailRows,
 
@@ -249,6 +252,7 @@ const PR = () => {
   } = state;
 
   const isJobOrder = selectedPrTranType === "PR02";
+  const [focusedCell, setFocusedCell] = useState(null);
 
   const [header, setHeader] = useState({
     pr_date: new Date().toISOString().split("T")[0],
@@ -278,11 +282,9 @@ const PR = () => {
     displayStatus
   );
 
-  const updateTotalsDisplay = (qtyNeeded) => {
-    setTotals({
-      totalQtyNeeded: formatNumber(qtyNeeded, 6),
-    });
-  };
+ const updateTotalsDisplay = (qtyNeeded) => {
+  setTotals({ totalQtyNeeded: formatNumber(qtyNeeded, 2) });
+};
 
   // ==========================
   // EFFECTS
@@ -329,6 +331,8 @@ const PR = () => {
     </div>
   );
 
+
+  
   // ==========================
   // INITIAL LOAD / RESET
   // ==========================
@@ -463,117 +467,201 @@ const PR = () => {
   // FETCH (GET) – PR HEADER + DT1
   // ==========================
 
-  const fetchTranData = async (prNo, _branchCode) => {
-    const resetState = () => {
-      updateState({
-        documentNo: "",
-        documentID: "",
-        isDocNoDisabled: false,
-        isFetchDisabled: false,
-      });
-      updateTotalsDisplay(0);
-    };
-
-    updateState({ isLoading: true });
-
-    try {
-      const data = await useFetchTranData(prNo, _branchCode, docType, "prNo");
-
-      if (!data?.prId) {
-        Swal.fire({
-          icon: "info",
-          title: "No Records Found",
-          text: "Transaction does not exist.",
-        });
-        return resetState();
-      }
-
-      let prDateForHeader = "";
-      if (data.prDate) {
-        const d = new Date(data.prDate);
-        prDateForHeader = isNaN(d) ? "" : d.toISOString().split("T")[0];
-      }
-
-      // normalize header-level dateNeeded
-      let dateNeededForHeader = "";
-      if (data.dateNeeded) {
-        const dn = new Date(data.dateNeeded);
-        dateNeededForHeader = isNaN(dn) ? "" : dn.toISOString().split("T")[0];
-      }
-
-      const retrievedDetailRows = (data.dt1 || []).map((item) => ({
-        ...item,
-        lN: item.lN,
-        invType: item.invType || "",
-        groupId: item.groupId || "",
-        prStatus: item.prStatus || "",
-        itemCode: item.itemCode || "",
-        itemName: item.itemName || "",
-        uomCode: item.uomCode || "",
-        qtyOnHand: formatNumber(item.qtyOnHand ?? 0, 6),
-        qtyAlloc: formatNumber(item.qtyAlloc ?? 0, 6),
-        qtyNeeded: formatNumber(item.qtyNeeded ?? 0, 6),
-        uomCode2: item.uomCode2 || "",
-        uomQty2: formatNumber(item.uomQty2 ?? 0, 6),
-        dateNeeded: item.dateNeeded
-          ? new Date(item.dateNeeded).toISOString().split("T")[0]
-          : "",
-        itemSpecs: item.itemSpecs || "",
-        serviceCode: item.serviceCode || "",
-        serviceName: item.serviceName || "",
-        poQty: formatNumber(item.poQty ?? 0, 6),
-        rrQty: formatNumber(item.rrQty ?? 0, 6),
-      }));
-
-      const totalQty = retrievedDetailRows.reduce(
-        (acc, r) => acc + (parseFormattedNumber(r.qtyNeeded) || 0),
-        0
-      );
-      updateTotalsDisplay(totalQty);
-
-      updateState({
-        documentStatus: data.status,
-        status: data.status,
-        documentID: data.prId,
-        documentNo: data.prNo,
-        branchCode: data.branchCode,
-        header: {
-          pr_date: prDateForHeader,
-          dateNeeded: dateNeededForHeader,
-        },
-        cutoffCode: data.cutoffCode || "",
-        rcCode: data.rcCode || "",
-        rcName: data.rcName || "",
-
-        reqRcCode: data.reqRcCode || "",
-        reqRcName: data.reqRcName || "",
-
-        custCode: data.rcCode || "",
-        custName: "",
-        selectedPrTranType: data.prTranType || "",
-        selectedPrType: data.prType || "",
-        dateNeeded: dateNeededForHeader,
-        refPrNo1: data.refPrNo1 || "",
-        refPrNo2: data.refPrNo2 || "",
-        remarks: data.remarks || "",
-        prCancelled: data.prCancelled || "",
-        noReprints: data.noReprints ?? "",
-        detailRows: retrievedDetailRows,
-        isDocNoDisabled: true,
-        isFetchDisabled: true,
-      });
-    } catch (error) {
-      console.error("Error fetching transaction data:", error);
-      Swal.fire({
-        icon: "error",
-        title: "Fetch Error",
-        text: error.message,
-      });
-      resetState();
-    } finally {
-      updateState({ isLoading: false });
-    }
+  const fetchTranData = async (prNo, _branchCode, direction = "") => {
+  const resetState = () => {
+    updateState({
+      documentNo: "",
+      documentID: "",
+      isDocNoDisabled: false,
+      isFetchDisabled: false,
+    });
+    updateTotalsDisplay(0);
   };
+
+  const toYMD = (v) => {
+    if (!v) return "";
+    const d = new Date(v);
+    return isNaN(d) ? "" : d.toISOString().split("T")[0];
+  };
+
+  updateState({ isLoading: true });
+
+  try {
+    let data = null;
+
+    // =========================================================
+    // 1) MSRR-style: call endpoint with direction (F/P/N/L)
+    // =========================================================
+    try {
+      const resp = await apiClient.get("/getPR", {
+        params: {
+          branchCode: _branchCode,
+          prNo,
+          direction, // <-- THIS is what makes First/Prev/Next/Last work
+        },
+      });
+
+      const row = resp?.data?.data?.[0];
+      const jsonStr = row?.result ?? row?.RESULT ?? row?.JsonResult ?? null;
+
+      if (jsonStr) {
+        data = typeof jsonStr === "string" ? JSON.parse(jsonStr) : jsonStr;
+      } else {
+        // in case backend returns object directly
+        data = resp?.data?.data ?? resp?.data ?? null;
+      }
+    } catch (e) {
+      // if /getPR doesn't exist or errors, fallback below
+      data = null;
+    }
+
+    // =========================================================
+    // 2) Fallback: your existing generic fetch (no direction)
+    //    (keeps compatibility if your API differs)
+    // =========================================================
+    if (!data) {
+      data = await useFetchTranData(prNo, _branchCode, docType, "prNo");
+    }
+
+    if (!data?.prId) {
+      Swal.fire({
+        icon: "info",
+        title: "No Records Found",
+        text: "Transaction does not exist.",
+      });
+      return resetState();
+    }
+
+    const prDateForHeader = toYMD(data.prDate ?? data.pr_date);
+    const dateNeededForHeader = toYMD(data.dateNeeded ?? data.date_needed);
+
+    const dt1 = Array.isArray(data.dt1) ? data.dt1 : [];
+
+    const retrievedDetailRows = dt1.map((item, idx) => ({
+      ...item,
+      lN: Number(item.lN ?? item.lnNo ?? item.ln_no ?? idx + 1),
+
+      invType: item.invType ?? item.inv_type ?? "",
+      groupId: item.groupId ?? item.group_id ?? "",
+      prStatus: item.prStatus ?? item.pr_status ?? "",
+
+      itemCode: item.itemCode ?? item.item_code ?? "",
+      itemName: item.itemName ?? item.item_name ?? "",
+
+      uomCode: item.uomCode ?? item.uom_code ?? "",
+      qtyOnHand: formatNumber(item.qtyOnHand ?? item.qty_hand ?? 0, 6),
+      qtyAlloc: formatNumber(item.qtyAlloc ?? item.qty_alloc ?? 0, 6),
+      qtyNeeded: formatNumber(item.qtyNeeded ?? item.qty_needed ?? 0, 6),
+
+      uomCode2: item.uomCode2 ?? item.uom_code2 ?? "",
+      uomQty2: formatNumber(item.uomQty2 ?? item.uom_qty2 ?? 0, 6),
+
+      dateNeeded: toYMD(item.dateNeeded ?? item.date_needed),
+
+      itemSpecs: item.itemSpecs ?? item.item_specs ?? "",
+      serviceCode: item.serviceCode ?? item.service_code ?? "",
+      serviceName: item.serviceName ?? item.service_name ?? "",
+
+      poQty: formatNumber(item.poQty ?? item.po_qty ?? 0, 6),
+      rrQty: formatNumber(item.rrQty ?? item.rr_qty ?? 0, 6),
+    }));
+
+    const totalQty = retrievedDetailRows.reduce(
+      (acc, r) => acc + (parseFormattedNumber(r.qtyNeeded) || 0),
+      0
+    );
+    updateTotalsDisplay(totalQty);
+
+    const prStatus =
+      data.status ??
+      data.prStatus ??
+      data.pr_status ??
+      data.documentStatus ??
+      "";
+
+    updateState({
+      documentStatus: prStatus,
+      status: prStatus,
+
+      documentID: data.prId,
+      documentNo: data.prNo,
+      branchCode: data.branchCode ?? _branchCode,
+
+      header: {
+        pr_date: prDateForHeader,
+        dateNeeded: dateNeededForHeader,
+      },
+
+      cutoffCode: data.cutoffCode ?? data.cutoff_code ?? "",
+      rcCode: data.rcCode ?? data.rc_code ?? "",
+      rcName: data.rcName ?? data.rc_name ?? "",
+
+      reqRcCode: data.reqRcCode ?? data.req_rc_code ?? "",
+      reqRcName: data.reqRcName ?? data.req_rc_name ?? "",
+
+      // keep your existing mapping (though custCode looked suspicious before)
+      custCode: data.custCode ?? data.cust_code ?? data.rcCode ?? "",
+      custName: data.custName ?? data.cust_name ?? "",
+
+      selectedPrTranType: data.prTranType ?? data.pr_tran_type ?? "",
+      selectedPrType: data.prType ?? data.pr_type ?? "",
+
+      dateNeeded: dateNeededForHeader,
+      refPrNo1: data.refPrNo1 ?? data.ref_pr_no1 ?? "",
+      refPrNo2: data.refPrNo2 ?? data.ref_pr_no2 ?? "",
+      remarks: data.remarks ?? "",
+      prCancelled: data.prCancelled ?? data.pr_cancelled ?? "",
+      noReprints: data.noReprints ?? data.no_reprints ?? "",
+
+      detailRows: retrievedDetailRows,
+
+      isDocNoDisabled: true,
+      isFetchDisabled: true,
+    });
+  } catch (error) {
+    console.error("fetchTranData error:", error);
+    Swal.fire({
+      icon: "error",
+      title: "Fetch Error",
+      text: error.message,
+    });
+    resetState();
+  } finally {
+    updateState({ isLoading: false });
+  }
+};
+
+
+  //  ** View Document and Transaction History Retrieval ***
+const cleanUrl = useCallback(() => {
+  window.history.replaceState({}, "", window.location.origin);
+}, []);
+
+const handleHistoryRowPick = useCallback(
+  async (row) => {
+    const docNo = row?.docNo;
+    const branchCode = row?.branchCode;
+    if (!docNo || !branchCode) return;
+
+    await fetchTranData(docNo, branchCode); 
+    setTopTab("details");
+    cleanUrl(); // 
+  },
+  [fetchTranData, cleanUrl]
+);
+
+
+useEffect(() => {
+  const params = new URLSearchParams(location.search);
+  const docNo = params.get("prNo");
+  const branchCode = params.get("branchCode");
+
+  if (!loadedFromUrlRef.current && docNo && branchCode) {
+    loadedFromUrlRef.current = true;
+    handleHistoryRowPick({ docNo, branchCode });
+  }
+}, [location.search, handleHistoryRowPick]);
+
 
   const handleCloseMSLookup = (selectedItem) => {
     if (!selectedItem) {
@@ -586,7 +674,7 @@ const PR = () => {
 
     const newRow = {
       invType: "MS",
-      groupId: selectedItem.categCode || "",
+      groupId: "",
       prStatus: status || "",
       itemCode: selectedItem.itemCode || "",
       itemName: selectedItem.itemName || "",
@@ -744,73 +832,60 @@ const PR = () => {
 };
 
 
-  const handleDetailChange = (index, field, value) => {
-    const updatedRows = [...detailRows];
-    const row = { ...updatedRows[index] };
 
-    if (
-      [
-        "qtyOnHand",
-        "qtyAlloc",
-        "qtyNeeded",
-        "uomQty2",
-        "poQty",
-        "rrQty",
-      ].includes(field)
-    ) {
-      const sanitized = value.replace(/[^0-9.]/g, "");
-      row[field] = sanitized;
-    } else {
-      row[field] = value;
-    }
+  const updateTotals = (rows) => {
+  //console.log("updateTotals received rows:", rows); // STEP 5: Check rows passed to updateTotals
 
-    updatedRows[index] = row;
-    updateState({ detailRows: updatedRows });
+  let totalQuantity = 0;
+  let totalItemAmount = 0;
 
-    const totalQty = updatedRows.reduce(
-      (acc, r) => acc + (parseFormattedNumber(r.qtyNeeded) || 0),
-      0
-    );
-    updateTotalsDisplay(totalQty);
-  };
+  rows.forEach(row => {
+    const item_Quantity = parseFormattedNumber(row.quantity || 0) || 0;
+    const item_ItemAmount = parseFormattedNumber(row.itemAmount || 0) || 0;
 
-
-  const validateQtyNeeded = () => {
-  if (!detailRows || detailRows.length === 0) {
-    Swal.fire({
-      icon: "warning",
-      title: "No Item Details",
-      text: "Please add at least one item before saving.",
-    });
-    return false;
-  }
-
-  const invalidRows = detailRows.filter((row) => {
-    const qty = parseFormattedNumber(row.qtyNeeded || 0);
-    return !qty || qty <= 0;
+    totalQuantity+= item_Quantity;
+    totalItemAmount+= item_ItemAmount;
   });
+    updateTotalsDisplay (totalQuantity,totalItemAmount);
+};
 
-  if (invalidRows.length > 0) {
-    Swal.fire({
-      icon: "warning",
-      title: "Invalid Quantity Needed",
-      html: `
-        <div style="text-align:left">
-          Quantity Needed is <b>required</b> and must be greater than zero.<br/><br/>
-          <b>Affected line(s):</b>
-          <ul>
-            ${invalidRows
-              .map((_, idx) => `<li>Line ${idx + 1}</li>`)
-              .join("")}
-          </ul>
-        </div>
-      `,
-    });
-    return false;
+
+  const DEC_QTY_NEEDED = 2;
+
+const handleDetailChange = (index, field, value, runCalculations = false) => {
+  const updatedRows = [...detailRows];
+  const row = { ...(updatedRows[index] || {}) };
+
+  const numericFields = ["qtyOnHand", "qtyAlloc", "qtyNeeded", "uomQty2", "poQty", "rrQty"];
+
+  if (numericFields.includes(field)) {
+    const raw = value === null || value === undefined ? "" : String(value);
+    const sanitized = raw.replace(/[^0-9.-]/g, ""); // allow dot + optional minus
+
+    if (runCalculations) {
+      const num = parseFormattedNumber(sanitized);
+      row[field] = Number.isFinite(num)
+        ? formatNumber(num, field === "qtyNeeded" ? DEC_QTY_NEEDED : 6)
+        : "";
+    } else {
+      // typing mode: keep what user typed (validated by your regex already)
+      row[field] = sanitized;
+    }
+  } else {
+    row[field] = value;
   }
 
-  return true;
+  updatedRows[index] = row;
+  updateState({ detailRows: updatedRows });
+
+  const totalQty = updatedRows.reduce(
+    (acc, r) => acc + (parseFormattedNumber(r.qtyNeeded) || 0),
+    0
+  );
+  updateTotalsDisplay(totalQty);
 };
+
+
 
   // ==========================
   // SAVE / UPSERT (PR + DT1)
@@ -836,6 +911,7 @@ const PR = () => {
         branchCode,
         documentNo,
         documentID,
+        groupId,
         header,
         selectedPrTranType,
         selectedPrType,
@@ -852,12 +928,14 @@ const PR = () => {
         detailRows,
       } = state;
 
-      const isNew = !documentID;
+      const isNew = !documentID || !groupId;
+      
 
       const prData = {
         branchCode: branchCode,
         prNo: isNew ? "" : documentNo || "",
         prId: documentID || "",
+        groupId: groupId || "",
         prDate: header.pr_date || null,
         cutoffCode: cutoffCode || "",
         rcCode: rcCode || "",
@@ -876,13 +954,13 @@ const PR = () => {
         // ⬇️ THIS PART guarantees ALL CURRENT detailRows (including newly added) are sent
         dt1: detailRows.map((row, index) => ({
           PR_ID: documentID || "",
+          GROUP_ID: groupId || "",
           BRANCH_CODE: branchCode,
           PR_NO: documentNo || "",
           PR_DATE: header.pr_date,
           CUTOFF_CODE: cutoffCode || "",
 
           INV_TYPE: row.invType || "",
-          GROUP_ID: row.groupId || "",
           LINE_NO: index + 1,
           PR_STATUS: "",
 
@@ -914,7 +992,8 @@ const PR = () => {
         prData,
         updateState,
         "prId",
-        "prNo"
+        "prNo",
+        "groupId"
       );
 
       if (response) {
@@ -973,29 +1052,6 @@ const PR = () => {
   // HISTORY – URL PARAM HANDLING
   // ==========================
 
-  const cleanUrl = useCallback(() => {
-    navigate(location.pathname, { replace: true });
-  }, [navigate, location.pathname]);
-
-  const handleHistoryRowPick = useCallback((row) => {
-    const docNo = row?.docNo;
-    const branchCode = row?.branchCode;
-    if (!docNo || !branchCode) return;
-    fetchTranData(docNo, branchCode);
-    setTopTab("details");
-  }, []);
-
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const docNo = params.get("prNo");
-    const brCode = params.get("branchCode");
-
-    if (!loadedFromUrlRef.current && docNo && brCode) {
-      loadedFromUrlRef.current = true;
-      handleHistoryRowPick({ docNo, branchCode: brCode });
-      cleanUrl();
-    }
-  }, [location.search, handleHistoryRowPick, cleanUrl]);
 
   const printData = {
     pr_no: documentNo,
@@ -1159,6 +1215,38 @@ const PR = () => {
     }
   };
 
+  useEffect(() => {
+      const onKey = (e) => {
+        if (e.key === "F1") { e.preventDefault(); updateState({showAllTranDocNo:true}); }
+      };
+      window.addEventListener("keydown", onKey);
+      return () => window.removeEventListener("keydown", onKey);
+    }, []);
+
+const handleTranDocNoRetrieval = async (data) => {
+  await fetchTranData(data.docNo, data.branchCode || branchCode, data.key);
+  updateState({ showAllTranDocNo: data.modalClose });
+};
+
+
+
+
+const handleTranDocNoSelection = async (data) => {
+    
+    handleReset();
+    updateState({showAllTranDocNo: false, documentNo:data.docNo });
+};
+
+const handleDocNoBlur = () => {
+
+    if (!state.documentID && state.documentNo && state.branchCode) { 
+        fetchTranData(state.documentNo,state.branchCode);
+    }
+};
+
+
+
+
   // ==========================
   // RENDER
   // ==========================
@@ -1269,46 +1357,36 @@ const PR = () => {
 
                 {/* PR No */}
                 <div className="relative">
-                  <input
-                    type="text"
-                    id="prNo"
-                    value={state.documentNo}
-                    onChange={(e) =>
-                      updateState({ documentNo: e.target.value })
-                    }
-                    onBlur={handlePrNoBlur}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        document.getElementById("PRDate")?.focus();
-                      }
-                    }}
-                    placeholder=" "
-                    className={`peer global-tran-textbox-ui ${
-                      state.isDocNoDisabled
-                        ? "bg-blue-100 cursor-not-allowed"
-                        : ""
-                    }`}
-                    disabled={state.isDocNoDisabled}
-                  />
-                  <label htmlFor="prNo" className="global-tran-floating-label">
+                        <input
+                            type="text"
+                            id="prNo"
+                            value={state.documentNo}
+                            onChange={(e) => updateState({ documentNo: e.target.value })}
+                            // onBlur={handleDocNoBlur}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                handleDocNoBlur();
+                                e.preventDefault(); 
+                                document.getElementById("prDate")?.focus();
+                              }}}
+                            placeholder=" "
+                            className={`peer global-tran-textbox-ui ${state.isDocNoDisabled ? 'bg-blue-100 cursor-not-allowed' : ''}`}
+                            disabled={state.isDocNoDisabled}
+                        />
+                        <label htmlFor="prNo" className="global-tran-floating-label">
                     PR No.
                   </label>
                   <button
-                    className={`global-tran-textbox-button-search-padding-ui ${
-                      state.isFetchDisabled || state.isDocNoDisabled
-                        ? "global-tran-textbox-button-search-disabled-ui"
-                        : "global-tran-textbox-button-search-enabled-ui"
-                    } global-tran-textbox-button-search-ui`}
-                    disabled={state.isFetchDisabled || state.isDocNoDisabled}
-                    onClick={() => {
-                      if (!state.isDocNoDisabled) {
-                        fetchTranData(state.documentNo, state.branchCode);
-                      }
-                    }}
-                  >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} />
-                  </button>
+                            className={`global-tran-textbox-button-search-padding-ui ${
+                                (state.isFetchDisabled || state.isDocNoDisabled)
+                                ? "global-tran-textbox-button-search-disabled-ui"
+                                : "global-tran-textbox-button-search-enabled-ui"
+                            } global-tran-textbox-button-search-ui`}
+                            // disabled={state.isFetchDisabled || state.isDocNoDisabled}
+                            onClick={() => {updateState({showAllTranDocNo:true})}}
+                        >
+                            <FontAwesomeIcon icon={faMagnifyingGlass} />
+                        </button>
                 </div>
 
                 {/* PR Date */}
@@ -1939,21 +2017,45 @@ const PR = () => {
 </td>
 
                           {/* Qty Needed */}
-                          <td className="global-tran-td-ui text-right">
-                            <input
-                              type="text"
-                              className="w-[120px] global-tran-td-inputclass-ui text-right"
-                              value={row.qtyNeeded || ""}
-                              onChange={(e) =>
-                                handleDetailChange(
-                                  index,
-                                  "qtyNeeded",
-                                  e.target.value
-                                )
-                              }
-                              disabled={isFormDisabled}
-                            />
-                          </td>
+                          <td className="global-tran-td-ui" >
+                    <input
+                        type="text"
+                        className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
+                        value={row.qtyNeeded || ""}
+                        readOnly={isFormDisabled}
+                        onChange={(e) => {
+                            const inputValue = e.target.value;
+                             const sanitizedValue = inputValue.replace(/[^0-9.-]/g, '');
+                            if (/^-?\d*\.?\d{0,2}$/.test(sanitizedValue) || sanitizedValue === "") {
+                                handleDetailChange(index, "qtyNeeded", sanitizedValue, false);
+                            }
+                        }}                   
+                        onFocus={(e) => {
+                            if (e.target.value === "0.00" || parseFormattedNumber(e.target.value) === 0) {
+                              e.target.value = "";
+                            }
+                          }}                   
+                        onBlur={async (e) => {
+                            const value = e.target.value;
+                            const num = parseFormattedNumber(value);
+                            if (!isNaN(num)) {
+                                 handleDetailChange(index, "qtyNeeded", num, true);
+                            }
+                            setFocusedCell(null);
+                        }}
+                        onKeyDown={async (e) => {
+                            if (e.key === "Enter") {
+                                e.preventDefault();
+                                const value = e.target.value;   
+                                const num = parseFormattedNumber(value);
+                                if (!isNaN(num)) {
+                                    await handleDetailChange(index, "qtyNeeded", num, true);
+                                }
+                                e.target.blur();
+                            }
+                        }}
+                    />
+                </td>
 
                           {/* Date Needed */}
                           <td className="global-tran-td-ui">
@@ -2094,24 +2196,24 @@ const PR = () => {
       {/* HISTORY TAB */}
       <div className={topTab === "history" ? "" : "hidden"}>
         <AllTranHistory
-          showHeader={false}
-          endpoint="/getPRHistory"
-          cacheKey={`PR:${state.branchCode || ""}:${state.documentNo || ""}`}
-          activeTabKey="PR_Summary"
-          branchCode={state.branchCode}
-          startDate={null}
-          endDate={null}
+        showHeader={false}
+        endpoint="/getPRHistory"
+        cacheKey={`PR:${state.branchCode || ""}:${state.docNo || ""}`}  // ✅ per-transaction
+        activeTabKey="PR_Summary"
+        branchCode={state.branchCode}
+        startDate={state.fromDate}
+        endDate={state.toDate}
           status={(() => {
             const s = (state.status || "").toUpperCase();
             if (s === "FINALIZED") return "F";
             if (s === "CANCELLED") return "X";
-            if (s === "CLOSED") return "C";
-            if (s === "OPEN") return "";
+            if (s === "CLOSED")    return "C";
+            if (s === "OPEN")      return "";
             return "All";
           })()}
           onRowDoubleClick={handleHistoryRowPick}
-          historyExportName={`${documentTitle} History`}
-        />
+          historyExportName={`${documentTitle} History`} 
+    />
       </div>
 
       {/* MODALS */}
@@ -2143,6 +2245,17 @@ const PR = () => {
           onClose={handleCloseBillTermModal}
         />
       )}
+
+      {showAllTranDocNo && (
+                  <AllTranDocNo
+                    isOpen={showAllTranDocNo}
+                    params={{branchCode,branchName,docType,documentTitle,fieldNo : "prNo"}}
+                    onRetrieve={handleTranDocNoRetrieval}
+                    onResponse={{documentNo}}
+                    onSelected={handleTranDocNoSelection}
+                    onClose={() => updateState({ showAllTranDocNo: false })}
+                  />
+                )} 
 
       {custModalOpen && (
         <CustomerMastLookupModal
