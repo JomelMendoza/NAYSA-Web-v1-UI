@@ -13,7 +13,7 @@ function normalizeCompaniesPayload(raw) {
   else if (raw && typeof raw === "object") arr = Object.values(raw);
 
 
-  
+
   return arr.map((r) => {
     const get = (o, ...keys) => keys.reduce((v, k) => (v ?? o?.[k]), undefined);
     const code =
@@ -114,7 +114,7 @@ export default function Register({ onRegister, onSwitchToLogin }) {
     if (!form.EMAIL_ADD.trim()) return alertSwal("Email is required");
     if (!/\S+@\S+\.\S+/.test(form.EMAIL_ADD)) return alertSwal("Please enter a valid email address");
     // if (form.PASSWORD.length < 6) return alertSwal("Password must be at least 6 characters long");
-    // return true;
+    return true;
   };
 
   const handleSubmit = async (e) => {
@@ -124,7 +124,7 @@ export default function Register({ onRegister, onSwitchToLogin }) {
       const ok = await validate();
       if (!ok) return;
 
-      
+
       setTenant(companyCode);
       const { data, status } = await apiClient.post("/register", {
         USER_CODE: form.USER_CODE.trim(),
@@ -146,10 +146,11 @@ export default function Register({ onRegister, onSwitchToLogin }) {
 
       await Swal.fire({
         icon: "success",
-        title: "Registration Successful!",
-        text: "You can now log in to your account.",
+        title: "Registration Submitted",
+        text: "Your registration is pending approval. You will receive an email once your account is approved.",
         confirmButtonText: "OK",
       });
+
       onSwitchToLogin?.();
     } catch (err) {
       await Swal.fire({
@@ -195,7 +196,7 @@ export default function Register({ onRegister, onSwitchToLogin }) {
                   onChange={(e) => {
                     const v = e.target.value;
                     setCompanyCode(v);
-                    setTenant(v); 
+                    setTenant(v);
                   }}
                   disabled={loadingCompanies}
                   className="w-full appearance-none rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-10 text-slate-900 shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30"

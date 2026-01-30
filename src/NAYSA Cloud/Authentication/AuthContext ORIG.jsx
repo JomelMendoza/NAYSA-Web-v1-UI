@@ -27,8 +27,6 @@ import {
 
 
 const AuthContext = createContext(null);
-import { useLocation } from "react-router-dom";
-
 
 /* -------- Timing (VITE_SESSION_LIFETIME in MINUTES) -------- */
 const IDLE_LIMIT_MINUTES =
@@ -133,15 +131,6 @@ export default function AuthProvider({ children }) {
     setRefsLoaded(false);
     setRefsLoading(false);
   }, []);
-
-  const location = useLocation();
-
-  const isPublicRoute = [
-    "/",
-    "/register",
-    "/change-password",
-  ].some(p => location.pathname.startsWith(p));
-
 
   /* ---------------- Unified server-side logout (server → broadcast → local) ---------------- */
   const serverLogout = useCallback(
@@ -298,13 +287,6 @@ export default function AuthProvider({ children }) {
 
   /* ---------------- Bootstrap (restore session once) ---------------- */
   useEffect(() => {
-    // ✅ Do NOT restore session on public routes
-    if (isPublicRoute) {
-      setLoading(false);
-      markAuthReady(true);
-      return;
-    }
-
     (async () => {
       try {
         const code = getTenant();
@@ -314,10 +296,7 @@ export default function AuthProvider({ children }) {
 
         const res = await apiClient.get("/me", {
           withCredentials: true,
-          headers: {
-            "X-Skip-Logout-Broadcast": "1",
-            "X-Use-Credentials": "1",
-          },
+          headers: { "X-Skip-Logout-Broadcast": "1", "X-Use-Credentials": "1" },
         });
 
         const me = res?.data;
@@ -333,8 +312,7 @@ export default function AuthProvider({ children }) {
         setLoading(false);
       }
     })();
-  }, [isPublicRoute]);
-
+  }, []);
 
   /* ---------------- Load company + top user once after login ---------------- */
   const loadStaticRefs = useCallback(async () => {
@@ -368,17 +346,12 @@ export default function AuthProvider({ children }) {
   /* ---------------- On-focus/visible: queued popup + light check ---------------- */
   useEffect(() => {
     let t = null;
-    // const check = async () => {
-    //   try {
-    //     await apiClient.get("/me"); // 401/419 -> interceptor broadcasts
-    //   } catch {}
-    // };
     const check = async () => {
-      if (!user) return; // ✅ DO NOT call /me when not logged in
       try {
-        await apiClient.get("/me");
+        await apiClient.get("/me"); // 401/419 -> interceptor broadcasts
       } catch { }
     };
+
 
     const onFocus = () => {
       if (document.visibilityState !== "visible") return;

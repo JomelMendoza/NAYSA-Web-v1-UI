@@ -374,13 +374,14 @@ const UpdateUser = () => {
 
     const handleSaveUser = async () => {
         setSaving(true);
+
         if (!userId || !userName) {
             await useSwalErrorAlert("Error!", "Please fill out User ID and User Name.");
             setSaving(false);
             return;
         }
+
         try {
-            // Send the data structure that matches your controller expectations
             const payload = {
                 json_data: {
                     userCode: userId.trim(),
@@ -389,50 +390,57 @@ const UpdateUser = () => {
                     userType: userType || "",
                     branchCode: branchCode || "",
                     rcCode: rcCode || "",
-                    viewCostamt: viewCostamt || "N", // Ensure single character
-                    editUprice: editUprice || "N",   // Ensure single character
+                    viewCostamt: viewCostamt || "N",
+                    editUprice: editUprice || "N",
                     active:
                         active === "Yes" ? "Y" :
-                            active === "Pending" ? "P" :
-                                "N", // Convert Yes/No to Y/N
+                            active === "Pending" ? "P" : "N",
                     position: position ? position.trim() : ""
                 }
             };
 
-            console.log("Sending payload:", payload);
-
-            const response = await apiClient.post("users/upsert", payload);
-
+            const response = await apiClient.post("/users/upsert", payload);
             const res = response.data;
 
-            // Check the response structure from your controller
             if (res?.success === true || res?.data?.status === "success") {
+
+                // ✅ SCENARIO 2: ADMIN ADDS USER → SEND TEMP PASSWORD
+                if (!selectedUser && active === "Yes") {
+                    try {
+                        await apiClient.post("/users/approve", {
+                            userCode: userId.trim(),
+                            mode: "admin_add" // backend generates TEMP password
+                        });
+                    } catch (e) {
+                        console.warn("Temp password email failed:", e);
+                    }
+                }
+
                 await fetchUsers();
 
                 await useSwalSuccessAlert(
                     "Success!",
-                    res?.message || "User saved successfully."
+                    "User created successfully. A temporary password has been sent to the user's email."
                 );
 
                 resetForm();
             } else {
-                const errorMsg = res?.message || res?.details || "Failed to save user. Please check your data and try again.";
-                await useSwalErrorAlert("Error!", errorMsg);
+                await useSwalErrorAlert(
+                    "Error!",
+                    res?.message || "Failed to save user."
+                );
             }
-        } catch (e) {
-            console.error("Save error:", e);
-
-            // Handle different error scenarios
-            if (e?.response?.status === 500) {
-                const errorMsg = e?.response?.data?.message || e?.response?.data?.details || "Server error occurred.";
-                await useSwalErrorAlert("Error!", errorMsg);
-            } else {
-                await useSwalErrorAlert("Error!", e?.response?.data?.message || e.message || "Error saving user.");
-            }
+        } catch (error) {
+            console.error("Save error:", error);
+            await useSwalErrorAlert(
+                "Error!",
+                error?.response?.data?.message || error.message || "Error saving user."
+            );
         } finally {
             setSaving(false);
         }
     };
+
     // Updated handleDeleteUser function to accept user parameter
     const handleDeleteUser = async (userToDelete = null) => {
         // Use the passed user or fall back to selectedUser
@@ -495,6 +503,9 @@ const UpdateUser = () => {
 
     const handleEditUser = async (user) => {
         console.log("Editing user:", user);
+        if (user.active === "P") setActiveTab("pending");
+        if (user.active === "Y") setActiveTab("active");
+        if (user.active === "N") setActiveTab("inactive");
 
         // If the user doesn't have branchName or rcName, fetch them from the Get endpoint
         if ((!user.branchName && user.branchCode) || (!user.rcName && user.rcCode)) {
@@ -636,24 +647,35 @@ const UpdateUser = () => {
         if (!confirmRes.isConfirmed) return;
 
         try {
-            setShowSpinner(true); // you already have this spinner flag
+            setShowSpinner(true);
 
-            // 🔑 Call the new Laravel endpoint that sets bcrypt hash + tpword_date and emails the temp password
             const { data } = await apiClient.post("/users/approve", {
                 userCode: selectedUser.userCode,
+                mode: "release" // ✅ backend-valid mode
             });
 
             if (data?.status === "success") {
-                await useSwalSuccessAlert("Success", "Temporary password sent");
-                // (optional) refresh the selected user to show the new tpwordDate on screen
-                // await reloadUser(selectedUser.userCode);
+                await useSwalSuccessAlert(
+                    "Success",
+                    "Account approved. A password setup link has been sent."
+                );
+
+                // 🔥 AUTO SWITCH TO ACTIVE TAB
+                setActiveTab("active");
+
+                // 🔥 CLEAR SELECTION (prevents stale buttons)
+                setSelectedUser(null);
+                setIsEditing(false);
+
+                await fetchUsers();
             } else {
-                await useSwalErrorAlert("Error", data?.message || "Failed to approve account");
+                await useSwalErrorAlert("Error", data?.message || "Approval failed.");
             }
         } catch (error) {
-            console.error("Account approval error:", error);
-            const msg = error?.response?.data?.message || error?.message || "Failed to approve account";
-            await useSwalErrorAlert("Error", msg);
+            await useSwalErrorAlert(
+                "Error",
+                error?.response?.data?.message || error.message
+            );
         } finally {
             setShowSpinner(false);
         }
@@ -825,24 +847,24 @@ const UpdateUser = () => {
                         )}
                     </div>
 
-                    {selectedUser && (
-                        <>
-                            <button
-                                onClick={handleResetPassword}
-                                disabled={!selectedUser}
-                                className="bg-purple-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-700"
-                            >
-                                <FontAwesomeIcon icon={faKey} /> Reset Password
-                            </button>
-                            <button
-                                onClick={handleReleaseAccount}
-                                disabled={!selectedUser}
-                                className="bg-orange-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-orange-700"
-                            >
-                                <FontAwesomeIcon icon={faUsers} /> Approve
-                            </button>
-                        </>
+                    {selectedUser && selectedUser.active === "Y" && (
+                        <button
+                            onClick={handleResetPassword}
+                            className="bg-purple-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-700"
+                        >
+                            <FontAwesomeIcon icon={faKey} /> Reset Password
+                        </button>
                     )}
+
+                    {selectedUser && selectedUser.active === "P" && (
+                        <button
+                            onClick={handleReleaseAccount}
+                            className="bg-orange-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-orange-700"
+                        >
+                            <FontAwesomeIcon icon={faUsers} /> Approve
+                        </button>
+                    )}
+
                 </div>
             </div>
 
