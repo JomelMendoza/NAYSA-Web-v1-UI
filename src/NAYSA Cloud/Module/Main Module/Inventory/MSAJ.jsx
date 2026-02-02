@@ -44,15 +44,10 @@ import {
   useTopVatRow,
   useTopATCRow,
   useTopRCRow,
-  useTopBillTermRow,
-  useTopForexRate,
   useTopCurrencyRow,
   useTopHSOption,
   useTopDocControlRow,
   useTopDocDropDown,
-  useTopVatAmount,
-  useTopATCAmount,
-  useTopBillCodeRow,
 } from '@/NAYSA Cloud/Global/top1RefTable';
 
 import {
@@ -87,15 +82,13 @@ import {
   useSwalshowSaveSuccessDialog,
   useSwalErrorAlert,
   useSwalInfoAlert,
-  useSwalValidationAlert,
   useSwalvalidateRequiredFields
 } from '@/NAYSA Cloud/Global/behavior';
 
 
 // Header
 import Header from '@/NAYSA Cloud/Components/Header';
-import { faAdd } from "@fortawesome/free-solid-svg-icons/faAdd";
-import { User, Warehouse } from "lucide-react";
+
 
 
 const MSAJ = () => {
@@ -162,8 +155,8 @@ const MSAJ = () => {
 
 
 
-    branchCode: "HO",
-    branchName: "Head Office",
+    branchCode: currentUserRow.branchCode,
+    branchName: currentUserRow.branchName,
     WHCode:"",
     WHName:"",
     LocCode:"",
@@ -611,7 +604,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
   try {
     const data = await useFetchTranData(documentNo, branchCode,docType,"msajNo",direction);
 
-    console.log(data)
+    console.log(data.msajId)
 
     if (!data?.msajId) {
       Swal.fire({ icon: 'info', title: 'No Records Found', text: 'Transaction does not exist.' });
@@ -673,6 +666,15 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
     updateState({ isLoading: false });
   }
 };
+
+
+
+
+
+
+
+
+
 
 
 const handleDocNoBlur = () => {
@@ -1031,6 +1033,10 @@ const handleFieldBehavior = (option) => {
       );
 
 
+  case "allowInsert":
+      return ["BB", "IG", "IR"].includes(selectedAJType);
+
+
       case "hiddenCAMode":
      return (
         selectedAJType === "CA" 
@@ -1096,15 +1102,11 @@ useEffect(() => {
 
 
 
-
-
   const printData = {
     apv_no: documentNo,
     branch: branchCode,
     doc_id: docType
   };
-
-
 
  
 
@@ -1824,6 +1826,42 @@ const handleCloseBranchModal = (selectedBranch) => {
 // };
 
 
+const handleAddBlankRow = (index) => {
+  const blankRow = {
+    itemCode: "",
+    oldValue: "",
+    itemName: "",
+    categCode: "",
+    uomCode: "",
+    unitCost: formatNumber(0, decUcost),
+    lotNo: "",
+    bbDate: "",
+    qstatCode: "",
+    whouseCode: WHCode ?? "",
+    locCode: LocCode ?? "",
+    acctCode: "",
+    sltypeCode: "",
+    rcCode: "",
+    slCode: "",
+    uniqueKey: "",
+    quantity: formatNumber(0, decQty),
+    qtyHand: formatNumber(0, decQty),
+    itemAmount: formatNumber(0, 2),
+    operation: "A"
+  };
+
+  setState((prev) => {
+    const updatedRows = [...(prev.detailRows || [])];
+    // Inserts the blankRow at the index + 1 position (immediately below)
+    updatedRows.splice(index + 1, 0, blankRow);
+    
+    return { ...prev, detailRows: updatedRows };
+  });
+};
+
+
+
+
 const handleCloseMSLookup = (selectedItems) => {
   
 
@@ -2047,7 +2085,7 @@ return (
                               if (e.key === "Enter") {
                                 handleDocNoBlur();
                                 e.preventDefault(); 
-                                document.getElementById("SVIDate")?.focus();
+                                document.getElementById("msajDate")?.focus();
                               }}}
                             placeholder=" "
                             className={`peer global-tran-textbox-ui ${state.isDocNoDisabled ? 'bg-blue-100 cursor-not-allowed' : ''}`}
@@ -2287,8 +2325,8 @@ return (
               <th className="global-tran-th-ui hidden">Old Value</th>
               <th className="global-tran-th-ui hidden">Unique Key</th>        
               <th className="global-tran-th-ui hidden">Operation</th>                     
-            {!isFormDisabled && (
-              <th className="global-tran-th-ui sticky right-[43px] bg-blue-300 dark:bg-blue-900 z-30">
+            {!isFormDisabled &&  (
+              <th className="global-tran-th-ui sticky right-[43px] bg-blue-300 dark:bg-blue-900 z-30" hidden={!handleFieldBehavior("allowInsert")}  >
                 Add
               </th>
             )}
@@ -2702,19 +2740,17 @@ return (
                   />
                 </td>
 
-    
-                
-                {!isFormDisabled && (
+               
+              {!isFormDisabled && handleFieldBehavior("allowInsert") && (
                 <td className="global-tran-td-ui text-center sticky right-12">
                   <button
                     className="global-tran-td-button-add-ui"
-                    onClick={() => handleAddRow(index)}
+                    onClick={() => handleAddBlankRow(index)}
                   >
                     <FontAwesomeIcon icon={faPlus} />
                   </button>
                 </td>
               )}
-
               {!isFormDisabled && (
                 <td className="global-tran-td-ui text-center sticky right-0">
                   <button

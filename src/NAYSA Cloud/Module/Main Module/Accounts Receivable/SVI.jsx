@@ -92,6 +92,7 @@ const SVI = () => {
   const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation(); 
+  const { companyInfo, currentUserRow } = useAuth();
   const [isViewDocument, setIsViewDocument] = useState(false);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
@@ -145,8 +146,8 @@ const SVI = () => {
 
 
 
-    branchCode: "HO",
-    branchName: "Head Office",
+    branchCode: currentUserRow.branchCode,
+    branchName: currentUserRow.billtermName,
     
     // Vendor information
     custCode: "",
@@ -489,9 +490,9 @@ useEffect(() => {
 
       updateState({
         
-      branchCode: "HO",
-      branchName: "Head Office",
-      userCode:user.USER_CODE,
+      branchCode: currentUserRow.branchCode,
+      branchName: currentUserRow.branchName,
+      userCode:currentUserRow.userCode,
       documentDate:useGetCurrentDay(),
 
       refDocNo1: "",

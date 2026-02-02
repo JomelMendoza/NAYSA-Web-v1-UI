@@ -21,7 +21,6 @@ import { ResetProvider } from "./NAYSA Cloud/Components/ResetContext";
 
 import Login from "./NAYSA Cloud/Authentication/Login.jsx";
 import Register from "./NAYSA Cloud/Authentication/Register.jsx";
-import ChangePassword from "./NAYSA Cloud/Authentication/ChangePassword.jsx";
 import Dashboard1 from "./NAYSA Cloud/Components/Dashboard1.jsx";
 import { useAuth } from "./NAYSA Cloud/Authentication/AuthContext.jsx";
 
@@ -78,7 +77,7 @@ const AppContent = () => {
     navigate("/", { replace: true });
   };
 
-
+  
   // Renders any component from pageRegistry by URL key
   const RegistryRoute = () => {
     const { componentKey } = useParams();
@@ -86,7 +85,7 @@ const AppContent = () => {
     if (!Cmp) return <Navigate to="/" replace />;
     return <Cmp />;
   };
-
+  
 
   /* -------- Load menu + routes when user & tenant are present -------- */
   useEffect(() => {
@@ -112,15 +111,15 @@ const AppContent = () => {
 
         setMenuItems(
           menuResp?.menuItems ??
-          menuResp?.data ??
-          (Array.isArray(menuResp) ? menuResp : [])
+            menuResp?.data ??
+            (Array.isArray(menuResp) ? menuResp : [])
         );
         setRouteRows(
           routesResp?.routes ??
-          routesResp?.data ??
-          (Array.isArray(routesResp) ? routesResp : [])
+            routesResp?.data ??
+            (Array.isArray(routesResp) ? routesResp : [])
         );
-        setRoutesLoaded(true);
+         setRoutesLoaded(true); 
       } catch (e) {
         if (!alive) return;
         console.error("[App] Failed to load menu/routes:", e);
@@ -165,7 +164,6 @@ const AppContent = () => {
           path="/"
           element={<Login onSwitchToRegister={() => navigate("/register")} />}
         />
-
         <Route
           path="/register"
           element={
@@ -175,11 +173,6 @@ const AppContent = () => {
             />
           }
         />
-
-        {/* ✅ PUBLIC EMAIL LINK */}
-        <Route path="/change-password" element={<ChangePassword />} />
-
-        {/* fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     );
@@ -224,23 +217,23 @@ const AppContent = () => {
         )}
 
         <Routes>
-          <Route path="/" element={<Dashboard1 user={user} />} />
+          <Route path="/" element={<Dashboard1 user={user} />} />      
 
 
           {/* generic registry route */}
           <Route path="/page/:componentKey" element={<RegistryRoute />} />
           {/* <Route path="/AllTranHistory" element={<AllTranHistory />} /> */}
 
-          {routeRows
-            ?.filter((r) => r.path && r.componentKey && !r.isModal)
-            .map(({ code, path, componentKey }) => {
-              const Cmp = pageRegistry[componentKey];
-              if (!Cmp) {
-                console.warn("[App] No page component for key:", componentKey, "path:", path);
-                return null;
-              }
-              return <Route key={code ?? path} path={normPath(path)} element={<Cmp />} />;
-            })}
+            {routeRows
+              ?.filter((r) => r.path && r.componentKey && !r.isModal)
+              .map(({ code, path, componentKey }) => {
+                const Cmp = pageRegistry[componentKey];
+                if (!Cmp) {
+                  console.warn("[App] No page component for key:", componentKey, "path:", path);
+                  return null;
+                }
+                return <Route key={code ?? path} path={normPath(path)} element={<Cmp />} />;
+              })}
 
           {/* Fallback: go home */}
           {routesLoaded && <Route path="*" element={<Navigate to="/" replace />} />}

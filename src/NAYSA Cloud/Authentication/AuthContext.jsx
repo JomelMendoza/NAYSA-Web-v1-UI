@@ -1,6 +1,12 @@
 
-import { createContext, useContext, useEffect, useMemo, useState, useRef, useCallback   } from "react";
-
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
 import {
   apiClient,
   ensureCsrf,
@@ -21,8 +27,6 @@ import {
 
 
 const AuthContext = createContext(null);
-import { useLocation } from "react-router-dom";
-
 
 /* -------- Timing (VITE_SESSION_LIFETIME in MINUTES) -------- */
 const IDLE_LIMIT_MINUTES =
@@ -81,7 +85,7 @@ const cacheUser = (u) => {
   try {
     if (u) localStorage.setItem(USER_CACHE_KEY, JSON.stringify(u));
     else localStorage.removeItem(USER_CACHE_KEY);
-  } catch { }
+  } catch {}
 };
 const readCachedUser = () => {
   try {
@@ -128,15 +132,6 @@ export default function AuthProvider({ children }) {
     setRefsLoading(false);
   }, []);
 
-  const location = useLocation();
-
-  const isPublicRoute = [
-    "/",
-    "/register",
-    "/change-password",
-  ].some(p => location.pathname.startsWith(p));
-
-
   /* ---------------- Unified server-side logout (server → broadcast → local) ---------------- */
   const serverLogout = useCallback(
     async (reason = "manual") => {
@@ -153,7 +148,7 @@ export default function AuthProvider({ children }) {
       // 2) Broadcast to other tabs so they can show their own popup
       try {
         bcRef.current?.postMessage({ type: "logout", reason });
-      } catch { }
+      } catch {}
 
       // 3) Show popup LOCALLY in this (initiating) tab, with auto-close 5s
       const showPopup = document.visibilityState === "visible";
@@ -161,28 +156,28 @@ export default function AuthProvider({ children }) {
         const msg =
           reason === "idle"
             ? {
-              icon: "warning",
-              title: "Signed out for inactivity",
-              text: "You were inactive and have been signed out. Please sign in again.",
-            }
+                icon: "warning",
+                title: "Signed out for inactivity",
+                text: "You were inactive and have been signed out. Please sign in again.",
+              }
             : reason === "expired"
-              ? {
+            ? {
                 icon: "warning",
                 title: "Session expired",
                 text: "Your session expired. Please sign in again.",
               }
-              : reason === "remote"
-                ? {
-                  icon: "info",
-                  title: "Signed out",
-                  text:
-                    "Your account was signed in elsewhere or the server ended the session.",
-                }
-                : {
-                  icon: "warning",
-                  title: "Session ended",
-                  text: "Your session has ended. Please sign in again.",
-                };
+            : reason === "remote"
+            ? {
+                icon: "info",
+                title: "Signed out",
+                text:
+                  "Your account was signed in elsewhere or the server ended the session.",
+              }
+            : {
+                icon: "warning",
+                title: "Session ended",
+                text: "Your session has ended. Please sign in again.",
+              };
 
         try {
           await Swal.fire({
@@ -193,7 +188,7 @@ export default function AuthProvider({ children }) {
             allowOutsideClick: false,
             allowEscapeKey: false,
           });
-        } catch { }
+        } catch {}
       } else {
         // queue a notice to show when the tab regains focus
         pendingLogoutNoticeRef.current = true;
@@ -230,35 +225,35 @@ export default function AuthProvider({ children }) {
         if (tryAcquireLeader()) {
           try {
             await apiClient.post("/logout");
-          } catch { }
+          } catch {}
           renewLeader();
         }
 
         const msg =
           reason === "idle"
             ? {
-              icon: "warning",
-              title: "Signed out for inactivity",
-              text: "You were inactive and have been signed out. Please sign in again.",
-            }
+                icon: "warning",
+                title: "Signed out for inactivity",
+                text: "You were inactive and have been signed out. Please sign in again.",
+              }
             : reason === "expired"
-              ? {
+            ? {
                 icon: "warning",
                 title: "Session expired",
                 text: "Your session expired. Please sign in again.",
               }
-              : reason === "remote"
-                ? {
-                  icon: "info",
-                  title: "Signed out",
-                  text:
-                    "Your account was signed in elsewhere or the server ended the session.",
-                }
-                : {
-                  icon: "warning",
-                  title: "Session ended",
-                  text: "Your session has ended. Please sign in again.",
-                };
+            : reason === "remote"
+            ? {
+                icon: "info",
+                title: "Signed out",
+                text:
+                  "Your account was signed in elsewhere or the server ended the session.",
+              }
+            : {
+                icon: "warning",
+                title: "Session ended",
+                text: "Your session has ended. Please sign in again.",
+              };
 
         // Show popup AFTER server call; auto-close in 5 seconds
         if (showPopup) {
@@ -292,13 +287,6 @@ export default function AuthProvider({ children }) {
 
   /* ---------------- Bootstrap (restore session once) ---------------- */
   useEffect(() => {
-    // ✅ Do NOT restore session on public routes
-    if (isPublicRoute) {
-      setLoading(false);
-      markAuthReady(true);
-      return;
-    }
-
     (async () => {
       try {
         const code = getTenant();
@@ -308,10 +296,7 @@ export default function AuthProvider({ children }) {
 
         const res = await apiClient.get("/me", {
           withCredentials: true,
-          headers: {
-            "X-Skip-Logout-Broadcast": "1",
-            "X-Use-Credentials": "1",
-          },
+          headers: { "X-Skip-Logout-Broadcast": "1", "X-Use-Credentials": "1" },
         });
 
         const me = res?.data;
@@ -327,8 +312,7 @@ export default function AuthProvider({ children }) {
         setLoading(false);
       }
     })();
-  }, [isPublicRoute]);
-
+  }, []);
 
   /* ---------------- Load company + top user once after login ---------------- */
   const loadStaticRefs = useCallback(async () => {
@@ -337,10 +321,10 @@ export default function AuthProvider({ children }) {
     try {
       setRefsLoading(true);
 
-      const [companyRow, userRow, currentMenu] = await Promise.all([
+      const [companyRow, userRow,currentMenu] = await Promise.all([
         useTopCompanyRow(),
         useTopUserRow(user.USER_CODE),
-        fetchData("menu-items", { USER_CODE: user?.USER_CODE })
+        fetchData("menu-items",{ USER_CODE: user?.USER_CODE})
       ]);
 
       setCompanyInfo(companyRow ?? null);
@@ -362,18 +346,11 @@ export default function AuthProvider({ children }) {
   /* ---------------- On-focus/visible: queued popup + light check ---------------- */
   useEffect(() => {
     let t = null;
-    // const check = async () => {
-    //   try {
-    //     await apiClient.get("/me"); // 401/419 -> interceptor broadcasts
-    //   } catch {}
-    // };
     const check = async () => {
-      if (!user) return; // ✅ DO NOT call /me when not logged in
       try {
-        await apiClient.get("/me");
-      } catch { }
+        await apiClient.get("/me"); // 401/419 -> interceptor broadcasts
+      } catch {}
     };
-
     const onFocus = () => {
       if (document.visibilityState !== "visible") return;
       clearTimeout(t);
@@ -438,47 +415,47 @@ export default function AuthProvider({ children }) {
 
 
 
-    const remoteTick = async () => {
-      if (stopped) return;
+  const remoteTick = async () => {
+    if (stopped) return;
 
-      const isHidden = document.visibilityState !== "visible";
-      const interval = isHidden ? REMOTE_HEARTBEAT_MS * 4 : REMOTE_HEARTBEAT_MS;
+    const isHidden = document.visibilityState !== "visible";
+    const interval = isHidden ? REMOTE_HEARTBEAT_MS * 4 : REMOTE_HEARTBEAT_MS;
 
-      // If we haven't done any authenticated API call in this window, ping
-      const sinceLast = Date.now() - getLastAuthApiTouch();
-      if (sinceLast >= interval) {
-        const leader = tryAcquireLeader();
-        if (leader && !stopped) {
-          const ok = await pingRemoteCheck(); // 401/419 => broadcast 'remote'
-          if (!ok) return;
-          renewLeader();
-        }
-      }
-
-      const jitter = Math.floor(Math.random() * (isHidden ? 1500 : 500));
-      remoteHbTimer.current = window.setTimeout(remoteTick, interval + jitter);
-    };
-
-
-
-
-    // 3) Heartbeat B — expiry (aligned to minutes)
-    const expireTick = async () => {
-      if (stopped) return;
-
-      const isHidden = document.visibilityState !== "visible";
-      const interval = isHidden ? EXPIRE_HEARTBEAT_MS * 2 : EXPIRE_HEARTBEAT_MS;
-
+    // If we haven't done any authenticated API call in this window, ping
+    const sinceLast = Date.now() - getLastAuthApiTouch();
+    if (sinceLast >= interval) {
       const leader = tryAcquireLeader();
       if (leader && !stopped) {
-        const ok = await pingExpiryCheck(); // 401/419 => broadcast 'expired'
+        const ok = await pingRemoteCheck(); // 401/419 => broadcast 'remote'
         if (!ok) return;
         renewLeader();
       }
+    }
 
-      const jitter = Math.floor(Math.random() * (isHidden ? 3000 : 1000));
-      expireHbTimer.current = window.setTimeout(expireTick, interval + jitter);
-    };
+    const jitter = Math.floor(Math.random() * (isHidden ? 1500 : 500));
+    remoteHbTimer.current = window.setTimeout(remoteTick, interval + jitter);
+  };
+
+
+
+
+  // 3) Heartbeat B — expiry (aligned to minutes)
+  const expireTick = async () => {
+    if (stopped) return;
+
+    const isHidden = document.visibilityState !== "visible";
+    const interval = isHidden ? EXPIRE_HEARTBEAT_MS * 2 : EXPIRE_HEARTBEAT_MS;
+
+    const leader = tryAcquireLeader();
+    if (leader && !stopped) {
+      const ok = await pingExpiryCheck(); // 401/419 => broadcast 'expired'
+      if (!ok) return;
+      renewLeader();
+    }
+
+    const jitter = Math.floor(Math.random() * (isHidden ? 3000 : 1000));
+    expireHbTimer.current = window.setTimeout(expireTick, interval + jitter);
+  };
 
 
 
