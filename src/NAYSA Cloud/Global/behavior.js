@@ -291,3 +291,21 @@ export const useSwalDeleteRecord = () => {
     },
   });
 };
+
+
+
+export const useSwalConfirmAlert = (title = "Are you sure?", message = "") => {
+  return Swal.fire({
+    title,
+    text: message,
+    icon: "warning",
+    showCancelButton: true,
+    confirmButtonColor: "#3085d6",
+    cancelButtonColor: "#d33",
+    confirmButtonText: "Yes, proceed!",
+    cancelButtonText: "Cancel",
+    customClass: {
+      popup: "rounded-xl shadow-2xl", // Keeps styling consistent with your Success alert
+    },
+  });
+};
