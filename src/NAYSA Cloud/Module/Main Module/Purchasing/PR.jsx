@@ -36,8 +36,6 @@ import {
 } from "@/NAYSA Cloud/Global/doctype";
 
 import {
-  useTopBillTermRow,
-  useTopForexRate,
   useTopCurrencyRow,
   useTopHSOption,
   useTopDocControlRow,
@@ -95,7 +93,7 @@ import Header from "@/NAYSA Cloud/Components/Header";
       
       
       
-  const [topTab, setTopTab] = useState("details"); // "details" | "history"
+  const [topTab, setTopTab] = useState("details"); 
   const { user } = useAuth();
   const { resetFlag } = useReset();
 
@@ -137,9 +135,6 @@ import Header from "@/NAYSA Cloud/Components/Header";
     itemSingleSelect:false,
     branchCode: currentUserRow.branchCode,
     branchName: currentUserRow.BranchName,
-
-    // Responsibility Center / Requesting Dept
-    // Responsibility Center / Requesting Dept
     reqRcCode: "",
     reqRcName: "",
     currCode: "",
@@ -188,11 +183,8 @@ import Header from "@/NAYSA Cloud/Components/Header";
     showSignatoryModal: false,
     showPostModal: false,
     showJobCodesModal:false,
-
-    // RC Lookup modal (table)
     rcLookupModalOpen: false,
-    rcLookupContext: "", // "rc" or "reqDept"
-
+    rcLookupContext: "", 
     msLookupModalOpen: false,
   });
 
@@ -223,50 +215,26 @@ import Header from "@/NAYSA Cloud/Components/Header";
 
     glCurrMode,
     glCurrDefault,
-    withCurr2,
-    withCurr3,
-    glCurrGlobal1,
-    glCurrGlobal2,
-    glCurrGlobal3,
-    defaultCurrRate,
+
 
     // Header
     branchCode,
     branchName,
-
-    // Responsibility Center
     rcCode,
     rcName,
-
-    // Requesting Dept
     reqRcCode,
     reqRcName,
 
     currCode,
-    currName,
-    attention,
-    prDate,
-    cutoffFrom,
-    cutoffTo,
-    prStatus,
     userCode,
-
-    prTranTypes,
-    prTypes,
     selectedPrTranType,
     selectedPrType,
-    cutoffCode,
-    requestDept,
-    dateNeeded,
     documentDate,
     headerDateNeeded,
     refPrNo1,
     refPrNo2,
     remarks,
-    billtermCode,
-    billtermName,
     noReprints,
-    prCancelled,
     showAllTranDocNo,
     showJobCodesModal,
     itemSingleSelect,
@@ -277,20 +245,15 @@ import Header from "@/NAYSA Cloud/Components/Header";
     globalLookupRow,
     globalLookupHeader,
 
-    // Modals
-    currencyModalOpen,
     branchModalOpen,
     custModalOpen,
-    billtermModalOpen,
     showCancelModal,
     showAttachModal,
     showSignatoryModal,
     showPostModal,
 
-    // RC Lookup
     rcLookupModalOpen,
     rcLookupContext,
-
     msLookupModalOpen,
   } = state;
 

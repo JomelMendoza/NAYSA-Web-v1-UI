@@ -1,21 +1,20 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Swal from "sweetalert2";
-import { useNavigate } from "react-router-dom";
+import { useNavigate,useLocation } from "react-router-dom";
 
 // UI
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faMagnifyingGlass,
+ faMagnifyingGlass,
   faPlus,
   faSpinner,
   faSearch,
+  faMinus,
 } from "@fortawesome/free-solid-svg-icons";
 
 // Lookup/Modal
 import BranchLookupModal from "../../../Lookup/SearchBranchRef";
 import CurrLookupModal from "../../../Lookup/SearchCurrRef.jsx";
-import CustomerMastLookupModal from "../../../Lookup/SearchCustMast";
-import BillTermLookupModal from "../../../Lookup/SearchBillTermRef.jsx";
 import CancelTranModal from "../../../Lookup/SearchCancelRef.jsx";
 import PostTranModal from "../../../Lookup/SearchPostRef.jsx";
 import AttachDocumentModal from "../../../Lookup/SearchAttachment.jsx";
@@ -26,13 +25,16 @@ import MSLookupModal from "../../../Lookup/SearchMSMast.jsx";
 import PayeeMastLookupModal from "../../../Lookup/SearchVendMast";
 import PaytermLookupModal from "../../../Lookup/SearchPayTermRef.jsx";
 import VATLookupModal from "../../../Lookup/SearchVATRef.jsx";
+import JobCodeLookupModal from "../../../Lookup/SearchJobCodesRef.jsx";
 
 // JO.jsx (top of file)
 import SearchPROpenModal from "../../../Lookup/SearchOpenPRBalance.jsx";
 
 // Configuration
-import { postRequest } from "../../../Configuration/BaseURL.jsx";
+import { postRequest,fetchDataJson } from "../../../Configuration/BaseURL.jsx";
 import { useReset } from "../../../Components/ResetContext";
+import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
+
 
 import {
   docTypeNames,
@@ -42,7 +44,6 @@ import {
 } from "@/NAYSA Cloud/Global/doctype";
 
 import {
-  useTopBillTermRow,
   useTopForexRate,
   useTopCurrencyRow,
   useTopHSOption,
@@ -59,23 +60,52 @@ import {
   useHandlePost,
 } from "@/NAYSA Cloud/Global/procedure";
 
+import {
+  useGetCurrentDay,
+  useFormatToDate,
+} from '@/NAYSA Cloud/Global/dates';
+
 import { useHandlePrint } from "@/NAYSA Cloud/Global/report";
+import {
+  useSelectedHSColConfig
+} from '@/NAYSA Cloud/Global/selectedData';
 
 import {
   formatNumber,
   parseFormattedNumber,
   useSwalshowSaveSuccessDialog,
+  useSwalvalidateRequiredFields,
+  useSwalInfoAlert,
+  useSwalConfirmAlert,
+  useSwalHandleOpenSpecsModal
 } from "@/NAYSA Cloud/Global/behavior";
 
 // Header
 import Header from "@/NAYSA Cloud/Components/Header";
 
 const JO = () => {
-  const loadedFromUrlRef = useRef(false);
-  const navigate = useNavigate();
-  const { resetFlag } = useReset();
-
-  const [topTab, setTopTab] = useState("details"); // "details" | "history"
+   const loadedFromUrlRef = useRef(false);
+    const navigate = useNavigate();
+    const location = useLocation(); 
+    const [isViewDocument, setIsViewDocument] = useState(false);
+    const { companyInfo, currentUserRow } = useAuth();
+    const decQty = companyInfo?.itemDecqtyPur ?? 2;
+  
+  
+        
+    useEffect(() => {
+    const p = new URLSearchParams(location.search);
+            if (p.get("viewDocument") === "true") {
+              setIsViewDocument(true);
+            }
+            }, []); 
+    const isViewDocumentUrl = isViewDocument;
+        
+        
+        
+    const [topTab, setTopTab] = useState("details"); 
+    const { user } = useAuth();
+    const { resetFlag } = useReset();
 
   const [state, setState] = useState({
     // HS Option / Currency
@@ -94,7 +124,10 @@ const JO = () => {
     documentID: null,
     documentNo: "",
     documentStatus: "",
-    status: "OPEN",
+    status: "",
+    originalDocStatus:"O",
+    documentDate:useGetCurrentDay(),  
+    dateNeeded:useGetCurrentDay(),  
 
     currencyCode: "",
     currencyName: "Philippine Peso",
@@ -110,16 +143,8 @@ const JO = () => {
     isResetDisabled: false,
     isFetchDisabled: true,
 
-    // Header information
-    header: {
-      jo_date: new Date().toISOString().split("T")[0], // PR Date
-    },
-
-    branchCode: "HO",
-    branchName: "Head Office",
-
-    // Responsibility Center / Requesting Dept
-    // Responsibility Center / Requesting Dept
+    branchCode: currentUserRow.branchCode,
+    branchName: currentUserRow.BranchName,
     reqRcCode: "",
     reqRcName: "",
     currCode: "",
@@ -195,6 +220,8 @@ const JO = () => {
     documentID,
     documentStatus,
     documentNo,
+    documentDate,
+    dateNeeded,
     status,
 
     activeTab,
@@ -653,7 +680,7 @@ const JO = () => {
       paytermCode: result.paytermCode,
       paytermName: result.paytermName,
       // if you really need dueDate:
-      // dueDate: calculateDueDate(header.pr_date, result.daysDue),
+      // dueDate: calculateDueDate(documentDate, result.daysDue),
     };
     updateState({ detailRows: updatedRows });
   };
@@ -774,7 +801,7 @@ const JO = () => {
       return;
     }
 
-    const today = header.pr_date || new Date().toISOString().split("T")[0];
+    const today = documentDate || new Date().toISOString().split("T")[0];
 
     const newRow = {
       invType: "MS",
@@ -920,7 +947,7 @@ const JO = () => {
 
     if (isFormDisabled) return;
 
-    const newRow = createEmptyDetailRow(header.pr_date);
+    const newRow = createEmptyDetailRow(documentDate);
     const updatedRows = [...detailRows, newRow];
 
     updateState({ detailRows: updatedRows });
@@ -938,7 +965,7 @@ const JO = () => {
 
   // When user picks FG / MS / RM
   const handleSelectTypeAndAddRow = (typeCode) => {
-    const today = header.pr_date || new Date().toISOString().split("T")[0];
+    const today = documentDate || new Date().toISOString().split("T")[0];
 
     const newRow = {
       invType: typeCode,
@@ -1448,7 +1475,7 @@ const JO = () => {
         const rate =
           code === glCurrDefault
             ? defaultCurrRate
-            : await useTopForexRate(code, header.pr_date);
+            : await useTopForexRate(code, documentDate);
 
         updateState({
           currCode: result.currCode,
@@ -1507,20 +1534,29 @@ const JO = () => {
 
       <div className="global-tran-headerToolbar-ui">
         <Header
-          docType={docType}
-          pdfLink={pdfLink}
+          docType={docType} 
+          pdfLink={pdfLink} 
           videoLink={videoLink}
-          onPrint={handlePrint}
-          printData={printData}
+          onPrint={handlePrint} 
+          onPost={handlePost} 
+          printData={printData} 
           onReset={handleReset}
-          onSave={() => handleActivityOption("Upsert")}
-          onPost={handlePost}
-          onCancel={handleCancel}
-          onCopy={handleCopy}
+          onSave={() => handleActivityOption('Upsert')}
+          onCancel={handleCancel} 
+          onCopy={handleCopy} 
           onAttach={handleAttach}
+
+          activeTopTab={topTab} 
+          showActions={topTab === "details"} 
+          showBIRForm={false}   
+          showCopyForm ={true} 
+          isViewDocument={isViewDocument}  
+          onDetails={() => setTopTab("details")}
           onHistory={() => setTopTab("history")}
-          isSaveDisabled={isSaveDisabled}
-          isResetDisabled={isResetDisabled}
+          disableRouteNavigation={true}         
+          isSaveDisabled={isSaveDisabled} 
+          isResetDisabled={isResetDisabled} 
+          detailsRoute="/page/JO"
         />
       </div>
 
@@ -1655,7 +1691,7 @@ const JO = () => {
                     type="date"
                     id="JODate"
                     className="peer global-tran-textbox-ui"
-                    value={header.pr_date}
+                    value={documentDate}
                     onChange={(e) =>
                       setHeader((prev) => ({
                         ...prev,
@@ -2369,27 +2405,27 @@ const JO = () => {
         </div>
       </div>
 
-      {/* HISTORY TAB */}
+        {/* HISTORY TAB */}
       <div className={topTab === "history" ? "" : "hidden"}>
         <AllTranHistory
-          showHeader={false}
-          endpoint="/getPRHistory"
-          cacheKey={`PR:${state.branchCode || ""}:${state.documentNo || ""}`}
-          activeTabKey="PR_Summary"
-          branchCode={state.branchCode}
-          startDate={null}
-          endDate={null}
+        showHeader={false}
+        endpoint="/getJOHistory"
+        cacheKey={`JO:${state.branchCode || ""}:${state.docNo || ""}`}  // ✅ per-transaction
+        activeTabKey="JO_Summary"
+        branchCode={state.branchCode}
+        startDate={state.fromDate}
+        endDate={state.toDate}
           status={(() => {
             const s = (state.status || "").toUpperCase();
             if (s === "FINALIZED") return "F";
             if (s === "CANCELLED") return "X";
-            if (s === "CLOSED") return "C";
-            if (s === "OPEN") return "";
+            if (s === "CLOSED")    return "C";
+            if (s === "OPEN")      return "";
             return "All";
           })()}
           onRowDoubleClick={handleHistoryRowPick}
-          historyExportName={`${documentTitle} History`}
-        />
+          historyExportName={`${documentTitle} History`} 
+    />
       </div>
 
       {/* MODALS */}
@@ -2423,12 +2459,6 @@ const JO = () => {
         />
       )}
 
-      {billtermModalOpen && (
-        <BillTermLookupModal
-          isOpen={billtermModalOpen}
-          onClose={handleCloseBillTermModal}
-        />
-      )}
 
       {prLookupModalOpen && (
         <SearchPROpenModal
