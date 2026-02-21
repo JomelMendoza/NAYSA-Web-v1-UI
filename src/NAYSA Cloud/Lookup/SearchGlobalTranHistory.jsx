@@ -941,15 +941,25 @@ const getColumnConfig = async (groupId) => {
                               ["number", "currency"].includes(col.renderType);
 
                             return (
-                              <td
-                                key={col.key}
-                                className={`px-2 py-1 border whitespace-nowrap ${
-                                  alignRight ? "text-right" : col.classNames || "text-left"
-                                }`}
-                                title={String(row?.[col.key] ?? "")}
+                              
+                            <td
+                              key={col.key}
+                              className={`px-2 py-1 border whitespace-nowrap ${
+                                alignRight ? "text-right" : col.classNames || "text-left"
+                              }`}
+                              title={String(row?.[col.key] ?? "")}
+                            >
+                              <div 
+                                style={{
+                                  maxWidth: "300px", // Approximate width for ~200 chars
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap"
+                                }}
                               >
                                 {formatCellValue(row?.[col.key], col)}
-                              </td>
+                              </div>
+                            </td>                            
                             );
                           })}
                         </tr>

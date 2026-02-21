@@ -309,3 +309,37 @@ export const useSwalConfirmAlert = (title = "Are you sure?", message = "") => {
     },
   });
 };
+
+
+
+export const useSwalHandleOpenSpecsModal = (index, detailRows, handleDetailChange,rowValue, rowTitle,placeHolderValue) => {
+  const row = detailRows[index];
+
+  Swal.fire({
+    title: 'Specifications',
+    input: 'textarea',
+    inputValue: rowValue || '',
+    inputPlaceholder: placeHolderValue,
+   showCancelButton: true,
+    confirmButtonText: 'Save',
+    cancelButtonText: 'Cancel',
+    confirmButtonColor: '#3b82f6',
+    cancelButtonColor: '#64748b',
+    reverseButtons: true, // Optional: puts 'Save' on the right, 'Cancel' on the left
+    inputAttributes: {
+      'aria-label': 'Type your specifications here',
+      'style': 'height: 150px; font-size: 0.875rem;' // Optional: consistent sizing
+    },
+    customClass: {
+      actions: 'w-full px-6 gap-2', // Containers for buttons
+      confirmButton: 'flex-1 py-2', // Forces Save to take half width
+      cancelButton: 'flex-1 py-2',  // Forces Cancel to take half width
+      input: 'focus:ring-blue-500'   
+    },
+    buttonsStyling: true,
+  }).then((result) => {
+    if (result.isConfirmed) {
+      handleDetailChange(index, rowTitle, result.value);
+    }
+  });
+};

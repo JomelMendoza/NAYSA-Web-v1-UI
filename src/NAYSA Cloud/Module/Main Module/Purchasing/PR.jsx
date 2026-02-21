@@ -68,7 +68,8 @@ import {
   useSwalshowSaveSuccessDialog,
   useSwalvalidateRequiredFields,
   useSwalInfoAlert,
-  useSwalConfirmAlert
+  useSwalConfirmAlert,
+  useSwalHandleOpenSpecsModal
 } from "@/NAYSA Cloud/Global/behavior";
 
 // Header
@@ -730,68 +731,6 @@ const handleCloseMSLookup = (selectedItems) => {
 };
 
 
-//   const handleCloseMSLookup = (selectedItems) => {
-//   if (!selectedItems) {
-//     updateState({ msLookupModalOpen: false });
-//     return;
-//   }
-
-//   const itemsArray = Array.isArray(selectedItems.records) 
-//     ? selectedItems.records 
-//     : selectedItems.records ? [selectedItems.records] : [];
-
-//   if (itemsArray.length === 0) {
-//     updateState({ msLookupModalOpen: false });
-//     return;
-//   }
-
-
-
-//   if(itemSingleSelect){
-//       const singleItem = itemsArray[0];
-//       handleDetailChange(selectedRowIndex, 'itemCode', singleItem, false)
-//       updateState({itemSingleSelect: false,msLookupModalOpen: false });
-//       return[];
-
-
-//   }
-
-
-
-
-//   const newRows = itemsArray.map((item) => {
-//     return {
-//       invType: "MS",
-//       groupId: "",
-//       prStatus: "O",
-//       itemCode: item?.itemCode || "",
-//       itemName: item?.itemName || "",
-//       uomCode: item?.uomCode || "",
-//       qtyOnHand: formatNumber(item?.qtyHand ?? 0, 6),
-//       qtyAlloc: "0.000000",
-//       qtyNeeded: "0.000000",
-//       uomCode2: item?.uomCode || "",
-//       uomQty2: "0.000000",
-//       dateNeeded: headerDateNeeded,
-//       itemSpecs: "",
-//       serviceCode: "",
-//       serviceName: "",
-//       poQty: "0.000000",
-//       rrQty: "0.000000",
-//     };
-//   });
-
-//   // Combine existing rows with the new ones
-//   const updatedRows = [...detailRows, ...newRows];
-
-//   // Single update call for better performance and state consistency
-//   updateState({
-//     detailRows: updatedRows,
-//     msLookupModalOpen: false,
-//     itemSingleSelect: false
-//   });
-// };
-
 
 const handleAddBlankRow = (index) => {
 
@@ -839,16 +778,7 @@ const handleAddBlankRow = (index) => {
   // HEADER EVENTS
   // ==========================
 
-  const handleCurrRateNoBlur = (e) => {
-    const num = formatNumber(e.target.value, 6);
-    updateState({
-      currRate: isNaN(num) ? "0.000000" : num,
-      withCurr2:
-        (glCurrMode === "M" && glCurrDefault !== currCode) ||
-        glCurrMode === "D",
-      withCurr3: glCurrMode === "T",
-    });
-  };
+ 
 
   const handlePrTranTypeChange = (e) => {
     updateState({ selectedPrTranType: e.target.value });
@@ -988,35 +918,6 @@ const handleAddBlankRow = (index) => {
 
 
 
-//   const handleDeleteRow = (index) => {
-
-//       if (documentStatus !=="O"){
-//         return;
-//       }
-
-//   // ✅ prevent deleting the last remaining row
-//   if ((detailRows?.length || 0) <= 1) {
-//     Swal.fire({
-//       icon: "warning",
-//       title: "Cannot Delete",
-//       text: "At least one item row must remain.",
-//       timer: 2200,
-//       showConfirmButton: false,
-//     });
-//     return;
-//   }
-
-//   const updatedRows = [...detailRows];
-//   updatedRows.splice(index, 1);
-
-//   updateState({ detailRows: updatedRows });
-
-//   const totalQty = updatedRows.reduce(
-//     (acc, r) => acc + (parseFormattedNumber(r.qtyNeeded) || 0),
-//     0
-//   );
-//   updateTotalsDisplay(totalQty);
-// };
 
 const handleDeleteRow = (index) => {
   const row = detailRows[index];
@@ -1069,7 +970,6 @@ const handleDeleteRow = (index) => {
 
 
   const updateTotals = (rows) => {
-  //console.log("updateTotals received rows:", rows); // STEP 5: Check rows passed to updateTotals
   let totalQuantity = 0;
   rows.forEach(row => {
     const item_Quantity = parseFormattedNumber(row.qtyNeeded || 0) || 0
@@ -1167,6 +1067,41 @@ if (field === 'prStatus') {
 }
   finalizeUpdate(index, row);
 };
+
+
+
+  const handleOpenSpecsModal = (index) => {
+  const row = detailRows[index];
+
+  Swal.fire({
+    title: 'Specifications',
+    input: 'textarea',
+    inputValue: row.itemSpecs || '',
+    inputPlaceholder: `Enter remarks for ${row.itemName || 'this item'}...`,
+    showCancelButton: true,
+    confirmButtonText: 'Save',
+    cancelButtonText: 'Cancel',
+    confirmButtonColor: '#3b82f6',
+    cancelButtonColor: '#64748b',
+    reverseButtons: true, // Optional: puts 'Save' on the right, 'Cancel' on the left
+    inputAttributes: {
+      'aria-label': 'Type your specifications here',
+      'style': 'height: 150px; font-size: 0.875rem;' // Optional: consistent sizing
+    },
+    customClass: {
+      actions: 'w-full px-6 gap-2', // Containers for buttons
+      confirmButton: 'flex-1 py-2', // Forces Save to take half width
+      cancelButton: 'flex-1 py-2',  // Forces Cancel to take half width
+      input: 'focus:ring-blue-500'   
+    },
+    buttonsStyling: true, 
+  }).then((result) => {
+    if (result.isConfirmed) {
+      handleDetailChange(index, "itemSpecs", result.value);
+    }
+  });
+};
+
 
 
 
@@ -2027,7 +1962,7 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
                     <th className="global-tran-th-ui">Date Needed</th>
                     <th className={`global-tran-th-ui ${isJobOrder ? 'hidden' : ''}`}>PO Qty</th>
                     <th className={`global-tran-th-ui ${isJobOrder ? 'hidden' : ''}`}>RR Qty</th>
-                    <th className="global-tran-th-ui">JO No.</th>
+                    <th className={`global-tran-th-ui ${!isJobOrder ? 'hidden' : ''}`}>JO No.</th>
                   {!isFormDisabled &&  (
                   <>
                     <th className="global-tran-th-ui sticky right-[43px] bg-blue-300 dark:bg-blue-900 z-30">
@@ -2157,16 +2092,36 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
                             />
                           </td>
 
-                          {/* Specification */}
-                          <td className="global-tran-td-ui">
+                        
+                         {/* Specification */}
+                        <td className="global-tran-td-ui relative">
+                          <div className="flex items-center">
                             <input
                               type="text"
-                              className="w-[300px] global-tran-td-inputclass-ui"
+                              className="w-[300px] global-tran-td-inputclass-ui pr-8"
                               value={row.itemSpecs || ""}
                               onChange={(e) => handleDetailChange(index, "itemSpecs", e.target.value)}
-                              readOnly={isFormDisabled || row.prStatus !== "O" || row.poQty > 0  }
+                              readOnly={isFormDisabled || row.prStatus !== "O" || row.poQty > 0}
                             />
-                          </td>
+                            {!isFormDisabled && row.prStatus === "O" && (
+                              <FontAwesomeIcon 
+                                icon={faSearch} 
+                                className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                                onClick={() => useSwalHandleOpenSpecsModal(
+                                index, 
+                                detailRows, 
+                                handleDetailChange, 
+                                row.itemSpecs,    // rowValue
+                                'itemSpecs',      // rowTitle (the field key in your state)
+                                `Enter remarks for ${row.itemName || 'this item'}...` // placeHolderValue
+                              )} 
+                              />
+                            )}
+                          </div>
+                        </td>
+
+
+
 
                           {/* UOM */}
                           <td className="global-tran-td-ui">
@@ -2228,19 +2183,20 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
                                 e.target.blur();
                             }
                         }}
-                    />
-                </td>
+                        />
+                      </td>
 
                           {/* Date Needed */}
                           <td className="global-tran-td-ui">
                             <input
                               type="date"
-                              className="w-[130px] global-tran-td-inputclass-ui"
+                              className="w-[130px] global-tran-td-inputclass-ui text-center" // Added text-center here
                               value={row.dateNeeded || ""}
                               onChange={(e) => handleDetailChange(index, "dateNeeded", e.target.value)}
                               readOnly={isFormDisabled || row.prStatus !== "O" || row.poQty > 0}
                             />
                           </td>
+
 
                           {/* PO Qty */}
                           <td className="global-tran-td-ui text-right" hidden={isJobOrder}>
