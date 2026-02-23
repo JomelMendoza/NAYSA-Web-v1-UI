@@ -241,7 +241,7 @@ const JO = () => {
     glCurrGlobal2,
     glCurrGlobal3,
     defaultCurrRate,
-    handleSelectAPAccount,
+
 
     // Header
     branchCode,
@@ -615,7 +615,6 @@ const JO = () => {
 
       await Promise.all([
         handleSelectCurrency(payeeDetails.currCode),
-        handleSelectAPAccount(payeeDetails.acctCode),
       ]);
     } catch (error) {
       console.error("Error:", error);
@@ -1254,17 +1253,39 @@ const JO = () => {
   // HISTORY – URL PARAM HANDLING
   // ==========================
 
-  const cleanUrl = useCallback(() => {
-    navigate(location.pathname, { replace: true });
-  }, [navigate, location.pathname]);
+  
 
-  const handleHistoryRowPick = useCallback((row) => {
+const cleanUrl = useCallback(() => {
+  window.history.replaceState({}, "", window.location.origin);
+}, []);
+const handleHistoryRowPick = useCallback(
+  async (row) => {
     const docNo = row?.docNo;
     const branchCode = row?.branchCode;
     if (!docNo || !branchCode) return;
-    fetchTranData(docNo, branchCode);
+
+    await fetchTranData(docNo, branchCode); 
     setTopTab("details");
-  }, []);
+    cleanUrl(); // 
+  },
+  [fetchTranData, cleanUrl]
+);
+
+
+
+useEffect(() => {
+  const params = new URLSearchParams(location.search);
+  const docNo = params.get("jONo");
+  const branchCode = params.get("branchCode");
+
+  if (!loadedFromUrlRef.current && docNo && branchCode) {
+    loadedFromUrlRef.current = true;
+    handleHistoryRowPick({ docNo, branchCode });
+  }
+}, [location.search, handleHistoryRowPick]);
+
+
+
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -2054,20 +2075,26 @@ const JO = () => {
                       </td>
 
                       {/* Job Code */}
-                      <td className="global-tran-td-ui">
-                        <input
-                          type="text"
-                          className="w-[120px] global-tran-td-inputclass-ui"
-                          value={row.jobCode || ""}
-                          onChange={(e) =>
-                            handleDetailChange(index, "jobCode", e.target.value)
-                          }
-                          disabled={isFormDisabled}
-                        />
-                      </td>
+                       <td className="global-tran-td-ui relative" >
+                            <div className="flex items-center">
+                              <input
+                                type="text"
+                                className={`w-[100px] global-tran-td-inputclass-ui`}
+                                value={row.jobCode || ""}
+                                readOnly
+                                onChange={(e) => handleDetailChange(index, 'jobCode', e.target.value)}
+                              />
+                                {!isFormDisabled && (
+                                <FontAwesomeIcon 
+                                  icon={faMagnifyingGlass} 
+                                  className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                                  onClick={() => updateState({ showJobCodesModal: true, selectedRowIndex: index })}                                                             
+                                />)}
+                              </div>
+                          </td>
 
                       {/* Scope of Work */}
-                      <td className="global-tran-td-ui">
+                      {/* <td className="global-tran-td-ui">
                         <input
                           type="text"
                           className="w-[220px] global-tran-td-inputclass-ui"
@@ -2081,58 +2108,147 @@ const JO = () => {
                           }
                           disabled={isFormDisabled}
                         />
-                      </td>
+                      </td> */}
 
-                      {/* Specification */}
-                      <td className="global-tran-td-ui">
-                        <input
-                          type="text"
-                          className="w-[220px] global-tran-td-inputclass-ui"
-                          value={row.specification || ""}
-                          onChange={(e) =>
-                            handleDetailChange(
-                              index,
-                              "specification",
-                              e.target.value
-                            )
-                          }
-                          disabled={isFormDisabled}
-                        />
-                      </td>
+                       <td className="global-tran-td-ui relative">
+                          <div className="flex items-center">
+                            <input
+                              type="text"
+                              className="w-[300px] global-tran-td-inputclass-ui pr-8"
+                              value={row.scopeOfWork || ""}
+                              onChange={(e) => handleDetailChange(index, "scopeOfWork", e.target.value)}
+                              readOnly={isFormDisabled}
+                            />
+                            {!isFormDisabled  && (
+                              <FontAwesomeIcon 
+                                icon={faSearch} 
+                                className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                                onClick={() => useSwalHandleOpenSpecsModal(
+                                index, 
+                                detailRows, 
+                                handleDetailChange, 
+                                row.scopeOfWork,    // rowValue                            
+                                'Scope of Work',
+                                'scopeOfWork',    // rowTitle (the field key in your state)
+                                `Enter scope of work for ${row.jobCode || 'this item'}...` // placeHolderValue
+                              )} 
+                              />
+                            )}
+                          </div>
+                        </td>
+
+
+                        <td className="global-tran-td-ui relative">
+                          <div className="flex items-center">
+                            <input
+                              type="text"
+                              className="w-[300px] global-tran-td-inputclass-ui pr-8"
+                              value={row.specification || ""}
+                              onChange={(e) => handleDetailChange(index, "specification", e.target.value)}
+                              readOnly={isFormDisabled }
+                            />
+                            {!isFormDisabled && (
+                              <FontAwesomeIcon 
+                                icon={faSearch} 
+                                className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                                onClick={() => useSwalHandleOpenSpecsModal(
+                                index, 
+                                detailRows, 
+                                handleDetailChange, 
+                                row.specification,  
+                                'Specification',    // rowValue
+                                'specification',                                   // rowTitle (the field key in your state)
+                                `Enter specification for ${row.jobCode || 'this item'}...` // placeHolderValue
+                              )} 
+                              />
+                            )}
+                          </div>
+                        </td>
+                     
 
                       {/* Quantity */}
-                      <td className="global-tran-td-ui text-right">
-                        <input
-                          type="text"
-                          className="w-[100px] global-tran-td-inputclass-ui text-right"
-                          value={row.quantity || ""}
-                          onChange={(e) =>
-                            handleDetailChange(
-                              index,
-                              "quantity",
-                              e.target.value
-                            )
-                          }
-                          disabled={isFormDisabled}
+                      <td className="global-tran-td-ui" >
+                    <input
+                        type="text"
+                        className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
+                        value={row.quantity || ""}
+                        readOnly={isFormDisabled}
+                        onChange={(e) => {
+                            const inputValue = e.target.value;
+                             const sanitizedValue = inputValue.replace(/[^0-9.-]/g, '');
+                            if (/^-?\d*\.?\d{0,2}$/.test(sanitizedValue) || sanitizedValue === "") {
+                                handleDetailChange(index, "quantity", sanitizedValue, false);
+                            }
+                        }}                   
+                        onFocus={(e) => {
+                            if ((e.target.value === "0.00" || parseFormattedNumber(e.target.value) === 0)) {
+                              e.target.value = "";
+                            }
+                          }}                   
+                        onBlur={async (e) => {
+                            const value = e.target.value;
+                            const num = parseFormattedNumber(value);
+                            if (!isNaN(num)) {
+                                 handleDetailChange(index, "quantity", num, true);
+                            }
+                            setFocusedCell(null);
+                        }}
+                        onKeyDown={async (e) => {
+                            if (e.key === "Enter") {
+                                e.preventDefault();
+                                const value = e.target.value;   
+                                const num = parseFormattedNumber(value);
+                                if (!isNaN(num)) {
+                                    await handleDetailChange(index, "quantity", num, true);
+                                }
+                                e.target.blur();
+                            }
+                        }}
                         />
                       </td>
 
-                      {/* Unit Price */}
-                      <td className="global-tran-td-ui text-right">
-                        <input
-                          type="text"
-                          className="w-[110px] global-tran-td-inputclass-ui text-right"
-                          value={row.unitPrice || ""}
-                          onChange={(e) =>
-                            handleDetailChange(
-                              index,
-                              "unitPrice",
-                              e.target.value
-                            )
-                          }
-                          disabled={isFormDisabled}
+
+                    <td className="global-tran-td-ui" >
+                    <input
+                        type="text"
+                        className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
+                        value={row.unitPrice || ""}
+                        readOnly={isFormDisabled}
+                        onChange={(e) => {
+                            const inputValue = e.target.value;
+                             const sanitizedValue = inputValue.replace(/[^0-9.-]/g, '');
+                            if (/^-?\d*\.?\d{0,2}$/.test(sanitizedValue) || sanitizedValue === "") {
+                                handleDetailChange(index, "unitPrice", sanitizedValue, false);
+                            }
+                        }}                   
+                        onFocus={(e) => {
+                            if ((e.target.value === "0.00" || parseFormattedNumber(e.target.value) === 0)) {
+                              e.target.value = "";
+                            }
+                          }}                   
+                        onBlur={async (e) => {
+                            const value = e.target.value;
+                            const num = parseFormattedNumber(value);
+                            if (!isNaN(num)) {
+                                 handleDetailChange(index, "unitPrice", num, true);
+                            }
+                            setFocusedCell(null);
+                        }}
+                        onKeyDown={async (e) => {
+                            if (e.key === "Enter") {
+                                e.preventDefault();
+                                const value = e.target.value;   
+                                const num = parseFormattedNumber(value);
+                                if (!isNaN(num)) {
+                                    await handleDetailChange(index, "unitPrice", num, true);
+                                }
+                                e.target.blur();
+                            }
+                        }}
                         />
                       </td>
+
+                      
 
                       {/* UOM */}
                       <td className="global-tran-td-ui">

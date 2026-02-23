@@ -312,11 +312,11 @@ export const useSwalConfirmAlert = (title = "Are you sure?", message = "") => {
 
 
 
-export const useSwalHandleOpenSpecsModal = (index, detailRows, handleDetailChange,rowValue, rowTitle,placeHolderValue) => {
+export const useSwalHandleOpenSpecsModal = (index, detailRows, handleDetailChange,rowValue, rowTitle, rowName,placeHolderValue) => {
   const row = detailRows[index];
 
   Swal.fire({
-    title: 'Specifications',
+    title: rowTitle,
     input: 'textarea',
     inputValue: rowValue || '',
     inputPlaceholder: placeHolderValue,
@@ -339,7 +339,7 @@ export const useSwalHandleOpenSpecsModal = (index, detailRows, handleDetailChang
     buttonsStyling: true,
   }).then((result) => {
     if (result.isConfirmed) {
-      handleDetailChange(index, rowTitle, result.value);
+      handleDetailChange(index, rowName, result.value);
     }
   });
 };

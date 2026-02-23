@@ -730,13 +730,6 @@ const handleAddBlankRow = (index) => {
 
 
 
-
-  const handlePrNoBlur = () => {
-    if (!state.documentID && state.documentNo && state.branchCode) {
-      fetchTranData(state.documentNo, state.branchCode);
-    }
-  };
-
   // ==========================
   // HEADER EVENTS
   // ==========================
@@ -2074,9 +2067,10 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
                                 index, 
                                 detailRows, 
                                 handleDetailChange, 
-                                row.itemSpecs,    // rowValue
-                                'itemSpecs',      // rowTitle (the field key in your state)
-                                `Enter remarks for ${row.itemName || 'this item'}...` // placeHolderValue
+                                row.itemSpecs,    // rowValue                              
+                                'Specification', 
+                                'itemSpecs',     // rowTitle (the field key in your state)
+                                `Enter specification for ${row.itemName || 'this item'}...` // placeHolderValue
                               )} 
                               />
                             )}
@@ -2109,7 +2103,7 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
                           </td>
 
                           {/* Qty Needed */}
-                          <td className="global-tran-td-ui" >
+                    <td className="global-tran-td-ui" >
                     <input
                         type="text"
                         className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
