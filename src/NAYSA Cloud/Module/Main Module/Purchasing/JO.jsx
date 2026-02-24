@@ -1119,14 +1119,12 @@ const insertNewRow = async (index = -1) => {
   // ==========================
   // SAVE / UPSERT (PR + DT1)
   // ==========================
-  const handleActivityOption = async (action) => {
-    // If already posted/cancelled/finalized, do not allow save
-    if (documentStatus !== "") {
+  const handleActivityOption = async (mode) => {
+    if (originalDocStatus !=="O" || detailRows.length===0 ) {
       return;
     }
 
-    if (action !== "Upsert") return;
-
+ 
     updateState({ isLoading: true });
 
     try {
@@ -1134,143 +1132,80 @@ const insertNewRow = async (index = -1) => {
         branchCode,
         documentNo,
         documentID,
-        header,
-        selectedPrTranType,
-        selectedPrType,
-        refPrNo1,
-        refPrNo2,
-        cutoffCode,
-        rcCode, // <-- from state
-        reqRcCode, // <-- requesting dept code from state
-        reqRcName, // <-- requesting dept name from state
+        attention,
+        payeeCode,
+        payeeName,
+        currCode,
+        currRate,
+        paytermCode,
+        prNo,
+        documentDate,
+        rcCode,
         remarks,
-        noReprints,
-        prCancelled,
         detailRows,
+        documentStatus,
       } = state;
 
-      // NEW vs EDIT
-      const isNew = !documentID;
+ 
 
-      // JO Payload (matches sproc_PHP_JO)
-      let totalGross = 0;
-      let totalVat = 0;
-      let totalDisc = 0;
-      let totalNet = 0;
-
-      const dt1 = detailRows
-        // optional: only send rows with some content
-        .filter((row) => (row.scopeOfWork || "").trim() !== "")
-        .map((row, idx) => {
-          const qty = parseFormattedNumber(row.quantity || row.quantity || 0);
-          const unitCost = parseFormattedNumber(
-            row.unitCost || row.unitPrice || 0
-          );
-
-          const grossAmount =
-            parseFormattedNumber(row.grossAmt || 0) || qty * unitCost;
-
-          const discRate = parseFormattedNumber(row.discRate || 0);
-          const discAmount =
-            parseFormattedNumber(row.discAmt || 0) ||
-            (grossAmount * discRate) / 100;
-
-          const vatAmount = parseFormattedNumber(row.vatAmt || 0);
-          const netAmount =
-            parseFormattedNumber(row.netAmt || 0) || grossAmount - discAmount;
-
-          const joAmount =
-            parseFormattedNumber(row.totalAmt || 0) || netAmount + vatAmount;
-
-          totalGross += grossAmount;
-          totalVat += vatAmount;
-          totalDisc += discAmount;
-          totalNet += netAmount;
-
-          return {
-            // === MUST MATCH JO_DT1 expected fields ===
-            LINE_NO: idx + 1,
-            PR_NO: row.prNo || state.prNo || "",
-            SCOPE: row.scopeOfWork || "",
-            QTY_NEEDED: qty,
-            UOM_CODE: row.uomCode || "",
-            CURR_CODE: state.currCode || "PHP",
-            UNIT_COST: unitCost,
-            GROSS_AMOUNT: grossAmount,
-            DISC_RATE: discRate,
-            DISC_AMOUNT: discAmount,
-            NET_AMOUNT: netAmount,
-            VAT_CODE: row.vatCode || "",
-            VAT_AMOUNT: vatAmount,
-            JO_AMOUNT: joAmount,
-            DEL_DATE:
-              row.deliveryDate ||
-              state.header?.pr_date ||
-              state.header?.joDate ||
-              null,
-            RC_CODE: state.reqRcCode || state.rcCode || "",
-            PRLINE_NO: row.prLn || row.prlineNo || "",
-            REF_BRANCHCODE: state.sourcePrBranchCode || state.branchCode,
-          };
-        });
-
-      // now header totals come from detail
       const joData = {
-        // === JO HEADER (matches sproc_PHP_JO) ===
-        branchCode: state.branchCode,
+        branchCode: branchCode,
+        joNo:  documentNo || "",
+        joId: documentID || "",
+        joDate: documentDate,
+        rcCode: rcCode || "",
+        payeeCode: payeeCode || "",
+        payeeName: payeeName || "",
+        attention: attention || "",
+        currCode: currCode || "",
+        currRate: currRate || 1,
+        paytermCode: paytermCode || "",
+        prNo:prNo || "",
+        remarks: remarks || "",
+        joStatus: documentStatus?.length ? documentStatus : "O",
+        userCode: userCode,
 
-        joNo: isNew ? "" : state.documentNo || "",
-        joId: isNew ? "" : state.documentID || "",
-        joDate: state.header?.joDate || state.header?.pr_date,
-
-        cutoffCode: state.cutoffCode || "",
-        rcCode: state.rcCode || "",
-
-        vendCode: state.vendCode || "",
-        vendName: state.vendName?.vendName || state.vendName || "",
-        address1: state.address1 || "",
-        address2: state.address2 || "",
-        address3: state.address3 || "",
-        vendContact: state.vendContact || "",
-        paytermCode: state.paytermCode || "",
-
-        joType: state.selectedPrType || state.joType || "",
-        delDate: state.delDate || state.header?.pr_date,
-
-        currCode: state.currCode || "PHP",
-        currRate: parseFormattedNumber(state.currRate || 1),
-
-        refjoNo1: state.refPrNo1 || "", // re-using your Ref PR 1 as JO Ref 1
-        refjoNo2: state.refPrNo2 || "", // re-using your Ref PR 2 as JO Ref 2
-
-        joAmount: totalGross,
-        vatAmount: totalVat,
-        discAmount: totalDisc,
-        advAmount: 0,
-
-        remarks: state.remarks || "",
-        status: (state.documentStatus || "O").substring(0, 1), // e.g. "O", "F", "C"
-        joCancelled: state.joCancelled || "",
-        noReprints: Number(state.noReprints || 0),
-        userCode: userCode || state.userCode || "NSI",
-
-        dt1,
+        dt1: detailRows.map((row, index) => ({
+          lnNo: index + 1,
+          groupId: row.groupId || "",   
+          jobCode: row.jobCode || "",
+          scopeOfWork: row.scopeOfWork || "",
+          specification: row.specification || "",
+          quantity: parseFormattedNumber(row.quantity || 0),
+          unitPrice: parseFormattedNumber(row.unitPrice || 0),
+          uomCode: row.uomCode || "",
+          grossAmt: parseFormattedNumber(row.grossAmt || 0),
+          discRate: parseFormattedNumber(row.discRate || 0),
+          discAmt: parseFormattedNumber(row.discAmt || 0),
+          totalAmt: parseFormattedNumber(row.totalAmt || 0),
+          vatCode: row.vatCode || "",
+          vatAmt: parseFormattedNumber(row.vatAmt || 0),
+          netAmt: parseFormattedNumber(row.netAmt || 0),
+          deliveryDate: row.deliveryDate || null    
+        })),
       };
 
-      console.log("JO Payload", joData);
 
-      const response = await useTransactionUpsert(
-        docType, // this should already be "JO"
-        joData, // new payload above
-        updateState,
-        "joId", // returned id column from sproc_PHP_JO
-        "joNo" // returned number column from sproc_PHP_JO
-      );
+    
+      const response = await useTransactionUpsert(docType,joData,updateState,"joId","joNo");
 
       if (response) {
-        useSwalshowSaveSuccessDialog(handleReset, () =>
-          handleSaveAndPrint(response.data[0].prId)
-        );
+
+        if (documentStatus==="C"){
+          await fetchTranData(documentNo,branchCode)
+        }
+
+    
+        const isZero = Number(noReprints) === 0;
+                        const onSaveAndPrint =
+                          isZero
+                            ? () => updateState({ showSignatoryModal: true })                  
+                            : () => handleSaveAndPrint(response.data[0].prId); 
+                        useSwalshowSaveSuccessDialog(
+                          handleReset,          
+                          onSaveAndPrint       
+                        );
+
       }
 
       updateState({ isDocNoDisabled: true, isFetchDisabled: true });
@@ -1281,10 +1216,15 @@ const insertNewRow = async (index = -1) => {
     }
   };
 
+
+
   // ==========================
   // PRINT / CANCEL / POST / ATTACH
   // ==========================
 
+
+
+  
   const handlePrint = async () => {
     if (!documentID) return;
     updateState({ showSignatoryModal: true });
@@ -1318,6 +1258,49 @@ const insertNewRow = async (index = -1) => {
       });
     }
   };
+
+
+  
+  const handleHeaderStatusChange = (value) => {
+    if (value === "X" || value === "C") {
+      const isCancel = value === "X";
+      const actionWord = isCancel ? "CANCEL" : "CLOSE";
+  
+      useSwalConfirmAlert(
+        `Confirm Full Document ${isCancel ? "Cancellation" : "Closing"}?`,
+        `Are you sure you want to ${actionWord} this entire JO? This action is permanent and will affect all open line items.`
+      ).then((result) => {
+        if (result.isConfirmed) {
+          if (isCancel) {
+            handleCancel(); 
+          } else {
+            const updatedRows = detailRows.map(row => {
+              if (row.joStatus === "O" || !row.joStatus) {
+                return { ...row, joStatus: "C" };
+              }
+              return row;
+            });
+  
+            updateState({ 
+              documentStatus: "C", 
+              detailRows: updatedRows,
+              isFormDisabled:true,
+            });
+          }
+        } else {
+          updateState({ documentStatus: "O" });
+        }
+      });
+    } else {
+      updateState({ documentStatus: value });
+    }
+  };
+  
+
+
+
+
+
 
   // ==========================
   // HISTORY – URL PARAM HANDLING
@@ -1538,6 +1521,10 @@ const handleCloseJobCodesLookup = (selectedItems) => {
     });
   };
 
+
+ const hasExistingJO = detailRows.some(row => {
+  return row.joNo !== null && row.joNo !== undefined && row.joNo.toString().trim() !== "";
+});
 
 
   return (
@@ -1954,42 +1941,44 @@ const handleCloseJobCodesLookup = (selectedItems) => {
                   </button>
                 </div>
 
-                {/* PR Type */}
+                {/* JO Status */}
                 <div className="relative">
-                  <select
-                    id="prType"
-                    className="peer global-tran-textbox-ui"
-                    value={selectedPrType}
-                    onChange={handlePrTypeChange}
-                    disabled={isFormDisabled}
+                <select
+                id="documentStatus"
+                className="peer global-tran-textbox-ui"
+                value={documentStatus || "O"}
+                onChange={(e) => handleHeaderStatusChange(e.target.value)}
+                disabled={isFormDisabled || !documentID?.length || documentStatus !=="O" }
+              >
+                <option value="O">Open</option>
+                <option value="C">Closed</option>
+                
+                {/* 2. Only render "Cancelled" if no rows have a PO record */}
+                {!hasExistingJO && documentStatus ==="O" && (
+                  <option value="X">Cancelled</option>
+                )}
+              </select>
+                <label htmlFor="documentStatus" className="global-tran-floating-label">
+                  JO Status
+                </label>
+                <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
+                  <svg
+                    className="h-4 w-4 text-gray-500"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
                   >
-                    <option value="">Open</option>
-                    <option value="">Closed</option>
-                    <option value="">Cancelled</option>
-                  </select>
-                  <label
-                    htmlFor="prType"
-                    className="global-tran-floating-label"
-                  >
-                    JO Status
-                  </label>
-                  <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-                    <svg
-                      className="h-4 w-4 text-gray-500"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </div>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
                 </div>
               </div>
+              </div>
+
 
               {/* Remarks (spans all 3 header columns) */}
               <div className="col-span-full">

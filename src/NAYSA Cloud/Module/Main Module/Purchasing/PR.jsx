@@ -1091,8 +1091,6 @@ if (field === 'prStatus') {
         branchCode,
         documentNo,
         documentID,
-        groupId,
-        header,
         selectedPrTranType,
         selectedPrType,
         refPrNo1,
@@ -1101,7 +1099,7 @@ if (field === 'prStatus') {
         rcCode,
         reqRcCode,
         reqRcName,
-        dateNeeded,
+        headerDateNeeded,
         remarks,
         prCancelled,
         detailRows,
@@ -1126,12 +1124,11 @@ if (field === 'prStatus') {
         refPrNo2: refPrNo2 || "",
         remarks: remarks || "",
         prStatus: documentStatus?.length ? documentStatus : "O",
-        prCancelled: prCancelled || "",
         userCode: userCode,
         // ⬇️ THIS PART guarantees ALL CURRENT detailRows (including newly added) are sent
         dt1: detailRows.map((row, index) => ({
           prId: documentID || "",
-          groupId: groupId || "",       
+          groupId: row.groupId || "",       
           invType: row.invType || "",
           prStatus:row.prStatus|| "O",
           lnNo: index + 1,
@@ -1182,10 +1179,7 @@ if (field === 'prStatus') {
           await fetchTranData(documentNo,branchCode)
         }
 
-        // useSwalshowSaveSuccessDialog(handleReset, () =>
-        //   handleSaveAndPrint(response.data[0].prId)
-        // );
-
+    
         const isZero = Number(noReprints) === 0;
                         const onSaveAndPrint =
                           isZero
@@ -1195,8 +1189,6 @@ if (field === 'prStatus') {
                           handleReset,          
                           onSaveAndPrint       
                         );
-
-
 
       }
 
@@ -1337,9 +1329,9 @@ const handleHeaderStatusChange = (value) => {
   // ==========================
 
   const handleCloseCancel = async (confirmation) => {
-      if(confirmation && documentStatus !== "O" && documentID !== null ) {
+      if(confirmation && originalDocStatus === "O" && documentID !== null ) {
   
-        const result = await useHandleCancel(docType,documentID,"NSI",confirmation.password,confirmation.reason,updateState);
+        const result = await useHandleCancel(docType,documentID,userCode,confirmation.password,confirmation.reason,updateState);
         if (result.success) 
         {
          Swal.fire({
