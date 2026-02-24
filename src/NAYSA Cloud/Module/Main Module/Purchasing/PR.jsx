@@ -47,6 +47,8 @@ import {
   useFetchTranData,
   useHandleCancel,
   useHandlePost,
+  useFieldLenghtCheck,
+  useGetFieldLength,
 } from "@/NAYSA Cloud/Global/procedure";
 import {
   useSelectedHSColConfig,
@@ -148,6 +150,8 @@ import Header from "@/NAYSA Cloud/Components/Header";
     defaultCurrRate: "1.000000",
 
     // Other Header Info (aligned to PR header fields)
+    tblFieldArray :[],
+    sviTypes :[],
     prTranTypes: [],
     prTypes: [],
     selectedPrTranType: "",
@@ -227,6 +231,7 @@ import Header from "@/NAYSA Cloud/Components/Header";
 
     currCode,
     userCode,
+    tblFieldArray,
     selectedPrTranType,
     selectedPrType,
     documentDate,
@@ -345,7 +350,6 @@ import Header from "@/NAYSA Cloud/Components/Header";
     const today = new Date().toISOString().split("T")[0];
 
     updateState({
-      header: { pr_date: today },
       branchCode: currentUserRow.branchCode,
       branchName: currentUserRow.branchName,
       userCode:currentUserRow.userCode,
@@ -424,6 +428,17 @@ import Header from "@/NAYSA Cloud/Components/Header";
             currRate: formatNumber(1, 6),
           });
         }
+
+        
+
+     const tbls = 'pr_hd,pr_dt1'
+     const hdtblcol_result = await useFieldLenghtCheck(tbls);
+     if (hdtblcol_result){
+       updateState({tblFieldArray :hdtblcol_result })
+     }
+
+
+
       }
     } catch (err) {
       console.error("Error fetching data:", err);
@@ -700,7 +715,6 @@ const handleAddBlankRow = (index) => {
   if (documentStatus !=="O"){
         return;
       }
-
   const blankRow = {
     invType: isJobOrder ? "JO" : "",
     groupId: "", 
@@ -1258,12 +1272,16 @@ const handleHeaderStatusChange = (value) => {
   };
 
 
-const handleCopy = async () => {
+
+
+
+  const handleCopy = async () => {
   if (detailRows.length === 0) return;
 
-  const qtyHandDetail = await handleActivityOption('onCopy');
+  const qtyHandDetail = !isJobOrder ? await handleActivityOption('onCopy') : [];
+
   const updatedRows = detailRows.map((row) => {
-  const match = qtyHandDetail?.find(
+    const match = !isJobOrder && qtyHandDetail?.find(
       (item) => item.itemCode === row.itemCode && item.invType === row.invType
     );
 
@@ -1280,14 +1298,16 @@ const handleCopy = async () => {
   });
 
   if (documentID) {
+    const commonDate = useGetCurrentDay();
+    
     updateState({
       documentNo: "",
       documentID: "",
       documentStatus: "O",
       status: "",
       originalDocStatus: "O",
-      documentDate: useGetCurrentDay(),
-      headerDateNeeded: useGetCurrentDay(),
+      documentDate: commonDate,
+      headerDateNeeded: commonDate,
       detailRows: updatedRows,
     });
 
@@ -1813,16 +1833,40 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
                     value={refPrNo1}
                     placeholder=" "
                     onChange={(e) => updateState({ refPrNo1: e.target.value })}
-                    className="peer global-tran-textbox-ui"
+                    className="peer global-tran-textbox-ui"                  
                     disabled={isFormDisabled}
+                    maxLength={useGetFieldLength(tblFieldArray, "refpr_no1")} 
                   />
                   <label
                     htmlFor="refPrNo1"
                     className="global-tran-floating-label"
                   >
-                    Ref No.
+                    Ref Doc No1.
                   </label>
                 </div>
+
+
+                 {/* Ref No (Ref PR No1) */}
+                <div className="relative">
+                  <input
+                    type="text"
+                    id="refPrNo2"
+                    value={refPrNo2}
+                    placeholder=" "
+                    onChange={(e) => updateState({ refPrNo2: e.target.value })}
+                    className="peer global-tran-textbox-ui"                  
+                    disabled={isFormDisabled}
+                    maxLength={useGetFieldLength(tblFieldArray, "refpr_no2")} 
+                  />
+                  <label
+                    htmlFor="refPrNo2"
+                    className="global-tran-floating-label"
+                  >
+                    Ref Doc No2.
+                  </label>
+                </div>
+
+
 
                 {/* PR Type */}
               <div className="relative">
@@ -1873,6 +1917,7 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
                     value={remarks}
                     onChange={(e) => updateState({ remarks: e.target.value })}
                     disabled={isFormDisabled}
+                    maxLength={useGetFieldLength(tblFieldArray, "remarks")} 
                   />
                   <label
                     htmlFor="remarks"

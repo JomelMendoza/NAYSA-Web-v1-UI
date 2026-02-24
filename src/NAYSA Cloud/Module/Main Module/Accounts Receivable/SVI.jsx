@@ -473,7 +473,6 @@ useEffect(() => {
 
 
 
-  
 
 
   const LoadingSpinner = () => (
@@ -522,6 +521,7 @@ useEffect(() => {
       status:"Open"
 
     });
+
       updateTotalsDisplay (0, 0, 0, 0, 0, 0)
   };
 
