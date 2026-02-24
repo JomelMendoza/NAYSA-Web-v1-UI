@@ -6,18 +6,20 @@ import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 const JobCodeLookupModal = ({ isOpen, onClose, customParam }) => {
   const [rows, setRows] = useState([]);
   const [filtered, setFiltered] = useState([]);
-  const [filters, setFilters] = useState({ jobCode: "", jobName: "" });
+  // Added uomCode to the filter state
+  const [filters, setFilters] = useState({ jobCode: "", jobName: "", uomCode: "" });
   const [loading, setLoading] = useState(false);
 
-  // Updated pickers to match jobcode_ref fields
-  const pickCode = (r) => r?.jobCode ?? r?.JOB_CODE ?? "";
-  const pickName = (r) => r?.jobName ?? r?.JOB_NAME ?? "";
+  // Updated pickers to include UOM
+  const pickCode = (r) => r?.jobCode ??  "";
+  const pickName = (r) => r?.jobName ??  "";
+  const pickUom = (r) => r?.uomCode ?? "";
 
   useEffect(() => {
     if (!isOpen) {
       setRows([]);
       setFiltered([]);
-      setFilters({ jobCode: "", jobName: "" });
+      setFilters({ jobCode: "", jobName: "", uomCode: "" });
       return;
     }
 
@@ -26,7 +28,6 @@ const JobCodeLookupModal = ({ isOpen, onClose, customParam }) => {
     (async () => {
       setLoading(true);
       try {
-        // Updated endpoint to reflect Job Code lookup
         const { data: result } = await apiClient.get("/lookupJobCode", {
           params: {
             PARAMS: JSON.stringify({
@@ -63,12 +64,19 @@ const JobCodeLookupModal = ({ isOpen, onClose, customParam }) => {
   useEffect(() => {
     const codeFilter = (filters.jobCode || "").toLowerCase();
     const nameFilter = (filters.jobName || "").toLowerCase();
+    const uomFilter = (filters.uomCode || "").toLowerCase();
 
     setFiltered(
       rows.filter((r) => {
         const code = String(pickCode(r) || "").toLowerCase();
         const name = String(pickName(r) || "").toLowerCase();
-        return code.includes(codeFilter) && name.includes(nameFilter);
+        const uom = String(pickUom(r) || "").toLowerCase();
+        
+        return (
+          code.includes(codeFilter) && 
+          name.includes(nameFilter) && 
+          uom.includes(uomFilter)
+        );
       })
     );
   }, [filters, rows]);
@@ -79,7 +87,7 @@ const JobCodeLookupModal = ({ isOpen, onClose, customParam }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 animate-fade-in">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col relative overflow-hidden animate-scale-in">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col relative overflow-hidden animate-scale-in">
         <button
           onClick={() => onClose(null)}
           className="absolute top-3 right-3 text-blue-500 hover:text-blue-700"
@@ -102,15 +110,10 @@ const JobCodeLookupModal = ({ isOpen, onClose, customParam }) => {
             <table className="min-w-full divide-y divide-gray-100 text-xs">
               <thead className="bg-gray-100 sticky top-0">
                 <tr>
-                  <th className="px-4 py-2 text-left font-bold text-blue-900">
-                    Job Code
-                  </th>
-                  <th className="px-4 py-2 text-left font-bold text-blue-900">
-                    Job Description
-                  </th>
-                  <th className="px-4 py-2 text-left font-bold text-blue-900">
-                    Action
-                  </th>
+                  <th className="px-4 py-2 text-left font-bold text-blue-900">Job Code</th>
+                  <th className="px-4 py-2 text-left font-bold text-blue-900">Job Description</th>
+                  <th className="px-4 py-2 text-left font-bold text-blue-900">UOM</th>
+                  <th className="px-4 py-2 text-left font-bold text-blue-900">Action</th>
                 </tr>
                 <tr>
                   <th className="px-2 py-1">
@@ -118,9 +121,7 @@ const JobCodeLookupModal = ({ isOpen, onClose, customParam }) => {
                       className="w-full border rounded px-2 py-1 font-normal"
                       placeholder="Filter code..."
                       value={filters.jobCode}
-                      onChange={(e) =>
-                        setFilters((p) => ({ ...p, jobCode: e.target.value }))
-                      }
+                      onChange={(e) => setFilters((p) => ({ ...p, jobCode: e.target.value }))}
                     />
                   </th>
                   <th className="px-2 py-1">
@@ -128,9 +129,15 @@ const JobCodeLookupModal = ({ isOpen, onClose, customParam }) => {
                       className="w-full border rounded px-2 py-1 font-normal"
                       placeholder="Filter description..."
                       value={filters.jobName}
-                      onChange={(e) =>
-                        setFilters((p) => ({ ...p, jobName: e.target.value }))
-                      }
+                      onChange={(e) => setFilters((p) => ({ ...p, jobName: e.target.value }))}
+                    />
+                  </th>
+                  <th className="px-2 py-1">
+                    <input
+                      className="w-full border rounded px-2 py-1 font-normal"
+                      placeholder="Filter UOM..."
+                      value={filters.uomCode}
+                      onChange={(e) => setFilters((p) => ({ ...p, uomCode: e.target.value }))}
                     />
                   </th>
                   <th />
@@ -147,6 +154,7 @@ const JobCodeLookupModal = ({ isOpen, onClose, customParam }) => {
                     >
                       <td className="px-4 py-1">{pickCode(r)}</td>
                       <td className="px-4 py-1">{pickName(r)}</td>
+                      <td className="px-4 py-1">{pickUom(r)}</td>
                       <td className="px-4 py-1">
                         <button
                           onClick={(e) => {
@@ -162,7 +170,7 @@ const JobCodeLookupModal = ({ isOpen, onClose, customParam }) => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="3" className="text-center py-6 text-gray-500">
+                    <td colSpan="4" className="text-center py-6 text-gray-500">
                       No records found
                     </td>
                   </tr>

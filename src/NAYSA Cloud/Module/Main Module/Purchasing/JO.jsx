@@ -204,6 +204,7 @@ const JO = () => {
     showPaytermModal: false,
     payeeModalOpen: false,
     prLookupModalOpen: false,
+    showJobCodesModal:false,
 
     // RC Lookup modal (table)
     rcLookupModalOpen: false,
@@ -287,6 +288,7 @@ const JO = () => {
     selectedRowIndex,
     prNo,
     sourcePrBranchCode,
+    showJobCodesModal,
 
     detailRows,
 
@@ -1063,6 +1065,14 @@ const insertNewRow = async (index = -1) => {
     row.vatName = value.vatName;
   }
 
+
+ if (field === 'jobCode') {
+    row.jobCode = value.jobCode;
+    row.scopeOfWork = value.jobName;
+    row.uomCode = value.uomCode;
+  }
+
+
   if (runCalculations) {
     const qty = parseFormattedNumber(row.quantity) || 0;
     const price = parseFormattedNumber(row.unitPrice) || 0;
@@ -1449,6 +1459,17 @@ const handleCloseRCModal = (selectedRC) => {
     });
   }
 };
+
+
+
+
+const handleCloseJobCodesLookup = (selectedItems) => {
+  if (selectedItems) {
+   handleDetailChange(selectedRowIndex, 'jobCode', selectedItems, false)
+  }
+  updateState({ showJobCodesModal: false });
+};
+
 
   
   const handleCloseVATLookup = async (selectedVat) => {
@@ -1912,7 +1933,7 @@ const handleCloseRCModal = (selectedRC) => {
                     htmlFor="payTerm"
                     className="global-tran-floating-label"
                   >
-                    Payterm
+                    Payment Term
                   </label>
                   <button
                     type="button"
@@ -2231,6 +2252,8 @@ const handleCloseRCModal = (selectedRC) => {
                             handleDetailChange(index, "uomCode", e.target.value,false)
                           }
                           disabled={isFormDisabled}
+                          maxLength={useGetFieldLength(tblFieldArray, "uom_code")} 
+
                         />
                       </td>
 
@@ -2561,6 +2584,18 @@ const handleCloseRCModal = (selectedRC) => {
           onClose={handleCloseBranchModal}
         />
       )}
+
+
+ 
+       
+      {showJobCodesModal && (
+         <JobCodeLookupModal
+           isOpen={showJobCodesModal}
+           onClose={handleCloseJobCodesLookup}
+           />
+        )}
+            
+
 
       {rcLookupModalOpen && (
         <RCLookupModal
