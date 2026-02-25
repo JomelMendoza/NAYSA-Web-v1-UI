@@ -378,6 +378,7 @@ export async function useHandleCancel(docCode, documentID, userCode, password, r
 
   try {
 
+    console.log(payload)
     const { data: res } = await apiClient.post("/cancel"+docCode, payload);
     if (res?.status === "success" || res?.success) {
       // You can standardize the return here

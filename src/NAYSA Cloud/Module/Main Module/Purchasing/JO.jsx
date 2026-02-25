@@ -20,6 +20,7 @@ import PostTranModal from "../../../Lookup/SearchPostRef.jsx";
 import AttachDocumentModal from "../../../Lookup/SearchAttachment.jsx";
 import DocumentSignatories from "../../../Lookup/SearchSignatory.jsx";
 import AllTranHistory from "../../../Lookup/SearchGlobalTranHistory.jsx";
+import AllTranDocNo from "../../../Lookup/SearchDocNo.jsx";
 import RCLookupModal from "../../../Lookup/SearchRCMast.jsx";
 import MSLookupModal from "../../../Lookup/SearchMSMast.jsx";
 import PayeeMastLookupModal from "../../../Lookup/SearchVendMast";
@@ -205,6 +206,7 @@ const JO = () => {
     payeeModalOpen: false,
     prLookupModalOpen: false,
     showJobCodesModal:false,
+    showAllTranDocNo:false,
 
     // RC Lookup modal (table)
     rcLookupModalOpen: false,
@@ -312,6 +314,7 @@ const JO = () => {
     paytermName,
     prLookupOpen,
     vatLookupModalOpen,
+    showAllTranDocNo,
 
     // RC Lookup
     rcLookupModalOpen,
@@ -693,7 +696,7 @@ const JO = () => {
 const fetchTranData = async (documentNo, branchCode,direction='') => {
   const resetState = () => {
     updateState({documentNo:'', documentID: '', isDocNoDisabled: false, isFetchDisabled: false });
-    updateTotals([]);
+    updateTotalsDisplay([]);
   };
 
   updateState({ isLoading: true });
@@ -702,7 +705,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
     const data = await useFetchTranData(documentNo, branchCode,docType,"joNo",direction);
 
    
-    if (!data?.prId) {
+    if (!data?.joId) {
       Swal.fire({ icon: 'info', title: 'No Records Found', text: 'Transaction does not exist.' });
       return resetState();
     }
@@ -751,7 +754,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
     });
 
    
-    updateTotals(retrievedDetailRows);
+    updateTotalsDisplay(retrievedDetailRows);
 
   } catch (error) {
     console.error("Error fetching transaction data:", error);
@@ -771,7 +774,17 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
 
 
 
+const handleTranDocNoRetrieval = async (data) => {
+  await fetchTranData(data.docNo, data.branchCode || branchCode, data.key);
+  updateState({ showAllTranDocNo: data.modalClose });
+};
 
+
+
+const handleTranDocNoSelection = async (data) => {   
+    handleReset();
+    updateState({showAllTranDocNo: false, documentNo:data.docNo });
+};
 
 
   const handleDocNoBlur = () => {
@@ -1505,47 +1518,35 @@ const handleCloseJobCodesLookup = (selectedItems) => {
 
                 {/* PR No */}
                 <div className="relative">
-                  <input
-                    type="text"
-                    id="documentNo"
-                    value={state.documentNo}
-                    onChange={(e) =>
-                      updateState({ documentNo: e.target.value })
-                    }
-                    onBlur={handleDocNoBlur}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        document.getElementById("documentDate")?.focus();
-                      }
-                    }}
-                    placeholder=" "
-                    className={`peer global-tran-textbox-ui ${
-                      state.isDocNoDisabled
-                        ? "bg-blue-100 cursor-not-allowed"
-                        : ""
-                    }`}
-                    disabled={state.isDocNoDisabled}
-                  />
-                  <label htmlFor="joNo" className="global-tran-floating-label">
-                    JO No.
-                  </label>
-                  <button
-                    className={`global-tran-textbox-button-search-padding-ui ${
-                      state.isFetchDisabled || state.isDocNoDisabled
-                        ? "global-tran-textbox-button-search-disabled-ui"
-                        : "global-tran-textbox-button-search-enabled-ui"
-                    } global-tran-textbox-button-search-ui`}
-                    disabled={state.isFetchDisabled || state.isDocNoDisabled}
-                    onClick={() => {
-                      if (!state.isDocNoDisabled) {
-                        fetchTranData(state.documentNo, state.branchCode);
-                      }
-                    }}
-                  >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} />
-                  </button>
-                </div>
+                         <input
+                             type="text"
+                             id="joNo"
+                             value={state.documentNo}
+                             onChange={(e) => updateState({ documentNo: e.target.value })}
+                             onKeyDown={(e) => {
+                               if (e.key === "Enter") {
+                                 handleDocNoBlur();
+                                 e.preventDefault(); 
+                                 document.getElementById("joDate")?.focus();
+                               }}}
+                             placeholder=" "
+                             className={`peer global-tran-textbox-ui ${state.isDocNoDisabled ? 'bg-blue-100 cursor-not-allowed' : ''}`}
+                             disabled={state.isDocNoDisabled}
+                         />
+                         <label htmlFor="joNo" className="global-tran-floating-label">
+                     JO No.
+                   </label>
+                   <button
+                             className={`global-tran-textbox-button-search-padding-ui ${
+                                 (state.isFetchDisabled || state.isDocNoDisabled)
+                                 ? "global-tran-textbox-button-search-disabled-ui"
+                                 : "global-tran-textbox-button-search-enabled-ui"
+                             } global-tran-textbox-button-search-ui`}
+                             onClick={() => {updateState({showAllTranDocNo:true})}}
+                         >
+                             <FontAwesomeIcon icon={faMagnifyingGlass} />
+                         </button>
+                 </div>               
 
                 {/* PR Date */}
                 <div className="relative">
@@ -2528,6 +2529,19 @@ const handleCloseJobCodesLookup = (selectedItems) => {
           customParam="InputService"
         />
       )}
+
+
+ 
+       {showAllTranDocNo && (
+           <AllTranDocNo
+           isOpen={showAllTranDocNo}
+           params={{branchCode,branchName,docType,documentTitle,fieldNo : "joNo"}}
+           onRetrieve={handleTranDocNoRetrieval}
+           onResponse={{documentNo}}
+           onSelected={handleTranDocNoSelection}
+           onClose={() => updateState({ showAllTranDocNo: false })}
+           />
+       )}      
 
       {showSpinner && <LoadingSpinner />}
     </div>
