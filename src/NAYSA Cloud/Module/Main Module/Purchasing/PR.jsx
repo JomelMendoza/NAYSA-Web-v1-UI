@@ -1873,7 +1873,7 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
                 <option value="C">Closed</option>
                 
                 {/* 2. Only render "Cancelled" if no rows have a PO record */}
-                {!hasExistingPO && documentStatus ==="O" && (
+                {!hasExistingPO && documentStatus !=="C" && (
                   <option value="X">Cancelled</option>
                 )}
               </select>

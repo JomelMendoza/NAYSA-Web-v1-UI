@@ -227,7 +227,7 @@ const JO = () => {
     documentNo,
     documentDate,
     status,
-
+    originalDocStatus,
     activeTab,
     isLoading,
     showSpinner,
@@ -690,146 +690,91 @@ const JO = () => {
 
 
 
+const fetchTranData = async (documentNo, branchCode,direction='') => {
+  const resetState = () => {
+    updateState({documentNo:'', documentID: '', isDocNoDisabled: false, isFetchDisabled: false });
+    updateTotals([]);
+  };
 
+  updateState({ isLoading: true });
 
-  const fetchTranData = async (joNo, _branchCode) => {
-    const resetState = () => {
-      updateState({
-        documentNo: "",
-        documentID: "",
-        isDocNoDisabled: false,
-        isFetchDisabled: false,
-      });
-      updateTotalsDisplay(0);
-    };
+  try {
+    const data = await useFetchTranData(documentNo, branchCode,docType,"joNo",direction);
 
-    updateState({ isLoading: true });
-
-    try {
-      const data = await useFetchTranData(joNo, _branchCode, docType, "joNo");
-
-      if (!data?.joId) {
-        Swal.fire({
-          icon: "info",
-          title: "No Records Found",
-          text: "Transaction does not exist.",
-        });
-        return resetState();
-      }
-
-    
-      const retrievedDetailRows = (data.dt1 || []).map((item) => ({
-        ...item,
-        lN: item.lN,
-        invType: item.invType || "",
-        groupId: item.groupId || "",
-        prStatus: item.prStatus || "",
-        itemCode: item.itemCode || "",
-        itemName: item.itemName || "",
-        uomCode: item.uomCode || "",
-        qtyOnHand: formatNumber(item.qtyOnHand ?? 0, 6),
-        qtyAlloc: formatNumber(item.qtyAlloc ?? 0, 6),
-        qtyNeeded: formatNumber(item.qtyNeeded ?? 0, 6),
-        uomCode2: item.uomCode2 || "",
-        uomQty2: formatNumber(item.uomQty2 ?? 0, 6),
-        itemSpecs: item.itemSpecs || "",
-        serviceCode: item.serviceCode || "",
-        serviceName: item.serviceName || "",
-        poQty: formatNumber(item.poQty ?? 0, 6),
-        rrQty: formatNumber(item.rrQty ?? 0, 6),
-      }));
-
-      const totalQty = retrievedDetailRows.reduce(
-        (acc, r) => acc + (parseFormattedNumber(r.qtyNeeded) || 0),
-        0
-      );
-      updateTotalsDisplay(totalQty);
-
-      updateState({
-        documentStatus: data.status,
-        status: data.status,
-        documentID: data.prId,
-        documentNo: data.prNo,
-        branchCode: data.branchCode,
-        header: {
-          pr_date: prDateForHeader,
-        },
-        cutoffCode: data.cutoffCode || "",
-        rcCode: data.rcCode || "",
-        rcName: data.rcName || "",
-        custCode: data.rcCode || "",
-        custName: "",
-        selectedPrTranType: data.prTranType || "",
-        selectedPrType: data.prType || "",
-        refPrNo1: data.refPrNo1 || "",
-        refPrNo2: data.refPrNo2 || "",
-        remarks: data.remarks || "",
-        prCancelled: data.prCancelled || "",
-        noReprints: data.noReprints ?? "0",
-        detailRows: retrievedDetailRows,
-        isDocNoDisabled: true,
-        isFetchDisabled: true,
-      });
-    } catch (error) {
-      console.error("Error fetching transaction data:", error);
-      Swal.fire({
-        icon: "error",
-        title: "Fetch Error",
-        text: error.message,
-      });
-      resetState();
-    } finally {
-      updateState({ isLoading: false });
+   
+    if (!data?.prId) {
+      Swal.fire({ icon: 'info', title: 'No Records Found', text: 'Transaction does not exist.' });
+      return resetState();
     }
-  };
 
-  // Same logic as useTopVatAmount in top1RefTable.js, but synchronous
-  const computeVatFromInclusive = (vatRate, grossAmt) => {
-    const rate = parseFormattedNumber(vatRate || 0); // % (e.g. 12)
-    const gross = parseFormattedNumber(grossAmt || 0); // VAT-inclusive amount
 
-    if (!rate || !gross) return 0;
+    // Format rows
+    const retrievedDetailRows = (data.dt1 || []).map(item => ({
+      ...item,
+      quantity: formatNumber(item.quantity,2),
+      unitPrice: formatNumber(item.unitPrice,decUPrice),
+      grossAmt: formatNumber(item.grossAmt,2),
+      discRate: formatNumber(item.discRate,2),
+      discAmt: formatNumber(item.discAmt,2),
+      vatAmt: formatNumber(item.vatAmt,2),
+      netAmt: formatNumber(item.netAmt,2),
+    }));
 
-    const r = rate * 0.01; // convert to decimal (0.12)
-    // Formula: VAT portion from VAT-inclusive amount
-    return (gross * r) / (1 + r);
-  };
+   
 
-  const recalcDetailRow = (row) => {
-    const qty = parseFormattedNumber(row.quantity || 0);
-    const unitPrice = parseFormattedNumber(row.unitPrice || 0);
-    const vatRate = row.vatRate ?? 0; // will be set when VAT is chosen
+  
+    // Update state with fetched data
+    updateState({
 
-    // 1) Gross = Quantity × Unit Price
-    const gross = qty * unitPrice;
+      documentStatus: data.joHStatus,
+      status: data.joStatus,
+      originalDocStatus:data.joHStatus,
+      documentID: data.joId,
+      documentNo: data.joNo,
+      branchCode: data.branchCode,
+      documentDate: useFormatToDate(data.joDate),
+      rcCode: data.rcCode,
+      rcName: data.rcName,
+      payeeCode: data.payeeCode,
+      payeeName: data.payeeName,
+      currCode: data.currCode,
+      currRate: formatNumber(data.currRate,6),
+      paytermCode: data.paytermCode,
+      paytermName: data.paytermName,
+      prNo: data.prNo,   
+      remarks: data.remarks,
+      joCancelled: data.joCancelled ,
+      noReprints: data.noReprints,
+      detailRows: retrievedDetailRows,
+      isDocNoDisabled: true,
+      isFetchDisabled: true,
+    });
 
-    // (Optional) Discount if you want to keep this working
-    const discRate = parseFormattedNumber(row.discRate || 0); // percent
-    const discAmt = gross * (discRate / 100);
+   
+    updateTotals(retrievedDetailRows);
 
-    // Base amount after discount (still VAT-inclusive if your price is inclusive)
-    const baseAfterDisc = gross - discAmt;
+  } catch (error) {
+    console.error("Error fetching transaction data:", error);
+    Swal.fire({ icon: 'error', title: 'Fetch Error', text: error.message });
+    resetState();
+  } finally {
+    updateState({ isLoading: false });
+  }
+};
 
-    // 2) VAT amount using SAME logic as useTopVatAmount (inclusive)
-    const vatAmt = computeVatFromInclusive(vatRate, baseAfterDisc);
 
-    // Let Net be Amount EXCLUDING VAT (base - VAT)
-    const net = baseAfterDisc - vatAmt;
 
-    return {
-      ...row,
-      quantity:formatNumber(qty,2),
-      unitPrice:formatNumber(unitPrice,decUPrice),
-      grossAmt: formatNumber(gross , 2),
-      discAmt: formatNumber(discAmt , 2),
-      discRate: formatNumber(discRate , 2),
-      totalAmt: formatNumber(baseAfterDisc, 2), // total line amount incl VAT
-      vatAmt: formatNumber(vatAmt, 2),
-      netAmt: formatNumber(net, 2), // net of VAT
-    };
-  };
 
-  const handlePrNoBlur = () => {
+
+
+
+
+
+
+
+
+
+  const handleDocNoBlur = () => {
     if (!state.documentID && state.documentNo && state.branchCode) {
       fetchTranData(state.documentNo, state.branchCode);
     }
@@ -839,98 +784,6 @@ const JO = () => {
   // HEADER EVENTS
   // ==========================
 
-  const handleCurrRateNoBlur = (e) => {
-    const num = formatNumber(e.target.value, 6);
-    updateState({
-      currRate: isNaN(num) ? "0.000000" : num,
-      withCurr2:
-        (glCurrMode === "M" && glCurrDefault !== currCode) ||
-        glCurrMode === "D",
-      withCurr3: glCurrMode === "T",
-    });
-  };
-
-  const handlePrTranTypeChange = (e) => {
-    updateState({ selectedPrTranType: e.target.value });
-  };
-
-  const handlePrTypeChange = (e) => {
-    updateState({ selectedPrType: e.target.value });
-  };
-
-
-//  const handleAddRow = (index) => {
-
-//   const items = await handleFetchDetail(payeeCode);
-//   const itemList = Array.isArray(items) ? items : (items ? [items] : []);
-//   const item = itemList.length > 0 ? itemList[0] : {};
-
-//   const blankRow = createEmptyDetailRow(item);
-//   const updatedRows = [...detailRows];
-
-//   if (documentNo) {
-//     updatedRows.push(blankRow);
-//   } else {
-//     updatedRows.splice(index + 1, 0, blankRow);
-//   }
-
-//   updateState({ detailRows: updatedRows });
-// };
-
-
-//   const createEmptyDetailRow = (params) => ({
-//     jobCode: "",
-//     scopeOfWork: "",
-//     specification: "",
-//     quantity: formatNumber(0,2),
-//     unitPrice: formatNumber(0,decUPrice),
-//     uomCode: params.vatCode,
-//     grossAmt: formatNumber(0,2),
-//     discRate: formatNumber(0,2),
-//     discAmt: formatNumber(0,2),
-//     totalAmt: formatNumber(0,2),
-//     vatCode: "",
-//     vatAmt: formatNumber(0,2),
-//     netAmt: formatNumber(0,2),
-//     deliveryDate: documentDate,
-//     prNo: "",
-//     prLn: ""
-//   });
-
-
-
-//   const handleAddRowClick = async () => {
-//   const fieldsToCheck = {
-//     "Header : Department": reqRcName,
-//     "Header : Payee": payeeCode,
-//   };
-
-//   const isValid = useSwalvalidateRequiredFields(fieldsToCheck, "Add Item");
-//   if (!isValid) return;
-//   if (isFormDisabled) return;
-
-//   try {
-//     const items = await handleFetchDetail(payeeCode);
-//     const itemList = Array.isArray(items) ? items : (items ? [items] : []);
-//     const item = itemList.length > 0 ? itemList[0] : {};
-
-
-//     const newRow = createEmptyDetailRow(item);
-//     const updatedRows = [...detailRows, newRow];
-
-//     updateState({ detailRows: updatedRows });
-
-//     const netTotal = updatedRows.reduce(
-//       (acc, r) => acc + (parseFormattedNumber(r.netAmt) || 0),
-//       0
-//     );
-
-//     updateTotalsDisplay(netTotal);
-//     setShowTypeDropdown(false);
-//   } catch (error) {
-//     console.error(error);
-//   }
-// };
 
 const createEmptyDetailRow = (vatCode = "", vatName = "") => ({
   jobCode: "",
@@ -973,21 +826,31 @@ const handleAddRowClick = async () => {
   }
 };
 
-const insertNewRow = async (index = -1) => {
-  const data = await handleFetchDetail(payeeCode);
 
-  const item = Array.isArray(data) ? data[0] : data;
-  const vatCode = item?.vatCode || "";
-  const vatName = item?.vatName || "";
+const insertNewRow = async (index = -1) => {
+  let vatCode = "";
+  let vatName = "";
+
+
+  if (detailRows.length > 0) {
+    vatCode = detailRows[0].vatCode || "";
+    vatName = detailRows[0].vatName || "";
+  } else {
+    const data = await handleFetchDetail(payeeCode);
+    const item = Array.isArray(data) ? data[0] : data;
+    vatCode = item?.vatCode || "";
+    vatName = item?.vatName || "";
+  }
+
   const newRow = createEmptyDetailRow(vatCode, vatName);
-  
   const updatedRows = [...detailRows];
+
   if (index === -1 || documentNo) {
     updatedRows.push(newRow);
   } else {
     updatedRows.splice(index + 1, 0, newRow);
   }
-  
+
   updateState({ detailRows: updatedRows });
   return updatedRows;
 };
@@ -1649,7 +1512,7 @@ const handleCloseJobCodesLookup = (selectedItems) => {
                     onChange={(e) =>
                       updateState({ documentNo: e.target.value })
                     }
-                    onBlur={handlePrNoBlur}
+                    onBlur={handleDocNoBlur}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();

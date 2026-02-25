@@ -744,7 +744,6 @@ const handleCurrRateNoBlur = (e) => {
         fromDate,
         toDate,
         currCode,
-        currName,
         currRate,
         remarks,
         userCode, 
