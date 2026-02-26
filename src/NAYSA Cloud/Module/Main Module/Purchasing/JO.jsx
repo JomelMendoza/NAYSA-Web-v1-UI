@@ -2412,7 +2412,6 @@ const handleCloseJobCodesLookup = (selectedItems) => {
         endDate={state.toDate}
           status={(() => {
             const s = (state.status || "").toUpperCase();
-            if (s === "FINALIZED") return "F";
             if (s === "CANCELLED") return "X";
             if (s === "CLOSED")    return "C";
             if (s === "OPEN")      return "";
