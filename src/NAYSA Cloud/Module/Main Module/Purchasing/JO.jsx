@@ -530,9 +530,10 @@ const JO = () => {
       isSaveDisabled: false,
       isResetDisabled: false,
       isFetchDisabled: false,
-      status: "OPEN",
-      noReprints: "0",
-      prCancelled: "",
+      status: "",
+      originalDocStatus:"O",
+      noReprints: "",
+      joCancelled: "",
       detailRows: [],
       rcLookupModalOpen: false,
       rcLookupContext: "",
@@ -721,6 +722,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       discAmt: formatNumber(item.discAmt,2),
       vatAmt: formatNumber(item.vatAmt,2),
       netAmt: formatNumber(item.netAmt,2),
+      totalAmt:formatNumber(item.totalAmt,2),
     }));
 
    
@@ -916,19 +918,13 @@ const insertNewRow = async (index = -1) => {
   // };
 
 
+const handleDeleteRow = (index) => {
+  const updatedRows = detailRows.filter((_, i) => i !== index);
 
-  const handleDeleteRow = (index) => {
-    const updatedRows = [...detailRows];
-    updatedRows.splice(index, 1);
+  updateState({ detailRows: updatedRows });
+  updateTotalsDisplay(updatedRows);
+};
 
-    updateState({ detailRows: updatedRows });
-
-    const netTotal = updatedRows.reduce(
-      (acc, r) => acc + (parseFormattedNumber(r.netAmt) || 0),
-      0
-    );
-    updateTotalsDisplay(updatedRows);
-  };
 
 
 
@@ -996,6 +992,9 @@ const insertNewRow = async (index = -1) => {
   // SAVE / UPSERT (PR + DT1)
   // ==========================
   const handleActivityOption = async (mode) => {
+
+    console.log(originalDocStatus)
+
     if (originalDocStatus !=="O" || detailRows.length===0 ) {
       return;
     }
@@ -1106,11 +1105,14 @@ const insertNewRow = async (index = -1) => {
     updateState({ showSignatoryModal: true });
   };
 
+  
   const handleCancel = async () => {
-    if (documentID && documentStatus === "") {
+    if (documentID && documentStatus === "O") {
       updateState({ showCancelModal: true });
     }
   };
+
+
 
   const handlePost = async () => {
     if (documentID && documentStatus === "") {
@@ -1122,18 +1124,31 @@ const insertNewRow = async (index = -1) => {
     updateState({ showAttachModal: true });
   };
 
-  const handleCopy = async () => {
-    if (detailRows.length === 0) return;
 
-    if (documentID) {
-      updateState({
-        documentNo: "",
-        documentID: "",
-        documentStatus: "",
-        status: "Open",
-      });
-    }
-  };
+
+
+const handleCopy = async () => {
+  if (detailRows.length === 0) return;
+
+  const currentDay = useGetCurrentDay(); 
+  const cleanedRows = detailRows.map(row => ({ 
+    ...row, 
+    groupId: "", 
+    del_date: currentDay
+  }));
+
+  updateState({
+    documentNo: "",
+    documentID: "",
+    documentDate: currentDay,
+    documentStatus: "O",
+    status: "",
+    originalDocStatus: "O",
+    detailRows: cleanedRows,
+  });
+};
+
+
 
 
   
@@ -1239,27 +1254,26 @@ useEffect(() => {
   // ==========================
 
   const handleCloseCancel = async (confirmation) => {
-    if (confirmation && documentStatus !== "OPEN" && documentID !== null) {
-      const result = await useHandleCancel(
-        docType,
-        documentID,
-        userCode || "NSI",
-        confirmation.reason,
-        updateState
-      );
+       if(confirmation && originalDocStatus === "O" && documentID !== null ) {
+   
+         const result = await useHandleCancel(docType,documentID,userCode,confirmation.password,confirmation.reason,updateState);
+         if (result.success) 
+         {
+          Swal.fire({
+             icon: "success",
+             title: "Success",
+             text: "Cancellation Completed",
+             timer: 5000, 
+             timerProgressBar: true,
+             showConfirmButton: false,
+           });    
+         }    
+        await fetchTranData(documentNo,branchCode);
+       }
+       updateState({showCancelModal: false});
+   };
 
-      if (result.success) {
-        Swal.fire({
-          icon: "success",
-          title: "Success",
-          text: result.message,
-        });
-      }
 
-      await fetchTranData(documentNo, branchCode);
-    }
-    updateState({ showCancelModal: false });
-  };
 
   const handleClosePost = async () => {
     if (documentStatus !== "OPEN" && documentID !== null) {
@@ -1901,8 +1915,6 @@ const handleCloseJobCodesLookup = (selectedItems) => {
                     <th className="global-tran-th-ui">VAT Amount</th>
                     <th className="global-tran-th-ui">Net Amount</th>
                     <th className="global-tran-th-ui">Delivery Date</th>
-                    <th className="global-tran-th-ui">PR No</th>
-                    <th className="global-tran-th-ui">PR LN</th>
                     <th className="hidden">Group ID</th>
                     {!isFormDisabled &&  (
                   <>
@@ -2284,25 +2296,6 @@ const handleCloseJobCodesLookup = (selectedItems) => {
                         />
                       </td>
 
-                      {/* PR No */}
-                      <td className="global-tran-td-ui">
-                          <input
-                            type="text"
-                            className="w-[120px] global-tran-td-inputclass-ui bg-gray-50 cursor-not-allowed"
-                            value={row.prNo || ""}
-                            readOnly
-                          />
-                        </td>
-
-                      {/* PR LN */}
-                     <td className="global-tran-td-ui text-center">
-                      <input
-                        type="text"
-                        className="w-[80px] global-tran-td-inputclass-ui text-center bg-gray-50 cursor-not-allowed"
-                        value={row.prLn || ""}
-                        readOnly
-                      />
-                    </td>
 
                        <td className="hidden">
                         <input 
@@ -2349,7 +2342,7 @@ const handleCloseJobCodesLookup = (selectedItems) => {
                 <button
                   onClick={handleAddRowClick}
                   disabled={isFormDisabled}
-                  className={`global-tran-tab-footer-button-add-ui`}
+                  className={`global-tran-tab-footer-button-add-ui`}               
                 >
                   <FontAwesomeIcon icon={faPlus} className="mr-2" />
                   Add
