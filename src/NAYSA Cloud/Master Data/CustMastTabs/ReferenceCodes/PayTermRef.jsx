@@ -45,50 +45,92 @@ export default function PayTermRef() {
   );
 
   return (
+    // <RefMaintenance
+    //   title="Payment Terms"
+    //   subtitle="Used in Payee Set-Up and AP/AR documents."
+    //   loadEndpoint="/payterm"
+    //   getEndpoint="/getPayterm"
+    //   upsertEndpoint="/upsertPayterm"
+    //   deleteEndpoint="/deletePayterm"
+    //   getParamKey="paytermCode"
+    //   codeLabel="Pay Term Code"
+    //   nameLabel="Pay Term Name"
+    //   emptyForm={emptyForm}
+    //   mapRow={normalizePayTermRow}
+
+    //   // AP Advances dropdown + column
+    //   extraColLabel="AP Advances"
+    //   extraKey="advances"
+    //   extraDefault=""
+    //   extraOptions={[
+    //     { value: "Y", label: "Y" },
+    //     { value: "", label: "" },
+    //   ]}
+
+    //   // Active column + field
+    //   showActive={true}
+    //   activeLabel="Active"
+    //   activeKey="active"
+    //   activeDefault="Y"
+    //   activeOptions={[
+    //     { value: "Y", label: "Yes" },
+    //     { value: "N", label: "No" },
+    //   ]}
+
+    //   buildUpsertPayload={(form) => {
+    //     const due = String(form.daysDue ?? "").trim();
+
+    //     return {
+    //       paytermCode: String(form.code ?? "").trim(),
+    //       paytermName: String(form.name ?? "").trim(),
+    //       dueDays: due === "" ? null : Number(due), // safe convert
+    //       advances: (form.advances ?? "").toString().trim().toUpperCase() === "Y" ? "Y" : "",
+    //       active: (form.active ?? "Y").toString().trim().toUpperCase() === "N" ? "N" : "Y",
+    //       userCode: form.userCode, // injected by RefMaintenance.save()
+    //     };
+    //   }}
+    // />
     <RefMaintenance
       title="Payment Terms"
       subtitle="Used in Payee Set-Up and AP/AR documents."
+
       loadEndpoint="/payterm"
       getEndpoint="/getPayterm"
       upsertEndpoint="/upsertPayterm"
       deleteEndpoint="/deletePayterm"
       getParamKey="paytermCode"
+
       codeLabel="Pay Term Code"
       nameLabel="Pay Term Name"
+      daysLabel="Due Days"
+
+      codeKey="code"
+      nameKey="name"
+      daysKey="daysDue"
+
       emptyForm={emptyForm}
       mapRow={normalizePayTermRow}
 
-      // AP Advances dropdown + column
       extraColLabel="AP Advances"
       extraKey="advances"
-      extraDefault=""
-      extraOptions={[
-        { value: "Y", label: "Y" },
-        { value: "", label: "" },
-      ]}
 
-      // Active column + field
       showActive={true}
       activeLabel="Active"
       activeKey="active"
-      activeDefault="Y"
-      activeOptions={[
-        { value: "Y", label: "Yes" },
-        { value: "N", label: "No" },
-      ]}
 
-      buildUpsertPayload={(form) => {
-        const due = String(form.daysDue ?? "").trim();
-
-        return {
-          paytermCode: String(form.code ?? "").trim(),
-          paytermName: String(form.name ?? "").trim(),
-          dueDays: due === "" ? null : Number(due), // safe convert
-          advances: (form.advances ?? "").toString().trim().toUpperCase() === "Y" ? "Y" : "",
-          active: (form.active ?? "Y").toString().trim().toUpperCase() === "N" ? "N" : "Y",
-          userCode: form.userCode, // injected by RefMaintenance.save()
-        };
-      }}
+      buildUpsertPayload={(form) => ({
+        paytermCode: String(form.code ?? "").trim(),
+        paytermName: String(form.name ?? "").trim(),
+        dueDays:
+          String(form.daysDue ?? "").trim() === ""
+            ? null
+            : Number(form.daysDue),
+        advances:
+          (form.advances ?? "").toUpperCase() === "Y" ? "Y" : "",
+        active:
+          (form.active ?? "Y").toUpperCase() === "N" ? "N" : "Y",
+        userCode: form.userCode,
+      })}
     />
   );
 }
