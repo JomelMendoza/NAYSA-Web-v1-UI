@@ -158,17 +158,31 @@ const AllTranHistory = (props) => {
 
   const showHeader = showHeaderProp !== undefined ? showHeaderProp : !embedded;
 
+
+
   /* -------- status options from parent (fallback if not provided) -------- */
+ const [activeTab, setActiveTab] = useState(null);
   const fallbackStatusOptions = [
     { value: "All", label: "All Status" },
     { value: "F", label: "FINALIZED" },
+    { value: "C", label: "CLOSED" },
     { value: "", label: "OPEN" },
-    { value: "C", label: "CANCELLED" }
+    { value: "X", label: "CANCELLED" }
   ];
-  const statusOptions =
-    Array.isArray(statusOptionsProp) && statusOptionsProp.length
-      ? statusOptionsProp
-      : fallbackStatusOptions;
+
+ 
+  const restrictedTabs = ["JO_", "PO_", "PR_"];
+  const isRestricted = restrictedTabs.some(prefix => activeTab?.includes(prefix));
+
+  const statusOptions = Array.isArray(statusOptionsProp) && statusOptionsProp.length
+    ? statusOptionsProp
+    : fallbackStatusOptions.filter(opt => {
+        if (isRestricted) {
+          return opt.value !== "F";
+        } else {
+          return opt.value !== "C";
+        }
+      });
 
   /* ---------------- Local state ---------------- */
   const [branchCode, setBranchCode] = useState(
@@ -247,7 +261,7 @@ const getColumnConfig = async (groupId) => {
   );
   const [tabData, setTabData] = useState({});
   const [tabConfigs, setTabConfigs] = useState({});
-  const [activeTab, setActiveTab] = useState(null);
+  
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [sortConfig, setSortConfig] = useState({
@@ -402,10 +416,17 @@ const getColumnConfig = async (groupId) => {
     });
   }, [currentRows, searchFields, status]);
 
+
+
+  
   /* ---------------- fetch on APPLY FILTER only ---------------- */
   const fetchHistory = useCallback(async () => {
     if (!dates[0] || !dates[1]) return;
     setLoading(true);
+
+    setTabData({});
+    setTabConfigs({});
+    setActiveTab(null);
 
     const [startDate, endDate] = dates;
     const payload = {
