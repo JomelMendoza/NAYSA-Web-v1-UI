@@ -23,6 +23,7 @@ import {
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import ButtonBar from "@/NAYSA Cloud/Global/ButtonBar";
 import AttachFileModal from "@/NAYSA Cloud/Lookup/AttachFileModal.jsx";
+import AllTranDocNo from "@/NAYSA Cloud/Lookup/SearchDocNo.jsx";
 
 import {
   useSwalErrorAlert,
@@ -129,6 +130,8 @@ const VendMast = () => {
   const [form, setForm] = useState({ ...emptyForm });
   const [selectedVendCode, setSelectedVendCode] = useState("");
   const [isEditing, setIsEditing] = useState(false);
+
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   const [isAttachOpen, setIsAttachOpen] = useState(false);
   const [attachmentRows, setAttachmentRows] = useState([]);
@@ -636,67 +639,6 @@ const VendMast = () => {
         </div>
 
         <div className="flex gap-2 justify-center text-xs items-center">
-          {/* ✅ NAVIGATOR */}
-          {activeTab === "setup" && (
-            <div className="flex items-center gap-1 bg-blue-600 border border-blue-300 rounded-md px-2 py-1 shadow-sm">
-              <button
-                type="button"
-                className="px-2 py-1 rounded text-white hover:bg-blue-700 disabled:opacity-40 disabled:text-white"
-                onClick={goFirst}
-                disabled={isLoading || masterRows.length === 0 || indexInRows <= 0}
-                title="First"
-              >
-                <FontAwesomeIcon icon={faBackwardFast} />
-              </button>
-
-              <button
-                type="button"
-                className="px-2 py-1 rounded text-white hover:bg-blue-700 disabled:opacity-40 disabled:text-white"
-                onClick={goPrev}
-                disabled={isLoading || masterRows.length === 0 || indexInRows <= 0}
-                title="Previous"
-              >
-                <FontAwesomeIcon icon={faChevronLeft} />
-              </button>
-
-              <div className="px-2 py-1 rounded text-white font-bold hover:bg-blue-700 disabled:opacity-40 disabled:text-white"
-              >
-                {indexInRows >= 0 ? `${indexInRows + 1} / ${masterRows.length}` : "— / —"}
-              </div>
-
-              <button
-                type="button"
-                className="px-2 py-1 rounded text-white hover:bg-blue-700 disabled:opacity-40 disabled:text-white"
-                onClick={goNext}
-                disabled={
-                  isLoading ||
-                  masterRows.length === 0 ||
-                  indexInRows < 0 ||
-                  indexInRows >= masterRows.length - 1
-                }
-                title="Next"
-              >
-                <FontAwesomeIcon icon={faChevronRight} />
-              </button>
-
-              <button
-                type="button"
-                className="px-2 py-1 rounded text-white hover:bg-blue-700 disabled:opacity-40 disabled:text-white"
-                onClick={goLast}
-                disabled={
-                  isLoading ||
-                  masterRows.length === 0 ||
-                  indexInRows < 0 ||
-                  indexInRows >= masterRows.length - 1
-                }
-                title="Last"
-              >
-                <FontAwesomeIcon icon={faForwardFast} />
-              </button>
-
-            </div>
-          )}
-
           {!!headerButtons.length && <ButtonBar buttons={headerButtons} />}
         </div>
       </div>
@@ -709,11 +651,10 @@ const VendMast = () => {
             form={form}
             sltypeOptions={[
               { value: "AG", label: "AGENCY" },
-              { value: "CU", label: "CUSTOMER" },
               { value: "EM", label: "EMPLOYEE" },
               { value: "OT", label: "OTHERS" },
               { value: "SU", label: "SUPPLIER" },
-              { value: "TN", label: "TENANT" },
+
             ]}
             sourceOptions={[
               { value: "L", label: "Local" },
@@ -725,6 +666,7 @@ const VendMast = () => {
             ]}
             onChangeForm={updateForm}
             onSelectCustomerCode={fetchVendorByCode}
+            onSearchCode={() => setIsSearchOpen(true)}
           />
         )}
 

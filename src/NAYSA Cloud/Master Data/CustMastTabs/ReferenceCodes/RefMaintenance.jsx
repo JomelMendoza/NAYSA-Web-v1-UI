@@ -64,6 +64,7 @@ export default function RefMaintenance({
   getParamKey,
   codeLabel = "Code",
   nameLabel = "Name",
+  daysLabel = "Days",
   mapRow,
   emptyForm,
   buildUpsertPayload,
@@ -100,11 +101,11 @@ export default function RefMaintenance({
   // const [form, setForm] = useState({ ...(emptyForm || {}) });
 
   const [form, setForm] = useState({ ...(emptyForm || {}) });
-const formRef = useRef(form);
+  const formRef = useRef(form);
 
-useEffect(() => {
-  formRef.current = form;
-}, [form]);
+  useEffect(() => {
+    formRef.current = form;
+  }, [form]);
 
 
   const { user } = useAuth();
@@ -135,9 +136,9 @@ useEffect(() => {
 
   // const updateForm = (patch) => setForm((p) => ({ ...p, ...patch }));
   const updateForm = (patch) => {
-  formRef.current = { ...(formRef.current || {}), ...patch };
-  setForm((p) => ({ ...p, ...patch }));
-};
+    formRef.current = { ...(formRef.current || {}), ...patch };
+    setForm((p) => ({ ...p, ...patch }));
+  };
 
 
   // ✅ supports:
@@ -243,89 +244,89 @@ useEffect(() => {
   };
 
   const save = async () => {
-  // if (!isEditing) return;
+    // if (!isEditing) return;
 
-  // const code = String(form?.[codeKey] ?? "").trim();
-  // const name = String(form?.[nameKey] ?? "").trim();
+    // const code = String(form?.[codeKey] ?? "").trim();
+    // const name = String(form?.[nameKey] ?? "").trim();
 
-  // const code = form?.[codeKey];
-  // const name = form?.[nameKey];
+    // const code = form?.[codeKey];
+    // const name = form?.[nameKey];
 
-  // const dueRaw = form?.[daysKey];
-  // const dueStr = String(dueRaw ?? "").trim();
-  // const dueNum = dueStr === "" ? null : Number(dueStr);
+    // const dueRaw = form?.[daysKey];
+    // const dueStr = String(dueRaw ?? "").trim();
+    // const dueNum = dueStr === "" ? null : Number(dueStr);
 
-  const f = formRef.current || {};
-  const code = String(f?.[codeKey] ?? "").trim();
-  const name = String(f?.[nameKey] ?? "").trim();
-  const dueRaw = f?.[daysKey];
-  const dueStr = String(dueRaw ?? "").trim();
-  const dueNum = dueStr === "" ? null : Number(dueStr);
+    const f = formRef.current || {};
+    const code = String(f?.[codeKey] ?? "").trim();
+    const name = String(f?.[nameKey] ?? "").trim();
+    const dueRaw = f?.[daysKey];
+    const dueStr = String(dueRaw ?? "").trim();
+    const dueNum = dueStr === "" ? null : Number(dueStr);
 
 
-  console.log({code, name, dueRaw, dueNum, userCode});
+    console.log({ code, name, dueRaw, dueNum, userCode });
 
-  // const missing = [];
-  // if (!code) missing.push(`• ${codeLabel}`);
-  // if (!name) missing.push(`• ${nameLabel}`);
-  // if (!userCode) missing.push("• User Code");
+    // const missing = [];
+    // if (!code) missing.push(`• ${codeLabel}`);
+    // if (!name) missing.push(`• ${nameLabel}`);
+    // if (!userCode) missing.push("• User Code");
 
-  // // ✅ allow 0, block empty/NaN/negative
-  // if (dueStr === "" || Number.isNaN(dueNum) || dueNum < 0) {
-  //   missing.push("• Due Days");
-  // }
+    // // ✅ allow 0, block empty/NaN/negative
+    // if (dueStr === "" || Number.isNaN(dueNum) || dueNum < 0) {
+    //   missing.push("• Due Days");
+    // }
 
-  // if (missing.length) return showValidation("Missing Required Field(s)", missing);
-  // console.log({missing});
+    // if (missing.length) return showValidation("Missing Required Field(s)", missing);
+    // console.log({missing});
 
-  // duplicate only on Add
-  if (isAddMode) {
-    if (isDuplicateCode(code)) {
-      return showValidation("Duplicate Record", [
-        `• ${codeLabel} already exists (${code}).`,
-      ]);
+    // duplicate only on Add
+    if (isAddMode) {
+      if (isDuplicateCode(code)) {
+        return showValidation("Duplicate Record", [
+          `• ${codeLabel} already exists (${code}).`,
+        ]);
+      }
     }
-  }
 
-  setIsLoading(true);
-  try {
-    const payload = buildUpsertPayload({
-      ...form,
-      // ✅ FIX: use the real field value (keep it as entered)
-      [codeKey]: code,
-      [nameKey]: name,
-      [daysKey]: dueStr, // or dueNum, depending on your buildUpsertPayload
-      userCode,
-      ...(showActive
-        ? { [activeKey]: (form?.[activeKey] ?? activeDefault) || activeDefault }
-        : {}),
-    });
+    setIsLoading(true);
+    try {
+      const payload = buildUpsertPayload({
+        ...form,
+        // ✅ FIX: use the real field value (keep it as entered)
+        [codeKey]: code,
+        [nameKey]: name,
+        [daysKey]: dueStr, // or dueNum, depending on your buildUpsertPayload
+        userCode,
+        ...(showActive
+          ? { [activeKey]: (form?.[activeKey] ?? activeDefault) || activeDefault }
+          : {}),
+      });
 
-    console.log({payload});
+      console.log({ payload });
 
-    await apiClient.post(upsertEndpoint, {
-      json_data: JSON.stringify(payload),
-    });
+      await apiClient.post(upsertEndpoint, {
+        json_data: JSON.stringify(payload),
+      });
 
-    await useSwalshowSave(() => {}, () => {});
-    setSelectedCode(code);
-    setIsEditing(false);
+      await useSwalshowSave(() => { }, () => { });
+      setSelectedCode(code);
+      setIsEditing(false);
 
-    await loadList();
-    await fetchOne(code); // ✅ reload record so reg info updates immediately
-  } catch (e) {
-    console.error(e);
-    const msg =
-      e?.response?.data?.message ||
-      e?.response?.data?.error ||
-      e?.message ||
-      `Failed to save ${title}.`;
+      await loadList();
+      await fetchOne(code); // ✅ reload record so reg info updates immediately
+    } catch (e) {
+      console.error(e);
+      const msg =
+        e?.response?.data?.message ||
+        e?.response?.data?.error ||
+        e?.message ||
+        `Failed to save ${title}.`;
 
-    await showValidation("Save Failed", [msg]);
-  } finally {
-    setIsLoading(false);
-  }
-};
+      await showValidation("Save Failed", [msg]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const addNew = () => {
     setSelectedCode("");
@@ -614,9 +615,9 @@ useEffect(() => {
             <table className="min-w-full text-xs shadow-lg">
               <thead className="bg-blue-200 border-b border-blue-300">
                 <tr className="text-blue-900">
-                  <th className="text-left px-3 py-2 font-bold">Pay Term Code</th>
-                  <th className="text-left px-3 py-2 font-bold">Pay Term Name</th>
-                  <th className="text-left px-3 py-2 font-bold">Due Days</th>
+                  <th className="text-left px-3 py-2 font-bold">{codeLabel}</th>
+                  <th className="text-left px-3 py-2 font-bold">{nameLabel}</th>
+                  <th className="text-left px-3 py-2 font-bold">{daysLabel}</th>
                   {extraKey ? (
                     <th className="text-left px-3 py-2 font-bold">{extraColLabel || "AP Advances"}</th>
                   ) : null}
