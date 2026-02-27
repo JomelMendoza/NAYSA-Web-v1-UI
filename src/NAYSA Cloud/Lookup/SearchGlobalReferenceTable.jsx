@@ -771,7 +771,7 @@ const SearchGlobalReferenceTable = forwardRef(
             "w-full min-w-0 px-2 py-1 text-xs rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-300";
 
         return (
-            <div className={["global-tran-table-main-div-ui", className].join(" ")}>
+            <div className={["global-tran-table-main-div-ui flex flex-col flex-1 min-h-0 overflow-hidden", className].join(" ")}>
                 {/* TOP BAR */}
                 {hasDataFiltered && (
                     <div
@@ -963,14 +963,13 @@ const SearchGlobalReferenceTable = forwardRef(
                 )}
 
                 {/* TABLE */}
-                <div className="global-tran-table-main-sub-div-ui">
+                <div className="global-tran-table-main-sub-div-ui flex flex-col flex-1 min-h-0 h-0">
                     {isLoadingColumns ? (
                         <TableLoader />
                     ) : (
                         <div
                             ref={scrollRef}
-                            className="w-full overflow-y-auto overflow-x-hidden"
-                            style={{ maxHeight: 590 }}
+                            className="flex-1 overflow-auto border border-gray-200 rounded-sm relative custom-scrollbar"
                         >
                             <table className="global-tran-table-div-ui border-collapse w-full table-fixed">
                                 <thead className="global-tran-thead-div-ui text-xs">
@@ -1006,7 +1005,6 @@ const SearchGlobalReferenceTable = forwardRef(
                                         ))}
                                     </tr>
 
-                                    {/* FILTER ROW */}
                                     {showFilters && hasDataFiltered && (
                                         <tr>
                                             {visibleCols.map((col) => (
@@ -1096,9 +1094,82 @@ const SearchGlobalReferenceTable = forwardRef(
                     )}
                 </div>
 
+                {/* PAGINATION FOOTER */}
+                {hasDataFiltered && (
+                    <div className="flex items-center justify-between px-3 py-2 border-t bg-white text-xs shrink-0">
+
+                        <div>
+                            Showing{" "}
+                            <b>
+                                {rowsPerPage > 0
+                                    ? (safePage - 1) * rowsPerPage + 1
+                                    : 1}
+                            </b>
+                            –
+                            <b>
+                                {rowsPerPage > 0
+                                    ? Math.min(safePage * rowsPerPage, totalItems)
+                                    : totalItems}
+                            </b>{" "}
+                            of <b>{totalItems}</b>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+
+                            <div>Rows per page</div>
+
+                            <select
+                                className="global-tran-textbox-ui global-tran-textbox-enabled w-20"
+                                value={rowsPerPage}
+                                onChange={(e) => {
+                                    setRowsPerPage(Number(e.target.value));
+                                    setCurrentPage(1);
+                                }}
+                            >
+                                {[10, 20, 50, 100].map((n) => (
+                                    <option key={n} value={n}>{n}</option>
+                                ))}
+                            </select>
+
+                            <button
+                                className="global-tran-btn-ui px-3 py-1"
+                                disabled={safePage <= 1}
+                                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                            >
+                                Prev
+                            </button>
+
+                            <div>
+                                Page <b>{safePage}</b> / <b>{totalPages}</b>
+                            </div>
+
+                            <button
+                                className="global-tran-btn-ui px-3 py-1"
+                                disabled={safePage >= totalPages}
+                                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                            >
+                                Next
+                            </button>
+
+                        </div>
+                    </div>
+                )}
+
                 {/* HIDDEN EXPORT TABLE (PDF/IMAGE) */}
                 {hasDataFiltered && (
-                    <div ref={exportContainerRef} style={{ position: "absolute", left: "-99999px", top: 0 }}>
+                    <div
+                        ref={exportContainerRef}
+                        style={{
+                            position: "fixed",
+                            bottom: 0,
+                            left: 0,
+                            width: 0,
+                            height: 0,
+                            overflow: "hidden",
+                            opacity: 0,
+                            pointerEvents: "none"
+                        }}
+                    >
                         <table className="border-collapse text-[8px]">
                             <thead>
                                 <tr>

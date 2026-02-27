@@ -26,12 +26,14 @@ import {
   useSwalshowSave,
   useSwalValidationAlert,
   useSwalDeleteRecord,
+  useSwalInfoAlert,
 } from "@/NAYSA Cloud/Global/behavior";
 
 import {
   reftables,
   reftablesPDFGuide,
   reftablesVideoGuide,
+  useGlobalDeleteRefTable
 } from "@/NAYSA Cloud/Global/reftable";
 
 import RegistrationInfo from "@/NAYSA Cloud/Global/RegistrationInfo.jsx";
@@ -153,6 +155,7 @@ const COAMast = () => {
   const mapRowToUi = (a) => {
     const fsConsoCode = a?.fsConsoCode ?? a?.fsConsCode ?? a?.fsconso_code ?? "";
     const fsConsoName = a?.fsConsoName ?? a?.fsConsDesc ?? a?.fsconso_name ?? "";
+
 
     return {
       acctCode: a?.acctCode ?? a?.acct_code ?? "",
@@ -384,10 +387,23 @@ const COAMast = () => {
             <button
               type="button"
               className="px-2 py-1 text-xs rounded-md bg-red-600 text-white hover:bg-red-700"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDeleteAccount(row);
-              }}
+             onClick={() => 
+                useGlobalDeleteRefTable({
+                  payload: {
+                    json_data: {
+                      acctCode: row.acctCode,
+                      userCode: user?.USER_CODE || "ADMIN",
+                    },
+                  },
+                  tblCode: "COA",
+                  fieldcaption: "Account",
+                  idKey: "acctCode",          // Ensure this matches your ID field
+                  rowParam: row,              // The row from the table/click
+                  selectedAccount: selectedAccount, // The record currently in the form
+                  onSuccess: fetchAccounts,   // Refreshes your table
+                  onReset: resetForm,         // Clears your form
+                })
+              }
               title="Delete"
             >
               <FontAwesomeIcon icon={faTrashAlt} />
@@ -609,54 +625,7 @@ const COAMast = () => {
     }
   };
 
-  const handleDeleteAccount = async (rowParam = null) => {
-    const row = rowParam || selectedAccount;
 
-    if (!row?.acctCode) {
-      await showValidation("Error", ["Please select an account to delete."]);
-      return;
-    }
-
-    const confirm = await useSwalDeleteConfirm(
-      "Delete this account?",
-      `Code: ${row.acctCode} | Name: ${row.acctName || ""}`,
-      "Yes, delete it"
-    );
-
-    if (!confirm.isConfirmed) return;
-
-    try {
-      const response = await apiClient.post("/deleteCOA", {
-        json_data: JSON.stringify({
-          json_data: {
-            acctCode: row.acctCode,
-            userCode: user?.USER_CODE || "ADMIN",
-          },
-        }),
-      });
-
-      if (response?.data?.status === "success") {
-        await useSwalDeleteRecord();
-        await fetchAccounts();
-
-        // if you deleted the currently selected record, reset form
-        if (selectedAccount?.acctCode === row.acctCode) resetForm();
-      } else {
-        await showValidation("Error", [
-          response?.data?.message || "Failed to delete account.",
-        ]);
-      }
-    } catch (err) {
-      const msg =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        err?.response?.data?.msg ||
-        err?.message ||
-        "Failed to delete account.";
-
-      await showValidation("Error", [msg]);
-    }
-  };
 
 
   const handleExport = (format) => {
