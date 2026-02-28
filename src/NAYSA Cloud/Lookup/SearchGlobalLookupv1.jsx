@@ -92,6 +92,8 @@ const GlobalLookupModalv1 = ({
   const tableViewportRef = useRef(null);
   const [viewportWidth, setViewportWidth] = useState(0);
 
+
+
   // =========================
   // Persistence (localStorage)
   // =========================
@@ -268,6 +270,8 @@ const GlobalLookupModalv1 = ({
     setHighlightIndex(0);
   };
 
+
+
   // =========================
   // Auto width (measure)
   // =========================
@@ -307,6 +311,7 @@ const GlobalLookupModalv1 = ({
     [measureTextWidth]
   );
 
+  
   // =========================
   // Column reorder
   // =========================
