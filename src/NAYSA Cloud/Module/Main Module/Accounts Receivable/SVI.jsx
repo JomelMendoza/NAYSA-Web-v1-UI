@@ -112,7 +112,7 @@ const SVI = () => {
 
     // HS Option
     glCurrMode:"M",
-    glCurrDefault:"PHP",
+    glCurrDefault:companyInfo.currCode,
     withCurr2:false,
     withCurr3:false,
     glCurrGlobal1:"",
@@ -155,10 +155,10 @@ const SVI = () => {
     attention: "",
     
     // Currency information
-    currCode: "",
-    currName: "",
-    currRate: "",
-    defaultCurrRate:"1.000000",
+    currCode: companyInfo.currCode,
+    currName: companyInfo.currName,
+    currRate: formatNumber(companyInfo.currRate,6),
+    defaultCurrRate:formatNumber(companyInfo.currRate,6),
 
 
     //Other Header Info
@@ -172,7 +172,7 @@ const SVI = () => {
     billtermCode: "",
     billtermName: "",
     selectedSVIType : "REG",
-    userCode: user.USER_CODE, 
+    userCode: currentUserRow.userCode, 
 
     //Detail 1-2
     detailRows  :[],
@@ -493,7 +493,9 @@ useEffect(() => {
       branchName: currentUserRow.branchName,
       userCode:currentUserRow.userCode,
       documentDate:useGetCurrentDay(),
-
+      currCode:companyInfo.currCode,
+      currName:companyInfo.currName,
+      currRate:formatNumber(companyInfo.currRate,6) ,
       refDocNo1: "",
       refDocNo2:"",
       fromDate:null,

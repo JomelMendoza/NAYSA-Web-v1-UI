@@ -1284,7 +1284,7 @@ const handleHeaderStatusChange = (value) => {
       rrQty: formatNumber(0, decQty),
       qtyOnHand: formatNumber(match ? match.quantity : 0, decQty),
       qtyAlloc: formatNumber(0, decQty),
-      groupID: "",
+      groupId: "",
       dateNeeded: useGetCurrentDay()
     };
   });
