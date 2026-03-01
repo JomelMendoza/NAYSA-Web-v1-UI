@@ -27,6 +27,8 @@ import PayeeMastLookupModal from "../../../Lookup/SearchVendMast";
 import PaytermLookupModal from "../../../Lookup/SearchPayTermRef.jsx";
 import VATLookupModal from "../../../Lookup/SearchVATRef.jsx";
 import JobCodeLookupModal from "../../../Lookup/SearchJobCodesRef.jsx";
+import GlobalCombinedLookup from "../../../Lookup/SearchGlobalCombinedLookup.jsx";
+
 
 // JO.jsx (top of file)
 import SearchPROpenModal from "../../../Lookup/SearchOpenPRBalance.jsx";
@@ -170,6 +172,10 @@ const JO = () => {
     tblFieldArray :[],
     prTranTypes: [],
     prTypes: [],
+    openPRJO_Data_Summary: [],
+    openPRJO_Data_Detail: [],
+    openPRJO_Col_Summary: [],
+    openPRJO_Col_Detail: [],
     selectedPrTranType: "",
     selectedPrType: "",
     cutoffCode: "",
@@ -185,6 +191,7 @@ const JO = () => {
     prCancelled: "",
     userCode: "NSI",
     prNo: "",
+    prId: "",
     sourcePrBranchCode: "",
 
     // Detail lines (PR dt1)
@@ -207,6 +214,7 @@ const JO = () => {
     prLookupModalOpen: false,
     showJobCodesModal:false,
     showAllTranDocNo:false,
+    showOpenPRModal:false,
 
     // RC Lookup modal (table)
     rcLookupModalOpen: false,
@@ -289,8 +297,13 @@ const JO = () => {
     showPaytermModal,
     selectedRowIndex,
     prNo,
+    prId,
     sourcePrBranchCode,
     showJobCodesModal,
+    openPRJO_Data_Summary,
+    openPRJO_Data_Detail,
+    openPRJO_Col_Summary,
+    openPRJO_Col_Detail,
 
     detailRows,
 
@@ -315,6 +328,7 @@ const JO = () => {
     prLookupOpen,
     vatLookupModalOpen,
     showAllTranDocNo,
+    showOpenPRModal,
 
     // RC Lookup
     rcLookupModalOpen,
@@ -508,6 +522,7 @@ const JO = () => {
       branchName: currentUserRow.branchName,
       userCode:currentUserRow.userCode,
       documentDate:useGetCurrentDay(),
+      prNo: "", 
       rcCode: "",
       rcName: "",
       reqRcCode: "",
@@ -587,7 +602,41 @@ const JO = () => {
 
 
   
-  const handleClosePayeeModal = async (selectedData) => {
+//   const handleClosePayeeModal = async (selectedData) => {
+//   if (!selectedData) {
+//     updateState({ payeeModalOpen: false });
+//     return;
+//   }
+
+//   updateState({ payeeModalOpen: false, isLoading: true });
+
+//   try {
+//     const { 
+//       vendCode = "", 
+//       vendName = "", 
+//       currCode = "" 
+//     } = selectedData;
+
+//     const payeeData = await useTopPayeeRow(vendCode);
+//     const payTermData = await useTopPayTermRow(payeeData?.paytermCode);
+
+//     updateState({
+//       payeeCode: vendCode,
+//       payeeName: vendName,
+//       attention: payeeData?.vendContact || "",
+//       paytermCode: payTermData?.paytermCode || "",
+//       paytermName: payTermData?.paytermName || "",
+//     });
+
+//     await handleSelectCurrency(payeeData?.currCode||"PHP");
+//   } catch (error) {
+//     console.error("Error:", error);
+//   } finally {
+//     updateState({ isLoading: false });
+//   }
+// };
+
+const handleClosePayeeModal = async (selectedData) => {
   if (!selectedData) {
     updateState({ payeeModalOpen: false });
     return;
@@ -596,14 +645,31 @@ const JO = () => {
   updateState({ payeeModalOpen: false, isLoading: true });
 
   try {
-    const { 
-      vendCode = "", 
-      vendName = "", 
-      currCode = "" 
-    } = selectedData;
+    const { vendCode = "", vendName = "" } = selectedData;
 
     const payeeData = await useTopPayeeRow(vendCode);
     const payTermData = await useTopPayTermRow(payeeData?.paytermCode);
+
+    const payeeDetails = await handleFetchDetail(vendCode);
+    const defaultVat = Array.isArray(payeeDetails) ? payeeDetails[0] : payeeDetails;
+    const newVatCode = defaultVat?.vatCode || "";
+    const newVatName = defaultVat?.vatName || "";
+
+    const updatedRows = await Promise.all(
+      detailRows.map(async (row) => {
+        const total = parseFormattedNumber(row.totalAmt) || 0;
+        const vAmt = newVatCode ? await useTopVatAmount(newVatCode, total) : 0;
+        const net = +(total - vAmt).toFixed(2);
+
+        return {
+          ...row,
+          vatCode: newVatCode,
+          vatName: newVatName,
+          vatAmt: formatNumber(vAmt),
+          netAmt: formatNumber(net),
+        };
+      })
+    );
 
     updateState({
       payeeCode: vendCode,
@@ -611,11 +677,13 @@ const JO = () => {
       attention: payeeData?.vendContact || "",
       paytermCode: payTermData?.paytermCode || "",
       paytermName: payTermData?.paytermName || "",
+      detailRows: updatedRows,
     });
 
-    await handleSelectCurrency(payeeData?.currCode||"PHP");
+    await handleSelectCurrency(payeeData?.currCode || "PHP");
+    updateTotalsDisplay(updatedRows);
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error updating payee and details:", error);
   } finally {
     updateState({ isLoading: false });
   }
@@ -747,6 +815,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       paytermCode: data.paytermCode,
       paytermName: data.paytermName,
       prNo: data.prNo,   
+      prId: data.prId,
       remarks: data.remarks,
       joCancelled: data.joCancelled ,
       noReprints: data.noReprints,
@@ -1014,6 +1083,7 @@ const handleDeleteRow = (index) => {
         currRate,
         paytermCode,
         prNo,
+        prId,
         documentDate,
         rcCode,
         remarks,
@@ -1027,6 +1097,8 @@ const handleDeleteRow = (index) => {
         branchCode: branchCode,
         joNo:  documentNo || "",
         joId: documentID || "",
+        prNo: prNo || "",
+        prId: prId || "",
         joDate: documentDate,
         rcCode: rcCode || "",
         payeeCode: payeeCode || "",
@@ -1395,24 +1467,175 @@ const handleCloseJobCodesLookup = (selectedItems) => {
 
 
 
+  
 
-  const handleClosePRLookup = (selectedRow) => {
-    if (!selectedRow) {
-      updateState({ prLookupModalOpen: false });
-      return;
+
+  const handleOpenPRLookup = async () => {
+        try {
+    
+          updateState({ isLoading: true });
+      
+
+          const endpoint ="getPRJO_OpenSummary";
+          const response = await fetchDataJson(endpoint, { userCode, docType, branchCode });   
+          const custData = response?.data?.[0]?.result ? JSON.parse(response.data[0].result) : [];
+      
+          const colConfig = await useSelectedHSColConfig(endpoint);
+          const colConfig_detail = await useSelectedHSColConfig("getPRJO_OpenDetail");
+         
+    
+         if (custData.length === 0) {
+            useSwalInfoAlert("Open Purchase Requisition" ,"No records found")
+             updateState({ isLoading: false });
+            return; 
+          }
+   
+          updateState({ openPRJO_Data_Summary: custData,
+                        openPRJO_Col_Summary:colConfig,
+                        openPRJO_Col_Detail: colConfig_detail,
+                        showOpenPRModal: true,
+                        isLoading: false
+            });
+      
+    
+        } catch (error) {
+          console.log(error)
+          useSwalInfoAlert("Open Purchase Requisition" ,"Error in Fetching Record")
+          updateState({ 
+              openPRJO_Data_Summary: [],
+              openPRJO_Col_Summary: [], 
+              openPRJO_Col_Detail: [],
+              isLoading: false  });
+        }
+      };
+      
+
+// const handleClosePRLookup = async (selection) => {
+
+//  updateState({ 
+//     showOpenPRModal: false,
+//     prNo:  selection?.summary?.[0]?.prNo || "",
+//     rcCode: selection?.summary?.[0]?.rcCode || "",
+//     rcName: selection?.summary?.[0]?.rcName|| "",
+//     detailRows: [],
+// });
+
+//   if (!selection || !selection.details || selection.details.length === 0) return;
+
+//   updateState({ isLoading: true });
+
+//   try {
+
+
+
+
+//     if(!payeeCode){
+
+//        const data = await handleFetchDetail(payeeCode);
+//        const selVatCode = data?.vatCode || "";
+//        const selVatName = data?.vatName || "";
+//     }
+
+
+
+//     const newMappedRows = selection.details.map((d) => {
+//       const qty = parseFormattedNumber(d.quantity || 0);
+      
+//       return {
+//         jobCode:  d.jobCode || "",
+//         scopeOfWork:  d.scopeOfWork || "",
+//         specification: d.specification || "",
+//         quantity: formatNumber(qty, 2),
+//         unitPrice: formatNumber(0, decUPrice),
+//         uomCode:  d.uomCode || "",
+//         grossAmt: formatNumber(0, 2),
+//         discRate: formatNumber(0, 2),
+//         discAmt: formatNumber(0, 2),
+//         totalAmt: formatNumber(0, 2),
+//         vatCode:  selVatCode,
+//         vatName:selVatName,
+//         vatAmt: formatNumber(0, 2),
+//         netAmt: formatNumber(0, 2),
+//         deliveryDate: state.detailRows[0]?.dateNeeded,
+//         groupId: d.groupId || "" 
+//       };
+//     });
+
+//     updateState({
+//       detailRows: [...state.detailRows, ...newMappedRows],
+//     });
+
+//     updateTotalsDisplay([...state.detailRows, ...newMappedRows]);
+//   } catch (error) {
+//     console.error(error);
+//   } finally {
+//     updateState({ isLoading: false });
+//   }
+// };
+
+
+
+const handleClosePRLookup = async (selection) => {
+  if (!selection || !selection.details || selection.details.length === 0) {
+    updateState({ showOpenPRModal: false });
+    return;
+  }
+
+  updateState({ isLoading: true, showOpenPRModal: false });
+
+  try {
+    const summary = selection.summary?.[0];
+    let selVatCode = "";
+    let selVatName = "";
+
+
+    if (payeeCode) {
+      const data = await handleFetchDetail(payeeCode);
+      const vatInfo = Array.isArray(data) ? data[0] : data;
+      selVatCode = vatInfo?.vatCode || "";
+      selVatName = vatInfo?.vatName || "";
     }
 
-    // Map all the fields you want from the selected PR
-    updateState({
-      prLookupModalOpen: false,
-      prNo: selectedRow.prNo || "",
-      sourcePrBranchCode: selectedRow.branchCode || "",
-      // Optional: pre-fill some JO header values from PR
-      reqRcCode: selectedRow.reqRcCode || state.reqRcCode,
-      reqRcName: selectedRow.reqRcName || state.reqRcName,
-      remarks: state.remarks || selectedRow.remarks || "",
+    const newMappedRows = selection.details.map((d) => {
+      const qty = parseFormattedNumber(d.qtyBalance || d.quantity || 0);
+      
+      return {
+        jobCode: d.jobCode || d.JobCode || "",
+        scopeOfWork: d.scopeOfWork  || "",
+        specification: d.specification|| "",
+        quantity: formatNumber(qty, 2),
+        unitPrice: formatNumber(0, decUPrice),
+        uomCode: d.uomCode  || "",
+        grossAmt: formatNumber(0, 2),
+        discRate: formatNumber(0, 2),
+        discAmt: formatNumber(0, 2),
+        totalAmt: formatNumber(0, 2),
+        vatCode: selVatCode,
+        vatName: selVatName,
+        vatAmt: formatNumber(0, 2),
+        netAmt: formatNumber(0, 2),
+        deliveryDate: useFormatToDate(summary?.dateNeeded || documentDate),
+        groupId: d.groupId || "" 
+      };
     });
-  };
+
+    updateState({ 
+      prNo:  summary?.prNo || "",
+      rcCode: summary?.rcCode || "",
+      rcName: summary?.rcName || "",
+      prId: summary?.groupId || "",
+      detailRows: newMappedRows
+    });
+
+    updateTotalsDisplay(newMappedRows);
+  } catch (error) {
+    console.error("PR Lookup Error:", error);
+  } finally {
+    updateState({ isLoading: false });
+  }
+};
+
+
 
 
  const hasExistingJO = detailRows.some(row => {
@@ -1612,7 +1835,7 @@ const handleCloseJobCodesLookup = (selectedItems) => {
                         : "global-tran-textbox-button-search-enabled-ui"
                     } global-tran-textbox-button-search-ui`}
                     disabled={isFormDisabled}
-                    onClick={() => updateState({ prLookupModalOpen: true })}
+                    onClick={() => handleOpenPRLookup()}
                   >
                     <FontAwesomeIcon icon={faMagnifyingGlass} />
                   </button>
@@ -2536,8 +2759,44 @@ const handleCloseJobCodesLookup = (selectedItems) => {
            onSelected={handleTranDocNoSelection}
            onClose={() => updateState({ showAllTranDocNo: false })}
            />
-       )}      
+       )}   
 
+
+
+
+
+    {showOpenPRModal && (
+    <GlobalCombinedLookup
+        isOpen={showOpenPRModal}
+        title="Open Purchase Requisition"
+        summarySelectionMode="single" 
+        detailSelectionMode="multiple"
+        summaryColumns={openPRJO_Col_Summary} 
+        detailColumns={openPRJO_Col_Detail}
+        summaryData={openPRJO_Data_Summary}
+        tabTitles={["Open PR Summary", "Open PR Detail"]}
+       
+          fetchDetailApi={(selectedIds) => {
+            const idString = Array.isArray(selectedIds) 
+                ? selectedIds.join(',') 
+                : selectedIds;
+
+            const payload = {   
+                json_data: JSON.stringify({
+                    json_data: { 
+                        selectedId: idString
+                    }
+                })
+            };
+            return postRequest("getPRJO_OpenDetail", payload);
+        }}
+        onCancel={() => updateState({ showOpenPRModal: false })}
+        onClose={handleClosePRLookup}
+    />   
+  )}
+    
+    
+      
       {showSpinner && <LoadingSpinner />}
     </div>
   );
