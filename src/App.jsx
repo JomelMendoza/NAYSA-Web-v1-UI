@@ -88,52 +88,104 @@ const AppContent = () => {
   
 
   /* -------- Load menu + routes when user & tenant are present -------- */
+  // useEffect(() => {
+  //   let alive = true;
+  //   const tenant = getTenant();
+
+  //   if (loading || !user || !tenant) {
+  //     setMenuItems([]);
+  //     setRouteRows([]);
+  //     return;
+  //   }
+
+  //   (async () => {
+  //     try {
+  //       setLoadingMenu(true);
+
+  //       const [menuResp, routesResp] = await Promise.all([
+  //         fetchData("menu-items", { USER_CODE: user?.USER_CODE }),
+  //         fetchData("menu-routes", { USER_CODE: user?.USER_CODE }),
+  //       ]);
+
+  //       if (!alive) return;
+
+  //       setMenuItems(
+  //         menuResp?.menuItems ??
+  //           menuResp?.data ??
+  //           (Array.isArray(menuResp) ? menuResp : [])
+  //       );
+  //       setRouteRows(
+  //         routesResp?.routes ??
+  //           routesResp?.data ??
+  //           (Array.isArray(routesResp) ? routesResp : [])
+  //       );
+  //        setRoutesLoaded(true); 
+  //     } catch (e) {
+  //       if (!alive) return;
+  //       console.error("[App] Failed to load menu/routes:", e);
+  //       setMenuItems([]);
+  //       setRouteRows([]);
+  //       setRoutesLoaded(true);
+  //     } finally {
+  //       if (alive) setLoadingMenu(false);
+  //     }
+  //   })();
+  //   return () => {
+  //     alive = false;
+  //   };
+  // }, [loading, user]);
+
+
+
   useEffect(() => {
-    let alive = true;
-    const tenant = getTenant();
+  let alive = true;
+  const tenant = getTenant();
 
-    if (loading || !user || !tenant) {
-      setMenuItems([]);
-      setRouteRows([]);
-      return;
+  console.log("MENU DEBUG", {
+    tenant,
+    user,
+    loading,
+  });
+
+  if (loading || !user || !tenant) return;
+
+  (async () => {
+    try {
+      setLoadingMenu(true);
+
+      const [menuResp, routesResp] = await Promise.all([
+        fetchData("menu-items", { USER_CODE: user?.USER_CODE }),
+        fetchData("menu-routes", { USER_CODE: user?.USER_CODE }),
+      ]);
+
+      console.log("MENU RESP RAW:", menuResp);
+      console.log("ROUTES RESP RAW:", routesResp);
+
+      if (!alive) return;
+
+      setMenuItems(menuResp?.menuItems ?? menuResp?.data ?? []);
+      setRouteRows(routesResp?.routes ?? routesResp?.data ?? []);
+      setRoutesLoaded(true);
+    } catch (e) {
+      // console.error("[App] Failed to load menu/routes:", e);
+      // setRoutesLoaded(true);
+        console.error("[MENU LOAD ERROR]", {
+        message: e?.message,
+        status: e?.response?.status,
+        data: e?.response?.data,
+        url: e?.config?.baseURL + e?.config?.url,
+        headers: e?.config?.headers,
+        
+      });
+    } finally {
+      if (alive) setLoadingMenu(false);
     }
+  })();
 
-    (async () => {
-      try {
-        setLoadingMenu(true);
-
-        const [menuResp, routesResp] = await Promise.all([
-          fetchData("menu-items", { USER_CODE: user?.USER_CODE }),
-          fetchData("menu-routes", { USER_CODE: user?.USER_CODE }),
-        ]);
-
-        if (!alive) return;
-
-        setMenuItems(
-          menuResp?.menuItems ??
-            menuResp?.data ??
-            (Array.isArray(menuResp) ? menuResp : [])
-        );
-        setRouteRows(
-          routesResp?.routes ??
-            routesResp?.data ??
-            (Array.isArray(routesResp) ? routesResp : [])
-        );
-         setRoutesLoaded(true); 
-      } catch (e) {
-        if (!alive) return;
-        console.error("[App] Failed to load menu/routes:", e);
-        setMenuItems([]);
-        setRouteRows([]);
-        setRoutesLoaded(true);
-      } finally {
-        if (alive) setLoadingMenu(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [loading, user]);
+  return () => {
+    alive = false;
+  };
+}, [loading, user]);
 
 
 

@@ -24,6 +24,10 @@ import {
   useSwalValidationAlert,
 } from "@/NAYSA Cloud/Global/behavior";
 
+import {
+  useGlobalDeleteRefTable
+} from "@/NAYSA Cloud/Global/reftable";
+
 /* ================= HELPERS ================= */
 
 const Card = ({ children }) => (
@@ -53,6 +57,7 @@ export default function BillTermRef() {
   const title = "Billing Terms";
   const { user } = useAuth();
 
+
   const userCode =
     user?.userCode || user?.user_code || user?.USER_CODE || user?.UserCode || user?.code || "";
 
@@ -72,6 +77,74 @@ export default function BillTermRef() {
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState("");
+
+
+
+
+
+  const [isDupCode, setIsDupCode] = useState(false);
+
+  const codeInputRef = useRef(null); // to refocus after clearing
+  const dupAlertingRef = useRef(false);
+
+  const isDuplicateLocal = (code) => {
+    const c = String(code || "").trim().toUpperCase();
+    if (!c) return false;
+
+    return allRows.some(
+      (r) => String(r?.code || "").trim().toUpperCase() === c
+    );
+  };
+
+  const showValidation = async (title, lines) => {
+    const msg = Array.isArray(lines) ? lines.join("\n") : String(lines || "");
+    return useSwalValidationAlert({
+      icon: "error",
+      title,
+      message: msg,
+    });
+  };
+
+  const checkDuplicate = async (code) => {
+    const c = (code || "").trim();
+    if (!c) return false;
+
+    const res = await apiClient.post("/checkDuplicateBillterm", {
+      json_data: { billtermCode: c },
+    });
+
+    const raw =
+      res?.data?.data?.[0]?.result ??
+      res?.data?.data?.[0]?.[""] ??
+      '{"result":"0"}';
+
+    const parsed = JSON.parse(raw);
+    return parsed.result === "1";
+  };
+
+  const handleBillTermCodeBlur = async () => {
+    const code = (form.code || "").trim();
+    if (!code) return;
+
+    const isAddMode = !selectedCode;
+    if (!isAddMode || !isEditing) return;
+
+    try {
+      const dup = await checkDuplicate(code); // API
+      setIsDupCode(dup);
+
+      if (dup) {
+        await showValidation("Duplicate Entry", ["Duplicate Code is not allowed."]);
+        updateForm({ code: "" });
+        setIsDupCode(false);
+        setTimeout(() => codeInputRef.current?.focus?.(), 0);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+
 
   useEffect(() => {
     formRef.current = form;
@@ -126,7 +199,7 @@ export default function BillTermRef() {
     if (!code) return;
 
     try {
-      setIsLoading(true);
+      // setIsLoading(true);
 
       const res = await apiClient.get("/getBillterm", {
         params: { BILLTERM_CODE: code },
@@ -141,6 +214,7 @@ export default function BillTermRef() {
 
       setForm(normalized);
       setSelectedCode(normalized.code);
+      setIsDupCode(false);
     } catch (e) {
       console.error(e);
       await useSwalErrorAlert("Error", "Failed to fetch record.");
@@ -149,81 +223,91 @@ export default function BillTermRef() {
     }
   };
 
+
+
   /* ================= SAVE ================= */
-
   const save = async () => {
-    const f = formRef.current;
+    const f = form;
 
-    if (!f.code || !f.name) {
-      return useSwalValidationAlert({
-        icon: "error",
-        title: "Missing Required Fields",
-        message: "Code and Name are required.",
-      });
+    // ✅ still ok to block only on pure duplicate in ADD mode (optional)
+    const isAddMode = !selectedCode;
+    if (isAddMode) {
+      const dup = await checkDuplicate(f.code);
+      setIsDupCode(dup);
+      if (dup) {
+        await showValidation("Duplicate Entry", ["Duplicate Billing Term Code is not allowed."]);
+        updateForm({ code: "" });
+        setIsDupCode(false);
+        return;
+      }
     }
 
     const payload = {
       json_data: {
-        billtermCode: f.code.trim(),
-        billtermName: f.name.trim(),
-        dueDays: f.daysDue === "" ? null : Number(f.daysDue),
+        billtermCode: String(f.code ?? "").trim(),
+        billtermName: String(f.name ?? "").trim(),
+        dueDays: String(f.daysDue ?? "").trim() === "" ? null : Number(f.daysDue),
         userCode,
       },
     };
 
-
-
     try {
-      setIsLoading(true);
-
-      await apiClient.post("/upsertBillterm", {
-        json_data: JSON.stringify(payload)
+      const resp = await apiClient.post("/upsertBillterm", {
+        json_data: JSON.stringify(payload),
       });
+
+      // ✅ SQL-driven validation
+      if (Number(resp?.data?.errorcount || 0) > 0) {
+        await showValidation("Save Failed", [resp?.data?.errormsg || "Validation error."]);
+        return;
+      }
 
       await useSwalshowSave();
       setIsEditing(false);
-      await loadList();
-      await fetchOne(f.code);
+
+      const updatedRow = {
+        code: payload.json_data.billtermCode,
+        name: payload.json_data.billtermName,
+        daysDue: payload.json_data.dueDays ?? "",
+        advances: f.advances ?? "",
+        active: f.active ?? "Y",
+        lastUpdatedBy: userCode,
+        lastUpdatedDate: new Date().toISOString(),
+      };
+
+      // ✅ Update list immediately (NO reload)
+      setAllRows((prevAll) => {
+        const exists = prevAll.some((r) => r.code === updatedRow.code);
+        const nextAll = exists
+          ? prevAll.map((r) => (r.code === updatedRow.code ? { ...r, ...updatedRow } : r))
+          : [...prevAll, updatedRow];
+
+        nextAll.sort((a, b) =>
+          String(a.code).localeCompare(String(b.code), undefined, { numeric: true })
+        );
+
+        const s = (search || "").trim().toLowerCase();
+        setRows(
+          !s
+            ? nextAll
+            : nextAll.filter(
+              (r) =>
+                String(r.code || "").toLowerCase().includes(s) ||
+                String(r.name || "").toLowerCase().includes(s)
+            )
+        );
+
+        return nextAll;
+      });
+
+      setSelectedCode(updatedRow.code);
+      setForm((prev) => ({ ...prev, ...updatedRow }));
+      setIsDupCode(false);
     } catch (e) {
       console.error(e);
       await useSwalErrorAlert("Error", "Failed to save record.");
-    } finally {
-      setIsLoading(false);
     }
   };
-
-  /* ================= DELETE ================= */
-
-  const deleteRecord = async () => {
-    if (!selectedCode) return;
-
-    const confirm = await useSwalDeleteConfirm(
-      "Delete this Billing Term?",
-      selectedCode,
-      "Yes, delete it"
-    );
-    if (!confirm?.isConfirmed) return;
-    try {
-      setIsLoading(true);
-
-      await apiClient.post("/deleteBillterm", {
-        json_data: JSON.stringify({ billtermCode: selectedCode }),
-      });
-
-      await useSwalDeleteRecord();
-      setForm(emptyForm);
-      setSelectedCode("");
-      await loadList();
-    } catch (e) {
-      console.error(e);
-      await useSwalErrorAlert("Error", "Failed to delete.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  /* ================= SEARCH ================= */
-
   useEffect(() => {
     loadList();
   }, [loadList]);
@@ -242,8 +326,15 @@ export default function BillTermRef() {
   /* ================= BUTTONS ================= */
 
   const buttons = [
-    { key: "add", label: "Add", icon: faPlus, onClick: () => { setForm(emptyForm); setSelectedCode(""); setIsEditing(true); } },
-    { key: "save", label: "Save", icon: faSave, onClick: save, disabled: !isEditing },
+    {
+      key: "add", label: "Add", icon: faPlus, onClick: () => {
+        setForm(emptyForm);
+        setSelectedCode("");
+        setIsEditing(true);
+        setIsDupCode(false);
+      }
+    },
+    { key: "save", label: "Save", icon: faSave, onClick: save, disabled: !isEditing || isDupCode },
     {
       key: "reset",
       label: "Reset",
@@ -252,6 +343,7 @@ export default function BillTermRef() {
         setForm(emptyForm);
         setSelectedCode("");
         setIsEditing(false);
+        setIsDupCode(false);
       },
     }
   ];
@@ -260,7 +352,18 @@ export default function BillTermRef() {
     () => [
       { key: "code", label: "Billing Term Code", sortable: true },
       { key: "name", label: "Billing Term Name", sortable: true },
-      { key: "daysDue", label: "Due Days", renderType: "number", sortable: true },
+      {
+        key: "daysDue",
+        label: "Due Days",
+        sortable: true,
+        renderType: "number",
+        render: (row) => {
+          const v = row?.daysDue;
+          if (v === null || v === undefined || v === "") return "";
+          const n = Number(v);
+          return Number.isFinite(n) ? String(Math.trunc(n)) : "";
+        },
+      },
       { key: "active", label: "Active" },
       {
         key: "action",
@@ -279,41 +382,37 @@ export default function BillTermRef() {
               title="Edit"
             />
 
-            {/* DELETE ICON */}
             <FontAwesomeIcon
               icon={faTrashAlt}
               className="cursor-pointer text-red-600 hover:text-red-800"
-              onClick={async () => {
-                const confirm = await useSwalDeleteConfirm(
-                  "Delete this Billing Term?",
-                  row.code,
-                  "Yes, delete it"
-                );
-                if (!confirm?.isConfirmed) return;
-
-                try {
-                  setIsLoading(true);
-
-                  await apiClient.post("/deleteBillterm", {
-                    json_data: JSON.stringify({ billtermCode: row.code }),
-                  });
-
-                  await useSwalDeleteRecord();
-
-                  if (selectedCode === row.code) {
-                    setForm(emptyForm);
-                    setSelectedCode("");
-                  }
-
-                  await loadList();
-                } catch (e) {
-                  console.error(e);
-                  await useSwalErrorAlert("Error", "Failed to delete.");
-                } finally {
-                  setIsLoading(false);
-                }
-              }}
               title="Delete"
+              onClick={async () => {
+                await useGlobalDeleteRefTable({
+                  rowParam: row,
+                  selectedAccount: form,
+                  tblCode: "Billterm",
+                  idKey: "code",
+                  fieldcaption: "Billing Term",
+
+                  payload: {
+                    json_data: {
+                      billtermCode: row.code,
+                      userCode: userCode,
+                    },
+                  },
+
+                  onSuccess: async () => {
+                    setRows(prev => prev.filter(r => r.code !== row.code));
+                    setAllRows(prev => prev.filter(r => r.code !== row.code));
+                  },
+                  onReset: () => {
+                    if (selectedCode === row.code) {
+                      setForm(emptyForm);
+                      setSelectedCode("");
+                    }
+                  },
+                });
+              }}
             />
 
           </div>
@@ -350,12 +449,35 @@ export default function BillTermRef() {
         {/* FORM */}
         <Card>
           <SectionHeader title="Basic Information" />
-
           <FieldRenderer
             label="Billing Term Code"
             type="text"
             value={form.code}
-            onChange={(v) => updateForm({ code: v })}
+            inputRef={codeInputRef}
+            onChange={async (v) => {
+              const isAddMode = !selectedCode;
+              updateForm({ code: v });
+              setIsDupCode(false);
+
+              if (!isAddMode || !isEditing) return;
+
+              if (isDuplicateLocal(v)) {
+                setIsDupCode(true);
+
+                if (!dupAlertingRef.current) {
+                  dupAlertingRef.current = true;
+
+                  await showValidation("Duplicate Entry", ["Duplicate Code is not allowed."]);
+
+                  updateForm({ code: "" });
+                  setIsDupCode(false);
+
+                  setTimeout(() => codeInputRef.current?.focus?.(), 0);
+                  dupAlertingRef.current = false;
+                }
+              }
+            }}
+            onBlur={handleBillTermCodeBlur}   // ✅ keep blur (server check)
             disabled={!isEditing || selectedCode !== ""}
           />
 

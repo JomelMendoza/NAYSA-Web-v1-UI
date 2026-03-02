@@ -97,8 +97,6 @@ const MSRR = (item) => {
 
   const [topTab, setTopTab] = useState("details"); // "details" | "history"
 
-  const [focusedCell, setFocusedCell] = useState(null); 
-
   const [state, setState] = useState({
     // HS Option / Currency
     glCurrMode: "M",
@@ -462,120 +460,126 @@ const MSRR = (item) => {
   // ==========================
 
   const handleClosePOOpenModal = async (selection) => {
-  // closed without selection
-  if (!selection) {
-    updateState({ poLookupModalOpen: false });
-    return;
-  }
+    // closed without selection
+    if (!selection) {
+      updateState({ poLookupModalOpen: false });
+      return;
+    }
 
-  const header = selection?.header || {};
-  const details = Array.isArray(selection?.details) ? selection.details : [];
+    const { header, details } = selection;
 
-  const vendCodeFromDetail = details?.[0]?.VEND_CODE ?? details?.[0]?.vendCode ?? "";
-  const vendNameFromDetail = details?.[0]?.VEND_NAME ?? details?.[0]?.vendName ?? "";
+    const vendCodeFromDetail = details?.[0]?.VEND_CODE ?? "";
 
-  // prefetch VAT rates for all vat codes used in details (optional but ok)
-  const vatCodes = [
-    ...new Set(details.map((d) => d?.VAT_CODE ?? d?.vatCode).filter(Boolean)),
-  ];
-  const vatRatePairs = await Promise.all(
-    vatCodes.map(async (code) => [code, await fetchVatRate(code)]),
-  );
-  const vatRateMap = Object.fromEntries(vatRatePairs);
+    const vatCodes = [
+      ...new Set((details || []).map((d) => d.VAT_CODE).filter(Boolean)),
+    ];
 
-  // Header fields
-  updateState({
-    poLookupModalOpen: false,
-
-    poNo: header?.PoNo ?? header?.PO_NO ?? header?.poNo ?? "",
-    branchCode: header?.BC ?? header?.branchCode ?? branchCode,
-    rcCode: header?.RcCode ?? header?.RC_CODE ?? header?.rcCode ?? rcCode,
-
-    // Vendor from header then fallback to detail
-    vendCode:
-      header?.VendCode ??
-      header?.VEND_CODE ??
-      header?.vendCode ??
-      vendCodeFromDetail ??
-      "",
-    vendName:
-      header?.VendName ??
-      header?.VEND_NAME ??
-      header?.vendName ??
-      vendNameFromDetail ??
-      "",
-
-    // Warehouse from header (your sproc returns WhCode/WhName)
-    WHCode: header?.WhCode ?? header?.WH_CODE ?? header?.whCode ?? "",
-    WHName: header?.WhName ?? header?.WH_NAME ?? header?.whName ?? "",
-
-    // keep existing MSRR location header (PO open header has no loc in your sproc)
-    LocCode: state?.LocCode ?? "",
-    LocName: state?.LocName ?? "",
-  });
-
-  // Map PO detail -> MSRR detailRows (IMPORTANT: include groupId per line)
-  const newRows = details.map((r, idx) => {
-    const poQty = Number(r?.PO_QUANTITY ?? r?.poQty ?? 0);
-    const rrQty = Number(
-      r?.QTY_BALANCE ??
-        r?.qtyBalance ??
-        (poQty - Number(r?.RR_QTY ?? r?.rrQty ?? 0)),
+    const vatRatePairs = await Promise.all(
+      vatCodes.map(async (code) => [code, await fetchVatRate(code)]),
     );
 
-    const unitCost = Number(r?.UNIT_COST ?? r?.unitCost ?? 0);
+    const vatRateMap = Object.fromEntries(vatRatePairs);
 
-    const gross = Number(r?.GROSS_AMOUNT ?? r?.grossAmount ?? poQty * unitCost);
-    const discAmt = Number(r?.DISC_AMOUNT ?? r?.discAmount ?? 0);
-    const vatCode = String(r?.VAT_CODE ?? r?.vatCode ?? "").trim();
-    const vatAmt = Number(r?.VAT_AMOUNT ?? r?.vatAmount ?? 0);
-    const net = Number(r?.NET_AMOUNT ?? r?.netAmount ?? gross - discAmt);
+    const vendNameFromDetail = details?.[0]?.VEND_NAME ?? ""; // if you later include it
 
-    const groupId = String(r?.GROUP_ID ?? r?.groupId ?? "").trim();
-    const categCode = String("BARCODE").trim();
 
-    const pickedVatRate = vatCode ? Number(vatRateMap[vatCode] ?? 0) : 0;
+    updateState({
+      poLookupModalOpen: false,
+      poNo: header?.PoNo || "",
+      branchCode: header?.BC || branchCode,
+      rcCode: header?.RcCode || rcCode,
 
-    return {
-      lN: idx + 1,
+      // ✅ vendor from Header (VendCode/VendName), fallback to Detail (VEND_CODE)
+      vendCode:
+        header?.VendCode ?? header?.Vend_Code ?? vendCodeFromDetail ?? "",
+      vendName:
+        header?.VendName ?? header?.Vend_Name ?? vendNameFromDetail ?? "",
 
-      // ✅ this is what your sproc consumes and inserts to MSRR_DT1.GROUP_ID
-      groupId,
+      WHcode: header?.WhCode ?? header?.WH_CODE ?? header?.whCode ?? "",
+      WHname: header?.WhName ?? header?.WH_NAME ?? header?.whName ?? "",
 
-      invType: String(r?.INV_TYPE ?? r?.invType ?? "").trim(),
+      // ✅ set location in MSRR header
+      LocCode,
+      LocName,
+    });
 
-      itemCode: String(r?.ITEM_CODE ?? r?.itemCode ?? "").trim(),
-      itemName: String(r?.ITEM_NAME ?? r?.itemName ?? "").trim(),
-      uomCode: String(r?.UOM_CODE ?? r?.uomCode ?? "").trim(),
-      itemSpecs: String(r?.ITEM_SPECS ?? r?.itemSpecs ?? "").trim(),
-      categCode,
+    // 2) map selected PO detail lines into MSRR detailRows
+    const newRows = (details || []).map((r, idx) => {
+      const poQty = Number(r.PO_QUANTITY ?? 0);
+      const rrQty = Number(r.QTY_BALANCE ?? poQty - Number(r.RR_QTY ?? 0));
+      const unitCost = Number(r.UNIT_COST ?? 0);
 
-      // quantities
-      poQty: poQty,
-      rrQty: rrQty,
-      freeQty: 0,
+      const gross = Number(r.GROSS_AMOUNT ?? poQty * unitCost);
+      const discAmt = Number(r.DISC_AMOUNT ?? 0);
+      const vatAmt = Number(r.VAT_AMOUNT ?? 0);
+      const net = Number(r.NET_AMOUNT ?? gross - discAmt); // VAT may already be included depending on your design
 
-      // amounts
-      unitCost: unitCost,
-      grossAmt: gross,
-      discAmt: discAmt,
-      netAmt: net,
-      vatCode: vatCode,
-      vatAmt: vatAmt,
-      vatRate: pickedVatRate,
+      const categ =
+        r.CATEG_CODE ??
+        r.categCode ??
+        r.categ_code ??
+        r.GROUP_ID ??
+        r.groupId ??
+        "";
 
-      // optional refs
-      poLineNo: String(r?.LINE_NO ?? r?.poLineno ?? "").trim(),
-      currCode: String(r?.CURR_CODE ?? r?.currCode ?? state?.currCode ?? "").trim(),
-      whouseCode: String(r?.WH_CODE ?? r?.whCode ?? header?.WhCode ?? state?.WHCode ?? "").trim(),
-      locCode: String(r?.LOC_CODE ?? r?.locCode ?? state?.LocCode ?? "").trim(),
-    };
-  });
+      return {
+        lN: Number(r.LINE_NO) || idx + 1,
 
-  updateState({ detailRows: newRows });
-  updateTotalsDisplay(newRows); // keep your existing totals function
-};
+        // internal
+        invType: r.INV_TYPE || "",
+        poStatus: r.PO_STATUS || "",
+        groupId: categ,
+        categCode: categ,
 
+        // item
+        itemCode: r.ITEM_CODE || "",
+        itemName: r.ITEM_NAME || "",
+        itemSpecs: r.ITEM_SPECS || "",
+
+        uomCode: r.UOM_CODE || "",
+        uomCode2: r.UOM_CODE2 || "",
+        uomQty2: String(r.UOM_QTY2 ?? 0),
+
+        // quantities
+        poQty: String(poQty),
+        rrQty: String(rrQty),
+
+        // currency/costing
+        currCode: r.CURR_CODE || "PHP",
+        unitCost: String(unitCost),
+
+        // amounts
+        amount: String(r.ITEM_AMOUNT ?? gross), // Amount column
+        grossAmount: String(gross),
+        discRate: String(r.DISC_RATE ?? 0),
+        discAmount: String(discAmt),
+        vatCode: r.VAT_CODE || "",
+        vatAmount: String(vatAmt),
+        netAmount: String(net),
+
+        // date
+        dateNeeded: r.DEL_DATE ? String(r.DEL_DATE).substring(0, 10) : "",
+
+        vatCode: r.VAT_CODE || "",
+        vatRate:
+          vatRateMap?.[r.VAT_CODE] !== undefined
+            ? String(vatRateMap[r.VAT_CODE])
+            : "",
+
+        // if you have VAT rate ref table later
+        lotNo: "",
+        bbDate: "",
+        qcStatus: "",
+        whouseCode: header?.WhCode ?? header?.WH_CODE ?? header?.whCode ?? "", // ✅ this is what table displays
+  whouseName: header?.WhName ?? header?.WH_NAME ?? header?.whName ?? "", // optional
+  LocCode: "",        // keep blank until user picks location
+  locName: "",
+        freeQty: "0.000000",
+      };
+    });
+
+    updateState({ detailRows: newRows });
+  };
 
  useEffect(() => {
     const onKey = (e) => {
@@ -907,21 +911,6 @@ const MSRR = (item) => {
       documentStatus: parsed.rrStatus || "",
     });
 
-    const rrStat = String(parsed.rrStatus || "").toUpperCase();
-
-updateState({
-  documentStatus: rrStat,
-
-  // ✅ this drives the header "Transaction Status"
-  status:
-    rrStat === "F" ? "FINALIZED" :
-    rrStat === "X" ? "CANCELLED" :
-    rrStat === "C" ? "CLOSED" :
-    "OPEN",
-});
-
-    
-
     const dt1 = Array.isArray(parsed.dt1) ? parsed.dt1 : [];
 
     const vatCodes = [...new Set(dt1.map(d => d.vatCode).filter(Boolean))];
@@ -993,7 +982,7 @@ updateState({
 
     const newRow = {
       invType: "MS",
-      groupId: "",
+      groupId: selectedItem.categCode || "",
       poStatus: status || "",
       itemCode: selectedItem.itemCode || "",
       itemName: selectedItem.itemName || "",
@@ -1413,26 +1402,6 @@ updateState({
         fetchTranData(state.documentNo,state.branchCode);
     }
 };
-
-const handleApplyAllWarehouseLocation = (whCode, locCode) => {
-  // update header
-  updateState({
-    whCode,
-    locCode,
-  });
-
-  // 🔥 propagate to detail rows
-  const updatedRows = detailRows.map((row) => ({
-    ...row,
-    whCode,
-    locCode,
-  }));
-
-  updateState({
-    detailRows: updatedRows,
-  });
-};
-
   // ==========================
   // SAVE / UPSERT (MSRR + DT1 + DT2)
   // ==========================
@@ -1508,10 +1477,8 @@ const handleApplyAllWarehouseLocation = (whCode, locCode) => {
 
           rrQuantity: parseFormattedNumber(r.rrQty || 0),
           quantity: parseFormattedNumber(r.rrQty || 0), // SP loads $.quantity
-          whCode: r.whCode || state.WHCode || "",
+          whCode: r.whCode || state.WHcode || "",
           LocCode: r.LocCode || state.LocCode || "",
-
-          groupId: r.groupId || "",
 
           itemName: r.itemName || "",
           uomCode: r.uomCode || "",
@@ -1537,7 +1504,7 @@ const handleApplyAllWarehouseLocation = (whCode, locCode) => {
           poBalance: parseFormattedNumber(r.poBalance || 0),
 
           itemSpecs: r.itemSpecs || "",
-          categCode: "BARCODE",
+          categCode: r.categCode || "",
         })),
 
         // DT2 (GL)
@@ -2151,7 +2118,7 @@ const handleTranDocNoSelection = async (data) => {
                   </button>
                 </div>
 
-                {/* MSRR No */}
+                {/* PR No */}
                 <div className="relative">
                         <input
                             type="text"
@@ -2170,9 +2137,9 @@ const handleTranDocNoSelection = async (data) => {
                             disabled={state.isDocNoDisabled}
                         />
                         <label htmlFor="msrrNo" className="global-tran-floating-label">
-                    MSRR No.
-                  </label>
-                  <button
+                            MSRR No.
+                        </label>
+                        <button
                             className={`global-tran-textbox-button-search-padding-ui ${
                                 (state.isFetchDisabled || state.isDocNoDisabled)
                                 ? "global-tran-textbox-button-search-disabled-ui"
@@ -2183,7 +2150,7 @@ const handleTranDocNoSelection = async (data) => {
                         >
                             <FontAwesomeIcon icon={faMagnifyingGlass} />
                         </button>
-                </div>
+                    </div>
 
                 {/* PR Date */}
                 <div className="relative">
@@ -2218,7 +2185,7 @@ const handleTranDocNoSelection = async (data) => {
                     className="peer global-tran-textbox-ui"
                   />
                   <label htmlFor="poNo" className="global-tran-floating-label">
-                    Reference PO No.
+                    PO No
                   </label>
                   <button
                     type="button"
@@ -2383,7 +2350,7 @@ const handleTranDocNoSelection = async (data) => {
                   <input
                     type="text"
                     id="WHcode"
-                    value={state.WHName || state.whCode || ""}
+                    value={state.WHname || state.WHcode || ""}
                     readOnly
                     placeholder=" "
                     className="peer global-tran-textbox-ui"
@@ -2755,22 +2722,21 @@ const handleTranDocNoSelection = async (data) => {
                         <input
                           type="text"
                           className="w-[120px] global-tran-td-inputclass-ui text-right"
-                          placeholder=""
                           value={row.freeQty || ""}
                           disabled={isFormDisabled}
                           onChange={(e) => {
                             const inputValue = e.target.value;
                             const sanitizedValue = inputValue.replace(
-                              /[^0-9.]/g,
+                              /[^0-9.-]/g,
                               "",
                             );
                             if (
-                              /^\d*\.?\d{0,2}$/.test(sanitizedValue) ||
+                              /^-?\d*\.?\d{0,2}$/.test(sanitizedValue) ||
                               sanitizedValue === ""
                             ) {
                               handleDetailChange(
                                 index,
-                                "freeQty",
+                                "quantity",
                                 sanitizedValue,
                                 false,
                               );
@@ -2778,7 +2744,7 @@ const handleTranDocNoSelection = async (data) => {
                           }}
                           onFocus={(e) => {
                             if (
-                              e.target.value === "" ||
+                              e.target.value === "0.00" ||
                               parseFormattedNumber(e.target.value) === 0
                             ) {
                               e.target.value = "";
@@ -2788,7 +2754,7 @@ const handleTranDocNoSelection = async (data) => {
                             const value = e.target.value;
                             const num = parseFormattedNumber(value);
                             if (!isNaN(num)) {
-                              handleDetailChange(index, "freeQty", num, true);
+                              handleDetailChange(index, "quantity", num, true);
                             }
                             setFocusedCell(null);
                           }}
@@ -2800,7 +2766,7 @@ const handleTranDocNoSelection = async (data) => {
                               if (!isNaN(num)) {
                                 handleDetailChange(
                                   index,
-                                  "freeQty",
+                                  "quantity",
                                   num,
                                   true,
                                 );
@@ -3007,7 +2973,7 @@ const handleTranDocNoSelection = async (data) => {
                     <input
                       type="text"
                       className="w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
-                       value={state.WHname || state.WHcode || ""}
+                      value={row.whouseCode || ""}
                       readOnly
                     />
                     {!isFormDisabled && row.operation !== "S" &&(
@@ -3029,7 +2995,7 @@ const handleTranDocNoSelection = async (data) => {
                     <input
                       type="text"
                       className="w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
-                      value={row.LocName || ""}
+                      value={row.LocCode || ""}
                       readOnly
                     />
                     {!isFormDisabled && row.operation !== "S" &&(
