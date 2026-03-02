@@ -387,23 +387,10 @@ const COAMast = () => {
             <button
               type="button"
               className="px-2 py-1 text-xs rounded-md bg-red-600 text-white hover:bg-red-700"
-             onClick={() => 
-                useGlobalDeleteRefTable({
-                  payload: {
-                    json_data: {
-                      acctCode: row.acctCode,
-                      userCode: user?.USER_CODE || "ADMIN",
-                    },
-                  },
-                  tblCode: "COA",
-                  fieldcaption: "Account",
-                  idKey: "acctCode",          // Ensure this matches your ID field
-                  rowParam: row,              // The row from the table/click
-                  selectedAccount: selectedAccount, // The record currently in the form
-                  // onSuccess: fetchAccounts,   // Refreshes your table
-                  onReset: resetForm,         // Clears your form
-                })
-              }
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteAccount(row);
+              }}
               title="Delete"
             >
               <FontAwesomeIcon icon={faTrashAlt} />
