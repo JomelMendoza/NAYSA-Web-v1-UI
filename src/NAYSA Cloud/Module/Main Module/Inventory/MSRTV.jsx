@@ -480,6 +480,10 @@ useEffect(() => {
       refDocNo2:"", 
       vendCode: "",
       vendName:"", 
+      whCode: "",
+      WHcode: "",
+      whName: "",
+      WHname: "",
       locCode: "",
       locName: "",
       remarks:"",
@@ -649,6 +653,10 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       refDocNo2: data.refDocNo2,   
       WHcode: data.whCode,
       locCode: data.locCode, 
+      
+      WHname: data.whName,
+      locName: data.locName, 
+
       remarks: data.remarks,
       detailRows: retrievedDetailRows,
       detailRowsGL: formattedGLRows,
