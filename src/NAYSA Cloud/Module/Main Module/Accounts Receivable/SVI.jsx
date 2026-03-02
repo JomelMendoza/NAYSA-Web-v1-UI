@@ -92,6 +92,7 @@ const SVI = () => {
   const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation(); 
+  const { companyInfo, currentUserRow } = useAuth();
   const [isViewDocument, setIsViewDocument] = useState(false);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
@@ -111,7 +112,7 @@ const SVI = () => {
 
     // HS Option
     glCurrMode:"M",
-    glCurrDefault:"PHP",
+    glCurrDefault:companyInfo.currCode,
     withCurr2:false,
     withCurr3:false,
     glCurrGlobal1:"",
@@ -145,8 +146,8 @@ const SVI = () => {
 
 
 
-    branchCode: "HO",
-    branchName: "Head Office",
+    branchCode: currentUserRow.branchCode,
+    branchName: currentUserRow.billtermName,
     
     // Vendor information
     custCode: "",
@@ -154,10 +155,10 @@ const SVI = () => {
     attention: "",
     
     // Currency information
-    currCode: "",
-    currName: "",
-    currRate: "",
-    defaultCurrRate:"1.000000",
+    currCode: companyInfo.currCode,
+    currName: companyInfo.currName,
+    currRate: formatNumber(companyInfo.currRate,6),
+    defaultCurrRate:formatNumber(companyInfo.currRate,6),
 
 
     //Other Header Info
@@ -171,7 +172,7 @@ const SVI = () => {
     billtermCode: "",
     billtermName: "",
     selectedSVIType : "REG",
-    userCode: user.USER_CODE, 
+    userCode: currentUserRow.userCode, 
 
     //Detail 1-2
     detailRows  :[],
@@ -472,7 +473,6 @@ useEffect(() => {
 
 
 
-  
 
 
   const LoadingSpinner = () => (
@@ -489,11 +489,13 @@ useEffect(() => {
 
       updateState({
         
-      branchCode: "HO",
-      branchName: "Head Office",
-      userCode:user.USER_CODE,
+      branchCode: currentUserRow.branchCode,
+      branchName: currentUserRow.branchName,
+      userCode:currentUserRow.userCode,
       documentDate:useGetCurrentDay(),
-
+      currCode:companyInfo.currCode,
+      currName:companyInfo.currName,
+      currRate:formatNumber(companyInfo.currRate,6) ,
       refDocNo1: "",
       refDocNo2:"",
       fromDate:null,
@@ -521,6 +523,7 @@ useEffect(() => {
       status:"Open"
 
     });
+
       updateTotalsDisplay (0, 0, 0, 0, 0, 0)
   };
 
@@ -743,7 +746,6 @@ const handleCurrRateNoBlur = (e) => {
         fromDate,
         toDate,
         currCode,
-        currName,
         currRate,
         remarks,
         userCode, 
@@ -1894,7 +1896,7 @@ return (
                                 ? "global-tran-textbox-button-search-disabled-ui"
                                 : "global-tran-textbox-button-search-enabled-ui"
                             } global-tran-textbox-button-search-ui`}
-                            disabled
+                            disabled={isFormDisabled} 
                         >
                             <FontAwesomeIcon icon={faMagnifyingGlass} />
                         </button>

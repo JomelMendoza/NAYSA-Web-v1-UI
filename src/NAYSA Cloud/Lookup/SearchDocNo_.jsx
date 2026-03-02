@@ -15,17 +15,6 @@ import BranchLookupModal from "@/NAYSA Cloud/Lookup/SearchBranchRef";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 import apiClient from "../Configuration/BaseURL";
 
-// export default function AllTranDocNo({
-//   isOpen,
-//   branchCode,
-//   docNo,
-//   docType,
-//   onClose,
-//   onChangeBranch,
-//   onFindRetrieve,
-//   onApplyDocNo,
-//   onNavigate,
-// }) {
 
 const AllTranDocNo = ({ isOpen, onClose, source, params,docNo, onRetrieve,onResponse }) => {
 

@@ -15,7 +15,9 @@ export const docTypes = {
   MSIS:"MSIS",
   MSAJ:"MSAJ",
   MSST:"MSST",
-  MSRTV:"MSRTV"
+  MSRTV:"MSRTV",
+  PR:"PR",
+  JO:"JO",  
 
 };
 

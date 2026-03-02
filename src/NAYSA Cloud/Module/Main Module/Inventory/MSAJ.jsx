@@ -44,15 +44,10 @@ import {
   useTopVatRow,
   useTopATCRow,
   useTopRCRow,
-  useTopBillTermRow,
-  useTopForexRate,
   useTopCurrencyRow,
   useTopHSOption,
   useTopDocControlRow,
   useTopDocDropDown,
-  useTopVatAmount,
-  useTopATCAmount,
-  useTopBillCodeRow,
 } from '@/NAYSA Cloud/Global/top1RefTable';
 
 import {
@@ -86,13 +81,14 @@ import {
   parseFormattedNumber,
   useSwalshowSaveSuccessDialog,
   useSwalErrorAlert,
+  useSwalInfoAlert,
+  useSwalvalidateRequiredFields
 } from '@/NAYSA Cloud/Global/behavior';
 
 
 // Header
 import Header from '@/NAYSA Cloud/Components/Header';
-import { faAdd } from "@fortawesome/free-solid-svg-icons/faAdd";
-import { User, Warehouse } from "lucide-react";
+
 
 
 const MSAJ = () => {
@@ -159,9 +155,14 @@ const MSAJ = () => {
 
 
 
-    branchCode: "HO",
-    branchName: "Head Office",
-    
+    branchCode: currentUserRow.branchCode,
+    branchName: currentUserRow.branchName,
+    WHCode:"",
+    WHName:"",
+    LocCode:"",
+    LocName:"",
+    itemSingleSelect:false,
+    selectedWH:"",
 
     
     // Currency information
@@ -250,7 +251,7 @@ const MSAJ = () => {
   isResetDisabled,
   isFetchDisabled,
   triggerGLEntries,
-
+  itemSingleSelect,
 
 
 
@@ -276,6 +277,10 @@ const MSAJ = () => {
   refDocNo2,
   remarks,
   selectedAJType,
+  WHCode,
+  WHName,
+  LocCode,
+  LocName,
 
 
   // Transaction details
@@ -297,6 +302,7 @@ const MSAJ = () => {
   selectionContext,
   selectedRowIndex,
   accountModalSource,
+  selectedWH,
 
   // Modals
   showAccountModal,
@@ -349,7 +355,7 @@ const MSAJ = () => {
 
   const [totals, setTotals] = useState({
   totalQuantity: '0.00',
-  totalAmount: '0.00',
+  totalItemAmount: '0.00',
   });
 
   const customParamMap = {
@@ -362,7 +368,7 @@ const MSAJ = () => {
   const updateTotalsDisplay = (quantity, amount) => {
     setTotals({
           totalQuantity: formatNumber(quantity,decQty),
-          totalAmount: formatNumber(amount),
+          totalItemAmount: formatNumber(amount),
       });
   };
 
@@ -460,9 +466,9 @@ useEffect(() => {
 
       updateState({
         
-      branchCode: "HO",
-      branchName: "Head Office",
-      userCode:user.USER_CODE,
+      branchCode: currentUserRow.branchCode,
+      branchName: currentUserRow.branchName,
+      userCode:currentUserRow.userCode,
       documentDate:useGetCurrentDay(),
 
       refDocNo1: "",
@@ -474,6 +480,13 @@ useEffect(() => {
       detailRows: [],
       detailRowsGL:[],
       documentStatus:"",
+      itemSingleSelect:false,
+      selectedAJType:"",
+      WHCode:"",
+      WHName:"",
+      LocCode:"",
+      LocName:"",
+
       
       
       // UI state
@@ -591,6 +604,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
   try {
     const data = await useFetchTranData(documentNo, branchCode,docType,"msajNo",direction);
 
+    console.log(data.msajId)
 
     if (!data?.msajId) {
       Swal.fire({ icon: 'info', title: 'No Records Found', text: 'Transaction does not exist.' });
@@ -620,12 +634,16 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
   
     // Update state with fetched data
     updateState({
-      documentStatus: data.sviStatus,
+      documentStatus: data.msajStatus,
       status: data.docStatus,
       noReprints:data.noReprints,
       documentID: data.msajId,
       documentNo: data.msajNo,
       branchCode: data.branchCode,
+      WHCode:data.whCode,
+      WHName:data.whName,
+      LocCode:data.locCode,
+      LocName:data.locName,
       documentDate: useFormatToDate(data.msajDate),
       selectedAJType: data.ajtranType,
       refDocNo1: data.refDocNo1,
@@ -650,6 +668,15 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
 };
 
 
+
+
+
+
+
+
+
+
+
 const handleDocNoBlur = () => {
 
     if (!state.documentID && state.documentNo && state.branchCode) { 
@@ -660,6 +687,7 @@ const handleDocNoBlur = () => {
 
 const handleActivityOption = async (action) => {
   // Prevent execution if document is already processed
+  console.log(documentStatus)
   if (documentStatus !== '') return;
 
   // 1. Helper function for formatting payload 
@@ -687,12 +715,15 @@ const handleActivityOption = async (action) => {
       refDocNo1: refDocNo1,
       refDocNo2: refDocNo2,
       remarks: remarks || "",
+      whCode:WHCode||"",
+      locCode:LocCode || "",
       userCode: userCode,
       dt1: detailRows.map((row, index) => ({
         lnNo: String(index + 1),
         itemCode: row.itemCode || "",
         itemName: row.itemName || "",
         categCode: row.categCode || "",
+        oldValue:row.oldValue || "",
         quantity: parseFormattedNumber(row.quantity || 0),
         uomCode: row.uomCode || "",
         unitCost: parseFormattedNumber(row.unitCost || 0),
@@ -806,6 +837,7 @@ const handleGetItem = async () => {
         itemCode: "",
         itemName: "",
         categCode: "",   
+        oldValue:"",
         quantity:"1.00",
         uomCode: "",
         unitCost: "0.00",
@@ -830,45 +862,29 @@ const handleGetItem = async () => {
 
 
   const handleAddRow = async () => {
-  if (!selectedAJType) return;
 
-    await handleOpenMSLookup();
+    const fieldsToCheck = {
+      "Header : Warehouse": WHCode,
+      "Header : Adjustment Type": selectedAJType,
+    };
+    const isValid = useSwalvalidateRequiredFields(fieldsToCheck, "Add Item");
+    if (!isValid) return;
+
+
+    await handleOpenMSLookup(false);
     return;
-
-  // const lookupTypes = ["IL", "IR", "CA"];  
-  // if (lookupTypes.includes(selectedAJType)) { 
-  //   await handleOpenMSLookup();
-  //   return;
-  // }
-
-
-  const newRow = {
-    lnNo: detailRows.length + 1, 
-    itemCode: "",
-    itemName: "",
-    categCode: "",   
-    quantity: "1.00",
-    uomCode: "",
-    unitCost: "0.00",
-    itemAmount: "0.00",    
-    lotNo: "",  
-    qstatCode: "",  
-    bbDate: "",  
-    qtyHand: "0.00",    
-    whouseCode: "",   
-    locCode: "",  
-    acctCode: "",  
-    rcCode: "",  
-    sltypeCode: "",       
-    slCode: "",
-    uniqueKey: ""
-  };
-
-  updateState({
-    detailRows: [...detailRows, newRow]
-  });
 };
 
+
+
+
+  const handleAddItem = async (index) => {
+  if (!selectedAJType) return;
+
+    updateState({ selectedRowIndex: index}); 
+    await handleOpenMSLookup(true);
+    return;
+};
 
 
 
@@ -1006,16 +1022,20 @@ const handleCopy = async () => {
 const handleFieldBehavior = (option) => {
   switch (option) {
 
-    case "disableInput":
-     return (
-        selectedAJType === "IL" || 
-        (selectedAJType === "IR" && row.operation === "S")
-       )
-
     case "hiddenBBMode":
      return (
-        selectedAJType === "BB" 
+        selectedAJType === "BB" || currentUserRow.viewCostamt ==='N'
       );
+
+
+  case "noViewCostamt":
+     return ( currentUserRow.viewCostamt ==='N'
+      );
+
+
+  case "allowInsert":
+      return ["BB", "IG", "IR"].includes(selectedAJType);
+
 
       case "hiddenCAMode":
      return (
@@ -1082,15 +1102,11 @@ useEffect(() => {
 
 
 
-
-
   const printData = {
     apv_no: documentNo,
     branch: branchCode,
     doc_id: docType
   };
-
-
 
  
 
@@ -1288,6 +1304,7 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
 
   if (field === 'whouseCode') {
     row.whouseCode = value.whCode;
+    row.locCode = "";
     await autoFillBlanks('whouseCode', value.whCode);
   }
 
@@ -1304,6 +1321,16 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
   if (['bbDate'].includes(field)) {
     row[field] = value;
   }
+
+
+ if (field === 'itemCode') {
+    row["itemCode"] = value.itemCode;
+    row["itemName"] = value.itemName;
+    row["uomCode"] = value.uomCode;
+    row["categCode"] = value.categCode;   
+  }
+
+
 
   if (runCalculations) {
     const origQuantity = parseFormattedNumber(row.quantity) || 0;
@@ -1575,21 +1602,44 @@ const handleSaveAndPrint = async (documentID) => {
 
 
 
-
-
-  const handleCloseWarehouseLookup = (row) => {
+const handleCloseWarehouseLookup = (row) => {
   if (row) {
     accountModalSource
       ? handleDetailChange(selectedRowIndex, 'whouseCode', row, false)
       : updateState({
-          WHcode: row.whCode,
-          WHname: row.whName,
-          locCode: "", 
-          locName: ""
+          WHCode: row.whCode,
+          WHName: row.whName,
+          LocCode: "", 
+          LocName: ""
         });
+    
+
+    const hasDetails = detailRows && detailRows.length > 0;
+    if (!accountModalSource && (selectedAJType === "IG" || selectedAJType === "BB") && hasDetails) {
+      
+      Swal.fire({
+        title: 'Apply to Details?',
+        text: "Do you want to apply this Warehouse to all detail items?",
+        icon: 'info',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, update all',
+        cancelButtonText: 'No, header only'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          const updatedDetails = detailRows.map((item) => ({
+            ...item,
+            whouseCode: row.whCode,
+            locCode: "",
+          }));
+          updateState({ detailRows: updatedDetails });
+        }
+      });
+    }
   }
-  updateState({ warehouseLookupOpen: false });
+  
+  updateState({ warehouseLookupOpen: false,accountModalSource:"" });
 };
+
 
 
 
@@ -1599,10 +1649,30 @@ const handleCloseLocationLookup = (row) => {
   if (row) {
     accountModalSource
       ? handleDetailChange(selectedRowIndex, 'locCode', row, false)
-      : updateState({ locCode: row.locCode, locName: row.locName });
-  }
+      : updateState({ LocCode: row.locCode, LocName: row.locName });
 
-  updateState({ locationLookupOpen: false });
+     const hasDetails = detailRows && detailRows.length > 0;
+      if (!accountModalSource && (selectedAJType === "IG" || selectedAJType === "BB") && hasDetails) {
+        
+        Swal.fire({
+          title: 'Apply to Details?',
+          text: "Do you want to apply this Location to all detail items?",
+          icon: 'info',
+          showCancelButton: true,
+          confirmButtonText: 'Yes, update all',
+          cancelButtonText: 'No, header only'
+        }).then((result) => {
+          if (result.isConfirmed) {
+            const updatedDetails = detailRows.map((item) => ({
+              ...item,
+              locCode: row.locCode,
+            }));
+            updateState({ detailRows: updatedDetails });
+        }
+      });
+    }
+  }
+  updateState({ locationLookupOpen: false, selectedWH:"" ,accountModalSource:"" });
 };
 
 
@@ -1670,43 +1740,42 @@ const handleCloseBranchModal = (selectedBranch) => {
 
 
   
-  const handleOpenMSLookup = async () => {
+  const handleOpenMSLookup = async (itemSingleSelect) => {
     try {
-      updateState({ isLoading: true });
+
+      
+      updateState({ isLoading: true,
+                    itemSingleSelect : itemSingleSelect });
   
       const endpoint ="getInvLookupMS"
-      const response = await fetchDataJson(endpoint, { userCode, whouseCode :state.whouseCode || "", locCode: state.locCode || "", docType:"MSAJ" ,tranType :selectedAJType });
+      const response = await fetchDataJson(endpoint, { userCode, whouseCode :WHCode || "", locCode: LocCode || "", docType:"MSAJ" ,tranType :itemSingleSelect? "IRR" :selectedAJType });
       const custData = response?.data?.[0]?.result ? JSON.parse(response.data[0].result) : [];
   
 
       const lookupTypes = ["BB", "IG"];  
-      const colConfig = await useSelectedHSColConfig(lookupTypes.includes(selectedAJType) ? "AllMastItemLookup" : "getInvLookupMS");
+      const colConfig = await useSelectedHSColConfig((lookupTypes.includes(selectedAJType) || itemSingleSelect) ? "AllMastItemLookup" : "getInvLookupMS");
 
 
      if (custData.length === 0) {
-        useSwalErrorAlert("MS Location Balance","No records found")
+        useSwalInfoAlert(lookupTypes.includes(selectedAJType) ? "MS Master Data" : "MS Location Balance","No records found")
          updateState({ isLoading: false });
         return; 
       }
   
       updateState({ globalLookupRow: custData,
                     globalLookupHeader:colConfig,
-                    msLookupModalOpen: true
+                    msLookupModalOpen: true,
+                    isLoading: false
         });
   
+
     } catch (error) {
-      console.error("Failed to fetch Open AR Balance:", error);
-      Swal.fire({
-        icon: "error",
-        title: "Error",
-        text: "Failed to fetch Open AR Balance.",
-      });
+      useSwalErrorAlert(lookupTypes.includes(selectedAJType) ? "MS Master Data" : "MS Location Balance","No records found")
       updateState({ 
           globalLookupRow: [] ,
-          globalLookupHeader: [] });
+          globalLookupHeader: [],
+          isLoading: false  });
     }
-  
-     updateState({ isLoading: false });
   };
   
   
@@ -1718,42 +1787,171 @@ const handleCloseBranchModal = (selectedBranch) => {
 
 
 
-  const handleCloseMSLookup = (selectedItems) => {
-  updateState({ msLookupModalOpen: false });
+//   const handleCloseMSLookup = (selectedItems) => {
+//   updateState({ msLookupModalOpen: false });
+
+//   if (!selectedItems) return;
+
+//   const itemsArray = Array.isArray(selectedItems.records) ? selectedItems.records : [selectedItems.records];
+//   if (itemsArray.length === 0) return;
+
+//   const newRows = itemsArray.map((item) => ({
+//     itemCode: item?.itemCode ?? "",
+//     itemName: item?.itemName ?? "",
+//     categCode: item?.categCode ?? "",
+//     uomCode: item?.uomCode ?? "",
+//     quantity: formatNumber(0, decQty),
+//     unitCost: formatNumber(parseFormattedNumber(item?.unitCost ?? 0), decUcost),
+//     amount: formatNumber(0, 2),
+//     lotNo: item?.lotNo ?? "",
+//     bbDate: item?.bbDate ? new Date(item.bbDate).toISOString().split("T")[0] : "",
+//     qstatCode: item?.qstatCode ?? "",
+//     whouseCode: item?.whouseCode ?? WHCode ?? "",
+//     locCode: item?.locCode ?? LocCode ?? "",
+//     qtyHand: formatNumber(parseFormattedNumber(item?.qtyHand ?? 0), decQty),
+//     uniqueKey: item?.uniqueKey ?? "",
+//     operation:  (selectedAJType === "IL" || selectedAJType === "IR") ? "S" : "A",
+//     acctCode: "",
+//     sltypeCode: "",
+//     rcCode: "",
+//     slCode: ""
+//   }));
+
+
+// setState((prev) => {
+//     const updated = [...(prev.detailRows || []), ...newRows];
+//     updateTotalsDisplay(0,0);
+//     return { ...prev, detailRows: updated };
+//   });
+// };
+
+
+const handleAddBlankRow = (index) => {
+  const blankRow = {
+    itemCode: "",
+    oldValue: "",
+    itemName: "",
+    categCode: "",
+    uomCode: "",
+    unitCost: formatNumber(0, decUcost),
+    lotNo: "",
+    bbDate: "",
+    qstatCode: "",
+    whouseCode: WHCode ?? "",
+    locCode: LocCode ?? "",
+    acctCode: "",
+    sltypeCode: "",
+    rcCode: "",
+    slCode: "",
+    uniqueKey: "",
+    quantity: formatNumber(0, decQty),
+    qtyHand: formatNumber(0, decQty),
+    itemAmount: formatNumber(0, 2),
+    operation: "A"
+  };
+
+  setState((prev) => {
+    const updatedRows = [...(prev.detailRows || [])];
+    // Inserts the blankRow at the index + 1 position (immediately below)
+    updatedRows.splice(index + 1, 0, blankRow);
+    
+    return { ...prev, detailRows: updatedRows };
+  });
+};
+
+
+
+
+const handleCloseMSLookup = (selectedItems) => {
+  
 
   if (!selectedItems) return;
 
   const itemsArray = Array.isArray(selectedItems.records) ? selectedItems.records : [selectedItems.records];
   if (itemsArray.length === 0) return;
 
-  const newRows = itemsArray.map((item) => ({
-    itemCode: item?.itemCode ?? "",
-    itemName: item?.itemName ?? "",
-    categCode: item?.categCode ?? "",
-    uomCode: item?.uomCode ?? "",
-    quantity: formatNumber(0, decQty),
-    unitCost: formatNumber(parseFormattedNumber(item?.unitCost ?? 0), decUcost),
-    amount: formatNumber(0, 2),
-    lotNo: item?.lotNo ?? "",
-    bbDate: item?.bbDate ? new Date(item.bbDate).toISOString().split("T")[0] : "",
-    qstatCode: item?.qstatCode ?? "",
-    whouseCode: item?.whouseCode ?? state.WHcode ?? "",
-    locCode: item?.locCode ?? state.locCode ?? "",
-    qtyHand: formatNumber(parseFormattedNumber(item?.qtyHand ?? 0), decQty),
-    uniqueKey: item?.uniqueKey ?? "",
-    operation:  (selectedAJType === "IL" || selectedAJType === "IR") ? "S" : "A",
-    acctCode: "",
-    sltypeCode: "",
-    rcCode: "",
-    slCode: ""
-  }));
+  const newRows = itemsArray.flatMap((item) => {
+  const rawQtyHand = parseFormattedNumber(item?.qtyHand ?? 0);
+  const rawUnitCost = parseFormattedNumber(item?.unitCost ?? 0);
+  const originalKey = item?.uniqueKey ?? "";
 
 
-setState((prev) => {
+
+
+  if(itemSingleSelect && selectedAJType ==="IR"){
+    
+      handleDetailChange(selectedRowIndex, 'itemCode', item, false)
+      updateState({itemSingleSelect: false,msLookupModalOpen: false });
+      return[];
+  }
+
+
+  
+
+
+    // Base configuration shared by both rows
+    const baseRow = {
+      itemCode: item?.itemCode ?? "",
+      oldValue: item?.itemCode ?? "",
+      itemName: item?.itemName ?? "",
+      categCode: item?.categCode ?? "",
+      uomCode: item?.uomCode ?? "",
+      unitCost: formatNumber(rawUnitCost, decUcost),     
+      lotNo: item?.lotNo ?? "",
+      bbDate: item?.bbDate ? new Date(item.bbDate).toISOString().split("T")[0] : "",
+      qstatCode: item?.qstatCode ?? "",
+      whouseCode: item?.whouseCode ?? WHCode ?? "",
+      locCode: item?.locCode ?? LocCode ?? "",
+      acctCode: "",
+      sltypeCode: "",
+      rcCode: "",
+      slCode: ""
+    };
+
+    if (selectedAJType === "IR") {
+      return [
+        // 1st Record: Has uniqueKey, Quantity is negative qtyHand
+        {
+          ...baseRow,
+          uniqueKey: originalKey,
+          quantity: formatNumber(rawQtyHand * -1, decQty),
+          qtyHand: formatNumber(rawQtyHand, decQty),
+          itemAmount: formatNumber((rawQtyHand * rawUnitCost)*-1, 2),
+          operation:"S"
+        },
+        // 2nd Record: No uniqueKey, Quantity is positive qtyHand
+        {
+          ...baseRow,
+          uniqueKey: "", // No value as requested
+          quantity: formatNumber(rawQtyHand, decQty),
+          qtyHand: formatNumber(0, decQty),
+          itemAmount: formatNumber((rawQtyHand), 2),
+          operation:"A"
+        }
+      ];
+    }
+
+    // Default logic for other types (Single row, original key)
+    return [
+      {
+        ...baseRow,
+        uniqueKey: originalKey,
+        qtyHand: formatNumber(rawQtyHand, decQty),
+        quantity: formatNumber(0, decQty),
+        itemAmount: formatNumber(0, 2),
+        operation: (selectedAJType === "IL") ? "S" : "A"
+      }
+    ];
+  });
+
+  setState((prev) => {
     const updated = [...(prev.detailRows || []), ...newRows];
-    updateTotalsDisplay(0,0);
+    updateTotalsDisplay(0, 0);
     return { ...prev, detailRows: updated };
   });
+
+
+   updateState({itemSingleSelect: false ,msLookupModalOpen: false });
 };
 
 
@@ -1887,7 +2085,7 @@ return (
                               if (e.key === "Enter") {
                                 handleDocNoBlur();
                                 e.preventDefault(); 
-                                document.getElementById("SVIDate")?.focus();
+                                document.getElementById("msajDate")?.focus();
                               }}}
                             placeholder=" "
                             className={`peer global-tran-textbox-ui ${state.isDocNoDisabled ? 'bg-blue-100 cursor-not-allowed' : ''}`}
@@ -1931,18 +2129,20 @@ return (
                             className="peer global-tran-textbox-ui"
                             value={selectedAJType}
                             onChange={(e) => updateState({ selectedAJType: e.target.value })}
-                            disabled={isFormDisabled} 
+                            disabled={isFormDisabled || detailRows.length>0} 
                         >
                             {ajTypes.length > 0 ?
                             (
                                 <>
                                     <option value="">Select Adjustment Type</option>
-                                    {ajTypes.map((type) =>
-                                    (
-                                        <option key={type.DROPDOWN_CODE} value={type.DROPDOWN_CODE}>
-                                            {type.DROPDOWN_NAME}
-                                        </option>
-                                    ))}
+                                    {ajTypes
+                                        .filter(type => !(type.DROPDOWN_CODE === 'CA' && handleFieldBehavior("noViewCostamt")))
+                                        .map((type) => (
+                                            <option key={type.DROPDOWN_CODE} value={type.DROPDOWN_CODE}>
+                                                {type.DROPDOWN_NAME}
+                                            </option>
+                                        ))
+                                        }
                                 </>
                             ) : (<option value="">Loading Adjustment Types...</option>)}
                         </select>
@@ -1956,12 +2156,12 @@ return (
 
                    
                      <div className="relative">
-                        <input type="text" id="refDocNo1"  value={refDocNo1} placeholder=" " onChange={(e) => updateState({ refDocNo1: e.target.value })} className="peer global-tran-textbox-ui " disabled={isFormDisabled} maxLength={useGetFieldLength(tblFieldArray, "refsvi_no1")} />
+                        <input type="text" id="refDocNo1"  value={refDocNo1} placeholder=" " onChange={(e) => updateState({ refDocNo1: e.target.value })} className="peer global-tran-textbox-ui " disabled={isFormDisabled} maxLength={useGetFieldLength(tblFieldArray, "refaj_no1")} />
                         <label htmlFor="refDocNo1" className="global-tran-floating-label">Ref Doc No. 1</label>
                     </div>
 
                     <div className="relative">
-                        <input type="text" id="refDocNo2" value={refDocNo2} placeholder=" " onChange={(e) => updateState({ refDocNo2: e.target.value })}  className="peer global-tran-textbox-ui" disabled={isFormDisabled} maxLength={useGetFieldLength(tblFieldArray, "refsvi_no2")} />
+                        <input type="text" id="refDocNo2" value={refDocNo2} placeholder=" " onChange={(e) => updateState({ refDocNo2: e.target.value })}  className="peer global-tran-textbox-ui" disabled={isFormDisabled} maxLength={useGetFieldLength(tblFieldArray, "refaj_no2")} />
                         <label htmlFor="refDocNo2" className="global-tran-floating-label">Ref Doc No. 2</label>
                     </div>
             
@@ -1976,7 +2176,7 @@ return (
                    <input
                      type="text"
                      id="WHcode"
-                     value={state.WHname || state.WHcode || ""}
+                     value={WHName || WHCode || ""}
                      readOnly
                      placeholder=" "
                      className="peer global-tran-textbox-ui"
@@ -2008,7 +2208,7 @@ return (
                    <input
                      type="text"
                      id="locName"
-                     value={state.locName || state.locCode || ""}
+                     value={LocName || ""}
                      readOnly
                      placeholder=" "
                      className="peer global-tran-textbox-ui"
@@ -2021,7 +2221,7 @@ return (
                      htmlFor="locName"
                      className="global-tran-floating-label"
                    >
-                     Location <span className="text-red-500">*</span>
+                     Location 
                    </label>
                    <button
                      type="button"
@@ -2030,10 +2230,10 @@ return (
                          ? "global-tran-textbox-button-search-disabled-ui"
                          : "global-tran-textbox-button-search-enabled-ui"
                      } global-tran-textbox-button-search-ui`}
-                     disabled={isFormDisabled}
+                     disabled={isFormDisabled || WHName === ""}
                      onClick={() =>
-                       !isFormDisabled &&
-                       updateState({ locationLookupOpen: true })
+                       !isFormDisabled && WHName !== "" &&
+                       updateState({ locationLookupOpen: true,selectedWH : WHCode })
                      }
                    >
                      <FontAwesomeIcon icon={faMagnifyingGlass} />
@@ -2092,7 +2292,7 @@ return (
               }`}
               // onClick={() => setGLActiveTab('invoice')}
             >
-              Invoice Details
+              Item Details
             </button>
           </div>
         </div>
@@ -2109,11 +2309,8 @@ return (
               <th className="global-tran-th-ui">Item Name</th>
               <th className="global-tran-th-ui">UOM</th>
               <th className="global-tran-th-ui" hidden={handleFieldBehavior("hiddenCAMode")}>Quantity</th>
-              <th className="global-tran-th-ui">{handleColumnLabel("UnitCost")}</th>
-
-
-
-              <th className="global-tran-th-ui" hidden={handleFieldBehavior("hiddenCAMode")}>Amount</th>
+              <th className="global-tran-th-ui" hidden ={handleFieldBehavior("noViewCostamt")} >{handleColumnLabel("UnitCost")}</th>
+              <th className="global-tran-th-ui" hidden={handleFieldBehavior("hiddenCAMode") || handleFieldBehavior("noViewCostamt")}>Amount</th>
               <th className="global-tran-th-ui">Lot No</th>
               <th className="global-tran-th-ui">BB Date</th>
               <th className="global-tran-th-ui">Quality Status</th>
@@ -2125,10 +2322,11 @@ return (
               <th className="global-tran-th-ui"hidden={handleFieldBehavior("hiddenBBMode")}>SL Code</th>
               <th className="global-tran-th-ui">Qty On Hand</th>
               <th className="global-tran-th-ui hidden">Category</th>
+              <th className="global-tran-th-ui hidden">Old Value</th>
               <th className="global-tran-th-ui hidden">Unique Key</th>        
               <th className="global-tran-th-ui hidden">Operation</th>                     
-            {!isFormDisabled && (
-              <th className="global-tran-th-ui sticky right-[43px] bg-blue-300 dark:bg-blue-900 z-30">
+            {!isFormDisabled &&  (
+              <th className="global-tran-th-ui sticky right-[43px] bg-blue-300 dark:bg-blue-900 z-30" hidden={!handleFieldBehavior("allowInsert")}  >
                 Add
               </th>
             )}
@@ -2147,19 +2345,30 @@ return (
             <tr key={index} className="global-tran-tr-ui">
               
               {/* LN */}
-              <td className="global-tran-td-ui text-center">{index + 1}</td>
-            
+              <td className={`global-tran-td-ui text-center ${row.quantity < 0 ? 'text-red-600' : ''}`}>
+              {index + 1}
+              </td>
+                        
 
             {/* Item Code */}
               <td className="global-tran-td-ui relative">
                 <div className="flex items-center">
                   <input
                     type="text"
-                    className="w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
+                    className={`w-[100px] global-tran-td-inputclass-ui  ${row.quantity < 0 ? 'text-red-600' : ''}`}
                     value={row.itemCode || ""}
                     readOnly
-                  />                
-                </div>
+                    onChange={(e) => handleDetailChange(index, 'itemCode', e.target.value)}
+                  />
+                    {!isFormDisabled && row.operation === "A" && selectedAJType ==="IR" && (
+                    <FontAwesomeIcon 
+                      icon={faMagnifyingGlass} 
+                      className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                      onClick={() => handleAddItem(index)}
+                    
+                      
+                    />)}
+                  </div>
               </td>
 
 
@@ -2167,9 +2376,9 @@ return (
               <td className="global-tran-td-ui">
                   <input
                     type="text"
-                    className="w-[300px] global-tran-td-inputclass-ui"
+                    className={`w-[300px] global-tran-td-inputclass-ui ${row.quantity < 0 ? 'text-red-600' : ''}`}
                     value={row.itemName || ""}
-                    readOnly={isFormDisabled}
+                    readOnly
                     onChange={(e) => handleDetailChange(index, 'itemName', e.target.value)}
                   />
                 </td>
@@ -2181,9 +2390,9 @@ return (
               <td className="global-tran-td-ui">
                   <input
                     type="text"
-                    className="w-[50px] text-center global-tran-td-inputclass-ui"
+                    className={`w-[50px] global-tran-td-inputclass-ui text-center ${row.quantity < 0 ? 'text-red-600' : ''}`}
                     value={row.uomCode || ""}
-                    readOnly={isFormDisabled}
+                    readOnly
                     onChange={(e) => handleDetailChange(index, 'uomCode', e.target.value)}
                   />
                 </td>
@@ -2192,7 +2401,7 @@ return (
                  <td className="global-tran-td-ui" hidden={handleFieldBehavior("hiddenCAMode")} >
                     <input
                         type="text"
-                        className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
+                        className={`w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0 ${row.quantity < 0 ? 'text-red-600' : ''}`}
                         value={row.quantity || ""}
                         readOnly={isFormDisabled}
                         onChange={(e) => {
@@ -2218,7 +2427,7 @@ return (
                         onKeyDown={async (e) => {
                             if (e.key === "Enter") {
                                 e.preventDefault();
-                                const value = e.target.value;
+                                const value = e.target.value;   
                                 const num = parseFormattedNumber(value);
                                 if (!isNaN(num)) {
                                     await handleDetailChange(index, "quantity", num, true);
@@ -2228,15 +2437,19 @@ return (
                         }}
                     />
                 </td>
+                        
 
 
-
-                <td className="global-tran-td-ui">
+                <td className="global-tran-td-ui" hidden={handleFieldBehavior("noViewCostamt")}  >
                     <input
                         type="text"
-                        className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
+                        className={`w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0 ${row.quantity < 0 ? 'text-red-600' : ''}`}
                         value={row.unitCost || ""}
-                        readOnly={isFormDisabled || handleFieldBehavior("disableInput")}
+                        readOnly={
+                                isFormDisabled || 
+                                (selectedAJType === "IL") || 
+                                (selectedAJType === "IR" && row.operation === "S")
+                              }
                         onChange={(e) => {
                             const inputValue = e.target.value;
                             const sanitizedValue = inputValue.replace(/[^0-9.]/g, '');
@@ -2272,10 +2485,10 @@ return (
                 </td>
 
 
-                <td className="global-tran-td-ui" hidden={handleFieldBehavior("hiddenCAMode")} >
+                <td className="global-tran-td-ui" hidden={handleFieldBehavior("hiddenCAMode") || handleFieldBehavior("noViewCostamt")} >
                   <input
                     type="text"
-                    className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0 cursor-pointer"
+                    className={`w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0 cursor-pointer ${row.quantity < 0 ? 'text-red-600' : ''}`}
                     value={formatNumber(parseFormattedNumber(row.itemAmount)) || formatNumber(parseFormattedNumber(row.itemAmount)) || ""}
                     readOnly
                   />
@@ -2284,9 +2497,13 @@ return (
                 <td className="global-tran-td-ui">
                     <input
                     type="text"
-                    className="w-[200px] global-tran-td-inputclass-ui"
+                    className={`w-[200px] global-tran-td-inputclass-ui ${row.quantity < 0 ? 'text-red-600' : ''}`}
                     value={row.lotNo || ""}
-                    readOnly={isFormDisabled || handleFieldBehavior("disableInput")}
+                    readOnly={
+                                isFormDisabled || 
+                                (selectedAJType === "IL" || selectedAJType === "CA") || 
+                                (selectedAJType === "IR" && row.operation === "S")
+                              }
                     onChange={(e) => handleDetailChange(index, "lotNo", e.target.value)}
                     maxLength={useGetFieldLength(tblFieldArray, "lot_no")}
                     />
@@ -2295,9 +2512,13 @@ return (
                  <td className="global-tran-td-ui">
                     <input
                       type="date"
-                      className="w-[100px] global-tran-td-inputclass-ui"
+                      className={`w-[100px] global-tran-td-inputclass-ui text-center ${row.quantity < 0 ? 'text-red-600' : ''}`}
                       value={row.bbDate || ""}
-                      readOnly={isFormDisabled || handleFieldBehavior("disableInput")}
+                      readOnly={
+                                isFormDisabled || 
+                                (selectedAJType === "IL"  || selectedAJType === "CA") || 
+                                (selectedAJType === "IR" && row.operation === "S")
+                              }
                       onChange={(e) => handleDetailChange(index, 'bbDate', e.target.value)}
                     />
                 </td>
@@ -2308,19 +2529,24 @@ return (
                   <div className="flex items-center">
                     <input
                       type="text"
-                      className="w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
+                      className={`w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer ${row.quantity < 0 ? 'text-red-600' : ''}`}
                       value={row.qstatCode || ""}
                       readOnly
                     />
-                    {!isFormDisabled && row.operation !== "S" && (
+                    
+                    {["BB", "IG", "IR"].includes(selectedAJType) && !isFormDisabled && row.operation !== "S" && (
                     <FontAwesomeIcon 
                       icon={faMagnifyingGlass} 
                       className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
                       onClick={() => {
-                      updateState({ selectedRowIndex: index,
-                                    showQstatModal: true}); 
+                        updateState({ 
+                          selectedRowIndex: index,
+                          showQstatModal: true
+                        }); 
                       }}
-                    />)}
+                    />
+                  )}
+
                   </div>
                 </td>
 
@@ -2329,20 +2555,25 @@ return (
                   <div className="flex items-center">
                     <input
                       type="text"
-                      className="w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
+                      className={`w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer ${row.quantity < 0 ? 'text-red-600' : ''}`}
                       value={row.whouseCode || ""}
                       readOnly
                     />
-                    {!isFormDisabled && row.operation !== "S" &&(
+
+                   {["BB", "IG", "IR"].includes(selectedAJType) && !isFormDisabled && row.operation !== "S" && (
                     <FontAwesomeIcon 
                       icon={faMagnifyingGlass} 
                       className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
                       onClick={() => {
-                      updateState({ selectedRowIndex: index,
-                                    warehouseLookupOpen: true,
-                                    accountModalSource: "whouseCode"}); 
+                        updateState({ 
+                          selectedRowIndex: index,
+                          warehouseLookupOpen: true,
+                          accountModalSource: "whouseCode"
+                        }); 
                       }}
-                    />)}
+                    />
+                  )}
+
                   </div>
                 </td>   
 
@@ -2352,20 +2583,25 @@ return (
                   <div className="flex items-center">
                     <input
                       type="text"
-                      className="w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
+                      className={`w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer ${row.quantity < 0 ? 'text-red-600' : ''}`}
                       value={row.locCode || ""}
                       readOnly
                     />
-                    {!isFormDisabled && row.operation !== "S" &&(
-                    <FontAwesomeIcon 
-                      icon={faMagnifyingGlass} 
-                      className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
-                      onClick={() => {
-                      updateState({ selectedRowIndex: index,
-                                    locationLookupOpen: true,
-                                    accountModalSource: "locCode"}); 
-                      }}
-                    />)}
+                      {["BB", "IG", "IR"].includes(selectedAJType) && !isFormDisabled && row.operation !== "S" && (
+                      <FontAwesomeIcon 
+                        icon={faMagnifyingGlass} 
+                        className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                        onClick={() => {
+                          updateState({ 
+                            selectedRowIndex: index,
+                            locationLookupOpen: true,
+                            selectedWH: row.whouseCode,
+                            accountModalSource: "locCode"
+                          }); 
+                        }}
+                      />
+                    )}
+
                   </div>
                 </td>      
 
@@ -2375,7 +2611,7 @@ return (
                   <div className="flex items-center">
                     <input
                       type="text"
-                      className="w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
+                      className={`w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer ${row.quantity < 0 ? 'text-red-600' : ''}`}
                       value={row.acctCode || ""}
                       readOnly
                     />
@@ -2400,7 +2636,7 @@ return (
                   <div className="flex items-center">
                     <input
                       type="text"
-                      className="w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
+                      className={`w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer ${row.quantity < 0 ? 'text-red-600' : ''}`}
                       value={row.rcCode || ""}
                       readOnly
                     />
@@ -2432,7 +2668,7 @@ return (
                       <div className="relative w-fit">
                           <input
                               type="text"
-                              className="w-[100px] pr-6 global-tran-td-inputclass-ui cursor-pointer"
+                              className={`w-[100px] pr-6 global-tran-td-inputclass-ui cursor-pointer ${row.quantity < 0 ? 'text-red-600' : ''}`}
                               value={row.slCode || ""}
                               onChange={(e) => handleDetailChange(index, 'slCode', e.target.value)}
                               readOnly
@@ -2457,7 +2693,7 @@ return (
                  <td className="global-tran-td-ui">
                     <input
                     type="text"
-                    className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0 cursor-pointer"
+                    className={`w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0 cursor-pointer ${row.quantity < 0 ? 'text-red-600' : ''}`}
                     value={row.qtyHand || ""}
                     readOnly
                     />
@@ -2467,8 +2703,18 @@ return (
                  <td className="global-tran-td-ui hidden">
                   <input
                     type="text"
-                    className="w-[200px] global-tran-td-inputclass-ui"
+                   className={`w-[100px] global-tran-td-inputclass-ui ${row.quantity < 0 ? 'text-red-600' : ''}`}
                     value={row.categCode || ""}
+                    readOnly
+                  />
+                </td>
+
+
+                <td className="global-tran-td-ui hidden">
+                  <input
+                    type="text"
+                   className={`w-[100px] global-tran-td-inputclass-ui ${row.quantity < 0 ? 'text-red-600' : ''}`}
+                    value={row.oldValue || ""}
                     readOnly
                   />
                 </td>
@@ -2494,19 +2740,17 @@ return (
                   />
                 </td>
 
-    
-                
-                {!isFormDisabled && (
+               
+              {!isFormDisabled && handleFieldBehavior("allowInsert") && (
                 <td className="global-tran-td-ui text-center sticky right-12">
                   <button
                     className="global-tran-td-button-add-ui"
-                    onClick={() => handleAddRow(index)}
+                    onClick={() => handleAddBlankRow(index)}
                   >
                     <FontAwesomeIcon icon={faPlus} />
                   </button>
                 </td>
               )}
-
               {!isFormDisabled && (
                 <td className="global-tran-td-ui text-center sticky right-0">
                   <button
@@ -2560,6 +2804,7 @@ return (
       </div>
 
       {/* Total VAT Amount */}
+      { !handleFieldBehavior("noViewCostamt") && (
       <div className="global-tran-tab-footer-total-div-ui">
         <label className="global-tran-tab-footer-total-label-ui">
           Total Amount:
@@ -2568,7 +2813,7 @@ return (
           {totals.totalItemAmount}
         </label>
       </div>
-
+    )}
      
     </div>
     </div>
@@ -2621,7 +2866,7 @@ return (
                 <th className="global-tran-th-ui">LN</th>
                 <th className="global-tran-th-ui">Account Code</th>
                 <th className="global-tran-th-ui">RC Code</th>
-                <th className="global-tran-th-ui">SL Type Code</th>
+                <th className="global-tran-th-ui">SL Type</th>
                 <th className="global-tran-th-ui">SL Code</th>
                 <th className="global-tran-th-ui w-[2000px]">Particulars</th>
                 <th className="global-tran-th-ui">VAT Code</th>
@@ -2724,7 +2969,7 @@ return (
                   <td className="global-tran-td-ui">
                     <input
                       type="text"
-                      className="w-[100px] global-tran-td-inputclass-ui"
+                      className="w-[40px] global-tran-td-inputclass-ui"
                       value={row.sltypeCode || ""}
                       onChange={(e) => handleDetailChangeGL(index, 'sltypeCode', e.target.value)}
                     />
@@ -2764,7 +3009,7 @@ return (
                   <td className="global-tran-td-ui">
                           <input
                             type="text"
-                            className="w-[300px] global-tran-td-inputclass-ui"
+                            className="w-[400px] global-tran-td-inputclass-ui"
                             value={row.particular || ""}
                             onChange={(e) => handleDetailChange(index, 'particular', e.target.value)}
                           />
@@ -2775,7 +3020,7 @@ return (
                       <div className="relative w-fit">
                           <input
                               type="text"
-                              className="w-[100px] pr-6 global-tran-td-inputclass-ui cursor-pointer"
+                              className="w-[50px] pr-6 global-tran-td-inputclass-ui cursor-pointer"
                               value={row.vatCode || ""}
                               onChange={(e) => handleDetailChangeGL(index, 'vatCode', e.target.value)}
                               readOnly
@@ -2814,7 +3059,7 @@ return (
                       <div className="relative w-fit">
                           <input
                               type="text"
-                              className="w-[100px] pr-6 global-tran-td-inputclass-ui cursor-pointer"
+                              className="w-[50px] pr-6 global-tran-td-inputclass-ui cursor-pointer"
                               value={row.atcCode || ""}
                               onChange={(e) => handleDetailChangeGL(index, 'atcCode', e.target.value)}
                               readOnly
@@ -3305,6 +3550,7 @@ return (
                 endpoint={globalLookupHeader}
                 onClose={handleCloseMSLookup}
                 onCancel={() => updateState({ msLookupModalOpen: false })}
+                singleSelect={itemSingleSelect}
               />
         )}
         
@@ -3314,7 +3560,7 @@ return (
             <WarehouseLookupModal
               isOpen={warehouseLookupOpen}
               onClose={handleCloseWarehouseLookup}
-              filter="ActiveAll"
+              filter={"ByBC" + branchCode}
               source={accountModalSource}
             />
           )}  
@@ -3324,7 +3570,7 @@ return (
           isOpen={locationLookupOpen}
           onClose={handleCloseLocationLookup}
           source={accountModalSource}
-          filter="ActiveAll"
+          filter={"ByWH" + selectedWH}
         />
       )}
 

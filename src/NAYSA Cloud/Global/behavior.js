@@ -34,7 +34,9 @@ export const useSwalValidationAlert = ({ icon = "info", title = "", message = ""
   Swal.fire({
     icon,
     title,
-    html: formattedMessage,
+    timer: 3000,
+    timerProgressBar: true, 
+    html: `<div style="text-align: left; padding: 0 10px;">${formattedMessage}</div>`,
     didOpen: () => {
       const popup = Swal.getPopup();
       if (popup) {
@@ -58,6 +60,30 @@ export const useSwalValidationAlert = ({ icon = "info", title = "", message = ""
     },
   });
 };
+
+
+
+export const useSwalvalidateRequiredFields = (fields, title) => {
+  let errors = [];
+  for (const [label, value] of Object.entries(fields)) {
+    if (!value || (Array.isArray(value) && value.length === 0)) {
+      errors.push(`- ${label}`);
+    }
+  }
+
+  if (errors.length > 0) {
+    const errorMessage = "The following fields are required:\n" + errors.join("\n");
+    useSwalValidationAlert({
+      icon: "info",
+      title: title,
+      message: errorMessage, 
+    });  
+    return false; 
+  }
+  return true; 
+};
+
+
 
 export const useSwalReturnSummary = ({ icon = "info", title = "", message = "" }) => {
   const formattedMessage = (message || "")
@@ -121,15 +147,53 @@ export const useSwalshowSaveSuccessDialog = (onConfirm, onPrint) => {
   });
 };
 
+export const useSwalshowSave = (onConfirm, onPrint) => {
+  Swal.fire({
+    title: "Record Saved.",
+    // text: "What would you like to do next?",
+    icon: "success",
+    showCancelButton: false,
+    showDenyButton: false,
+    confirmButtonColor: "#3085d6",
+    // denyButtonColor: "#6c757d",
+    // cancelButtonColor: "#28a745",
+    confirmButtonText: "Confirm",
+    // denyButtonText: "Print Preview",
+    // cancelButtonText: "Completed",
+    timer: 5000,
+    timerProgressBar: true
+  }).then((result) => {
+    if (result.isConfirmed && typeof onConfirm === "function") {
+      onConfirm();
+    } else if (result.isDenied && typeof onPrint === "function") {
+      onPrint();
+    } else if (
+      (result.dismiss === Swal.DismissReason.cancel || result.dismiss === Swal.DismissReason.timer) &&
+      typeof onComplete === "function"
+    ) {
+      Swal.close();
+    }
+  });
+};
+
+
+
 // Add these missing SweetAlert utility functions
 export const useSwalErrorAlert = (title = "Error!", message = "Something went wrong.") => {
   return Swal.fire({
     icon: "error",
     title,
     text: message,
+    timer: 3000, // Time in milliseconds
+    timerProgressBar: true, // Optional: Shows a visual countdown bar
     customClass: {
       popup: "rounded-xl shadow-2xl",
     },
+    // Optional: ensures the timer stops if the user hovers over the alert
+    didOpen: (toast) => {
+      toast.onmouseenter = Swal.stopTimer;
+      toast.onmouseleave = Swal.resumeTimer;
+    }
   });
 };
 
@@ -138,34 +202,60 @@ export const useSwalSuccessAlert = (title = "Success!", message = "Operation com
     icon: "success",
     title,
     text: message,
+    timer: 3000,
+    timerProgressBar: true,
+    showConfirmButton: false, // Often used with timers to make it feel like a "toast"
     customClass: {
       popup: "rounded-xl shadow-2xl",
     },
+    didOpen: (toast) => {
+      toast.onmouseenter = Swal.stopTimer;
+      toast.onmouseleave = Swal.resumeTimer;
+    }
   });
 };
+
 
 export const useSwalWarningAlert = (title = "Warning!", message = "Please check your input.") => {
   return Swal.fire({
     icon: "warning",
     title,
     text: message,
+    timer: 3000,
+    timerProgressBar: true,
     confirmButtonText: "OK",
+    confirmButtonColor: "#f8bb86", // A standard warning orange for the button
     customClass: {
       popup: "rounded-xl shadow-2xl",
     },
+    didOpen: (toast) => {
+      toast.onmouseenter = Swal.stopTimer;
+      toast.onmouseleave = Swal.resumeTimer;
+    }
   });
 };
+
+
 
 export const useSwalInfoAlert = (title = "No data", message = "There is no data to export.") => {
   return Swal.fire({
     icon: "info",
     title,
     text: message,
+    timer: 3000,
+    timerProgressBar: true,
+    showConfirmButton: true, 
+    confirmButtonColor: "#3085d6", // Standard blue for Info alerts
     customClass: {
       popup: "rounded-xl shadow-2xl",
     },
+    didOpen: (toast) => {
+      toast.onmouseenter = Swal.stopTimer;
+      toast.onmouseleave = Swal.resumeTimer;
+    }
   });
 };
+
 
 export const useSwalDeleteConfirm = async (title = "Delete this item?", text = "", confirmText = "Yes, delete it") => {
   return await Swal.fire({
@@ -189,5 +279,67 @@ export const useSwalDeleteSuccess = () => {
     customClass: {
       popup: "rounded-xl shadow-2xl",
     },
+  });
+};
+
+export const useSwalDeleteRecord = () => {
+  return Swal.fire({
+    title: "Record Deleted.",
+    icon: "success",
+    customClass: {
+      popup: "rounded-xl shadow-2xl",
+    },
+  });
+};
+
+
+
+export const useSwalConfirmAlert = (title = "Are you sure?", message = "") => {
+  return Swal.fire({
+    title,
+    text: message,
+    icon: "warning",
+    showCancelButton: true,
+    confirmButtonColor: "#3085d6",
+    cancelButtonColor: "#d33",
+    confirmButtonText: "Yes, proceed!",
+    cancelButtonText: "Cancel",
+    customClass: {
+      popup: "rounded-xl shadow-2xl", // Keeps styling consistent with your Success alert
+    },
+  });
+};
+
+
+
+export const useSwalHandleOpenSpecsModal = (index, detailRows, handleDetailChange,rowValue, rowTitle, rowName,placeHolderValue) => {
+  const row = detailRows[index];
+
+  Swal.fire({
+    title: rowTitle,
+    input: 'textarea',
+    inputValue: rowValue || '',
+    inputPlaceholder: placeHolderValue,
+   showCancelButton: true,
+    confirmButtonText: 'Save',
+    cancelButtonText: 'Cancel',
+    confirmButtonColor: '#3b82f6',
+    cancelButtonColor: '#64748b',
+    reverseButtons: true, // Optional: puts 'Save' on the right, 'Cancel' on the left
+    inputAttributes: {
+      'aria-label': 'Type your specifications here',
+      'style': 'height: 150px; font-size: 0.875rem;' // Optional: consistent sizing
+    },
+    customClass: {
+      actions: 'w-full px-6 gap-2', // Containers for buttons
+      confirmButton: 'flex-1 py-2', // Forces Save to take half width
+      cancelButton: 'flex-1 py-2',  // Forces Cancel to take half width
+      input: 'focus:ring-blue-500'   
+    },
+    buttonsStyling: true,
+  }).then((result) => {
+    if (result.isConfirmed) {
+      handleDetailChange(index, rowName, result.value);
+    }
   });
 };

@@ -1,5 +1,6 @@
 // src/NAYSA Cloud/Reference File/VendMast.jsx
 import React, { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 import Swal from "sweetalert2";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -22,6 +23,15 @@ import {
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import ButtonBar from "@/NAYSA Cloud/Global/ButtonBar";
 import AttachFileModal from "@/NAYSA Cloud/Lookup/AttachFileModal.jsx";
+import AllTranDocNo from "@/NAYSA Cloud/Lookup/SearchDocNo.jsx";
+
+import {
+  useSwalErrorAlert,
+  useSwalDeleteConfirm,
+  useSwalDeleteRecord,
+  useSwalshowSave,
+  useSwalValidationAlert,
+} from "@/NAYSA Cloud/Global/behavior";
 
 import PayeeSetupTab from "@/NAYSA Cloud/Master Data/CustMastTabs/PayeeSetupTab";
 import PayeeMasterDataTab from "@/NAYSA Cloud/Master Data/CustMastTabs/PayeeMasterDataTab";
@@ -114,9 +124,14 @@ const VendMast = () => {
   const [activeTab, setActiveTab] = useState("setup");
   const [isLoading, setIsLoading] = useState(false);
 
+  const { user } = useAuth();
+  const userCode = user?.userCode || user?.USER_CODE || user?.code || "";
+
   const [form, setForm] = useState({ ...emptyForm });
   const [selectedVendCode, setSelectedVendCode] = useState("");
   const [isEditing, setIsEditing] = useState(false);
+
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   const [isAttachOpen, setIsAttachOpen] = useState(false);
   const [attachmentRows, setAttachmentRows] = useState([]);
@@ -128,6 +143,49 @@ const VendMast = () => {
   const [masterRows, setMasterRows] = useState([]);
 
   const updateForm = (patch) => setForm((p) => ({ ...p, ...patch }));
+
+  /* ------------------------------------------------------------------
+     ✅ Standard swal validation format (same pattern used in COAMast)
+  ------------------------------------------------------------------ */
+  const showValidation = async (title, lines) => {
+    const msg = Array.isArray(lines) ? lines.join("\n") : String(lines || "");
+    return useSwalValidationAlert({ icon: "error", title, message: msg });
+  };
+
+  // Extract errorCount/errorMsg returned by sprocs (COAMast style)
+  const extractSprocError = (axiosResponse) => {
+    const payload = axiosResponse?.data;
+    const data = payload?.data;
+
+    // common: { data: [ { errorMsg, errorCount } ] }
+    if (Array.isArray(data) && data[0] && (data[0].errorCount !== undefined || data[0].errorMsg !== undefined)) {
+      const errorCount = Number(data[0].errorCount || 0);
+      const errorMsg = String(data[0].errorMsg || "");
+      return { errorCount, errorMsg };
+    }
+
+    // sometimes wrapped as { data: [ { result: '...json...' } ] }
+    if (Array.isArray(data) && data[0]?.result) {
+      try {
+        const parsed = JSON.parse(data[0].result);
+        const row = Array.isArray(parsed) ? parsed[0] : parsed;
+        if (row && (row.errorCount !== undefined || row.errorMsg !== undefined)) {
+          return {
+            errorCount: Number(row.errorCount || 0),
+            errorMsg: String(row.errorMsg || ""),
+          };
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // fallback: some endpoints return { message } / { error }
+    const fallbackMsg = payload?.message || payload?.error || payload?.msg;
+    if (fallbackMsg) return { errorCount: 1, errorMsg: String(fallbackMsg) };
+
+    return null;
+  };
 
   // ✅ FIX: documentNo should be the actual code only
   const documentNo = useMemo(() => {
@@ -318,93 +376,61 @@ const VendMast = () => {
     await navOpen(masterRows[indexInRows + 1]?.vendCode);
   };
 
-  const goRecent = async () => {
-    const nextRecent = recentCodes.find(
-      (c) => c.toUpperCase() !== currentCode.toUpperCase()
-    );
-    if (!nextRecent) return;
-    await navOpen(nextRecent);
-  };
+
   /* ----------------------------------------------------- */
-const deleteVendor = async () => {
-  const code = String(form?.vendCode || form?.custCode || "").trim();
-  if (!code) {
-    Swal.fire("Required", "Please select a Payee to delete.", "warning");
-    return;
-  }
+  const deleteVendor = async () => {
+    const code = String(form?.vendCode || form?.custCode || "").trim();
+    if (!code) {
+      await showValidation("Missing Required Field(s)", ["• Payee Code"]);
+      return;
+    }
 
-  const confirm = await Swal.fire({
-    title: "Delete Payee?",
-    text: `This will permanently delete Payee Code ${code}. This action cannot be undone.`,
-    icon: "warning",
-    showCancelButton: true,
-    confirmButtonText: "Yes, Delete",
-    cancelButtonText: "Cancel",
-    confirmButtonColor: "#dc2626",
-  });
+    const confirm = await useSwalDeleteConfirm(
+      "Delete Payee?",
+      `This will permanently delete Payee Code ${code}. This action cannot be undone.`
+    );
+    if (!confirm) return;
 
-  if (!confirm.isConfirmed) return;
+    setIsLoading(true);
+    try {
+      await apiClient.post("/deletePayee", {
+        VEND_CODE: code,
+      });
 
-  setIsLoading(true);
-  try {
-    await apiClient.post("/deletePayee", {
-      VEND_CODE: code,
-    });
+      await useSwalDeleteRecord("Payee");
 
-    Swal.fire("Deleted", "Payee has been deleted.", "success");
+      setForm({ ...emptyForm });
+      setSelectedVendCode("");
+      setIsEditing(false);
+      setAttachmentRows([]);
 
-    setForm({ ...emptyForm });
-    setSelectedVendCode("");
-    setIsEditing(false);
-    setAttachmentRows([]);
-
-    await loadMasterList();
-  } catch (e) {
-    console.error(e);
-    Swal.fire("Error", "Failed to delete payee.", "error");
-  } finally {
-    setIsLoading(false);
-  }
-};
+      await loadMasterList();
+    } catch (e) {
+      console.error(e);
+      Swal.fire("Error", "Failed to delete payee.", "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
 
   const upsertVendor = async () => {
     const code = String(form?.vendCode || form?.custCode || "").trim();
 
-    const sl = normalizeSlType(form?.sltypeCode);
-    const isCustomer = sl === "CU";
-    const regName = String((isCustomer ? form?.custName : form?.vendName) || "").trim();
-
-    if (!code) return Swal.fire("Required", "Payee Code is required.", "warning");
-    if (!regName) return Swal.fire("Required", "Registered Name is required.", "warning");
-
-    const dup = masterAllRows.some((r) => {
-      const existing = String(r?.vendCode || "").trim().toUpperCase();
-      const current = code.toUpperCase();
-      const selected = String(selectedVendCode || "").trim().toUpperCase();
-      return existing === current && selected !== current;
-    });
-
-    if (dup) {
-      Swal.fire({
-        icon: "error",
-        title: "Duplicate Payee Code",
-        text: "This Payee Code already exists. Please use a different code.",
-      });
-      return;
-    }
-
     setIsLoading(true);
     try {
       const payload = {
-        vendCode: code,
-        vendName: regName,
+        action: selectedVendCode ? "edit" : "add",
 
-        businessName: form.businessName,
-        firstName: form.firstName,
-        middleName: form.middleName,
-        lastName: form.lastName,
-        taxClass: form.taxClass,
+        vendCode: code,
+        vendName: form.vendName || form.custName || "",
+        businessName: form.businessName || "",
+
+        firstName: form.firstName || "",
+        middleName: form.middleName || "",
+        lastName: form.lastName || "",
+
+        taxClass: form.taxClass || "",
 
         vendAddr1: form.vendAddr1 || "",
         vendAddr2: form.vendAddr2 || "",
@@ -412,42 +438,79 @@ const deleteVendor = async () => {
         vendZip: form.vendZip || "",
         vendTin: form.vendTin || form.custTin || "",
 
-        branchCode: form.branchCode,
+        branchCode: form.branchCode || "",
         vendContact: form.vendContact || "",
         vendPosition: form.vendPosition || "",
         vendTelno: form.vendTelno || "",
         vendMobileno: form.vendMobileno || "",
         vendEmail: form.vendEmail || "",
 
-        source: form.source,
-        currCode: form.currCode,
-        vatCode: form.vatCode,
-        atcCode: form.atcCode,
-        paytermCode: form.paytermCode,
+        source: form.source || "",
+        currCode: form.currCode || "",
+        vatCode: form.vatCode || "",
+        atcCode: form.atcCode || "",
+        paytermCode: form.paytermCode || "",
 
-        acctCode: form.acctCode,
+        acctCode: form.acctCode || "",
         sltypeCode: normalizeSlType(form.sltypeCode),
-        active: form.active,
-        oldCode: form.oldCode,
-        userCode: form.userCode ?? "",
+        active: form.active || "y",
+        oldCode: form.oldCode || "",
+        userCode, // ✅ always from session/aut
       };
 
-      await apiClient.post("/upsertPayee", {
-        json_data: JSON.stringify({ json_data: payload }),
+      const res = await apiClient.post("/upsertPayee", {
+        json_data: payload,
       });
 
-      Swal.fire("Saved", "Payee saved successfully.", "success");
-      setSelectedVendCode(code);
-      pushRecent(code);
-      setIsEditing(false);
-      await loadMasterList();
+      // 🔴 SQL validation (COAMast standard)
+      const rows = res?.data?.data || [];
+      const r0 = rows[0] || {};
+
+      const errorCount = Number(r0.errorcount ?? 0);
+      const errorMsg = String(r0.errormsg ?? "");
+
+      if (errorCount > 0) {
+        await useSwalValidationAlert({
+          icon: "error",
+          title: "Missing Required Field(s)",
+          message: errorMsg,
+        });
+        return;
+      }
+
+      // ✅ SUCCESS
+      await useSwalshowSave(async () => {
+        setSelectedVendCode(code);
+        pushRecent(code);
+        setIsEditing(false);
+        await loadMasterList();
+      }, () => { });
     } catch (e) {
       console.error(e);
-      Swal.fire("Error", "Failed to save payee.", "error");
+
+      const sprocErr = extractSprocError(e?.response);
+      if (sprocErr?.errorMsg) {
+        await useSwalValidationAlert({
+          icon: "error",
+          title: "Missing Required Field(s)",
+          message: String(sprocErr.errorMsg),
+        });
+        return;
+      }
+
+      const msg =
+        e?.response?.data?.message ||
+        e?.response?.data?.error ||
+        e?.response?.data?.msg ||
+        e?.message ||
+        "failed to save payee.";
+
+      await useSwalErrorAlert("save failed", msg);
     } finally {
       setIsLoading(false);
     }
   };
+
 
   const applyMasterFilters = () => {
     const selectedType = normalizeSlType(subsidiaryType);
@@ -530,28 +593,25 @@ const deleteVendor = async () => {
   };
 
   const headerButtons = useMemo(() => {
-  if (activeTab !== "setup") return [];
+    if (activeTab !== "setup") return [];
 
-  const hasRecord =
-    String(form?.vendCode || form?.custCode || "").trim() && !form.__isNew;
+    const hasRecord =
+      String(form?.vendCode || form?.custCode || "").trim() && !form.__isNew;
 
-  return [
-    { key: "add", label: "Add", icon: faPlus, onClick: handleAdd, disabled: isLoading },
-    { key: "edit", label: "Edit", icon: faPenToSquare, onClick: handleEdit, disabled: isLoading },
-    { key: "save", label: "Save", icon: faSave, onClick: upsertVendor, disabled: isLoading || !isEditing },
-    {
-      key: "delete",
-      label: "Delete",
-      icon: faTrash,
-      onClick: deleteVendor,
-      disabled: isLoading || isEditing || !hasRecord,
-      className:
-        "bg-red-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-red-700 disabled:opacity-50",
-    },
-    { key: "reset", label: "Reset", icon: faUndo, onClick: handleResetSetup, disabled: isLoading },
-    { key: "attach", label: "Attach File", icon: faPaperclip, onClick: handleOpenAttach, disabled: isLoading },
-  ];
-}, [activeTab, isLoading, isEditing, form]);
+    const baseBtn =
+      "h-9 px-3 text-sm rounded-lg flex items-center gap-2 whitespace-nowrap disabled:opacity-50";
+
+    return [
+      { key: "add", label: "Add", icon: faPlus, onClick: handleAdd, disabled: isLoading },
+      { key: "edit", label: "Edit", icon: faPenToSquare, onClick: handleEdit, disabled: isLoading },
+      { key: "save", label: "Save", icon: faSave, onClick: upsertVendor, disabled: isLoading || !isEditing },
+      { key: "reset", label: "Reset", icon: faUndo, onClick: handleResetSetup, disabled: isLoading },
+      { key: "attach", label: "Attach File", icon: faPaperclip, onClick: handleOpenAttach, disabled: isLoading, variant: "ghost" },
+      { key: "delete", label: "Delete", icon: faTrash, onClick: deleteVendor, disabled: isLoading || isEditing || !hasRecord, variant: "danger" },
+    ];
+
+  }, [activeTab, isLoading, isEditing, form]);
+
 
   return (
     <div className="global-ref-main-div-ui mt-24">
@@ -560,7 +620,7 @@ const deleteVendor = async () => {
           <h1 className="global-ref-headertext-ui">Payee Master Data</h1>
         </div>
 
-        <div className="flex overflow-x-auto scrollbar-hide">
+        <div className="flex flex-wrap gap-1 overflow-x-hidden">
           {tabs.map((t) => (
             <button
               key={t.id}
@@ -579,75 +639,6 @@ const deleteVendor = async () => {
         </div>
 
         <div className="flex gap-2 justify-center text-xs items-center">
-          {/* ✅ NAVIGATOR */}
-          {activeTab === "setup" && (
-            <div className="flex items-center gap-1 bg-white border border-blue-200 rounded-md px-2 py-1 shadow-sm">
-              <button
-                type="button"
-                className="px-2 py-1 rounded hover:bg-blue-50 disabled:opacity-40"
-                onClick={goFirst}
-                disabled={isLoading || masterRows.length === 0 || indexInRows <= 0}
-                title="First"
-              >
-                <FontAwesomeIcon icon={faBackwardFast} />
-              </button>
-
-              <button
-                type="button"
-                className="px-2 py-1 rounded hover:bg-blue-50 disabled:opacity-40"
-                onClick={goPrev}
-                disabled={isLoading || masterRows.length === 0 || indexInRows <= 0}
-                title="Previous"
-              >
-                <FontAwesomeIcon icon={faChevronLeft} />
-              </button>
-
-              <div className="px-2 text-xs text-gray-600 min-w-[90px] text-center">
-                {indexInRows >= 0 ? `${indexInRows + 1} / ${masterRows.length}` : "— / —"}
-              </div>
-
-              <button
-                type="button"
-                className="px-2 py-1 rounded hover:bg-blue-50 disabled:opacity-40"
-                onClick={goNext}
-                disabled={
-                  isLoading ||
-                  masterRows.length === 0 ||
-                  indexInRows < 0 ||
-                  indexInRows >= masterRows.length - 1
-                }
-                title="Next"
-              >
-                <FontAwesomeIcon icon={faChevronRight} />
-              </button>
-
-              <button
-                type="button"
-                className="px-2 py-1 rounded hover:bg-blue-50 disabled:opacity-40"
-                onClick={goLast}
-                disabled={
-                  isLoading ||
-                  masterRows.length === 0 ||
-                  indexInRows < 0 ||
-                  indexInRows >= masterRows.length - 1
-                }
-                title="Last"
-              >
-                <FontAwesomeIcon icon={faForwardFast} />
-              </button>
-
-              <button
-                type="button"
-                className="ml-1 px-2 py-1 rounded hover:bg-blue-50 disabled:opacity-40"
-                onClick={goRecent}
-                disabled={isLoading || recentCodes.length === 0}
-                title="Recent"
-              >
-                <FontAwesomeIcon icon={faClockRotateLeft} />
-              </button>
-            </div>
-          )}
-
           {!!headerButtons.length && <ButtonBar buttons={headerButtons} />}
         </div>
       </div>
@@ -660,11 +651,10 @@ const deleteVendor = async () => {
             form={form}
             sltypeOptions={[
               { value: "AG", label: "AGENCY" },
-              { value: "CU", label: "CUSTOMER" },
               { value: "EM", label: "EMPLOYEE" },
               { value: "OT", label: "OTHERS" },
               { value: "SU", label: "SUPPLIER" },
-              { value: "TN", label: "TENANT" },
+
             ]}
             sourceOptions={[
               { value: "L", label: "Local" },
@@ -676,6 +666,7 @@ const deleteVendor = async () => {
             ]}
             onChangeForm={updateForm}
             onSelectCustomerCode={fetchVendorByCode}
+            onSearchCode={() => setIsSearchOpen(true)}
           />
         )}
 

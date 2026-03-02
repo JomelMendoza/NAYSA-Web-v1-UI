@@ -776,7 +776,8 @@ export async function exportGenericHistoryExcel(payload, columnConfigsMap, group
     // Company/Report Info
     ws.getCell(currentRowIndex, 1).value = companyName || "";
     ws.getCell(currentRowIndex, 1).alignment = { horizontal: "left", vertical: "middle" };
-    ws.getCell(currentRowIndex, 1).font = { name: "Aptos" , size: 16, bold: true, color: { argb: "FF0000FF" }};
+    // ws.getCell(currentRowIndex, 1).font = { name: "Aptos" , size: 16, bold: true, color: { argb: "FF0000FF" }};
+        ws.getCell(currentRowIndex, 1).font = { name: "Aptos" , size: 16, bold: true, color: { argb: "FF000000" }};
     currentRowIndex++; 
     setMeta(currentRowIndex, 1, companyAddress || "");
     currentRowIndex++; 
@@ -1063,7 +1064,7 @@ export async function exportGenericHistoryExcel(payload, columnConfigsMap, group
 
 export const exportGenericQueryExcel = async (
     data,
-    grandTotals,
+    grandTotals={},
     visibleCols,
     groupBy,
     columns,
@@ -1076,6 +1077,7 @@ export const exportGenericQueryExcel = async (
     telNo
     ) => {
     if (!data || data.length === 0) return;
+    grandTotals =grandTotals && typeof grandTotals === "object" ? grandTotals : {};
 
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Report Export");
@@ -1348,6 +1350,12 @@ export const exportGenericQueryExcel = async (
     addRows(data);
 
     // --- 5. Grand Total Row ---
+
+    const hasGrandTotals =
+  grandTotals && Object.keys(grandTotals).length > 0;
+
+  if (hasGrandTotals || groupBy.length > 0) {
+
     const totalRow = worksheet.getRow(currentRowIndex++);
 
     // Set the value and font for the first cell (Column A)
@@ -1381,6 +1389,8 @@ export const exportGenericQueryExcel = async (
     }
     }
     });
+
+  }
 
 
 

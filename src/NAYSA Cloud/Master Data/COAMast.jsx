@@ -2,8 +2,6 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faPlus,
-  faEdit,
-  faTrashAlt,
   faSave,
   faUndo,
   faPrint,
@@ -11,7 +9,13 @@ import {
   faFileCsv,
   faFileExcel,
   faFilePdf,
+  faEdit,
+  faTrashAlt
 } from "@fortawesome/free-solid-svg-icons";
+
+import SearchGlobalReferenceTable from "../Lookup/SearchGlobalReferenceTable";
+import SearchCOAClassRef from "../Lookup/SearchCOAClassRef";
+
 
 import { useTopDocDropDown } from "@/NAYSA Cloud/Global/top1RefTable";
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
@@ -19,20 +23,20 @@ import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 import {
   useSwalErrorAlert,
   useSwalDeleteConfirm,
-  useSwalDeleteSuccess,
-  useSwalshowSaveSuccessDialog,
+  useSwalshowSave,
   useSwalValidationAlert,
+  useSwalDeleteRecord,
+  useSwalInfoAlert,
 } from "@/NAYSA Cloud/Global/behavior";
 
 import {
   reftables,
   reftablesPDFGuide,
   reftablesVideoGuide,
+  useGlobalDeleteRefTable
 } from "@/NAYSA Cloud/Global/reftable";
 
 import RegistrationInfo from "@/NAYSA Cloud/Global/RegistrationInfo.jsx";
-
-// ✅ FieldRenderer (adjust path as needed)
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 
 const COAMast = () => {
@@ -42,6 +46,8 @@ const COAMast = () => {
   const documentTitle = reftables[docType];
   const pdfLink = reftablesPDFGuide[docType];
   const videoLink = reftablesVideoGuide[docType];
+  const [isCOAClassLookupOpen, setIsCOAClassLookupOpen] = useState(false);
+
 
   const showValidation = async (title, lines) => {
     const msg = Array.isArray(lines) ? lines.join("\n") : String(lines || "");
@@ -51,7 +57,6 @@ const COAMast = () => {
       message: msg,
     });
   };
-
 
   const toUiBalance = (v) => {
     const x = String(v || "").toUpperCase();
@@ -81,8 +86,6 @@ const COAMast = () => {
     fsConsoName: "",
     oldCode: "",
     active: "Y",
-
-    // UI-only (unless you extend sproc)
     contraAccount: "",
     reqBudget: "N",
   });
@@ -105,34 +108,12 @@ const COAMast = () => {
   const [isOpenExport, setOpenExport] = useState(false);
   const exportRef = useRef(null);
 
-  const [sortConfig, setSortConfig] = useState({
-    key: "acctCode",
-    direction: "asc",
-  });
-
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-
-  const [columnFilters, setColumnFilters] = useState({
-    acctCode: "",
-    acctName: "",
-    acctType: "",
-    acctGroup: "",
-    acctBalance: "",
-    reqSL: "",
-    reqRC: "",
-    classCode: "",
-    fsConsoCode: "",
-    oldCode: "",
-    active: "",
-  });
-
   const [balanceTypes, setBalanceTypes] = useState([]);
   const [accountGroups, setAccountGroups] = useState([]);
   const [accountTypes, setAccountTypes] = useState([]);
+  const [accountClasses, setAccountClasses] = useState([]);
 
-  const filterInputClass =
-    "w-full px-3 py-1 text-xs rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-300";
+  const [isDupCode, setIsDupCode] = useState(false);
 
   const LoadingSpinner = () => (
     <div className="fixed inset-0 z-[70] bg-black/20 backdrop-blur-sm flex items-center justify-center">
@@ -141,11 +122,6 @@ const COAMast = () => {
       </div>
     </div>
   );
-
-  const includesCI = (str, searchValue) =>
-    String(str || "")
-      .toLowerCase()
-      .includes(String(searchValue || "").toLowerCase());
 
   const extractRowsFromResponse = (response) => {
     const payload = response?.data;
@@ -180,6 +156,7 @@ const COAMast = () => {
     const fsConsoCode = a?.fsConsoCode ?? a?.fsConsCode ?? a?.fsconso_code ?? "";
     const fsConsoName = a?.fsConsoName ?? a?.fsConsDesc ?? a?.fsconso_name ?? "";
 
+
     return {
       acctCode: a?.acctCode ?? a?.acct_code ?? "",
       acctName: a?.acctName ?? a?.acct_name ?? "",
@@ -193,12 +170,10 @@ const COAMast = () => {
       fsConsoName,
       oldCode: a?.oldCode ?? a?.old_code ?? "",
       active: toYN(a?.active ?? a?.isActive ?? a?.ACTIVE ?? "Y", "Y"),
-
       registeredBy: a?.registeredBy ?? a?.registered_by ?? "",
       registeredDate: a?.registeredDate ?? a?.registered_date ?? "",
       lastUpdatedBy: a?.lastUpdatedBy ?? a?.updated_by ?? "",
       lastUpdatedDate: a?.lastUpdatedDate ?? a?.updated_date ?? "",
-
     };
   };
 
@@ -248,7 +223,8 @@ const COAMast = () => {
     const name = String(item.name || "").trim();
     if (code.length === 1) return { code, name };
 
-    const mapped = ACCT_TYPE_CODE[code.toUpperCase()] || ACCT_TYPE_CODE[name.toUpperCase()];
+    const mapped =
+      ACCT_TYPE_CODE[code.toUpperCase()] || ACCT_TYPE_CODE[name.toUpperCase()];
     return mapped ? { code: mapped, name } : item;
   };
 
@@ -258,7 +234,8 @@ const COAMast = () => {
     const name = String(item.name || "").trim();
     if (code.length === 1) return { code, name };
 
-    const mapped = ACCT_GRP_CODE[code.toUpperCase()] || ACCT_GRP_CODE[name.toUpperCase()];
+    const mapped =
+      ACCT_GRP_CODE[code.toUpperCase()] || ACCT_GRP_CODE[name.toUpperCase()];
     return mapped ? { code: mapped, name } : item;
   };
 
@@ -268,10 +245,11 @@ const COAMast = () => {
     const reqId = ++latestDropdownReqRef.current;
 
     try {
-      const [bal, grp, typ] = await Promise.all([
+      const [bal, grp, typ, clsRes] = await Promise.all([
         useTopDocDropDown("COAMAST", "NBAL"),
         useTopDocDropDown("COAMAST", "ACCT_TYPE"),
         useTopDocDropDown("COAMAST", "ACCT_GRP"),
+        apiClient.get("/cOAClass"),
       ]);
 
       if (reqId !== latestDropdownReqRef.current) return;
@@ -279,13 +257,20 @@ const COAMast = () => {
       setBalanceTypes(normalizeDropdown(bal));
       setAccountTypes(normalizeDropdown(typ).map(normalizeAcctType));
       setAccountGroups(normalizeDropdown(grp).map(normalizeAcctGroup));
+
+      const clsRows = extractRowsFromResponse(clsRes);
+      const cls = (clsRows || []).map((x) => ({
+        code: x?.classCode ?? x?.class_code ?? "",
+        name: x?.className ?? x?.class_name ?? "",
+      }));
+      setAccountClasses(cls.filter((x) => x.code || x.name));
     } catch (err) {
       console.error("Dropdown load failed", err);
       if (reqId !== latestDropdownReqRef.current) return;
-
       setBalanceTypes([]);
       setAccountTypes([]);
       setAccountGroups([]);
+      setAccountClasses([]);
     }
   };
 
@@ -297,7 +282,10 @@ const COAMast = () => {
       setAccounts(rows.map((a) => mapRowToUi(a)));
     } catch (err) {
       console.error(err);
-      await useSwalErrorAlert("Error", `Failed to fetch accounts: ${err.message}`);
+      await useSwalErrorAlert(
+        "Error",
+        `Failed to fetch accounts: ${err.message}`
+      );
       setAccounts([]);
     } finally {
       setLoading(false);
@@ -317,16 +305,19 @@ const COAMast = () => {
 
       setRegistrationInfo({
         registeredBy: row.registeredBy || "",
-        registeredDate: row.registeredDate
-          ? new Date(row.registeredDate).toISOString().split("T")[0]
-          : "",
+        registeredDate: row.registeredDate || "",
         lastUpdatedBy: row.lastUpdatedBy || "",
-        lastUpdatedDate: row.lastUpdatedDate
-          ? new Date(row.lastUpdatedDate).toISOString().split("T")[0]
-          : "",
+        lastUpdatedDate: row.lastUpdatedDate || "",
       });
 
-      const { registeredBy, registeredDate, lastUpdatedBy, lastUpdatedDate, ...formOnly } = row;
+      const {
+        registeredBy,
+        registeredDate,
+        lastUpdatedBy,
+        lastUpdatedDate,
+        ...formOnly
+      } = row;
+
       return formOnly;
     } catch (error) {
       console.error(error);
@@ -337,76 +328,96 @@ const COAMast = () => {
     }
   };
 
+  // ✅ click outside export
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (exportRef.current && !exportRef.current.contains(event.target)) setOpenExport(false);
+      if (exportRef.current && !exportRef.current.contains(event.target)) {
+        setOpenExport(false);
+      }
     };
+
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.ctrlKey && e.key.toLowerCase() === "s") {
-        e.preventDefault();
-        if (!saving && isEditing) handleSaveAccount();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [saving, isEditing]);
-
-  useEffect(() => {
-    let timer;
-    if (loading) timer = setTimeout(() => setShowSpinner(true), 200);
-    else setShowSpinner(false);
-    return () => clearTimeout(timer);
-  }, [loading]);
-
-  useEffect(() => {
-    fetchAccounts();
-    loadHSDropdowns();
-  }, []);
-
+  // ✅ sorted list (no filters yet; SearchGlobalReferenceTable handles UI filtering/grouping)
   const filtered = useMemo(() => {
-    const f = columnFilters;
-
-    const out = accounts.filter((a) => {
-      if (f.acctCode && !includesCI(a.acctCode, f.acctCode)) return false;
-      if (f.acctName && !includesCI(a.acctName, f.acctName)) return false;
-      if (f.acctType && !includesCI(a.acctType, f.acctType)) return false;
-      if (f.acctGroup && !includesCI(a.acctGroup, f.acctGroup)) return false;
-      if (f.acctBalance && !includesCI(a.acctBalance, f.acctBalance)) return false;
-      if (f.reqSL && !includesCI(a.reqSL === "Y" ? "Yes" : "No", f.reqSL)) return false;
-      if (f.reqRC && !includesCI(a.reqRC === "Y" ? "Yes" : "No", f.reqRC)) return false;
-      if (f.classCode && !includesCI(a.classCode, f.classCode)) return false;
-      if (f.fsConsoCode && !includesCI(a.fsConsoCode, f.fsConsoCode)) return false;
-      if (f.oldCode && !includesCI(a.oldCode, f.oldCode)) return false;
-      if (f.active && !includesCI(a.active === "Y" ? "Yes" : "No", f.active)) return false;
-      return true;
-    });
-
-    const { key, direction } = sortConfig;
-    if (key) {
-      out.sort((a, b) => {
-        const av = String(a[key] || "").toLowerCase();
-        const bv = String(b[key] || "").toLowerCase();
-        if (av < bv) return direction === "asc" ? -1 : 1;
-        if (av > bv) return direction === "asc" ? 1 : -1;
-        return 0;
-      });
-    }
-
+    const out = Array.isArray(accounts) ? [...accounts] : [];
+    out.sort((a, b) =>
+      String(a?.acctCode ?? "").localeCompare(String(b?.acctCode ?? ""), undefined, {
+        numeric: true,
+      })
+    );
     return out;
-  }, [accounts, columnFilters, sortConfig]);
+  }, [accounts]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  // ✅ SearchGlobalReferenceTable columns
+  const coaColumns = useMemo(
+    () => [
+      
+      { key: "acctCode", label: "Account Code", sortable: true },
+      { key: "acctName", label: "Account Name", sortable: true },
+      { key: "acctType", label: "Account Type", sortable: true },
+      { key: "acctGroup", label: "Account Group", sortable: true },
+      { key: "acctBalance", label: "Account Balance", sortable: true },
+      { key: "reqSL", label: "SL Required", sortable: true },
+      { key: "reqRC", label: "RC Required", sortable: true },
+      { key: "classCode", label: "Account Classification", sortable: true },
+      { key: "oldCode", label: "Old Code", sortable: true },
+      { key: "active", label: "Active", sortable: true },
+      {
+        key: "__actions",
+        label: "Actions",
+        sortable: false,
+        renderType: "actions",
+        render: (row) => (
+          <div className="flex items-center justify-center gap-2">
+            <button
+              type="button"
+              className="px-2 py-1 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEditAccount(row);
+              }}
+              title="Edit"
+            >
+              <FontAwesomeIcon icon={faEdit} />
+            </button>
 
-  const pageRows = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, page, pageSize]);
+            <button
+              type="button"
+              className="px-2 py-1 text-xs rounded-md bg-red-600 text-white hover:bg-red-700"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteAccount(row);
+              }}
+              title="Delete"
+            >
+              <FontAwesomeIcon icon={faTrashAlt} />
+            </button>
+          </div>
+        ),
+      },
+    ],
+    // important: include handlers used inside render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedAccount, accounts, loading, saving]
+  );
+
+
+  // ✅ display-ready rows for the table
+  const coaTableData = useMemo(() => {
+    const rows = Array.isArray(filtered) ? filtered : [];
+    return rows.map((row) => ({
+      ...row,
+      acctType: codeToName(accountTypes, row.acctType),
+      acctGroup: codeToName(accountGroups, row.acctGroup),
+      classCode: codeToName(accountClasses, row.classCode),
+      reqSL: row.reqSL === "Y" ? "Yes" : "No",
+      reqRC: row.reqRC === "Y" ? "Yes" : "No",
+      active: row.active === "Y" ? "Yes" : "No",
+    }));
+  }, [filtered, accountTypes, accountGroups, accountClasses]);
 
   const resetForm = () => {
     setFormData({
@@ -437,7 +448,6 @@ const COAMast = () => {
     });
   };
 
-  // ✅ Keep your original handler (used in some places)
   const handleFormChange = (e) => {
     const { name, value } = e.target;
 
@@ -446,14 +456,9 @@ const COAMast = () => {
       [name]: value,
     }));
 
-    // ✅ reset duplicate flag when Account Code changes
-    if (name === "acctCode") {
-      setIsDupCode(false);
-    }
+    if (name === "acctCode") setIsDupCode(false);
   };
 
-
-  // ✅ Helper for FieldRenderer (since it returns value only)
   const setField = (name, value) => setFormData((p) => ({ ...p, [name]: value }));
 
   const startNew = () => {
@@ -468,7 +473,6 @@ const COAMast = () => {
     setSelectedAccount(row);
 
     const full = await getAccount(row.acctCode);
-
     if (reqId !== latestGetRef.current) return;
 
     if (full) {
@@ -477,15 +481,6 @@ const COAMast = () => {
       setIsEditing(true);
     }
   };
-
-  const handleSort = (key) => {
-    setSortConfig((p) => ({
-      key,
-      direction: p.key === key && p.direction === "asc" ? "desc" : "asc",
-    }));
-  };
-
-  const [isDupCode, setIsDupCode] = useState(false);
 
   const handleSaveAccount = async () => {
     setSaving(true);
@@ -497,20 +492,19 @@ const COAMast = () => {
       const acctName = (formData.acctName || "").trim();
       const acctBalance = (formData.acctBalance || "").trim();
 
-      const classCode = (formData.classCode || "").trim();     // Account Classification
-      const acctType = (formData.acctType || "").trim();      // Account Type
-      const acctGroup = (formData.acctGroup || "").trim();     // Account Group
-      const reqSL = (formData.reqSL || "").trim();         // SL Required
-      const reqRC = (formData.reqRC || "").trim();         // RC Required
+      const classCode = (formData.classCode || "").trim();
+      const acctType = (formData.acctType || "").trim();
+      const acctGroup = (formData.acctGroup || "").trim();
+      const reqSL = (formData.reqSL || "").trim();
+      const reqRC = (formData.reqRC || "").trim();
 
       if (!acctCode) missingFields.push("Account Code");
       if (!acctName) missingFields.push("Account Name");
-      if (!classCode) missingFields.push("Account Classification");
       if (!acctType) missingFields.push("Account Type");
       if (!acctGroup) missingFields.push("Account Group");
-      if (!acctBalance) missingFields.push("Balance Type");
+      if (!acctBalance) missingFields.push("Account Balance");
+      if (!classCode) missingFields.push("Account Classification");
 
-      // if you allow only Y/N, validate too
       if (!reqSL) missingFields.push("SL Required (Y/N)");
       else if (!["Y", "N"].includes(reqSL.toUpperCase()))
         missingFields.push("SL Required (Y/N)");
@@ -524,22 +518,17 @@ const COAMast = () => {
           "Missing Required Field(s)",
           missingFields.map((f) => `• ${f}`)
         );
-        setSaving(false);
         return;
       }
 
       const isAdd = !selectedAccount;
 
-      // ✅ avoid double popup (already warned on blur)
       if (isAdd && isDupCode) return;
 
-      // ✅ safety net (if blur didn't happen)
       if (isAdd) {
         const isDuplicate = accounts.some(
           (a) =>
-            String(a?.acctCode || "")
-              .trim()
-              .toUpperCase() === acctCode.toUpperCase()
+            String(a?.acctCode || "").trim().toUpperCase() === acctCode.toUpperCase()
         );
 
         if (isDuplicate) {
@@ -570,10 +559,13 @@ const COAMast = () => {
       });
 
       if (response?.data?.status === "success") {
-        await useSwalshowSaveSuccessDialog(resetForm, () => { });
+        await useSwalshowSave(resetForm, () => { });
         await fetchAccounts();
       } else {
-        await useSwalErrorAlert("Save Failed", response?.data?.message || "Unable to save record.");
+        await useSwalErrorAlert(
+          "Save Failed",
+          response?.data?.message || "Unable to save record."
+        );
       }
     } catch (err) {
       const msg =
@@ -588,6 +580,19 @@ const COAMast = () => {
       setSaving(false);
     }
   };
+
+  // ✅ Ctrl+S (MUST be after handleSaveAccount)
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.ctrlKey && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        if (!saving && isEditing) handleSaveAccount();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saving, isEditing, selectedAccount, formData]);
 
   const handleAcctCodeBlur = async () => {
     const code = (formData.acctCode || "").trim();
@@ -607,52 +612,6 @@ const COAMast = () => {
     }
   };
 
-  const handleDeleteAccount = async () => {
-    if (!selectedAccount?.acctCode) {
-      await showValidation("Error", ["Please select an account to delete."]);
-      return;
-    }
-
-    const confirm = await useSwalDeleteConfirm(
-      "Delete this account?",
-      `Code: ${selectedAccount.acctCode} | Name: ${selectedAccount.acctName || ""}`,
-      "Yes, delete it"
-    );
-
-    if (!confirm.isConfirmed) return;
-
-    try {
-      const response = await apiClient.post("/deleteCOA", {
-        json_data: JSON.stringify({
-          json_data: {
-            acctCode: selectedAccount.acctCode,
-            userCode: user?.USER_CODE || "ADMIN",
-          },
-        }),
-      });
-
-      if (response?.data?.status === "success") {
-        await useSwalDeleteSuccess();
-        await fetchAccounts();
-        resetForm();
-      } else {
-        await showValidation("Error", [
-          response?.data?.message || "Failed to delete account.",
-        ]);
-      }
-    } catch (err) {
-      const msg =
-        err?.response?.data?.message ||
-        err?.response?.data?.error ||
-        err?.response?.data?.msg ||
-        err?.message ||
-        "Failed to delete account.";
-
-      await showValidation("Error", [msg]);
-    }
-  };
-
-
 
 
 
@@ -662,28 +621,30 @@ const COAMast = () => {
       const payload = {
         entity: "exportCOA",
         format,
-        filter: { columnFilters },
+        filter: {},
       };
 
-      apiClient.get("/load", { params: payload, responseType: "blob" }).then((response) => {
-        const url = window.URL.createObjectURL(new Blob([response.data]));
-        const link = document.createElement("a");
-        link.href = url;
-        link.setAttribute(
-          "download",
-          `coa_export_${format}_${new Date().toISOString().slice(0, 10)}.${format}`
-        );
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-      });
+      apiClient
+        .get("/load", { params: payload, responseType: "blob" })
+        .then((response) => {
+          const url = window.URL.createObjectURL(new Blob([response.data]));
+          const link = document.createElement("a");
+          link.href = url;
+          link.setAttribute(
+            "download",
+            `coa_export_${format}_${new Date().toISOString().slice(0, 10)}.${format}`
+          );
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+        });
     } catch (error) {
       console.error(error);
       useSwalErrorAlert("Export Error", `Failed to export to ${String(format).toUpperCase()}`);
     }
   };
 
-  // ✅ FieldRenderer options
+  // options for FieldRenderer
   const optAcctType = useMemo(
     () => accountTypes.map((x) => ({ value: x.code, label: x.name })),
     [accountTypes]
@@ -691,6 +652,10 @@ const COAMast = () => {
   const optAcctGroup = useMemo(
     () => accountGroups.map((x) => ({ value: x.code, label: x.name })),
     [accountGroups]
+  );
+  const optAcctClass = useMemo(
+    () => accountClasses.map((x) => ({ value: x.code, label: x.name })),
+    [accountClasses]
   );
   const optBalance = useMemo(
     () => balanceTypes.map((x) => ({ value: x.code, label: x.name })),
@@ -703,6 +668,19 @@ const COAMast = () => {
     ],
     []
   );
+
+  useEffect(() => {
+    let timer;
+    if (loading) timer = setTimeout(() => setShowSpinner(true), 200);
+    else setShowSpinner(false);
+    return () => clearTimeout(timer);
+  }, [loading]);
+
+  useEffect(() => {
+    fetchAccounts();
+    loadHSDropdowns();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="global-ref-main-div-ui mt-24">
@@ -741,13 +719,7 @@ const COAMast = () => {
           </button>
 
           <div ref={exportRef} className="relative">
-            <button
-              onClick={() => setOpenExport((v) => !v)}
-              className="bg-green-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700"
-            >
-              <FontAwesomeIcon icon={faPrint} /> Export{" "}
-              <FontAwesomeIcon icon={faChevronDown} className="text-xs" />
-            </button>
+
 
             {isOpenExport && (
               <div className="absolute right-0 mt-1 w-40 rounded-lg shadow-lg bg-white ring-1 ring-black/10 z-[60] dark:bg-gray-800">
@@ -772,15 +744,6 @@ const COAMast = () => {
               </div>
             )}
           </div>
-
-          {selectedAccount && (
-            <button
-              onClick={handleDeleteAccount}
-              className="bg-red-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-red-700"
-            >
-              <FontAwesomeIcon icon={faTrashAlt} /> Delete
-            </button>
-          )}
         </div>
       </div>
 
@@ -789,56 +752,57 @@ const COAMast = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Column 1 */}
           <div className="global-ref-textbox-group-div-ui space-y-4">
-            {/* Account Code (kept original due to special styling + maxLength) */}
-            <div className="relative">
-              <input
+            {/* Account Code | Old Code */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="relative">
+                <input
+                  type="text"
+                  id="acctCode"
+                  name="acctCode"
+                  placeholder=" "
+                  value={formData.acctCode}
+                  onChange={handleFormChange}
+                  onBlur={handleAcctCodeBlur}
+                  disabled={isEditing && selectedAccount}
+                  className={`peer global-ref-textbox-ui ${isEditing ? "global-ref-textbox-enabled" : "global-ref-textbox-disabled"
+                    } ${isEditing && selectedAccount ? "bg-gray-100 cursor-not-allowed" : ""}`}
+                  maxLength={20}
+                />
+                <label
+                  htmlFor="acctCode"
+                  className={`global-ref-floating-label ${!isEditing ? "global-ref-label-disabled" : "global-ref-label-enabled"
+                    }`}
+                >
+                  <span className="global-ref-asterisk-ui">*</span> Account Code
+                </label>
+              </div>
+
+              <FieldRenderer
+                id="oldCode"
+                name="oldCode"
+                label="Old Code"
                 type="text"
-                id="acctCode"
-                name="acctCode"
-                placeholder=" "
-                value={formData.acctCode}
+                value={formData.oldCode}
+                disabled={!isEditing}
                 onChange={handleFormChange}
-                onBlur={handleAcctCodeBlur}
-                disabled={isEditing && selectedAccount}
-                className={`peer global-ref-textbox-ui ${isEditing ? "global-ref-textbox-enabled" : "global-ref-textbox-disabled"
-                  } ${isEditing && selectedAccount ? "bg-blue-100 cursor-not-allowed" : ""}`}
-                maxLength={20}
               />
-              <label
-                htmlFor="acctCode"
-                className={`global-ref-floating-label ${!isEditing ? "global-ref-label-disabled" : "global-ref-label-enabled"
-                  }`}
-              >
-                <span className="global-ref-asterisk-ui">*</span> Account Code
-              </label>
             </div>
 
-            {/* Account Name */}
             <FieldRenderer
               type="text"
               name="acctName"
-              label={
-                <>
-                  <span className="global-ref-asterisk-ui">*</span> Account Name
-                </>
-              }
+              label="Account Name"
               value={formData.acctName}
               onChange={handleFormChange}
               disabled={!isEditing}
               required
             />
 
-
-            {/* Account Type | Account Group */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FieldRenderer
                 type="select"
                 name="acctType"
-                label={
-                  <>
-                    <span className="global-ref-asterisk-ui">*</span> Account Type
-                  </>
-                }
+                label="Account Type"
                 value={formData.acctType}
                 options={optAcctType}
                 onChange={handleFormChange}
@@ -849,29 +813,19 @@ const COAMast = () => {
               <FieldRenderer
                 type="select"
                 name="acctGroup"
-                label={
-                  <>
-                    <span className="global-ref-asterisk-ui">*</span> Account Group
-                  </>
-                }
+                label="Account Group"
                 value={formData.acctGroup}
                 options={optAcctGroup}
                 onChange={handleFormChange}
                 disabled={!isEditing}
                 required
               />
-
             </div>
 
-            {/* Balance Type | Active */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FieldRenderer
                 id="acctBalance"
-                label={
-                  <>
-                    <span className="global-ref-asterisk-ui">*</span> Account Balance
-                  </>
-                }
+                label="Account Balance"
                 required
                 type="select"
                 value={formData.acctBalance || ""}
@@ -879,7 +833,6 @@ const COAMast = () => {
                 options={optBalance}
                 onChange={(v) => setField("acctBalance", v)}
               />
-
               <FieldRenderer
                 id="active"
                 label="Active"
@@ -897,8 +850,7 @@ const COAMast = () => {
 
           {/* Column 2 */}
           <div className="global-ref-textbox-group-div-ui space-y-4">
-            {/* SL Required | RC Required | Budget Required */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FieldRenderer
                 id="reqSL"
                 label={
@@ -912,6 +864,7 @@ const COAMast = () => {
                 options={optYN}
                 onChange={(v) => setField("reqSL", v)}
               />
+
               <FieldRenderer
                 id="reqRC"
                 label={
@@ -925,6 +878,22 @@ const COAMast = () => {
                 options={optYN}
                 onChange={(v) => setField("reqRC", v)}
               />
+            </div>
+
+            <FieldRenderer
+              label="Account Classification"
+              required
+              type="lookup"
+              value={codeToName(accountClasses, formData.classCode) || ""} // ✅ SHOW NAME
+              onLookup={!isEditing ? undefined : () => setIsCOAClassLookupOpen(true)}
+              readOnly={true}
+              disabled={!isEditing}
+            />
+
+
+
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FieldRenderer
                 id="reqBudget"
                 label="Budget Required"
@@ -934,368 +903,50 @@ const COAMast = () => {
                 options={optYN}
                 onChange={(v) => setField("reqBudget", v)}
               />
-            </div>
 
-            {/* Classification */}
-            <FieldRenderer
-              id="classCode"
-              label={
-                <>
-                  <span className="global-ref-asterisk-ui">*</span> Account Classification
-                </>
-              }
-              type="text"
-              value={formData.classCode}
-              disabled={!isEditing}
-              onChange={(v) => setField("classCode", v)}
-            />
-
-            {/* FS Code | FS Description
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FieldRenderer
-                id="fsConsoCode"
-                label="FS Code"
-                type="text"
-                value={formData.fsConsoCode}
-                disabled={!isEditing}
-                onChange={(v) => setField("fsConsoCode", v)}
-              />
-              <FieldRenderer
-                id="fsConsoName"
-                label="FS Description"
-                type="text"
-                value={formData.fsConsoName}
-                disabled={!isEditing}
-                onChange={(v) => setField("fsConsoName", v)}
-              />
-            </div> */}
-
-            {/* Old Code | Contra Account */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FieldRenderer
-                id="oldCode"
-                label="Old Code"
-                type="text"
-                value={formData.oldCode}
-                disabled={!isEditing}
-                onChange={(v) => setField("oldCode", v)}
-              />
               <FieldRenderer
                 id="contraAccount"
+                name="contraAccount"
                 label="Contra Account"
                 type="text"
                 value={formData.contraAccount}
                 disabled={!isEditing}
-                onChange={(v) => setField("contraAccount", v)}
+                onChange={handleFormChange}
               />
             </div>
           </div>
 
           {/* Column 3 */}
-          <div className="global-ref-textbox-group-div-ui">
-            <RegistrationInfo data={registrationInfo} disabled={true} />
+          <div className="global-ref-textbox-group-div-ui space-y-4 max-w-md">
+            <RegistrationInfo layout="stacked" data={registrationInfo} disabled />
           </div>
         </div>
 
-        {/* TABLE (unchanged) */}
+        {/* TABLE */}
         <div className="global-tran-table-main-div-ui mt-6">
-          <div className="global-tran-table-main-sub-div-ui">
-            <table className="global-tran-table-div-ui">
-              <thead className="global-tran-thead-div-ui">
-                <tr>
-                  {Object.entries({
-                    "Account Code": "acctCode",
-                    "Account Name": "acctName",
-                    "Account Type": "acctType",
-                    "Account Group": "acctGroup",
-                    "Account Balance": "acctBalance",
-                    "SL Required": "reqSL",
-                    "RC Required": "reqRC",
-                    "Account Classification": "classCode",
-                    // "FS Code": "fsConsoCode",
-                    "Old Code": "oldCode",
-                    Active: "active",
-                  }).map(([label, key]) => (
-                    <th
-                      key={key}
-                      className="global-tran-th-ui cursor-pointer select-none"
-                      onClick={() => handleSort(key)}
-                      title="Click to sort"
-                    >
-                      {label}{" "}
-                      {sortConfig.key === key ? (sortConfig.direction === "asc" ? "▲" : "▼") : ""}
-                    </th>
-                  ))}
-                  <th className="global-tran-th-ui">Edit</th>
-                  <th className="global-tran-th-ui">Delete</th>
-                </tr>
+          <SearchGlobalReferenceTable
+            docType={docType}     // ✅ add this
+            columns={coaColumns}
+            data={coaTableData}
+            itemsPerPage={50}
+            showFilters
+            isLoading={loading}
+            onRowDoubleClick={(row) => handleEditAccount(row)}
+          />
 
-                {/* Filter Row */}
-                <tr>
-                  <th className="global-tran-th-ui">
-                    <input
-                      className={filterInputClass}
-                      placeholder="Contains:"
-                      value={columnFilters.acctCode}
-                      onChange={(e) => {
-                        setColumnFilters((s) => ({ ...s, acctCode: e.target.value }));
-                        setPage(1);
-                      }}
-                    />
-                  </th>
+          <SearchCOAClassRef
+            isOpen={isCOAClassLookupOpen}
+            onClose={(picked) => {
+              setIsCOAClassLookupOpen(false);
+              if (!picked) return;
 
-                  <th className="global-tran-th-ui">
-                    <input
-                      className={filterInputClass}
-                      placeholder="Contains:"
-                      value={columnFilters.acctName}
-                      onChange={(e) => {
-                        setColumnFilters((s) => ({ ...s, acctName: e.target.value }));
-                        setPage(1);
-                      }}
-                    />
-                  </th>
+              // ✅ store CODE (for saving), but UI shows NAME via codeToName()
+              setField("classCode", picked.classCode);
+            }}
+          />
 
-                  <th className="global-tran-th-ui">
-                    <input
-                      className={filterInputClass}
-                      placeholder="Contains:"
-                      value={columnFilters.acctType}
-                      onChange={(e) => {
-                        setColumnFilters((s) => ({ ...s, acctType: e.target.value }));
-                        setPage(1);
-                      }}
-                    />
-                  </th>
 
-                  <th className="global-tran-th-ui">
-                    <input
-                      className={filterInputClass}
-                      placeholder="Contains:"
-                      value={columnFilters.acctGroup}
-                      onChange={(e) => {
-                        setColumnFilters((s) => ({ ...s, acctGroup: e.target.value }));
-                        setPage(1);
-                      }}
-                    />
-                  </th>
 
-                  <th className="global-tran-th-ui">
-                    <select
-                      className={filterInputClass}
-                      value={columnFilters.acctBalance}
-                      onChange={(e) => {
-                        setColumnFilters((s) => ({ ...s, acctBalance: e.target.value }));
-                        setPage(1);
-                      }}
-                    >
-                      <option value="">All</option>
-                      <option value="Debit">Debit</option>
-                      <option value="Credit">Credit</option>
-                    </select>
-                  </th>
-
-                  <th className="global-tran-th-ui">
-                    <select
-                      className={filterInputClass}
-                      value={columnFilters.reqSL}
-                      onChange={(e) => {
-                        setColumnFilters((s) => ({ ...s, reqSL: e.target.value }));
-                        setPage(1);
-                      }}
-                    >
-                      <option value="">All</option>
-                      <option value="Yes">Yes</option>
-                      <option value="No">No</option>
-                    </select>
-                  </th>
-
-                  <th className="global-tran-th-ui">
-                    <select
-                      className={filterInputClass}
-                      value={columnFilters.reqRC}
-                      onChange={(e) => {
-                        setColumnFilters((s) => ({ ...s, reqRC: e.target.value }));
-                        setPage(1);
-                      }}
-                    >
-                      <option value="">All</option>
-                      <option value="Yes">Yes</option>
-                      <option value="No">No</option>
-                    </select>
-                  </th>
-
-                  <th className="global-tran-th-ui">
-                    <input
-                      className={filterInputClass}
-                      placeholder="Contains:"
-                      value={columnFilters.classCode}
-                      onChange={(e) => {
-                        setColumnFilters((s) => ({ ...s, classCode: e.target.value }));
-                        setPage(1);
-                      }}
-                    />
-                  </th>
-
-                  <th className="global-tran-th-ui">
-                    <input
-                      className={filterInputClass}
-                      placeholder="Contains:"
-                      value={columnFilters.fsConsoCode}
-                      onChange={(e) => {
-                        setColumnFilters((s) => ({ ...s, fsConsoCode: e.target.value }));
-                        setPage(1);
-                      }}
-                    />
-                  </th>
-
-                  <th className="global-tran-th-ui">
-                    <input
-                      className={filterInputClass}
-                      placeholder="Contains:"
-                      value={columnFilters.oldCode}
-                      onChange={(e) => {
-                        setColumnFilters((s) => ({ ...s, oldCode: e.target.value }));
-                        setPage(1);
-                      }}
-                    />
-                  </th>
-
-                  <th className="global-tran-th-ui">
-                    <select
-                      className={filterInputClass}
-                      value={columnFilters.active}
-                      onChange={(e) => {
-                        setColumnFilters((s) => ({ ...s, active: e.target.value }));
-                        setPage(1);
-                      }}
-                    >
-                      <option value="">All</option>
-                      <option value="Yes">Yes</option>
-                      <option value="No">No</option>
-                    </select>
-                  </th>
-
-                  <th className="global-tran-th-ui"></th>
-                  <th className="global-tran-th-ui"></th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={13} className="global-ref-norecords-ui">
-                      Loading...
-                    </td>
-                  </tr>
-                ) : pageRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={13} className="global-ref-norecords-ui">
-                      No records found
-                    </td>
-                  </tr>
-                ) : (
-                  pageRows.map((row) => (
-                    <tr
-                      key={row.acctCode}
-                      className={`global-tran-tr-ui ${selectedAccount?.acctCode === row.acctCode ? "bg-blue-50" : ""
-                        }`}
-                      onClick={() => setSelectedAccount(row)}
-                      onDoubleClick={() => handleEditAccount(row)}
-                    >
-                      <td className="global-tran-td-ui">{row.acctCode}</td>
-                      <td className="global-tran-td-ui">{row.acctName}</td>
-                      <td className="global-tran-td-ui">{codeToName(accountTypes, row.acctType)}</td>
-                      <td className="global-tran-td-ui">{codeToName(accountGroups, row.acctGroup)}</td>
-                      <td className="global-tran-td-ui">{row.acctBalance}</td>
-                      <td className="global-tran-td-ui">{row.reqSL === "Y" ? "Yes" : "No"}</td>
-                      <td className="global-tran-td-ui">{row.reqRC === "Y" ? "Yes" : "No"}</td>
-                      <td className="global-tran-td-ui">{row.classCode}</td>
-                      {/* <td className="global-tran-td-ui">{row.fsConsoCode}</td> */}
-                      <td className="global-tran-td-ui">{row.oldCode}</td>
-                      <td className="global-tran-td-ui">
-                        <span
-                          className={`inline-block rounded-full px-2 py-1 text-xs font-bold ${row.active === "Y" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                            }`}
-                        >
-                          {row.active === "Y" ? "Yes" : "No"}
-                        </span>
-                      </td>
-
-                      <td className="global-tran-td-ui text-center">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEditAccount(row);
-                          }}
-                          className="global-tran-td-button-add-ui"
-                          title="Edit"
-                        >
-                          <FontAwesomeIcon icon={faEdit} />
-                        </button>
-                      </td>
-
-                      <td className="global-tran-td-ui text-center">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedAccount(row);
-                            setTimeout(() => handleDeleteAccount(), 0);
-                          }}
-                          className="global-tran-td-button-delete-ui"
-                          title="Delete"
-                        >
-                          <FontAwesomeIcon icon={faTrashAlt} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-
-            {/* Pagination */}
-            <div className="flex items-center justify-between p-3">
-              <div className="text-xs opacity-80 font-semibold">Total Records: {filtered.length}</div>
-
-              <div className="flex items-center gap-2">
-                <select
-                  className="px-7 py-2 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150"
-                  value={pageSize}
-                  onChange={(e) => {
-                    setPageSize(Number(e.target.value));
-                    setPage(1);
-                  }}
-                >
-                  {[10, 20, 50, 100].map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-
-                <div className="text-xs opacity-80 font-semibold">
-                  Page {page} / {totalPages}
-                </div>
-
-                <button
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className="px-7 py-2 text-xs font-medium text-blue-800 bg-white border rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150"
-                >
-                  Prev
-                </button>
-
-                <button
-                  disabled={page >= totalPages}
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  className="px-7 py-2 text-xs font-medium text-blue-800 bg-white border rounded-md hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

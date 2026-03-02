@@ -10,12 +10,19 @@ import {
     faPlus,
     faSave,
     faUndo,
+    faPenToSquare,
+    faBackwardFast,
+    faChevronLeft,
+    faChevronRight,
+    faForwardFast,
+    faTrash
 } from "@fortawesome/free-solid-svg-icons";
 
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import ButtonBar from "@/NAYSA Cloud/Global/ButtonBar";
 import CustomerMastLookupModal from "@/NAYSA Cloud/Lookup/SearchCustMast.jsx";
 import AttachFileModal from "@/NAYSA Cloud/Lookup/AttachFileModal.jsx";
+import AllTranDocNo from "@/NAYSA Cloud/Lookup/SearchDocNo.jsx";
 // ✅ FIXED PATHS (as you requested: MasterData/CustMastTabs under Reference File)
 import PayeeSetupTab from "@/NAYSA Cloud/Master Data/CustMastTabs/PayeeSetupTab";
 import PayeeMasterDataTab from "@/NAYSA Cloud/Master Data/CustMastTabs/PayeeMasterDataTab";
@@ -60,6 +67,9 @@ const CustMast = () => {
     const [selectedCustCode, setSelectedCustCode] = useState("");
     const [isEditing, setIsEditing] = useState(false);
     const [isAttachOpen, setIsAttachOpen] = useState(false);
+
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
+    
     const documentNo = useMemo(() => {
         if (!form) return "";
         const code = form.custCode || form.vendCode || "";
@@ -86,6 +96,48 @@ const CustMast = () => {
     const [masterFilters, setMasterFilters] = useState({});
     const [masterAllRows, setMasterAllRows] = useState([]);
     const [masterRows, setMasterRows] = useState([]);
+
+    const currentCode = useMemo(
+        () => String(form?.custCode || "").trim(),
+        [form]
+    );
+
+    const indexInRows = useMemo(() => {
+        if (!currentCode) return -1;
+        return masterRows.findIndex(
+            (r) =>
+                String(r?.custCode || "").trim().toUpperCase() ===
+                currentCode.toUpperCase()
+        );
+    }, [masterRows, currentCode]);
+
+    const navOpen = async (targetCode) => {
+        const code = String(targetCode || "").trim();
+        if (!code) return;
+        setActiveTab("setup");
+        setIsEditing(false);
+        await fetchCustomerByCode(code);
+    };
+
+    const goFirst = async () => {
+        if (!masterRows.length) return;
+        await navOpen(masterRows[0]?.custCode);
+    };
+
+    const goLast = async () => {
+        if (!masterRows.length) return;
+        await navOpen(masterRows[masterRows.length - 1]?.custCode);
+    };
+
+    const goPrev = async () => {
+        if (indexInRows <= 0) return;
+        await navOpen(masterRows[indexInRows - 1]?.custCode);
+    };
+
+    const goNext = async () => {
+        if (indexInRows < 0 || indexInRows >= masterRows.length - 1) return;
+        await navOpen(masterRows[indexInRows + 1]?.custCode);
+    };
 
     // Lookup modal
     const [isCustLookupOpen, setIsCustLookupOpen] = useState(false);
@@ -196,62 +248,115 @@ const CustMast = () => {
     };
 
     const upsertCustomer = async () => {
-        if (!form.custCode?.trim()) {
-            return Swal.fire("Required", "Payee Code is required.", "warning");
-        }
-        if (!form.custName?.trim()) {
-            return Swal.fire("Required", "Registered Name is required.", "warning");
-        }
+        const code = String(form?.custCode || "").trim();
 
         setIsLoading(true);
+
         try {
             const payload = {
-                json_data: {
-                    custCode: form.custCode,
-                    custName: form.custName,
-                    businessName: form.businessName,
-                    firstName: form.firstName,
-                    middleName: form.middleName,
-                    lastName: form.lastName,
-                    taxClass: form.taxClass,
-                    custAddr1: form.custAddr1,
-                    custAddr2: form.custAddr2,
-                    custAddr3: form.custAddr3,
-                    custZip: form.custZip,
-                    custTin: form.custTin,
-                    branchCode: form.branchCode,
-                    custContact: form.custContact,
-                    custPosition: form.custPosition,
-                    custTelno: form.custTelno,
-                    custMobileno: form.custMobileno,
-                    custEmail: form.custEmail,
-                    custSince: form.custSince,
-                    source: form.source,
-                    currCode: form.currCode,
-                    vatCode: form.vatCode,
-                    atcCode: form.atcCode,
-                    paytermCode: form.paytermCode,
-                    billtermCode: form.paytermCode,
-                    sltypeCode: form.sltypeCode,
-                    active: form.active,
-                    oldCode: form.oldCode,
-                    userCode: "", // optional
-                },
+                action: selectedCustCode ? "edit" : "add",
+
+                custCode: code,
+                custName: form.custName || "",
+                businessName: form.businessName || "",
+
+                firstName: form.firstName || "",
+                middleName: form.middleName || "",
+                lastName: form.lastName || "",
+
+                taxClass: form.taxClass || "",
+
+                custAddr1: form.custAddr1 || "",
+                custAddr2: form.custAddr2 || "",
+                custAddr3: form.custAddr3 || "",
+                custZip: form.custZip || "",
+                custTin: form.custTin || "",
+
+                branchCode: form.branchCode || "",
+                custContact: form.custContact || "",
+                custPosition: form.custPosition || "",
+                custTelno: form.custTelno || "",
+                custMobileno: form.custMobileno || "",
+                custEmail: form.custEmail || "",
+
+                source: form.source || "",
+                currCode: form.currCode || "",
+                vatCode: form.vatCode || "",
+                atcCode: form.atcCode || "",
+                paytermCode: form.paytermCode || "",
+
+                sltypeCode: "CU",
+                active: form.active || "Y",
+                oldCode: form.oldCode || "",
             };
 
-            await apiClient.post("/upsertCustomer", {
-                json_data: JSON.stringify(payload),
+            const res = await apiClient.post("/upsertCustomer", {
+                json_data: payload,
             });
 
-            Swal.fire("Saved", "Payee saved successfully.", "success");
-            setSelectedCustCode(form.custCode);
-            setIsEditing(false); // 🔒 LOCK AFTER SAVE
+            // ✅ SQL VALIDATION (same as VendMast)
+            const rows = res?.data?.data || [];
+            const r0 = rows[0] || {};
+
+            const errorCount = Number(r0.errorcount ?? 0);
+            const errorMsg = String(r0.errormsg ?? "");
+
+            if (errorCount > 0) {
+                await Swal.fire({
+                    icon: "error",
+                    title: "Missing Required Field(s)",
+                    text: errorMsg,
+                });
+                return;
+            }
+
+            await Swal.fire("Saved", "Customer saved successfully.", "success");
+
+            setSelectedCustCode(code);
+            pushRecent(code); // ✅ recent memory
+            setIsEditing(false);
+
             await loadMasterList();
+
         } catch (e) {
             console.error(e);
-            Swal.fire("Error", "Failed to save payee.", "error");
+            Swal.fire("Error", "Failed to save customer.", "error");
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleEdit = () => {
+        if (!form.custCode) {
+            return Swal.fire("Info", "Select a record first.", "info");
+        }
+        setIsEditing(true);
+    };
+
+    const handleDelete = async () => {
+        if (!form.custCode) {
+            return Swal.fire("Info", "Select a record first.", "info");
+        }
+
+        const confirm = await Swal.fire({
+            title: "Delete?",
+            text: "Are you sure you want to delete this record?",
+            icon: "warning",
+            showCancelButton: true,
+        });
+
+        if (!confirm.isConfirmed) return;
+
+        try {
+            await apiClient.post("/deleteCustomer", {
+                CUST_CODE: form.custCode,
+            });
+
+            Swal.fire("Deleted", "Customer deleted.", "success");
+            handleResetSetup();
+            await loadMasterList();
+        } catch (e) {
+            Swal.fire("Error", "Failed to delete.", "error");
         }
     };
 
@@ -294,9 +399,17 @@ const CustMast = () => {
     };
 
     const handleAdd = () => {
+        const nextCode = generateNextCustomerCode(masterAllRows);
+
         setSelectedCustCode("");
-        setForm({ ...emptyForm });
-        setIsEditing(true); // ✅ EDIT MODE
+
+        setForm({
+            ...emptyForm,
+            custCode: nextCode,
+            __isNew: true,
+        });
+
+        setIsEditing(true);
         setActiveTab("setup");
     };
 
@@ -343,41 +456,43 @@ const CustMast = () => {
         await fetchCustomerByCode(code); // POST /getCustMast (your customer fetch)
     };
 
+    /* -------------------- CODE SERIES -------------------- */
+    const PREFIX = "CU";
+
+    const generateNextCustomerCode = (rows = []) => {
+        const candidates = (Array.isArray(rows) ? rows : [])
+            .map((r) => String(r?.custCode ?? "").trim())
+            .filter(Boolean)
+            .filter((code) => code.startsWith(PREFIX));
+
+        if (!candidates.length) return `${PREFIX}000001`;
+
+        const nums = candidates
+            .map((code) => parseInt(code.slice(PREFIX.length), 10))
+            .filter((n) => !Number.isNaN(n));
+
+        const max = nums.length ? Math.max(...nums) : 0;
+
+        return `${PREFIX}${String(max + 1).padStart(6, "0")}`;
+    };
+    /* ----------------------------------------------------- */
+
 
     const headerButtons = useMemo(() => {
         if (activeTab !== "setup") return [];
 
-        return [
-            {
-                key: "add",
-                label: "Add",
-                icon: faPlus,
-                onClick: handleAdd,
-                disabled: isLoading,
-            },
-            {
-                key: "save",
-                label: "Save",
-                icon: faSave,
-                onClick: upsertCustomer,
-                disabled: isLoading,
-            },
-            {
-                key: "reset",
-                label: "Reset",
-                icon: faUndo,
-                onClick: handleResetSetup,
-                disabled: isLoading,
-            },
-            {
-                key: "attach",
-                label: "Attach File",
-                icon: faPaperclip,
-                onClick: handleOpenAttach,
-            },
+        const hasRecord =
+            String(form?.custCode || "").trim() && !form.__isNew;
 
+        return [
+            { key: "add", label: "Add", icon: faPlus, onClick: handleAdd, disabled: isLoading },
+            { key: "edit", label: "Edit", icon: faPenToSquare, onClick: handleEdit, disabled: isLoading },
+            { key: "save", label: "Save", icon: faSave, onClick: upsertCustomer, disabled: isLoading || !isEditing },
+            { key: "reset", label: "Reset", icon: faUndo, onClick: handleResetSetup, disabled: isLoading },
+            { key: "attach", label: "Attach File", icon: faPaperclip, onClick: handleOpenAttach, disabled: isLoading, variant: "ghost" },
+            { key: "delete", label: "Delete", icon: faTrash, onClick: handleDelete, disabled: isLoading || isEditing || !hasRecord, variant: "danger" },
         ];
-    }, [activeTab, isLoading]);
+    }, [activeTab, isLoading, isEditing, form]);
 
     return (
         <div className="global-ref-main-div-ui mt-24">
@@ -405,7 +520,13 @@ const CustMast = () => {
                     ))}
                 </div>
 
-                <div className="flex gap-2 justify-center text-xs">
+                {/* <div className="flex gap-2 justify-center text-xs">
+                    {!!headerButtons.length && <ButtonBar buttons={headerButtons} />}
+                </div> */}
+                <div className="flex gap-2 justify-center text-xs items-center">
+
+
+
                     {!!headerButtons.length && <ButtonBar buttons={headerButtons} />}
                 </div>
             </div>
@@ -426,10 +547,7 @@ const CustMast = () => {
                             { value: "", label: "ALL" },
                             { value: "AG", label: "AGENCY" },
                             { value: "CU", label: "CUSTOMER" },
-                            { value: "EM", label: "EMPLOYEE" },
                             { value: "OT", label: "OTHERS" },
-                            { value: "SU", label: "SUPPLIER" },
-                            { value: "TN", label: "TENANT" },
                         ]}
 
                         sourceOptions={[
@@ -442,6 +560,7 @@ const CustMast = () => {
                         ]}
                         onChangeForm={updateForm}
                         onSelectCustomerCode={fetchCustomerByCode}   // ✅ ADD THIS
+                        onSearchCode={() => setIsSearchOpen(true)}
                     />
 
                 )}
@@ -449,8 +568,8 @@ const CustMast = () => {
                 {activeTab === "master" && (
                     <PayeeMasterDataTab
                         isLoading={isLoading}
-                        subsidiaryType={subsidiaryType}
-                        onChangeSubsidiaryType={setSubsidiaryType}
+                        subsidiaryType="CU"          // ✅ FORCE CUSTOMER MODE
+                        onChangeSubsidiaryType={() => { }}  // disable change
                         filters={masterFilters}
                         onChangeFilter={handleChangeMasterFilter}
                         rows={masterRows}
@@ -461,7 +580,6 @@ const CustMast = () => {
                         onRowDoubleClick={handleMasterRowDoubleClick}
                     />
                 )}
-
                 {activeTab === "ref" && <ReferenceCodesTab variant="customer" />}
 
             </div>
@@ -479,6 +597,33 @@ const CustMast = () => {
                 branch={form.branchCode || "HO"}
                 documentNo={documentNo}
                 rows={attachmentRows} // later from API
+            />
+
+            <AllTranDocNo
+                isOpen={isSearchOpen}
+                onClose={() => setIsSearchOpen(false)}
+                source="customer"
+                params={{
+                    branchCode: form.branchCode || "HO",
+                    branchName: form.branchCode || "HO",
+                    documentTitle: "Customer Lookup",
+                    docType: "CUSTOMER",
+                    fieldNo: "custCode",
+                }}
+                docNo={form.custCode}
+                onRetrieve={({ docNo, key }) => {
+                    if (key === "F") goFirst();
+                    else if (key === "P") goPrev();
+                    else if (key === "N") goNext();
+                    else if (key === "L") goLast();
+                    else fetchVendorByCode(docNo);
+
+                    setIsSearchOpen(false);
+                }}
+                onSelected={({ docNo }) => {
+                    fetchCustomerByCode(docNo);
+                    setIsSearchOpen(false);
+                }}
             />
 
         </div>

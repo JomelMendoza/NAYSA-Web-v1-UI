@@ -119,7 +119,7 @@ export const useTransactionUpsert = async (docCode, glData, updateState, idKey, 
                 const wasNewDocCreated = !glData[idKey] && !!returnedId;
                 if (returnedErrorMsg && returnedErrorCount >0) {
                   useSwalValidationAlert({
-                        icon: "error",
+                        icon: "info",
                         title: "Save Failed",
                         message: returnedErrorMsg || "An error occurred while saving the Transaction"
                       });    
@@ -288,10 +288,6 @@ export const useUpdateRowEditEntries = async (row, field, value,currCode,currRat
 // global update of GL Entries per record
 export const useFetchTranData = async (documentNo,branchCode,docType,fieldName,direction='') => {
 
-  
-if ((!documentNo || !branchCode) && direction === '') {
-    throw new Error("Document No. or Branch Code missing.");
-  }
 
   const response = await fetchData(`get${docType}?${fieldName}=${documentNo}&branchCode=${branchCode}&direction=${direction}`);
   if (!response?.success || !response.data?.length) {
@@ -382,6 +378,7 @@ export async function useHandleCancel(docCode, documentID, userCode, password, r
 
   try {
 
+    console.log(payload)
     const { data: res } = await apiClient.post("/cancel"+docCode, payload);
     if (res?.status === "success" || res?.success) {
       // You can standardize the return here
@@ -438,24 +435,36 @@ export async function useHandlePost(documentID, docCode) {
 
 
 
-//use global posting from Post Tran
-export const useHandlePostTran = async (selectedData, userPw,docCode,userCode,setLoading,onClose) => {
+// use global posting from Post Tran
+export const useHandlePostTran = async (
+  selectedData,
+  userPw,
+  docCode,
+  userCode,
+  setLoading,
+  onClose
+) => {
 
   setLoading(true);
 
   try {
+
+ 
+
     const payload = {
       userCode,
       userPassword: userPw,
       json_data: {
         userCode,
-        dt1: selectedData.map((groupId, idx) => ({
+        dt1: selectedData.map((item, idx) => ({
           lnNo: idx + 1, // number (safer for SQL)
-          groupId,
+          groupId: item.groupId
         })),
       },
     };
 
+    console.log(JSON.stringify(payload))
+ 
     const { data: res } = await apiClient.post("/finalize"+docCode, payload);
 
     if (res?.success) {
@@ -469,18 +478,25 @@ export const useHandlePostTran = async (selectedData, userPw,docCode,userCode,se
       return;
     }
 
+
+
     // 200 but success=false
     Swal.fire("Posting failed", res?.message ?? "Finalize failed.", "error");
 
   } catch (err) {
+
+    // ❌ LOG ERROR IN DETAIL
+    console.group("❌ FINALIZE ERROR");
+    console.error("error object:", err);
+    console.error("status:", err?.response?.status);
+    console.error("response data:", err?.response?.data);
+    console.groupEnd();
+
     const status = err?.response?.status;
     const data   = err?.response?.data || {};
     const code   = data.error || "";
     const msg    = data.message || "Something went wrong.";
 
-   
-
-    // --- Soft/business validation (do NOT logout) ---
     if (status === 422) {
       if (code === "INVALID_CREDENTIALS") {
         Swal.fire("Invalid password", msg || "Please try again.", "warning");
@@ -492,15 +508,15 @@ export const useHandlePostTran = async (selectedData, userPw,docCode,userCode,se
       }
     }
 
-    // --- True permission issues (still no auto-logout here; interceptor handles that globally) ---
     if (status === 403 && (code === "USER_INACTIVE" || code === "USER_MISMATCH")) {
-      const title = code === "USER_INACTIVE" ? "Blocked" : "Blocked";
-      const text  = code === "USER_INACTIVE" ? (msg || "User is inactive.") : "Authenticated user does not match userCode.";
-      Swal.fire(title, text, "warning");
+      const text =
+        code === "USER_INACTIVE"
+          ? (msg || "User is inactive.")
+          : "Authenticated user does not match userCode.";
+      Swal.fire("Blocked", text, "warning");
       return { success: false, code, message: text };
     }
 
-    // Unknown errors
     Swal.fire("Error", msg, "error");
     return { success: false, code: code || "UNKNOWN", message: msg };
 
@@ -508,6 +524,7 @@ export const useHandlePostTran = async (selectedData, userPw,docCode,userCode,se
     setLoading(false);
   }
 };
+
 
 
 
