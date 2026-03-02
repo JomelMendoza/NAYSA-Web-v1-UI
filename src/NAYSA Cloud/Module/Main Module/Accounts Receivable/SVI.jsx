@@ -81,6 +81,9 @@ import {
 } from '@/NAYSA Cloud/Global/behavior';
 
 
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
+
+
 // Header
 import Header from '@/NAYSA Cloud/Components/Header';
 import { faAdd } from "@fortawesome/free-solid-svg-icons/faAdd";
@@ -120,7 +123,7 @@ const SVI = () => {
     glCurrGlobal3:"",
 
 
-    
+
     // Document information
     documentName: "",
     documentSeries: "Auto",
@@ -147,7 +150,7 @@ const SVI = () => {
 
 
     branchCode: currentUserRow.branchCode,
-    branchName: currentUserRow.billtermName,
+    branchName: currentUserRow.branchName,
     
     // Vendor information
     custCode: "",
@@ -471,18 +474,6 @@ useEffect(() => {
 
 
 
-
-
-
-
-  const LoadingSpinner = () => (
-    <div className="global-tran-spinner-main-div-ui">
-      <div className="global-tran-spinner-sub-div-ui">
-        <FontAwesomeIcon icon={faSpinner} spin size="2x" className="text-blue-500 mb-2" />
-        <p>Please wait...</p>
-      </div>
-    </div>
-  );
 
   
   const handleReset = () => {
@@ -1111,7 +1102,6 @@ useEffect(() => {
 
 
 
-
   const printData = {
     apv_no: documentNo,
     branch: branchCode,
@@ -1343,7 +1333,7 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
         const newATCAmount = row.atcCode ? await useTopATCAmount(row.atcCode, newNetOfVat) : 0;
 
         row.atcAmount = newATCAmount.toFixed(2);
-        row.amountDue = +(newNetDiscount - newATCAmount).toFixed(2);
+        row.sviAmount = +(newNetDiscount - newATCAmount).toFixed(2);
       }
 
       await updateVatAndAtc();

@@ -175,14 +175,11 @@ const JO = () => {
     refPrNo1: "",
     refPrNo2: "",
     remarks: "",
-    billtermCode: "",
-    billtermName: "",
     noReprints: "0",
     prCancelled: "",
     userCode: "NSI",
     prNo: "",
     prId: "",
-    sourcePrBranchCode: "",
 
     // Detail lines (PR dt1)
     detailRows: [],
@@ -208,7 +205,6 @@ const JO = () => {
 
 
     rcLookupModalOpen: false,
-    rcLookupContext: "", 
     vatLookupModalOpen: false,
   });
 
@@ -267,7 +263,6 @@ const JO = () => {
     selectedRowIndex,
     prNo,
     prId,
-    sourcePrBranchCode,
     showJobCodesModal,
     openPRJO_Data_Summary,
     openPRJO_Data_Detail,
@@ -447,7 +442,6 @@ const JO = () => {
       joCancelled: "",
       detailRows: [],
       rcLookupModalOpen: false,
-      rcLookupContext: "",
       selectedRowIndex: null,
     });
 
@@ -1626,7 +1620,6 @@ const handleClosePRLookup = async (selection) => {
                       !isFormDisabled &&
                       updateState({
                         rcLookupModalOpen: true,
-                        rcLookupContext: "reqDept",
                       })
                     }
                   >
@@ -1748,7 +1741,7 @@ const handleClosePRLookup = async (selection) => {
                     }
                     onBlur={handleCurrencyRateBlur}
                     placeholder=" "
-                    className="peer global-tran-textbox-ui"
+                    className="peer global-tran-textbox-ui text-right"
                     disabled={isFormDisabled || glCurrDefault === currCode}
                   />
                   <label
@@ -2513,7 +2506,7 @@ const handleClosePRLookup = async (selection) => {
     <GlobalCombinedLookup
         isOpen={showOpenPRModal}
         title="Open Purchase Requisition"
-        summarySelectionMode="single" 
+        summarySelectionMode="multiple" 
         detailSelectionMode="multiple"
         summaryColumns={openPRJO_Col_Summary} 
         detailColumns={openPRJO_Col_Detail}
