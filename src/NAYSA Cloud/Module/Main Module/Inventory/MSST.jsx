@@ -1599,11 +1599,11 @@ const handleCloseBranchModal = (selectedBranch) => {
                     itemSingleSelect : itemSingleSelect });
   
       const endpoint ="getInvLookupMS"
-      const response = await fetchDataJson(endpoint, { userCode, whouseCode :state.whouseCode || "", locCode: state.locCode || "", docType:"MSST" ,tranType :itemSingleSelect? "IRR" :selectedTranType });
+      const response = await fetchDataJson(endpoint, { userCode, whouseCode :state.fromWhCode || "", locCode: state.locCode || "", docType:"MSST" ,tranType :itemSingleSelect? "IRR" :selectedTranType });
       const custData = response?.data?.[0]?.result ? JSON.parse(response.data[0].result) : [];
   
 
-      const lookupTypes = ["BB", "IG"];  
+      const lookupTypes = ["IB", "IW"];  
       const colConfig = await useSelectedHSColConfig((lookupTypes.includes(selectedTranType) || itemSingleSelect) ? "AllMastItemLookup" : "getInvLookupMS");
 
 
@@ -1936,7 +1936,7 @@ return (
                 {/* Column 2 */}
                 <div className="global-tran-textbox-group-div-ui">
                     <div className="relative">
-                        <select id="ajType"
+                        <select id="tranType"
                             className="peer global-tran-textbox-ui"
                             value={selectedTranType}
                             onChange={(e) => updateState({ selectedTranType: e.target.value })}
@@ -1984,14 +1984,14 @@ return (
                <div className="relative group flex-[1.3]">
                    <input
                      type="text"
-                     id="WHcode"
-                     value={state.WHname || state.WHcode || ""}
+                     id="fromWhCode"
+                     value={state.fromWhCode || state.fromWhCode || ""}
                      readOnly
                      placeholder=" "
                      className="peer global-tran-textbox-ui"
                    />
                    <label
-                     htmlFor="WHcode"
+                     htmlFor="fromWhCode"
                      className="global-tran-floating-label"
                    >
                      <span className="text-red-500">*</span> From Warehouse 
@@ -2017,7 +2017,7 @@ return (
                    <input
                      type="text"
                      id="toWHCode"
-                     value={state.toWHname || state.toWHcode || ""}
+                     value={state.toWHCode || state.toWHcode || ""}
                      readOnly
                      placeholder=" "
                      className="peer global-tran-textbox-ui"
@@ -2147,7 +2147,7 @@ return (
             <tr>
               <th className="global-tran-th-ui">LN</th>
               <th className="global-tran-th-ui">Item Code</th>
-              <th className="global-tran-th-ui">Item Name</th>
+              <th className="global-tran-th-ui">Item Description</th>
               <th className="global-tran-th-ui">UOM</th>
               <th className="global-tran-th-ui" hidden={handleFieldBehavior("hiddenCAMode")}>Quantity</th>
               <th className="global-tran-th-ui">{handleColumnLabel("UnitCost")}</th>
