@@ -2506,7 +2506,7 @@ const handleClosePRLookup = async (selection) => {
     <GlobalCombinedLookup
         isOpen={showOpenPRModal}
         title="Open Purchase Requisition"
-        summarySelectionMode="multiple" 
+        summarySelectionMode="single" 
         detailSelectionMode="multiple"
         summaryColumns={openPRJO_Col_Summary} 
         detailColumns={openPRJO_Col_Detail}

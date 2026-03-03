@@ -56,6 +56,7 @@ export default function GLINQ() {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [hideNav, setHideNav] = useState(false);
+  const { companyInfo, currentUserRow } = useAuth();
 
   // ---------- Tabs ----------
   const tabConfigs = useMemo(() => {
@@ -139,8 +140,8 @@ export default function GLINQ() {
   // ---------- Filters (PER TAB) ----------
   const DEFAULT_FILTERS = useMemo(
     () => ({
-      branchCode: "001",
-      branchName: "Head Office",
+      branchCode: currentUserRow.branchCode,
+      branchName: currentUserRow.branchName,
 
       // account
       accCode: "",
@@ -163,12 +164,12 @@ export default function GLINQ() {
       rcNameEnd: "",
 
       // cutoff
-      cutoffCode: "",
-      cutoffName: "",
-      cutoffStartCode: "202401",
-      cutoffStartName: "202401",
-      cutoffEndCode: "202412",
-      cutoffEndName: "202412",
+      cutoffCode: companyInfo.cutoffCode,
+      cutoffName:companyInfo.cutoffName,
+      cutoffStartCode: companyInfo.cutoffCode,
+      cutoffStartName: companyInfo.cutoffName,
+      cutoffEndCode: companyInfo.cutoffCode,
+      cutoffEndName: companyInfo.cutoffName,
 
       // lookup
       showLookupModal: false,

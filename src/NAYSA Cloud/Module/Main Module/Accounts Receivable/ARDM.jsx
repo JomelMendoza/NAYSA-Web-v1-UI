@@ -1,6 +1,6 @@
 import { useState, useEffect,useRef,useCallback } from "react";
 import Swal from 'sweetalert2';
-import { useNavigate } from "react-router-dom";
+import { useNavigate,useLocation  } from "react-router-dom";
 
 // UI
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -75,6 +75,8 @@ import {
   useUpdateRowEditEntries,
   useFetchTranData,
   useHandleCancel,
+  useFieldLenghtCheck,
+  useGetFieldLength,
 } from '@/NAYSA Cloud/Global/procedure';
 
 
@@ -96,16 +98,30 @@ import { faAdd } from "@fortawesome/free-solid-svg-icons/faAdd";
 
 
 const ARDM = () => {
-   const loadedFromUrlRef = useRef(false);
-   const navigate = useNavigate();
-   const [topTab, setTopTab] = useState("details"); // "details" | "history"
-   const { user } = useAuth();
-   const { resetFlag } = useReset();
-   const [state, setState] = useState({
+
+    const loadedFromUrlRef = useRef(false);
+  const navigate = useNavigate();
+  const location = useLocation(); 
+  const { companyInfo, currentUserRow } = useAuth();
+  const [isViewDocument, setIsViewDocument] = useState(false);
+  useEffect(() => {
+    const p = new URLSearchParams(location.search);
+    if (p.get("viewDocument") === "true") {
+      setIsViewDocument(true);
+    }
+    }, []); 
+  const isViewDocumentUrl = isViewDocument;
+
+
+
+  const [topTab, setTopTab] = useState("details"); // "details" | "history"
+  const { user } = useAuth();
+  const { resetFlag } = useReset();
+  const [state, setState] = useState({
 
     // HS Option
     glCurrMode:"M",
-    glCurrDefault:"PHP",
+    glCurrDefault:companyInfo.currCode,
     withCurr2:false,
     withCurr3:false,
     glCurrGlobal1:"",
@@ -138,8 +154,8 @@ const ARDM = () => {
     isFetchDisabled: false,
 
 
-    branchCode: "HO",
-    branchName: "Head Office",
+    branchCode: currentUserRow.branchCode,
+    branchName: currentUserRow.branchName,
     
     // Vendor information
     custCode: "",
@@ -149,10 +165,10 @@ const ARDM = () => {
 
     
     // Currency information
-    currCode: "",
-    currName: "",
-    currRate: "",
-    defaultCurrRate:"1.000000",
+    currCode: companyInfo.currCode,
+    currName: companyInfo.currName,
+    currRate: formatNumber(companyInfo.currRate,6),
+    defaultCurrRate:formatNumber(companyInfo.currRate,6),
 
 
     //Other Header Info
@@ -171,7 +187,7 @@ const ARDM = () => {
     remarks: "",
 
     selectedARDMType : "ARDM01",
-    userCode: user.USER_CODE, 
+    userCode: currentUserRow.userCode, 
 
     //Detail 1-2
     detailRows  :[],
@@ -270,6 +286,7 @@ const ARDM = () => {
 
 
   // Transaction details
+  tblFieldArray,
   detailRows,
   detailRowsGL,
   globalLookupRow,
@@ -455,10 +472,13 @@ useEffect(() => {
   const handleReset = () => { 
       updateState({
 
-      branchCode: "HO",
-      branchName: "Head Office",
-      userCode: user.USER_CODE, 
+      branchCode: currentUserRow.branchCode,
+      branchName: currentUserRow.branchName,
+      userCode:currentUserRow.userCode,
       documentDate:useGetCurrentDay(),
+      currCode:companyInfo.currCode,
+      currName:companyInfo.currName,
+      currRate:formatNumber(companyInfo.currRate,6) ,
       selectedARDMType : "ARDM01",
       noReprints:"0",
 
@@ -561,6 +581,18 @@ useEffect(() => {
           });
         }
       }
+
+ 
+
+     const tbls = 'ardm_hd,ardm_dt1,ardm_dt2'
+     const hdtblcol_result = await useFieldLenghtCheck(tbls);
+     if (hdtblcol_result){
+       updateState({tblFieldArray :hdtblcol_result })
+     }
+           
+
+
+
     } catch (err) {
       console.error("Error fetching data:", err);
     }
@@ -1057,32 +1089,36 @@ if (selectedARDMType !== "ARDM02" || !detailRows?.length) {
 
   
   
-    //  ** View Document and Transaction History Retrieval ***
-     const cleanUrl = useCallback(() => {
-        navigate(location.pathname, { replace: true });
-      }, [navigate, location.pathname]);
-    
-    
-      const handleHistoryRowPick = useCallback((row) => {
-        const docNo = row?.docNo;
-        const branchCode = row?.branchCode;
-        if (!docNo || !branchCode) return;
-        fetchTranData(docNo, branchCode);
-        setTopTab("details");
-      });
-    
-    
-      useEffect(() => {
-        const params = new URLSearchParams(location.search);
-        const docNo = params.get("ardmNo");         
-        const branchCode = params.get("branchCode");    
-        
-        if (!loadedFromUrlRef.current && docNo && branchCode) {
-          loadedFromUrlRef.current = true;
-          handleHistoryRowPick({ docNo, branchCode });
-          cleanUrl();
-        }
-      }, [location.search, handleHistoryRowPick, cleanUrl]);
+//  ** View Document and Transaction History Retrieval ***
+const cleanUrl = useCallback(() => {
+  window.history.replaceState({}, "", window.location.origin);
+}, []);
+
+const handleHistoryRowPick = useCallback(
+  async (row) => {
+    const docNo = row?.docNo;
+    const branchCode = row?.branchCode;
+    if (!docNo || !branchCode) return;
+
+    await fetchTranData(docNo, branchCode); 
+    setTopTab("details");
+    cleanUrl(); // 
+  },
+  [fetchTranData, cleanUrl]
+);
+
+
+useEffect(() => {
+  const params = new URLSearchParams(location.search);
+  const docNo = params.get("ardmNo");
+  const branchCode = params.get("branchCode");
+
+  if (!loadedFromUrlRef.current && docNo && branchCode) {
+    loadedFromUrlRef.current = true;
+    handleHistoryRowPick({ docNo, branchCode });
+  }
+}, [location.search, handleHistoryRowPick]);
+  
     
   
 
@@ -1284,7 +1320,7 @@ const handleFieldBehavior = (option) => {
  case "disableOnSaved" :
    return (
         isFormDisabled ||
-        (selectedARDMType !== "ARDM02" && state.documentNo !== "" )
+        (selectedARDMType !== "ARDM02" && state.documentID !== "" )
       );
 
 
@@ -1806,7 +1842,8 @@ const handleCloseBranchModal = (selectedBranch) => {
               onAttach={handleAttach}
               activeTopTab={topTab} 
               showActions={topTab === "details"} 
-              showBIRForm={false}      
+              showBIRForm={false}  
+              isViewDocument={isViewDocument}      
               onDetails={() => setTopTab("details")}
               onHistory={() => setTopTab("history")}
               disableRouteNavigation={true}         
@@ -2000,7 +2037,7 @@ const handleCloseBranchModal = (selectedBranch) => {
 
                     {/* Customer Name Display - Make this wider */}
                     <div className="relative w-full md:w-6/6 lg:w-4/4"> {/* Added width classes here */}
-                        <input type="text" id="custName" placeholder=" " value={custName} className="peer global-tran-textbox-ui"/>
+                        <input type="text" id="custName" placeholder=" " value={custName} className="peer global-tran-textbox-ui" readOnly/>
                         <label htmlFor="custName"className="global-tran-floating-label">
                             <span className="global-tran-asterisk-ui"> * </span>Customer Name
                         </label>
@@ -2028,6 +2065,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                               <input type="text" 
                                 id="currName" 
                                 value={currName}  
+                                readOnly
                                 className="peer global-tran-textbox-ui"/>
 
                             <label htmlFor="currCode" className="global-tran-floating-label">Currency</label>
@@ -2087,6 +2125,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                             rows={6}
                             className="peer global-tran-textbox-remarks-ui pt-2"
                             value={remarks}
+                            maxLength={useGetFieldLength(tblFieldArray, "remarks")} 
                             onChange={(e) => updateState({ remarks: e.target.value })}
                             disabled={isFormDisabled} 
                         />
@@ -2114,6 +2153,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                               placeholder=" " 
                               onChange={(e) => updateState({ refDocNo1: e.target.value })} 
                               className="peer global-tran-textbox-ui " 
+                              maxLength={useGetFieldLength(tblFieldArray, "refardm_no1")} 
                               disabled={isFormDisabled} />
                         <label htmlFor="refDocNo1" className="global-tran-floating-label">Ref Doc No. 1</label>
                     </div>
@@ -2125,6 +2165,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                               placeholder=" " 
                               onChange={(e) => updateState({ refDocNo2: e.target.value })}  
                               className="peer global-tran-textbox-ui" 
+                              maxLength={useGetFieldLength(tblFieldArray, "refardm_no2")} 
                               disabled={isFormDisabled} />
                         <label htmlFor="refDocNo2" className="global-tran-floating-label">Ref Doc No. 2</label>
                     </div>     
@@ -2366,8 +2407,9 @@ const handleCloseBranchModal = (selectedBranch) => {
                     <input
                       type="text"
                       className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
-                        value={formatNumber(parseFormattedNumber(row.atcAmount)) || formatNumber(parseFormattedNumber(row.atcAmount)) || ""}
-                      onChange={(e) => handleDetailChange(index, 'ewtAmount', e.target.value)}
+                      readOnly
+                      value={formatNumber(parseFormattedNumber(row.atcAmount)) || formatNumber(parseFormattedNumber(row.atcAmount)) || ""}
+                      onChange={(e) => handleDetailChange(index, 'atcAmount', e.target.value)}
                     />
                 </td>
         
@@ -2809,6 +2851,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                             type="text"
                             className="w-[300px] global-tran-td-inputclass-ui"
                             value={row.particular || ""}
+                            readOnly
                             onChange={(e) => handleDetailChange(index, 'particular', e.target.value)}
                           />
                     </td>
@@ -2886,6 +2929,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                       type="text"
                       className="w-[200px] global-tran-td-inputclass-ui"
                       value={row.atcName || ""}
+                      readOnly
                       onChange={(e) => handleDetailChange(index, 'atcName', e.target.value)}
                     />
                   </td>
@@ -3101,7 +3145,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                       className="w-[100px] global-tran-td-inputclass-ui"
                       value={row.slRefNo || ""}
                       readOnly={handleFieldBehavior("CWTReversal")}
-                      maxLength={25}
+                       maxLength={useGetFieldLength(tblFieldArray, "slRefNo")} 
                       onChange={(e) => handleDetailChangeGL(index, 'slRefNo', e.target.value)}
                     />
                   </td>
@@ -3120,6 +3164,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                       type="text"
                       className="w-[100px] global-tran-td-inputclass-ui"
                       value={row.remarks ||  ""}
+                      maxLength={useGetFieldLength(tblFieldArray, "remarks")} 
                       readOnly={handleFieldBehavior("CWTReversal")}
                       onChange={(e) => handleDetailChangeGL(index, 'remarks', e.target.value)}
                     />

@@ -68,7 +68,7 @@ import VATRef from "./NAYSA Cloud/Reference File/VATRef.jsx";
 
 // --- QUERIES & LOOKUPS ---
 import AllTranHistory from "./NAYSA Cloud/Lookup/SearchGlobalTranHistory.jsx";
-import GLINQ from "./NAYSA Cloud/Query/GLInq/GLINQ.jsx";
+import GLINQ from "./NAYSA Cloud/Query/GLInq/GLInq.jsx";
 import ARINQ from "./NAYSA Cloud/Query/ARInq/ARINQ.jsx";
 import APINQ from "./NAYSA Cloud/Query/APInq/APINQ.jsx";
 import EWTINQ from "./NAYSA Cloud/Query/EWTInq/EWTINQ.jsx";

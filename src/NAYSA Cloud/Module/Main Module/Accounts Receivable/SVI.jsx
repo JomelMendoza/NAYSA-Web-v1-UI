@@ -2507,8 +2507,9 @@ return (
                     <input
                       type="text"
                       className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
-                        value={formatNumber(parseFormattedNumber(row.atcAmount)) || formatNumber(parseFormattedNumber(row.atcAmount)) || ""}
-                      onChange={(e) => handleDetailChange(index, 'ewtAmount', e.target.value)}
+                      readOnly
+                      value={formatNumber(parseFormattedNumber(row.atcAmount)) || formatNumber(parseFormattedNumber(row.atcAmount)) || ""}
+                      onChange={(e) => handleDetailChange(index, 'atcAmount', e.target.value)}
                     />
                 </td>
 
