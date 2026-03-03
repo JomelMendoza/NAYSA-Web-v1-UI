@@ -20,6 +20,7 @@ const Header = ({
   showBIRForm=true,
   showCopyForm=true,
   isViewDocument=false,
+  showPost=false,
 
   // action callbacks
   pdfLink, videoLink, onPrint, printData, onReset, onSave, onPost, onCancel, onCopy, onAttach,
@@ -150,10 +151,12 @@ const Header = ({
                 </div>
               )}
             </div>
-
+            
+             {showPost && (
             <button onClick={handlePost} className="px-3 py-2 text-xs font-medium rounded-md bg-green-600 text-white hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600">
               <FontAwesomeIcon icon={faExclamationTriangle} /> <span className="hidden lg:inline ml-2">Post</span>
             </button>
+             )}
             <button onClick={handleCancel} className="px-3 py-2 text-xs font-medium rounded-md bg-red-600 text-white hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600">
               <FontAwesomeIcon icon={faTimesCircle} /> <span className="hidden lg:inline ml-2">Cancel</span>
             </button>

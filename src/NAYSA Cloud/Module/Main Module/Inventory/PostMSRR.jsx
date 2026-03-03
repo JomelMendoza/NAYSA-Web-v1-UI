@@ -90,7 +90,7 @@ const PostMSRR = ({ isOpen, onClose, userCode }) => {
       return;
     }
 
-    const MSRR_VIEW_URL = "/tran-ms-msrrtran";
+    const MSRR_VIEW_URL = "/inventory/transactions/msrr";
     const url =
       `${window.location.origin}${MSRR_VIEW_URL}` +
       `?rrNo=${encodeURIComponent(rrNo)}&branchCode=${encodeURIComponent(branchCode)}`;

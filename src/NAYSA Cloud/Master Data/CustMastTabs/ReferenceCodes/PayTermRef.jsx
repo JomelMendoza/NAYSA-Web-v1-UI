@@ -2,14 +2,32 @@ import React, { useMemo } from "react";
 import RefMaintenance from "@/NAYSA Cloud/Master Data/CustMastTabs/ReferenceCodes/RefMaintenance";
 
 const normalizePayTermRow = (x) => {
-  const raw = (x?.advances ?? "").toString().trim().toUpperCase();
+  const rawAdv = (x?.advances ?? "").toString().trim().toUpperCase();
+  const rawAct = (x?.active ?? "").toString().trim().toUpperCase();
+
   return {
     code: x?.paytermCode ?? x?.payterm_code ?? "",
     name: x?.paytermName ?? x?.payterm_name ?? "",
-    daysDue: x?.daysDue ?? x?.days_due ?? x?.dueDays ?? x?.due_days ?? 0,
+
+    // keep as string for inputs, but normalize from API
+    daysDue:
+      x?.daysDue ??
+      x?.days_due ??
+      x?.dueDays ??
+      x?.due_days ??
+      "",
 
     // ✅ only "Y" or ""
-    advances: raw === "Y" ? "Y" : "",
+    advances: rawAdv === "Y" ? "Y" : "",
+
+    // ✅ active defaults to "Y"
+    active: rawAct === "N" ? "N" : "Y",
+
+    // ✅ KEEP REGISTRATION FIELDS
+    registeredBy: x?.registeredBy ?? x?.registered_by ?? "",
+    registeredDate: x?.registeredDate ?? x?.registered_date ?? "",
+    lastUpdatedBy: x?.lastUpdatedBy ?? x?.updatedBy ?? x?.updated_by ?? "",
+    lastUpdatedDate: x?.lastUpdatedDate ?? x?.updatedDate ?? x?.updated_date ?? "",
   };
 };
 
@@ -18,44 +36,100 @@ export default function PayTermRef() {
     () => ({
       code: "",
       name: "",
-      daysDue: 0,
-      advances: "", // ✅ default blank (No)
+      daysDue: 0,     // keep string for input
+      advances: "",    // default blank
+      active: "Y",     // default active
+      // userCode will be injected by RefMaintenance (and/or on Add if you applied the fix)
     }),
     []
   );
 
   return (
+    // <RefMaintenance
+    //   title="Payment Terms"
+    //   subtitle="Used in Payee Set-Up and AP/AR documents."
+    //   loadEndpoint="/payterm"
+    //   getEndpoint="/getPayterm"
+    //   upsertEndpoint="/upsertPayterm"
+    //   deleteEndpoint="/deletePayterm"
+    //   getParamKey="paytermCode"
+    //   codeLabel="Pay Term Code"
+    //   nameLabel="Pay Term Name"
+    //   emptyForm={emptyForm}
+    //   mapRow={normalizePayTermRow}
+
+    //   // AP Advances dropdown + column
+    //   extraColLabel="AP Advances"
+    //   extraKey="advances"
+    //   extraDefault=""
+    //   extraOptions={[
+    //     { value: "Y", label: "Y" },
+    //     { value: "", label: "" },
+    //   ]}
+
+    //   // Active column + field
+    //   showActive={true}
+    //   activeLabel="Active"
+    //   activeKey="active"
+    //   activeDefault="Y"
+    //   activeOptions={[
+    //     { value: "Y", label: "Yes" },
+    //     { value: "N", label: "No" },
+    //   ]}
+
+    //   buildUpsertPayload={(form) => {
+    //     const due = String(form.daysDue ?? "").trim();
+
+    //     return {
+    //       paytermCode: String(form.code ?? "").trim(),
+    //       paytermName: String(form.name ?? "").trim(),
+    //       dueDays: due === "" ? null : Number(due), // safe convert
+    //       advances: (form.advances ?? "").toString().trim().toUpperCase() === "Y" ? "Y" : "",
+    //       active: (form.active ?? "Y").toString().trim().toUpperCase() === "N" ? "N" : "Y",
+    //       userCode: form.userCode, // injected by RefMaintenance.save()
+    //     };
+    //   }}
+    // />
     <RefMaintenance
       title="Payment Terms"
       subtitle="Used in Payee Set-Up and AP/AR documents."
+
       loadEndpoint="/payterm"
       getEndpoint="/getPayterm"
       upsertEndpoint="/upsertPayterm"
       deleteEndpoint="/deletePayterm"
       getParamKey="paytermCode"
+
       codeLabel="Pay Term Code"
       nameLabel="Pay Term Name"
+      daysLabel="Due Days"
+
+      codeKey="code"
+      nameKey="name"
+      daysKey="daysDue"
+
       emptyForm={emptyForm}
       mapRow={normalizePayTermRow}
 
-      // ✅ AP Advances dropdown + column (Yes or blank only)
       extraColLabel="AP Advances"
       extraKey="advances"
-      extraDefault=""
-      extraOptions={[
-        { value: "Y", label: "Y" },
-        { value: "", label: "" },
-      ]}
+
+      showActive={true}
+      activeLabel="Active"
+      activeKey="active"
 
       buildUpsertPayload={(form) => ({
-        json_data: {
-          paytermCode: form.code,
-          paytermName: form.name,
-          dueDays: Number(form.daysDue || 0),
-
-          // ✅ send only "Y" or ""
-          advances: (form.advances ?? "").toString().trim().toUpperCase() === "Y" ? "Y" : "",
-        },
+        paytermCode: String(form.code ?? "").trim(),
+        paytermName: String(form.name ?? "").trim(),
+        dueDays:
+          String(form.daysDue ?? "").trim() === ""
+            ? null
+            : Number(form.daysDue),
+        advances:
+          (form.advances ?? "").toUpperCase() === "Y" ? "Y" : "",
+        active:
+          (form.active ?? "Y").toUpperCase() === "N" ? "N" : "Y",
+        userCode: form.userCode,
       })}
     />
   );

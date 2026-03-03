@@ -38,15 +38,15 @@ const ReferenceCodesTab = forwardRef(({ variant = "customer" }, ref) => {
 
   const [collapseNav, setCollapseNav] = useState(false);
 
-  const refTabs = useMemo(() => {
+  const refTabs = useMemo(() => {     
     // Customer = full list
     const full = [
       { id: "salesrep", label: "SalesRep Codes", icon: faUserTie },
       { id: "zone", label: "Zone Codes", icon: faMapMarkedAlt },
       { id: "area", label: "Area Codes", icon: faMapPin },
+      { id: "billingcodes", label: "Billing Codes", icon: faReceipt },
       { id: "custtype", label: "Customer Types", icon: faUsers },
       { id: "billingterm", label: "Billing Terms", icon: faReceipt },
-      { id: "bizstyle", label: "Business Style", icon: faBuilding },
       { id: "pricegroup", label: "Price Group", icon: faTags },
       
     ];

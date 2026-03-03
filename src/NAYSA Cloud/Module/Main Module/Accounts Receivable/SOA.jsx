@@ -1,6 +1,6 @@
 import { useState, useEffect,useRef,useCallback } from "react";
 import Swal from 'sweetalert2';
-import { useNavigate } from "react-router-dom";
+import { useNavigate,useLocation  } from "react-router-dom";
 
 // UI
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -20,8 +20,6 @@ import BillCodeLookupModal from "../../../Lookup/SearchBillCodeRef.jsx";
 import CancelTranModal from "../../../Lookup/SearchCancelRef.jsx";
 import AttachDocumentModal from "../../../Lookup/SearchAttachment.jsx";
 import DocumentSignatories from "../../../Lookup/SearchSignatory.jsx";
-import ARReportModal from "../../../Printing/ARReport.jsx";
-import GlobalLookupModalv1 from "../../../Lookup/SearchGlobalGLPostingv1.jsx";
 import AllTranHistory from "../../../Lookup/SearchGlobalTranHistory.jsx";
 import AllTranDocNo from "../../../Lookup/SearchDocNo.jsx";
 
@@ -71,6 +69,8 @@ import {
   useUpdateRowEditEntries,
   useFetchTranData,
   useHandleCancel,
+  useFieldLenghtCheck,
+  useGetFieldLength,
 } from '@/NAYSA Cloud/Global/procedure';
 
 
@@ -87,22 +87,40 @@ import {
 } from '@/NAYSA Cloud/Global/behavior';
 
 
+
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
+
+
 // Header
 import Header from '@/NAYSA Cloud/Components/Header';
 import { faAdd } from "@fortawesome/free-solid-svg-icons/faAdd";
 
 
 const SOA = () => {
+
    const loadedFromUrlRef = useRef(false);
-   const navigate = useNavigate();
-   const [topTab, setTopTab] = useState("details"); // "details" | "history"
-   const { user } = useAuth();
-   const { resetFlag } = useReset();
-   const [state, setState] = useState({
+  const navigate = useNavigate();
+  const location = useLocation(); 
+  const { companyInfo, currentUserRow } = useAuth();
+  const [isViewDocument, setIsViewDocument] = useState(false);
+  useEffect(() => {
+    const p = new URLSearchParams(location.search);
+    if (p.get("viewDocument") === "true") {
+      setIsViewDocument(true);
+    }
+    }, []); 
+  const isViewDocumentUrl = isViewDocument;
+
+
+
+  const [topTab, setTopTab] = useState("details"); // "details" | "history"
+  const { user } = useAuth();
+  const { resetFlag } = useReset();
+  const [state, setState] = useState({
 
     // HS Option
     glCurrMode:"M",
-    glCurrDefault:"PHP",
+    glCurrDefault:companyInfo.currCode,
     withCurr2:false,
     withCurr3:false,
     glCurrGlobal1:"",
@@ -136,8 +154,8 @@ const SOA = () => {
 
 
 
-    branchCode: "HO",
-    branchName: "Head Office",
+    branchCode: currentUserRow.branchCode,
+    branchName: currentUserRow.branchName,
     
     // Vendor information
     custCode: "",
@@ -145,13 +163,15 @@ const SOA = () => {
     attention: "",
     
     // Currency information
-    currCode: "",
-    currName: "",
-    currRate: "",
-    defaultCurrRate:"1.000000",
+    currCode: companyInfo.currCode,
+    currName: companyInfo.currName,
+    currRate: formatNumber(companyInfo.currRate,6),
+    defaultCurrRate:formatNumber(companyInfo.currRate,6),
+
 
 
     //Other Header Info
+    tblFieldArray :[],
     soaTypes :[],
     refDocNo1: "",
     refDocNo2: "",
@@ -161,8 +181,7 @@ const SOA = () => {
     billtermCode: "",
     billtermName: "",
     selectedSOAType : "REG",
-
-    userCode: user.USER_CODE, 
+    userCode: currentUserRow.userCode, 
 
     //Detail 1-2
     detailRows  :[],
@@ -244,6 +263,7 @@ const SOA = () => {
 
 
   // Transaction Header
+  tblFieldArray,
   branchCode,
   branchName,
   custCode,
@@ -450,26 +470,18 @@ useEffect(() => {
 
 
   
-
-
-  const LoadingSpinner = () => (
-    <div className="global-tran-spinner-main-div-ui">
-      <div className="global-tran-spinner-sub-div-ui">
-        <FontAwesomeIcon icon={faSpinner} spin size="2x" className="text-blue-500 mb-2" />
-        <p>Please wait...</p>
-      </div>
-    </div>
-  );
-
   
   const handleReset = () => {
 
       updateState({
 
-      branchCode: "HO",
-      branchName: "Head Office",
-      userCode:user.USER_CODE,
-      documentDate:useGetCurrentDay(),   
+      branchCode: currentUserRow.branchCode,
+      branchName: currentUserRow.branchName,
+      userCode:currentUserRow.userCode,
+      documentDate:useGetCurrentDay(),
+      currCode:companyInfo.currCode,
+      currName:companyInfo.currName,
+      currRate:formatNumber(companyInfo.currRate,6) ,
 
       refDocNo1: "",
       refDocNo2:"",
@@ -548,6 +560,17 @@ useEffect(() => {
           });
         }
       }
+
+
+      
+     const tbls = 'soa_hd,soa_dt1,soa_dt2'
+     const hdtblcol_result = await useFieldLenghtCheck(tbls);
+     if (hdtblcol_result){
+       updateState({tblFieldArray :hdtblcol_result })
+     }
+      
+
+
     } catch (err) {
       console.error("Error fetching data:", err);
     }
@@ -1037,32 +1060,36 @@ const handleCopy = async () => {
   
 
  
- //  ** View Document and Transaction History Retrieval ***
-  const cleanUrl = useCallback(() => {
-     navigate(location.pathname, { replace: true });
-   }, [navigate, location.pathname]);
- 
- 
-   const handleHistoryRowPick = useCallback((row) => {
-     const docNo = row?.docNo;
-     const branchCode = row?.branchCode;
-     if (!docNo || !branchCode) return;
-     fetchTranData(docNo, branchCode);
-     setTopTab("details");
-   });
- 
- 
-   useEffect(() => {
-     const params = new URLSearchParams(location.search);
-     const docNo = params.get("soaNo");         
-     const branchCode = params.get("branchCode");    
-     
-     if (!loadedFromUrlRef.current && docNo && branchCode) {
-       loadedFromUrlRef.current = true;
-       handleHistoryRowPick({ docNo, branchCode });
-       cleanUrl();
-     }
-   }, [location.search, handleHistoryRowPick, cleanUrl]);
+//  ** View Document and Transaction History Retrieval ***
+const cleanUrl = useCallback(() => {
+  window.history.replaceState({}, "", window.location.origin);
+}, []);
+
+const handleHistoryRowPick = useCallback(
+  async (row) => {
+    const docNo = row?.docNo;
+    const branchCode = row?.branchCode;
+    if (!docNo || !branchCode) return;
+
+    await fetchTranData(docNo, branchCode); 
+    setTopTab("details");
+    cleanUrl(); // 
+  },
+  [fetchTranData, cleanUrl]
+);
+
+
+useEffect(() => {
+  const params = new URLSearchParams(location.search);
+  const docNo = params.get("soaNo");
+  const branchCode = params.get("branchCode");
+
+  if (!loadedFromUrlRef.current && docNo && branchCode) {
+    loadedFromUrlRef.current = true;
+    handleHistoryRowPick({ docNo, branchCode });
+  }
+}, [location.search, handleHistoryRowPick]);
+
  
 
 
@@ -1296,7 +1323,7 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
         const newATCAmount = row.atcCode ? await useTopATCAmount(row.atcCode, newNetOfVat) : 0;
 
         row.atcAmount = newATCAmount.toFixed(2);
-        row.amountDue = +(newNetDiscount - newATCAmount).toFixed(2);
+        row.soaAmount = +(newNetDiscount - newATCAmount).toFixed(2);
       }
 
       await updateVatAndAtc();
@@ -1695,7 +1722,8 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
           onAttach={handleAttach}
           activeTopTab={topTab} 
           showActions={topTab === "details"} 
-          showBIRForm={false}      
+          showBIRForm={false}  
+          isViewDocument={isViewDocument}      
           onDetails={() => setTopTab("details")}
           onHistory={() => setTopTab("history")}
           disableRouteNavigation={true}         
@@ -1912,7 +1940,7 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                     </div>
 
                     <div className="relative">
-                        <input type="text" id="attention" placeholder=" " value={attention} onChange={(e) => updateState({ attention: e.target.value })} className="peer global-tran-textbox-ui" disabled={isFormDisabled} />
+                        <input type="text" id="attention" placeholder=" " value={attention} onChange={(e) => updateState({ attention: e.target.value })} className="peer global-tran-textbox-ui" disabled={isFormDisabled} maxLength={useGetFieldLength(tblFieldArray, "attention")} />
                         <label htmlFor="attention" className="global-tran-floating-label">Attention</label>
                     </div>
 
@@ -1980,12 +2008,12 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                 {/* Column 3 */}
                 <div className="global-tran-textbox-group-div-ui">
                     <div className="relative">
-                        <input type="text" id="refDocNo1"  value={refDocNo1} placeholder=" " onChange={(e) => updateState({ refDocNo1: e.target.value })} className="peer global-tran-textbox-ui " disabled={isFormDisabled} />
+                        <input type="text" id="refDocNo1"  value={refDocNo1} placeholder=" " onChange={(e) => updateState({ refDocNo1: e.target.value })} className="peer global-tran-textbox-ui " disabled={isFormDisabled} maxLength={useGetFieldLength(tblFieldArray, "refsoa_no2")} />
                         <label htmlFor="refDocNo1" className="global-tran-floating-label">Ref Doc No. 1</label>
                     </div>
 
                     <div className="relative">
-                        <input type="text" id="refDocNo2" value={refDocNo2} placeholder=" " onChange={(e) => updateState({ refDocNo2: e.target.value })}  className="peer global-tran-textbox-ui" disabled={isFormDisabled} />
+                        <input type="text" id="refDocNo2" value={refDocNo2} placeholder=" " onChange={(e) => updateState({ refDocNo2: e.target.value })}  className="peer global-tran-textbox-ui" disabled={isFormDisabled} maxLength={useGetFieldLength(tblFieldArray, "refsoa_no2")}/>
                         <label htmlFor="refDocNo2" className="global-tran-floating-label">Ref Doc No. 2</label>
                     </div>
 
@@ -2019,6 +2047,7 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                             value={remarks}
                             onChange={(e) => updateState({ remarks: e.target.value })}
                             disabled={isFormDisabled} 
+                            maxLength={useGetFieldLength(tblFieldArray, "remarks")} 
                         />
                         <label
                             htmlFor="remarks"
@@ -2176,7 +2205,9 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                     type="text"
                     className="w-[100px] global-tran-td-inputclass-ui"
                     value={row.billName || ""}
+                    readOnly={isFormDisabled}
                     onChange={(e) => handleDetailChange(index, 'billName', e.target.value)}
+                    maxLength={useGetFieldLength(tblFieldArray, "bill_name")}
                   />
                 </td>
 
@@ -2186,7 +2217,9 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                   type="text"
                   className="w-[100px] global-tran-td-inputclass-ui"
                   value={row.soaSpecs || ""}
+                  readOnly={isFormDisabled}
                   onChange={(e) => handleDetailChange(index, "soaSpecs", e.target.value)}
+                  maxLength={useGetFieldLength(tblFieldArray, "soa_specs")}
                 />
               </td>
 
@@ -2198,6 +2231,7 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                         type="text"
                         className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
                         value={row.quantity || ""}
+                        readOnly={isFormDisabled}
                         onChange={(e) => {
                             const inputValue = e.target.value;
                             const sanitizedValue = inputValue.replace(/[^0-9.]/g, '');
@@ -2239,6 +2273,7 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                     type="text"
                     className="w-[100px] text-center global-tran-td-inputclass-ui"
                     value={row.uomCode || ""}
+                    readOnly={isFormDisabled}
                     onChange={(e) => handleDetailChange(index, 'uomCode', e.target.value)}
                   />
                 </td>
@@ -2248,6 +2283,7 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                         type="text"
                         className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
                         value={row.unitPrice || ""}
+                        readOnly={isFormDisabled}
                         onChange={(e) => {
                             const inputValue = e.target.value;
                             const sanitizedValue = inputValue.replace(/[^0-9.]/g, '');
@@ -2298,6 +2334,7 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                     type="text"
                     className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
                     value={row.discRate || ""}
+                    readOnly={isFormDisabled}
                     onChange={(e) => {
                       const value = e.target.value;
                       if (/^\d{0,12}(\.\d{0,2})?$/.test(value) || value === "") {
@@ -2336,6 +2373,7 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                     type="text"
                     className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
                     value={row.discAmount || ""}
+                    readOnly={isFormDisabled}
                     onChange={(e) => {
                       const value = e.target.value;
                       if (/^\d{0,12}(\.\d{0,2})?$/.test(value) || value === "") {
@@ -2454,7 +2492,7 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                       type="text"
                       className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
                         value={formatNumber(parseFormattedNumber(row.atcAmount)) || formatNumber(parseFormattedNumber(row.atcAmount)) || ""}
-                      onChange={(e) => handleDetailChange(index, 'ewtAmount', e.target.value)}
+                      onChange={(e) => handleDetailChange(index, 'atcAmount', e.target.value)}
                     />
                 </td>
 
@@ -2953,6 +2991,7 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                       type="text"
                       className="w-[120px] global-tran-td-inputclass-ui text-right"
                       value={row.debit || ""}
+                       readOnly={isFormDisabled}
                       onChange={(e) => {
                             const inputValue = e.target.value;
                             const sanitizedValue = inputValue.replace(/[^0-9.]/g, '');
@@ -2981,6 +3020,7 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                       type="text"
                       className="w-[120px] global-tran-td-inputclass-ui text-right"
                       value={row.credit || ""}
+                       readOnly={isFormDisabled}
                       onChange={(e) => {
                             const inputValue = e.target.value;
                             const sanitizedValue = inputValue.replace(/[^0-9.]/g, '');
@@ -3007,6 +3047,7 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                       type="text"
                       className="w-[120px] global-tran-td-inputclass-ui text-right"
                       value={row.debitFx1 || ""}
+                       readOnly={isFormDisabled}
                       onChange={(e) => {
                             const inputValue = e.target.value;
                             const sanitizedValue = inputValue.replace(/[^0-9.]/g, '');
@@ -3032,6 +3073,7 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                       type="text"
                       className="w-[120px] global-tran-td-inputclass-ui text-right"
                       value={row.creditFx1 || ""}
+                       readOnly={isFormDisabled}
                       onChange={(e) => {
                             const inputValue = e.target.value;
                             const sanitizedValue = inputValue.replace(/[^0-9.]/g, '');
@@ -3058,6 +3100,7 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                       type="text"
                       className="w-[120px] global-tran-td-inputclass-ui text-right"
                       value={row.debitFx2 || ""}
+                       readOnly={isFormDisabled}
                       onChange={(e) => {
                             const inputValue = e.target.value;
                             const sanitizedValue = inputValue.replace(/[^0-9.]/g, '');
@@ -3083,6 +3126,7 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                       type="text"
                       className="w-[120px] global-tran-td-inputclass-ui text-right"
                       value={row.creditFx2 || ""}
+                       readOnly={isFormDisabled}
                       onChange={(e) => {
                             const inputValue = e.target.value;
                             const sanitizedValue = inputValue.replace(/[^0-9.]/g, '');
@@ -3108,8 +3152,10 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                       type="text"
                       className="w-[100px] global-tran-td-inputclass-ui"
                       value={row.slRefNo || ""}
-                      maxLength={25}
+                       readOnly={isFormDisabled}
+                      maxLength={useGetFieldLength(tblFieldArray, "slref_no")} 
                       onChange={(e) => handleDetailChangeGL(index, 'slRefNo', e.target.value)}
+                      
                     />
                   </td>
                   <td className="global-tran-td-ui">
@@ -3117,6 +3163,7 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                       type="date"
                       className="w-[100px] global-tran-td-inputclass-ui"
                       value={row.slRefDate || ""}
+                       readOnly={isFormDisabled}
                       onChange={(e) => handleDetailChangeGL(index, 'slRefDate', e.target.value)}
                     />
 
@@ -3126,6 +3173,8 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                       type="text"
                       className="w-[100px] global-tran-td-inputclass-ui"
                       value={row.remarks ||  ""}
+                       readOnly={isFormDisabled}
+                      maxLength={useGetFieldLength(tblFieldArray, "remarks")} 
                       onChange={(e) => handleDetailChangeGL(index, 'remarks', e.target.value)}
                     />
                 </td>

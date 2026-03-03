@@ -34,6 +34,8 @@ export const useSwalValidationAlert = ({ icon = "info", title = "", message = ""
   Swal.fire({
     icon,
     title,
+    timer: 3000,
+    timerProgressBar: true, 
     html: `<div style="text-align: left; padding: 0 10px;">${formattedMessage}</div>`,
     didOpen: () => {
       const popup = Swal.getPopup();
@@ -58,6 +60,30 @@ export const useSwalValidationAlert = ({ icon = "info", title = "", message = ""
     },
   });
 };
+
+
+
+export const useSwalvalidateRequiredFields = (fields, title) => {
+  let errors = [];
+  for (const [label, value] of Object.entries(fields)) {
+    if (!value || (Array.isArray(value) && value.length === 0)) {
+      errors.push(`- ${label}`);
+    }
+  }
+
+  if (errors.length > 0) {
+    const errorMessage = "The following fields are required:\n" + errors.join("\n");
+    useSwalValidationAlert({
+      icon: "info",
+      title: title,
+      message: errorMessage, 
+    });  
+    return false; 
+  }
+  return true; 
+};
+
+
 
 export const useSwalReturnSummary = ({ icon = "info", title = "", message = "" }) => {
   const formattedMessage = (message || "")
@@ -263,5 +289,57 @@ export const useSwalDeleteRecord = () => {
     customClass: {
       popup: "rounded-xl shadow-2xl",
     },
+  });
+};
+
+
+
+export const useSwalConfirmAlert = (title = "Are you sure?", message = "") => {
+  return Swal.fire({
+    title,
+    text: message,
+    icon: "warning",
+    showCancelButton: true,
+    confirmButtonColor: "#3085d6",
+    cancelButtonColor: "#d33",
+    confirmButtonText: "Yes, proceed!",
+    cancelButtonText: "Cancel",
+    customClass: {
+      popup: "rounded-xl shadow-2xl", // Keeps styling consistent with your Success alert
+    },
+  });
+};
+
+
+
+export const useSwalHandleOpenSpecsModal = (index, detailRows, handleDetailChange,rowValue, rowTitle, rowName,placeHolderValue) => {
+  const row = detailRows[index];
+
+  Swal.fire({
+    title: rowTitle,
+    input: 'textarea',
+    inputValue: rowValue || '',
+    inputPlaceholder: placeHolderValue,
+   showCancelButton: true,
+    confirmButtonText: 'Save',
+    cancelButtonText: 'Cancel',
+    confirmButtonColor: '#3b82f6',
+    cancelButtonColor: '#64748b',
+    reverseButtons: true, // Optional: puts 'Save' on the right, 'Cancel' on the left
+    inputAttributes: {
+      'aria-label': 'Type your specifications here',
+      'style': 'height: 150px; font-size: 0.875rem;' // Optional: consistent sizing
+    },
+    customClass: {
+      actions: 'w-full px-6 gap-2', // Containers for buttons
+      confirmButton: 'flex-1 py-2', // Forces Save to take half width
+      cancelButton: 'flex-1 py-2',  // Forces Cancel to take half width
+      input: 'focus:ring-blue-500'   
+    },
+    buttonsStyling: true,
+  }).then((result) => {
+    if (result.isConfirmed) {
+      handleDetailChange(index, rowName, result.value);
+    }
   });
 };

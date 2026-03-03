@@ -81,6 +81,9 @@ import {
 } from '@/NAYSA Cloud/Global/behavior';
 
 
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
+
+
 // Header
 import Header from '@/NAYSA Cloud/Components/Header';
 import { faAdd } from "@fortawesome/free-solid-svg-icons/faAdd";
@@ -92,6 +95,7 @@ const SVI = () => {
   const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation(); 
+  const { companyInfo, currentUserRow } = useAuth();
   const [isViewDocument, setIsViewDocument] = useState(false);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
@@ -111,7 +115,7 @@ const SVI = () => {
 
     // HS Option
     glCurrMode:"M",
-    glCurrDefault:"PHP",
+    glCurrDefault:companyInfo.currCode,
     withCurr2:false,
     withCurr3:false,
     glCurrGlobal1:"",
@@ -119,7 +123,7 @@ const SVI = () => {
     glCurrGlobal3:"",
 
 
-    
+
     // Document information
     documentName: "",
     documentSeries: "Auto",
@@ -145,8 +149,8 @@ const SVI = () => {
 
 
 
-    branchCode: "HO",
-    branchName: "Head Office",
+    branchCode: currentUserRow.branchCode,
+    branchName: currentUserRow.branchName,
     
     // Vendor information
     custCode: "",
@@ -154,10 +158,10 @@ const SVI = () => {
     attention: "",
     
     // Currency information
-    currCode: "",
-    currName: "",
-    currRate: "",
-    defaultCurrRate:"1.000000",
+    currCode: companyInfo.currCode,
+    currName: companyInfo.currName,
+    currRate: formatNumber(companyInfo.currRate,6),
+    defaultCurrRate:formatNumber(companyInfo.currRate,6),
 
 
     //Other Header Info
@@ -171,7 +175,7 @@ const SVI = () => {
     billtermCode: "",
     billtermName: "",
     selectedSVIType : "REG",
-    userCode: user.USER_CODE, 
+    userCode: currentUserRow.userCode, 
 
     //Detail 1-2
     detailRows  :[],
@@ -471,29 +475,18 @@ useEffect(() => {
 
 
 
-
-  
-
-
-  const LoadingSpinner = () => (
-    <div className="global-tran-spinner-main-div-ui">
-      <div className="global-tran-spinner-sub-div-ui">
-        <FontAwesomeIcon icon={faSpinner} spin size="2x" className="text-blue-500 mb-2" />
-        <p>Please wait...</p>
-      </div>
-    </div>
-  );
-
   
   const handleReset = () => {
 
       updateState({
         
-      branchCode: "HO",
-      branchName: "Head Office",
-      userCode:user.USER_CODE,
+      branchCode: currentUserRow.branchCode,
+      branchName: currentUserRow.branchName,
+      userCode:currentUserRow.userCode,
       documentDate:useGetCurrentDay(),
-
+      currCode:companyInfo.currCode,
+      currName:companyInfo.currName,
+      currRate:formatNumber(companyInfo.currRate,6) ,
       refDocNo1: "",
       refDocNo2:"",
       fromDate:null,
@@ -521,6 +514,7 @@ useEffect(() => {
       status:"Open"
 
     });
+
       updateTotalsDisplay (0, 0, 0, 0, 0, 0)
   };
 
@@ -743,7 +737,6 @@ const handleCurrRateNoBlur = (e) => {
         fromDate,
         toDate,
         currCode,
-        currName,
         currRate,
         remarks,
         userCode, 
@@ -1109,7 +1102,6 @@ useEffect(() => {
 
 
 
-
   const printData = {
     apv_no: documentNo,
     branch: branchCode,
@@ -1341,7 +1333,7 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
         const newATCAmount = row.atcCode ? await useTopATCAmount(row.atcCode, newNetOfVat) : 0;
 
         row.atcAmount = newATCAmount.toFixed(2);
-        row.amountDue = +(newNetDiscount - newATCAmount).toFixed(2);
+        row.sviAmount = +(newNetDiscount - newATCAmount).toFixed(2);
       }
 
       await updateVatAndAtc();

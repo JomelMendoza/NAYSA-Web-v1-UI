@@ -56,6 +56,7 @@ import {
   useTopDocDropDown,
   useTopVatAmount,
   useTopATCAmount,
+  useTopPayeeRow,
 } from "@/NAYSA Cloud/Global/top1RefTable";
 
 import {
@@ -1264,9 +1265,9 @@ const APV = () => {
       // FIX: Use postRequest with the correct payload structure
       if (!selectedData.currCode) {
         // The backend expects VEND_CODE as a field in the request, not wrapped in json_data
-        const vendResponse = await postRequest("getVendMast", {
-          VEND_CODE: selectedData.vendCode,
-        });
+    
+
+       const vendResponse = await useTopPayeeRow(selectedData.vendCode);
 
         if (vendResponse.success) {
           const vendData = JSON.parse(vendResponse.data[0].result);

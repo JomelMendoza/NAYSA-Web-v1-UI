@@ -7,10 +7,15 @@ import Swal from 'sweetalert2';
 
 
 
-export const useSelectedHSColConfig = async (endpoint) => {
+export const useSelectedHSColConfig = async (endpoint,userCode) => {
   try {
+    const payload ={
+      json_data :{
+      endpoint,userCode
+    }
+  }
 
-    const response = await fetchData("getHSColConfig", { endpoint: endpoint });
+    const response = await fetchData("getHSColConfig", { json_data: JSON.stringify(payload) });
 
     if (response?.success && response.data?.[0]?.result) {
       return JSON.parse(response.data[0].result);
@@ -38,7 +43,6 @@ export const useSelectedOpenARBalance = async (glData,transactionType) => {
                       filterTranType: transactionType
      };
 
-     console.log(JSON.stringify(payload))
     const response = await fetchData("getSelectedARBalance", { json_data: JSON.stringify(payload) } );
 
     if (response?.success && response.data?.[0]?.result) {
@@ -103,6 +107,33 @@ export const useSelectedOpenAPBalance = async (glData,transactionType) => {
     throw new Error(response?.message || "No AP entries found.");
   } catch (error) {
     console.error("Error in useSelectedOpenAPBalance:", error);
+    Swal.fire({
+      icon: "error",
+      title: "Fetch Failed",
+      text: error.message || "Unknown error occurred",
+      confirmButtonColor: "#3085d6",
+    });
+    return null;
+  }
+};
+
+
+
+
+
+
+export const useSelectedIteBranchBalance = async (data) => {
+  try {
+    const payload = { json_data: data };
+
+    const response = await postRequest("getBranchItemBalance", JSON.stringify(payload));
+    if (response?.status === "success" && response.data?.[0]?.result) {
+      return JSON.parse(response.data[0].result); 
+    }
+
+    throw new Error(response?.message || "No records found.");
+  } catch (error) {
+    console.error("Error in GetItemBranchBalance:", error);
     Swal.fire({
       icon: "error",
       title: "Fetch Failed",

@@ -352,6 +352,26 @@ export async function useTopAccountRow(acctCode) {
 
 
 
+
+export async function useTopPayeeRow(vendCode) {
+  if (!vendCode) return null;
+
+  try {
+    const response = await fetchData("getVendMast", { VEND_CODE: vendCode });
+    if (response.success) {
+      const responseData = JSON.parse(response.data[0].result);
+      return responseData.length > 0 ? responseData[0] : null;
+    }
+    return null;
+  } catch (error) {
+    console.error("Error fetching Payee row:", error);
+    return null;
+  }
+}
+
+
+
+
 export async function useTopCurrencyRow(currCode) {
   if (!currCode) return null;
 

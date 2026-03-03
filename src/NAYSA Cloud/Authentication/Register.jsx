@@ -13,7 +13,7 @@ function normalizeCompaniesPayload(raw) {
   else if (raw && typeof raw === "object") arr = Object.values(raw);
 
 
-  
+
   return arr.map((r) => {
     const get = (o, ...keys) => keys.reduce((v, k) => (v ?? o?.[k]), undefined);
     const code =
@@ -39,7 +39,7 @@ export default function Register({ onRegister, onSwitchToLogin }) {
     USER_CODE: "",
     USER_NAME: "",
     EMAIL_ADD: "",
-    PASSWORD: "",
+    // PASSWORD: "",
   });
 
 
@@ -113,7 +113,7 @@ export default function Register({ onRegister, onSwitchToLogin }) {
     if (!form.USER_NAME.trim()) return alertSwal("Username is required");
     if (!form.EMAIL_ADD.trim()) return alertSwal("Email is required");
     if (!/\S+@\S+\.\S+/.test(form.EMAIL_ADD)) return alertSwal("Please enter a valid email address");
-    if (form.PASSWORD.length < 6) return alertSwal("Password must be at least 6 characters long");
+    // if (form.PASSWORD.length < 6) return alertSwal("Password must be at least 6 characters long");
     return true;
   };
 
@@ -124,13 +124,13 @@ export default function Register({ onRegister, onSwitchToLogin }) {
       const ok = await validate();
       if (!ok) return;
 
-      
+
       setTenant(companyCode);
       const { data, status } = await apiClient.post("/register", {
         USER_CODE: form.USER_CODE.trim(),
         USER_NAME: form.USER_NAME.trim(),
         EMAIL_ADD: form.EMAIL_ADD.trim(),
-        PASSWORD: form.PASSWORD,
+        // PASSWORD: form.PASSWORD,
       });
 
       const success = data?.status === "success" || status === 201;
@@ -146,10 +146,11 @@ export default function Register({ onRegister, onSwitchToLogin }) {
 
       await Swal.fire({
         icon: "success",
-        title: "Registration Successful!",
-        text: "You can now log in to your account.",
+        title: "Registration Submitted",
+        text: "Your registration is pending approval. You will receive an email once your account is approved.",
         confirmButtonText: "OK",
       });
+
       onSwitchToLogin?.();
     } catch (err) {
       await Swal.fire({
@@ -195,7 +196,7 @@ export default function Register({ onRegister, onSwitchToLogin }) {
                   onChange={(e) => {
                     const v = e.target.value;
                     setCompanyCode(v);
-                    setTenant(v); 
+                    setTenant(v);
                   }}
                   disabled={loadingCompanies}
                   className="w-full appearance-none rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-10 text-slate-900 shadow-sm outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30"
@@ -271,7 +272,7 @@ export default function Register({ onRegister, onSwitchToLogin }) {
             </label>
 
             {/* PASSWORD */}
-            <label className="block">
+            {/* <label className="block">
               <div className="mb-1 flex items-center justify-between">
                 <span className="text-sm font-medium text-slate-700">Password</span>
                 {capsOn && <span className="text-xs font-semibold text-white">Caps Lock is ON</span>}
@@ -300,7 +301,7 @@ export default function Register({ onRegister, onSwitchToLogin }) {
                   {showPwd ? <FiEyeOff className="h-5 w-5" /> : <FiEye className="h-5 w-5" />}
                 </button>
               </div>
-            </label>
+            </label> */}
 
             {/* Submit */}
             <button
@@ -311,8 +312,7 @@ export default function Register({ onRegister, onSwitchToLogin }) {
                 !companyCode ||
                 !form.USER_CODE.trim() ||
                 !form.USER_NAME.trim() ||
-                !form.EMAIL_ADD.trim() ||
-                !form.PASSWORD
+                !form.EMAIL_ADD.trim()
               }
               className="group relative inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 px-4 py-3 font-medium text-white shadow-lg shadow-sky-600/20 transition hover:from-sky-500 hover:to-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
             >
