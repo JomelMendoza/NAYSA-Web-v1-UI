@@ -352,7 +352,7 @@ export default function INTAXINQ() {
     try {
       updateState({ isLoading: true });
 
-
+      console.log(rows)
 
         const exportData = {
               "Data" : {

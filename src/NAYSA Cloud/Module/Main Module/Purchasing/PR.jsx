@@ -135,8 +135,8 @@ import Header from "@/NAYSA Cloud/Components/Header";
     isFetchDisabled: true,
     showAllTranDocNo:false,
     itemSingleSelect:false,
-    branchCode: currentUserRow.branchCode,
-    branchName: currentUserRow.BranchName,
+    branchCode: currentUserRow?.branchCode||"",
+    branchName: currentUserRow?.BranchName||"",
     reqRcCode: "",
     reqRcName: "",
     currCode: "",
@@ -167,7 +167,7 @@ import Header from "@/NAYSA Cloud/Components/Header";
     billtermName: "",
     noReprints: "0",
     prCancelled: "",
-    userCode:currentUserRow.userCode,
+    userCode:currentUserRow?.userCode||"",
 
     // Detail lines (PR dt1)
     detailRows: [],
@@ -312,9 +312,19 @@ import Header from "@/NAYSA Cloud/Components/Header";
     updateState({ isDocNoDisabled: !!state.documentID });
   }, [state.documentID]);
 
-  useEffect(() => {
+  
+
+const isInitialMount = useRef(true);
+
+useEffect(() => {
+  if (isInitialMount.current) {
     handleReset();
-  }, []);
+    loadCompanyData();
+    isInitialMount.current = false;
+  }
+}, []);
+
+
 
   useEffect(() => {
     if (glCurrMode && glCurrDefault && currCode) {
@@ -350,9 +360,9 @@ import Header from "@/NAYSA Cloud/Components/Header";
     const today = new Date().toISOString().split("T")[0];
 
     updateState({
-      branchCode: currentUserRow.branchCode,
-      branchName: currentUserRow.branchName,
-      userCode:currentUserRow.userCode,
+      branchCode: currentUserRow?.branchCode||"",
+      branchName: currentUserRow?.branchName||"",
+      userCode:currentUserRow?.userCode||"",
       headerDateNeeded:useGetCurrentDay(),
       documentDate:useGetCurrentDay(),
       documentStatus:"O",

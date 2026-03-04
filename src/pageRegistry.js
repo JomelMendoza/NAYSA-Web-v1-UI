@@ -84,6 +84,8 @@ import APReportModal from "./NAYSA Cloud/Printing/APReport.jsx";
 import GLReportModal from "./NAYSA Cloud/Printing/GLReport.jsx";
 import VIReportModal from "./NAYSA Cloud/Printing/VIReport.jsx";
 import EWTReportModal from "./NAYSA Cloud/Printing/EWTReport.jsx";
+import VOReportModal from "./NAYSA Cloud/Printing/VOReport.jsx";
+import CWTReportModal from "./NAYSA Cloud/Printing/CWTReport.jsx";
 
 export const pageRegistry = {
   // Accounts Receivable
@@ -170,4 +172,6 @@ export const pageRegistry = {
   APReportModal,
   VIReportModal,
   EWTReportModal,
+  CWTReportModal,
+  VOReportModal,
 };

@@ -467,12 +467,8 @@ useEffect(() => {
 
 
 
-  // useEffect(() => {
-  //   handleReset();
-  //   loadCompanyData(); 
-  // }, []);
 
-  const isInitialMount = useRef(true);
+const isInitialMount = useRef(true);
 
 useEffect(() => {
   if (isInitialMount.current) {

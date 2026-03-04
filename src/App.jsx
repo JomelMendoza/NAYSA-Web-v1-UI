@@ -179,15 +179,20 @@ const AppContent = () => {
   // }
 
   /* -------- Block UI until AuthProvider finishes bootstrap -------- */
+  // if (loading) {
+  //   return (
+  //     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/30 dark:bg-black/30 backdrop-blur-md">
+  //       <div className="flex flex-col items-center gap-3">
+  //         <LoadingSpinner />
+  //       </div>
+  //     </div>
+  //   );
+  // }
+
+
   if (loading) {
-    return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/30 dark:bg-black/30 backdrop-blur-md">
-        <div className="flex flex-col items-center gap-3">
-          <LoadingSpinner />
-        </div>
-      </div>
-    );
-  }
+  return <LoadingSpinner />;
+}
 
 
 
@@ -226,9 +231,8 @@ const AppContent = () => {
       <div className="flex-1 p-4 overflow-y-auto">
       {loadingMenu && !routesLoaded && (
         <div className="fixed inset-0 z-[70] bg-black/20 backdrop-blur-sm flex items-center justify-center">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-2xl flex flex-col items-center gap-4">
-            <LoadingSpinner />
-          </div>
+          {/* the spinner already handles the centering and the label */}
+          <LoadingSpinner />
         </div>
       )}
 
