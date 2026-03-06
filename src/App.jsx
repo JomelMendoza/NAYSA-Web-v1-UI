@@ -1502,6 +1502,731 @@
 
 
 
+// import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
+// import { 
+//   BrowserRouter as Router, 
+//   Routes, 
+//   Route, 
+//   Navigate, 
+//   useNavigate, 
+//   useParams, 
+//   useLocation 
+// } from "react-router-dom";
+// import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+// import { toast } from "react-hot-toast";
+
+// import { pageRegistry } from "./pageRegistry.jsx";
+// import ErrorBoundary from "./NAYSA Cloud/Components/ErrorBoundary";
+// import { fetchData, getTenant } from "./NAYSA Cloud/Configuration/BaseURL.jsx";
+// import Navbar from "./NAYSA Cloud/Components/Navbar";
+// import Sidebar from "./NAYSA Cloud/Components/Sidebar";
+// import { ResetProvider } from "./NAYSA Cloud/Components/ResetContext";
+// import Login from "./NAYSA Cloud/Authentication/Login.jsx";
+// import Register from "./NAYSA Cloud/Authentication/Register.jsx";
+// import Dashboard1 from "./NAYSA Cloud/Components/Dashboard1.jsx";
+// import ChangePassword from "./NAYSA Cloud/Authentication/ChangePassword.jsx"; // Ensure this import exists
+// import AuthProvider, { useAuth } from "./NAYSA Cloud/Authentication/AuthContext.jsx";
+// import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
+
+// const queryClient = new QueryClient();
+
+// /* -------------------- The Gatekeeper (Guard) -------------------- */
+// const UniversalRegistryRoute = ({ routeRows, loadingMenu }) => {
+//   const location = useLocation();
+//   const { componentKey: paramKey } = useParams();
+
+//   const matchingComponentKey = useMemo(() => {
+//     if (paramKey && pageRegistry[paramKey]) return paramKey;
+//     const currentPath = location.pathname.replace(/\/$/, "") || "/";
+//     const dbMatch = routeRows.find((r) => {
+//       if (!r.path) return false;
+//       const dbPath = (r.path.startsWith("/") ? r.path : `/${r.path}`).replace(/\/$/, "");
+//       return dbPath === currentPath;
+//     });
+//     return dbMatch ? dbMatch.componentKey : null;
+//   }, [location.pathname, paramKey, routeRows]);
+
+//   const Component = matchingComponentKey ? pageRegistry[matchingComponentKey] : null;
+
+//   if (loadingMenu && !Component) {
+//     return (
+//       <div className="flex flex-col items-center justify-center min-h-[60vh]">
+//         <LoadingSpinner />
+//         <p className="mt-4 text-gray-400 animate-pulse font-medium">Authorizing URL...</p>
+//       </div>
+//     );
+//   }
+
+//   if (!Component && !loadingMenu) {
+//     return <Navigate to="/" replace />;
+//   }
+
+//   return Component ? (
+//     <ErrorBoundary>
+//       <Component key={`${matchingComponentKey}-view`} />
+//     </ErrorBoundary>
+//   ) : null;
+// };
+
+// /* -------------------- App Content -------------------- */
+// const AppContent = () => {
+//   const { user, loading, logout } = useAuth();
+//   const navigate = useNavigate();
+
+//   // 1. SYNC INITIALIZATION: Load from sessionStorage immediately. 
+//   // This is what prevents the "New Tab" from redirecting to login.
+//   const [menuItems, setMenuItems] = useState(() => {
+//     const saved = sessionStorage.getItem("menuItems");
+//     return saved ? JSON.parse(saved) : [];
+//   });
+
+//   const [routeRows, setRouteRows] = useState(() => {
+//     const saved = sessionStorage.getItem("routeRows");
+//     return saved ? JSON.parse(saved) : [];
+//   });
+
+//   const [loadingMenu, setLoadingMenu] = useState(false);
+//   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
+//   const menuFetchedRef = useRef(null); 
+
+//   const resetAppData = useCallback(() => {
+//     setMenuItems([]);
+//     setRouteRows([]);
+//     setLoadingMenu(false);
+//     setIsSidebarVisible(false);
+//     menuFetchedRef.current = null;
+//     sessionStorage.removeItem("menuItems");
+//     sessionStorage.removeItem("routeRows");
+//   }, []);
+
+//   const handleLogout = useCallback(async () => {
+//     try {
+//       resetAppData();
+//       await logout();
+//       window.location.href = "/"; // Nuclear Reset to guarantee clean state
+//     } catch (err) {
+//       window.location.href = "/";
+//     }
+//   }, [logout, resetAppData]);
+
+//   useEffect(() => {
+//     let alive = true;
+//     const tenant = getTenant();
+//     if (!user) {
+//       resetAppData();
+//       return;
+//     }
+
+//     if (loading || !tenant || menuFetchedRef.current === user.USER_CODE) return;
+
+//     (async () => {
+//       try {
+//         if (routeRows.length === 0) setLoadingMenu(true);
+//         const [menuResp, routesResp] = await Promise.all([
+//           fetchData("menu-items", { USER_CODE: user.USER_CODE }),
+//           fetchData("menu-routes", { USER_CODE: user.USER_CODE }),
+//         ]);
+//         if (!alive) return;
+
+//         const mData = menuResp?.menuItems ?? menuResp?.data ?? [];
+//         const rData = routesResp?.routes ?? routesResp?.data ?? [];
+
+//         setMenuItems(mData);
+//         setRouteRows(rData);
+//         sessionStorage.setItem("menuItems", JSON.stringify(mData));
+//         sessionStorage.setItem("routeRows", JSON.stringify(rData));
+//         menuFetchedRef.current = user.USER_CODE; 
+//       } catch (e) {
+//         console.error("Fetch Error:", e);
+//       } finally {
+//         if (alive) setLoadingMenu(false);
+//       }
+//     })();
+//     return () => { alive = false; };
+//   }, [user, loading, resetAppData, routeRows.length]);
+
+//   if (loading) return <div className="fixed inset-0 flex items-center justify-center bg-white z-[9999]"><LoadingSpinner /></div>;
+
+//   /* ---------------------------------------------------------
+//      GUEST ACCESS (Public Routes & Login)
+//      Placed before the protected return to allow access without user session.
+//   --------------------------------------------------------- */
+//   if (!user) {
+//     return (
+//       <Routes>
+//         <Route path="/register" element={<Register />} />
+//         {/* PUBLIC EXEMPTION: Change password link works even if logged out */}
+//         <Route path="/change-password" element={<ChangePassword />} />
+//         <Route path="*" element={<Login onSwitchToRegister={() => navigate("/register")} />} />
+//       </Routes>
+//     );
+//   }
+
+//   /* ---------------------------------------------------------
+//      PROTECTED APP LAYOUT (User Session Active)
+//   --------------------------------------------------------- */
+//   return (
+//     <div className="relative min-h-screen flex flex-col bg-gray-50 dark:bg-black">
+//       <Navbar onMenuClick={() => setIsSidebarVisible(!isSidebarVisible)} onLogout={handleLogout} />
+      
+//       {isSidebarVisible && (
+//         <div className="fixed inset-0 z-50 flex">
+//           <Sidebar menuItems={menuItems} onNavigate={() => setIsSidebarVisible(false)} />
+//           <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={() => setIsSidebarVisible(false)} />
+//         </div>
+//       )}
+
+//       <div className="flex-1 p-4 overflow-y-auto">
+//         <Routes>
+//           <Route path="/" element={<Dashboard1 user={user} />} />
+          
+//           {/* Allow Change Password while logged in as well */}
+//           <Route path="/change-password" element={<ChangePassword />} />
+
+//           <Route 
+//             path="/page/:componentKey" 
+//             element={<UniversalRegistryRoute routeRows={routeRows} loadingMenu={loadingMenu} />} 
+//           />
+
+//           {/* Catch-all for pasted URLs: Uses the instantly-available routeRows from sessionStorage */}
+//           <Route 
+//             path="*" 
+//             element={<UniversalRegistryRoute routeRows={routeRows} loadingMenu={loadingMenu} />} 
+//           />
+//         </Routes>
+//       </div>
+//     </div>
+//   );
+// };
+
+// /* -------------------- App Root -------------------- */
+// const App = () => (
+//   <Router>
+//     <QueryClientProvider client={queryClient}>
+//       <AuthProvider>
+//         <ResetProvider>
+//           <AppContent />
+//         </ResetProvider>
+//       </AuthProvider>
+//     </QueryClientProvider>
+//   </Router>
+// );
+
+// export default App;
+
+
+
+
+
+
+
+// import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
+// import { 
+//   BrowserRouter as Router, 
+//   Routes, 
+//   Route, 
+//   Navigate, 
+//   useNavigate, 
+//   useParams, 
+//   useLocation 
+// } from "react-router-dom";
+// import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+// import { toast } from "react-hot-toast";
+
+// import { pageRegistry } from "./pageRegistry.jsx";
+// import ErrorBoundary from "./NAYSA Cloud/Components/ErrorBoundary";
+// import { fetchData, getTenant } from "./NAYSA Cloud/Configuration/BaseURL.jsx";
+// import Navbar from "./NAYSA Cloud/Components/Navbar";
+// import Sidebar from "./NAYSA Cloud/Components/Sidebar";
+// import { ResetProvider } from "./NAYSA Cloud/Components/ResetContext";
+// import Login from "./NAYSA Cloud/Authentication/Login.jsx";
+// import Register from "./NAYSA Cloud/Authentication/Register.jsx";
+// import Dashboard1 from "./NAYSA Cloud/Components/Dashboard1.jsx";
+// import ChangePassword from "./NAYSA Cloud/Authentication/ChangePassword.jsx"; 
+// import AuthProvider, { useAuth } from "./NAYSA Cloud/Authentication/AuthContext.jsx";
+// import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
+
+// const queryClient = new QueryClient();
+
+// /* -------------------- The Gatekeeper (Guard) -------------------- */
+// const UniversalRegistryRoute = ({ routeRows, loadingMenu }) => {
+//   const location = useLocation();
+//   const navigate = useNavigate();
+//   const { componentKey: paramKey } = useParams();
+
+//   const matchingComponentKey = useMemo(() => {
+//     if (paramKey && pageRegistry[paramKey]) return paramKey;
+//     const currentPath = location.pathname.replace(/\/$/, "") || "/";
+//     const dbMatch = routeRows.find((r) => {
+//       if (!r.path) return false;
+//       const dbPath = (r.path.startsWith("/") ? r.path : `/${r.path}`).replace(/\/$/, "");
+//       return dbPath === currentPath;
+//     });
+//     return dbMatch ? dbMatch.componentKey : null;
+//   }, [location.pathname, paramKey, routeRows]);
+
+//   const Component = matchingComponentKey ? pageRegistry[matchingComponentKey] : null;
+
+//   if (loadingMenu && !Component) {
+//     return (
+//       <div className="flex flex-col items-center justify-center min-h-[60vh]">
+//         <LoadingSpinner />
+//         <p className="mt-4 text-gray-400 animate-pulse font-medium">Authorizing URL...</p>
+//       </div>
+//     );
+//   }
+
+//   if (!Component && !loadingMenu) {
+//     return <Navigate to="/" replace />;
+//   }
+
+//   /* MODAL FIX: 
+//      If the component key ends with 'Modal', we pass isOpen={true}.
+//      Since these are rendered as full pages, they need this prop to override 
+//      any internal 'hidden' state.
+//   */
+//   const isModal = matchingComponentKey?.toLowerCase().includes("modal");
+
+//   return Component ? (
+//     <ErrorBoundary>
+//       <Component 
+//         key={`${matchingComponentKey}-view`} 
+//         isOpen={isModal ? true : undefined}
+//         onClose={isModal ? () => navigate(-1) : undefined}
+//       />
+//     </ErrorBoundary>
+//   ) : null;
+// };
+
+// /* -------------------- App Content -------------------- */
+// const AppContent = () => {
+//   const { user, loading, logout } = useAuth();
+//   const navigate = useNavigate();
+
+//   const [menuItems, setMenuItems] = useState(() => {
+//     const saved = sessionStorage.getItem("menuItems");
+//     return saved ? JSON.parse(saved) : [];
+//   });
+
+//   const [routeRows, setRouteRows] = useState(() => {
+//     const saved = sessionStorage.getItem("routeRows");
+//     return saved ? JSON.parse(saved) : [];
+//   });
+
+//   const [loadingMenu, setLoadingMenu] = useState(false);
+//   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
+//   const menuFetchedRef = useRef(null); 
+
+//   const resetAppData = useCallback(() => {
+//     setMenuItems([]);
+//     setRouteRows([]);
+//     setLoadingMenu(false);
+//     setIsSidebarVisible(false);
+//     menuFetchedRef.current = null;
+//     sessionStorage.removeItem("menuItems");
+//     sessionStorage.removeItem("routeRows");
+//   }, []);
+
+//   const handleLogout = useCallback(async () => {
+//     try {
+//       resetAppData();
+//       await logout();
+//       window.location.href = "/"; 
+//     } catch (err) {
+//       window.location.href = "/";
+//     }
+//   }, [logout, resetAppData]);
+
+//   useEffect(() => {
+//     let alive = true;
+//     const tenant = getTenant();
+    
+//     if (!user) {
+//       resetAppData();
+//       return;
+//     }
+
+//     if (loading || !tenant || menuFetchedRef.current === user.USER_CODE) return;
+
+//     (async () => {
+//       try {
+//         if (routeRows.length === 0) setLoadingMenu(true);
+//         const [menuResp, routesResp] = await Promise.all([
+//           fetchData("menu-items", { USER_CODE: user.USER_CODE }),
+//           fetchData("menu-routes", { USER_CODE: user.USER_CODE }),
+//         ]);
+        
+//         if (!alive) return;
+
+//         const mData = menuResp?.menuItems ?? menuResp?.data ?? [];
+//         const rData = routesResp?.routes ?? routesResp?.data ?? [];
+
+//         setMenuItems(mData);
+//         setRouteRows(rData);
+//         sessionStorage.setItem("menuItems", JSON.stringify(mData));
+//         sessionStorage.setItem("routeRows", JSON.stringify(rData));
+//         menuFetchedRef.current = user.USER_CODE; 
+//       } catch (e) {
+//         console.error("Fetch Error:", e);
+//       } finally {
+//         if (alive) setLoadingMenu(false);
+//       }
+//     })();
+//     return () => { alive = false; };
+//   }, [user, loading, resetAppData, routeRows.length]);
+
+//   if (loading) {
+//     return (
+//       <div className="fixed inset-0 flex items-center justify-center bg-white z-[9999]">
+//         <LoadingSpinner />
+//       </div>
+//     );
+//   }
+
+//   // GUEST ACCESS
+//   if (!user) {
+//     return (
+//       <Routes>
+//         <Route path="/register" element={<Register />} />
+//         <Route path="/change-password" element={<ChangePassword />} />
+//         <Route path="*" element={<Login onSwitchToRegister={() => navigate("/register")} />} />
+//       </Routes>
+//     );
+//   }
+
+//   // PROTECTED APP LAYOUT
+//   return (
+//     <div className="relative min-h-screen flex flex-col bg-gray-50 dark:bg-black">
+//       <Navbar onMenuClick={() => setIsSidebarVisible(!isSidebarVisible)} onLogout={handleLogout} />
+      
+//       {isSidebarVisible && (
+//         <div className="fixed inset-0 z-50 flex">
+//           <Sidebar 
+//             menuItems={menuItems} 
+//             onNavigate={() => setIsSidebarVisible(false)} 
+//           />
+//           <div 
+//             className="flex-1 bg-black/40 backdrop-blur-sm" 
+//             onClick={() => setIsSidebarVisible(false)} 
+//           />
+//         </div>
+//       )}
+
+//       <div className="flex-1 p-4 overflow-y-auto">
+//         <Routes>
+//           <Route path="/" element={<Dashboard1 user={user} />} />
+//           <Route path="/change-password" element={<ChangePassword />} />
+
+//           <Route 
+//             path="/page/:componentKey" 
+//             element={<UniversalRegistryRoute routeRows={routeRows} loadingMenu={loadingMenu} />} 
+//           />
+
+//           <Route 
+//             path="*" 
+//             element={<UniversalRegistryRoute routeRows={routeRows} loadingMenu={loadingMenu} />} 
+//           />
+//         </Routes>
+//       </div>
+//     </div>
+//   );
+// };
+
+// /* -------------------- App Root -------------------- */
+// const App = () => (
+//   <Router>
+//     <QueryClientProvider client={queryClient}>
+//       <AuthProvider>
+//         <ResetProvider>
+//           <AppContent />
+//         </ResetProvider>
+//       </AuthProvider>
+//     </QueryClientProvider>
+//   </Router>
+// );
+
+// export default App;
+
+
+
+
+
+
+
+
+// import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
+// import { 
+//   BrowserRouter as Router, 
+//   Routes, 
+//   Route, 
+//   Navigate, 
+//   useNavigate, 
+//   useParams, 
+//   useLocation 
+// } from "react-router-dom";
+// import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+// import { pageRegistry } from "./pageRegistry.jsx";
+// import ErrorBoundary from "./NAYSA Cloud/Components/ErrorBoundary";
+// import { fetchData, getTenant } from "./NAYSA Cloud/Configuration/BaseURL.jsx";
+// import Navbar from "./NAYSA Cloud/Components/Navbar";
+// import Sidebar from "./NAYSA Cloud/Components/Sidebar";
+// import { ResetProvider } from "./NAYSA Cloud/Components/ResetContext";
+// import Login from "./NAYSA Cloud/Authentication/Login.jsx";
+// import Register from "./NAYSA Cloud/Authentication/Register.jsx";
+// import Dashboard1 from "./NAYSA Cloud/Components/Dashboard1.jsx";
+// import ChangePassword from "./NAYSA Cloud/Authentication/ChangePassword.jsx"; 
+// import AuthProvider, { useAuth } from "./NAYSA Cloud/Authentication/AuthContext.jsx";
+// import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
+
+// const queryClient = new QueryClient();
+
+// /* -------------------- Universal Registry Route (Gatekeeper) -------------------- */
+// const UniversalRegistryRoute = ({ routeRows, loadingMenu }) => {
+//   const location = useLocation();
+//   const { componentKey: paramKey } = useParams();
+//   const queryParams = new URLSearchParams(location.search);
+//   const isViewMode = queryParams.get("viewDocument") === "true";
+
+//   const matchingComponentKey = useMemo(() => {
+//     if (paramKey && pageRegistry[paramKey]) return paramKey;
+//     const currentPath = location.pathname.replace(/\/$/, "") || "/";
+//     const dbMatch = routeRows.find((r) => {
+//       if (!r.path) return false;
+//       const dbPath = (r.path.startsWith("/") ? r.path : `/${r.path}`).replace(/\/$/, "");
+//       return dbPath === currentPath;
+//     });
+//     return dbMatch ? dbMatch.componentKey : null;
+//   }, [location.pathname, paramKey, routeRows]);
+
+//   const Component = matchingComponentKey ? pageRegistry[matchingComponentKey] : null;
+
+//   if (loadingMenu && !Component) {
+//     return (
+//       <div className="flex flex-col items-center justify-center min-h-[60vh]">
+//         <LoadingSpinner />
+//         <p className="mt-4 text-gray-400 animate-pulse font-medium">Authorizing URL...</p>
+//       </div>
+//     );
+//   }
+
+//   // If component exists but isViewMode is missing, it's a security/navigation bypass
+//   if (!Component || (!isViewMode && paramKey)) {
+//     return <Navigate to="/" replace />;
+//   }
+
+//   return Component ? (
+//     <ErrorBoundary>
+//       <Component key={`${matchingComponentKey}-view`} />
+//     </ErrorBoundary>
+//   ) : null;
+// };
+
+// /* -------------------- Modal Host -------------------- */
+// const ModalHost = ({ modalKey, onClose }) => {
+//   const { user } = useAuth();
+//   if (!modalKey) return null;
+//   const Cmp = pageRegistry[modalKey];
+//   if (!Cmp) return null;
+
+//   return (
+//     <div
+//       className="fixed inset-0 z-[999] bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm"
+//       onClick={onClose}
+//     >
+//       <div
+//         className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-auto"
+//         onClick={(e) => e.stopPropagation()}
+//       >
+//         <Cmp isOpen={true} onClose={onClose} userCode={user?.USER_CODE} />
+//       </div>
+//     </div>
+//   );
+// };
+
+// /* -------------------- App Content -------------------- */
+// const AppContent = () => {
+//   const { user, loading, logout } = useAuth();
+//   const navigate = useNavigate();
+//   const location = useLocation();
+
+//   // 1. Load from sessionStorage for persistence
+//   const [menuItems, setMenuItems] = useState(() => {
+//     const saved = sessionStorage.getItem("menuItems");
+//     return saved ? JSON.parse(saved) : [];
+//   });
+
+//   const [routeRows, setRouteRows] = useState(() => {
+//     const saved = sessionStorage.getItem("routeRows");
+//     return saved ? JSON.parse(saved) : [];
+//   });
+
+//   const [loadingMenu, setLoadingMenu] = useState(false);
+//   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
+//   const [activeModalKey, setActiveModalKey] = useState(null);
+//   const menuFetchedRef = useRef(null); 
+
+//   const normPath = (p = "") => (p.startsWith("/") ? p : `/${p}`);
+
+//   const resetAppData = useCallback(() => {
+//     setMenuItems([]);
+//     setRouteRows([]);
+//     setLoadingMenu(false);
+//     setIsSidebarVisible(false);
+//     setActiveModalKey(null);
+//     menuFetchedRef.current = null;
+//     sessionStorage.removeItem("menuItems");
+//     sessionStorage.removeItem("routeRows");
+//   }, []);
+
+//   const handleLogout = useCallback(async () => {
+//     resetAppData();
+//     await logout();
+//     window.location.href = "/"; 
+//   }, [logout, resetAppData]);
+
+//   const openModal = (componentKey) => setActiveModalKey(componentKey);
+//   const handleCloseModal = () => {
+//     setActiveModalKey(null);
+//     // If the modal was opened via a specific route, you might want to navigate back
+//     if (location.pathname.includes("/page/")) navigate("/");
+//   };
+
+//   useEffect(() => {
+//     let alive = true;
+//     const tenant = getTenant();
+//     if (!user) {
+//       resetAppData();
+//       return;
+//     }
+
+//     if (loading || !tenant || menuFetchedRef.current === user.USER_CODE) return;
+
+//     (async () => {
+//       try {
+//         if (routeRows.length === 0) setLoadingMenu(true);
+//         const [menuResp, routesResp] = await Promise.all([
+//           fetchData("menu-items", { USER_CODE: user.USER_CODE }),
+//           fetchData("menu-routes", { USER_CODE: user.USER_CODE }),
+//         ]);
+//         if (!alive) return;
+
+//         const mData = menuResp?.menuItems ?? menuResp?.data ?? [];
+//         const rData = routesResp?.routes ?? routesResp?.data ?? [];
+
+//         setMenuItems(mData);
+//         setRouteRows(rData);
+//         sessionStorage.setItem("menuItems", JSON.stringify(mData));
+//         sessionStorage.setItem("routeRows", JSON.stringify(rData));
+//         menuFetchedRef.current = user.USER_CODE; 
+//       } catch (e) {
+//         console.error("Fetch Error:", e);
+//       } finally {
+//         if (alive) setLoadingMenu(false);
+//       }
+//     })();
+//     return () => { alive = false; };
+//   }, [user, loading, resetAppData, routeRows.length]);
+
+//   // Handle Body Scroll Lock
+//   useEffect(() => {
+//     document.body.style.overflow = activeModalKey ? "hidden" : "auto";
+//     return () => { document.body.style.overflow = "auto"; };
+//   }, [activeModalKey]);
+
+//   if (loading) return <div className="fixed inset-0 flex items-center justify-center bg-white z-[9999]"><LoadingSpinner /></div>;
+
+//   if (!user) {
+//     return (
+//       <Routes>
+//         <Route path="/register" element={<Register />} />
+//         <Route path="/change-password" element={<ChangePassword />} />
+//         <Route path="*" element={<Login onSwitchToRegister={() => navigate("/register")} />} />
+//       </Routes>
+//     );
+//   }
+
+//   return (
+//     <div className="relative min-h-screen flex flex-col bg-gray-50 dark:bg-black font-roboto">
+//       <div className="sticky top-0 z-40">
+//         <Navbar onMenuClick={() => setIsSidebarVisible(!isSidebarVisible)} onLogout={handleLogout} />
+//       </div>
+      
+//       {isSidebarVisible && (
+//         <div className="fixed inset-0 z-50 flex">
+//           <Sidebar 
+//             menuItems={menuItems} 
+//             onNavigate={() => setIsSidebarVisible(false)} 
+//             onOpenModal={(key) => {
+//               setIsSidebarVisible(false);
+//               openModal(key);
+//             }}
+//           />
+//           <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={() => setIsSidebarVisible(false)} />
+//         </div>
+//       )}
+
+//       <div className="flex-1 p-4 overflow-y-auto">
+//         <Routes>
+//           <Route path="/" element={<Dashboard1 user={user} />} />
+//           <Route path="/change-password" element={<ChangePassword />} />
+
+//           {/* 1. Dynamic Menu Routes */}
+//           {routeRows
+//             ?.filter((r) => r.path && r.componentKey && !r.isModal)
+//             .map((route) => {
+//               const Cmp = pageRegistry[route.componentKey];
+//               if (!Cmp) return null;
+//               return (
+//                 <Route 
+//                   key={route.code || route.path} 
+//                   path={normPath(route.path)} 
+//                   element={
+//                     <ErrorBoundary>
+//                       <Cmp />
+//                     </ErrorBoundary>
+//                   } 
+//                 />
+//               );
+//             })}
+
+//           {/* 2. Universal Registry Bypass */}
+//           <Route 
+//             path="/page/:componentKey" 
+//             element={<UniversalRegistryRoute routeRows={routeRows} loadingMenu={loadingMenu} />} 
+//           />
+
+//           {/* 3. Catch-all for direct paths */}
+//           <Route 
+//             path="*" 
+//             element={<UniversalRegistryRoute routeRows={routeRows} loadingMenu={loadingMenu} />} 
+//           />
+//         </Routes>
+//       </div>
+
+//       <ModalHost modalKey={activeModalKey} onClose={handleCloseModal} />
+//     </div>
+//   );
+// };
+
+// /* -------------------- App Root -------------------- */
+// const App = () => (
+//   <Router>
+//     <QueryClientProvider client={queryClient}>
+//       <AuthProvider>
+//         <ResetProvider>
+//           <AppContent />
+//         </ResetProvider>
+//       </AuthProvider>
+//     </QueryClientProvider>
+//   </Router>
+// );
+
+// export default App;
+
+
+
+
 import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { 
   BrowserRouter as Router, 
@@ -1513,7 +2238,6 @@ import {
   useLocation 
 } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { toast } from "react-hot-toast";
 
 import { pageRegistry } from "./pageRegistry.jsx";
 import ErrorBoundary from "./NAYSA Cloud/Components/ErrorBoundary";
@@ -1524,19 +2248,23 @@ import { ResetProvider } from "./NAYSA Cloud/Components/ResetContext";
 import Login from "./NAYSA Cloud/Authentication/Login.jsx";
 import Register from "./NAYSA Cloud/Authentication/Register.jsx";
 import Dashboard1 from "./NAYSA Cloud/Components/Dashboard1.jsx";
-import ChangePassword from "./NAYSA Cloud/Authentication/ChangePassword.jsx"; // Ensure this import exists
+import ChangePassword from "./NAYSA Cloud/Authentication/ChangePassword.jsx"; 
 import AuthProvider, { useAuth } from "./NAYSA Cloud/Authentication/AuthContext.jsx";
 import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
 const queryClient = new QueryClient();
 
-/* -------------------- The Gatekeeper (Guard) -------------------- */
+/* -------------------- Universal Registry Route (The Gatekeeper) -------------------- */
 const UniversalRegistryRoute = ({ routeRows, loadingMenu }) => {
   const location = useLocation();
   const { componentKey: paramKey } = useParams();
+  const queryParams = new URLSearchParams(location.search);
+  const isViewMode = queryParams.get("viewDocument") === "true";
 
+  // Resolve which component should show based on URL or Params
   const matchingComponentKey = useMemo(() => {
     if (paramKey && pageRegistry[paramKey]) return paramKey;
+    
     const currentPath = location.pathname.replace(/\/$/, "") || "/";
     const dbMatch = routeRows.find((r) => {
       if (!r.path) return false;
@@ -1548,45 +2276,58 @@ const UniversalRegistryRoute = ({ routeRows, loadingMenu }) => {
 
   const Component = matchingComponentKey ? pageRegistry[matchingComponentKey] : null;
 
+  // 1. Show spinner while metadata is loading from DB
   if (loadingMenu && !Component) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <LoadingSpinner />
-        <p className="mt-4 text-gray-400 animate-pulse font-medium">Authorizing URL...</p>
+        <p className="mt-4 text-gray-400 animate-pulse font-medium">Validating Access...</p>
       </div>
     );
   }
 
-  if (!Component && !loadingMenu) {
+  // 2. Security Check: Only allow if component exists AND user has it in their routeRows
+  const isAuthorized = routeRows.some(r => r.componentKey === matchingComponentKey);
+
+  if (!Component || (!isAuthorized && !isViewMode)) {
     return <Navigate to="/" replace />;
   }
 
-  return Component ? (
+  // 3. Render with a STABLE key to prevent double-reloads on query string changes
+  return (
     <ErrorBoundary>
-      <Component key={`${matchingComponentKey}-view`} />
+      <Component key={matchingComponentKey} />
     </ErrorBoundary>
-  ) : null;
+  );
+};
+
+/* -------------------- Modal Host -------------------- */
+const ModalHost = ({ modalKey, onClose }) => {
+  const { user } = useAuth();
+  if (!modalKey) return null;
+  const Cmp = pageRegistry[modalKey];
+  if (!Cmp) return null;
+
+  return (
+    <div className="fixed inset-0 z-[999] bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
+        <Cmp isOpen={true} onClose={onClose} userCode={user?.USER_CODE} />
+      </div>
+    </div>
+  );
 };
 
 /* -------------------- App Content -------------------- */
 const AppContent = () => {
   const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // 1. SYNC INITIALIZATION: Load from sessionStorage immediately. 
-  // This is what prevents the "New Tab" from redirecting to login.
-  const [menuItems, setMenuItems] = useState(() => {
-    const saved = sessionStorage.getItem("menuItems");
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [routeRows, setRouteRows] = useState(() => {
-    const saved = sessionStorage.getItem("routeRows");
-    return saved ? JSON.parse(saved) : [];
-  });
-
+  const [menuItems, setMenuItems] = useState(() => JSON.parse(sessionStorage.getItem("menuItems")) || []);
+  const [routeRows, setRouteRows] = useState(() => JSON.parse(sessionStorage.getItem("routeRows")) || []);
   const [loadingMenu, setLoadingMenu] = useState(false);
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
+  const [activeModalKey, setActiveModalKey] = useState(null);
   const menuFetchedRef = useRef(null); 
 
   const resetAppData = useCallback(() => {
@@ -1594,29 +2335,23 @@ const AppContent = () => {
     setRouteRows([]);
     setLoadingMenu(false);
     setIsSidebarVisible(false);
+    setActiveModalKey(null);
     menuFetchedRef.current = null;
     sessionStorage.removeItem("menuItems");
     sessionStorage.removeItem("routeRows");
   }, []);
 
   const handleLogout = useCallback(async () => {
-    try {
-      resetAppData();
-      await logout();
-      window.location.href = "/"; // Nuclear Reset to guarantee clean state
-    } catch (err) {
-      window.location.href = "/";
-    }
+    resetAppData();
+    await logout();
+    window.location.href = "/"; 
   }, [logout, resetAppData]);
 
+  // Unified Menu/Route Loader
   useEffect(() => {
     let alive = true;
     const tenant = getTenant();
-    if (!user) {
-      resetAppData();
-      return;
-    }
-
+    if (!user) { resetAppData(); return; }
     if (loading || !tenant || menuFetchedRef.current === user.USER_CODE) return;
 
     (async () => {
@@ -1637,7 +2372,7 @@ const AppContent = () => {
         sessionStorage.setItem("routeRows", JSON.stringify(rData));
         menuFetchedRef.current = user.USER_CODE; 
       } catch (e) {
-        console.error("Fetch Error:", e);
+        console.error("Metadata Fetch Error:", e);
       } finally {
         if (alive) setLoadingMenu(false);
       }
@@ -1645,33 +2380,36 @@ const AppContent = () => {
     return () => { alive = false; };
   }, [user, loading, resetAppData, routeRows.length]);
 
+  useEffect(() => {
+    document.body.style.overflow = activeModalKey ? "hidden" : "auto";
+    return () => { document.body.style.overflow = "auto"; };
+  }, [activeModalKey]);
+
   if (loading) return <div className="fixed inset-0 flex items-center justify-center bg-white z-[9999]"><LoadingSpinner /></div>;
 
-  /* ---------------------------------------------------------
-     GUEST ACCESS (Public Routes & Login)
-     Placed before the protected return to allow access without user session.
-  --------------------------------------------------------- */
   if (!user) {
     return (
       <Routes>
         <Route path="/register" element={<Register />} />
-        {/* PUBLIC EXEMPTION: Change password link works even if logged out */}
         <Route path="/change-password" element={<ChangePassword />} />
         <Route path="*" element={<Login onSwitchToRegister={() => navigate("/register")} />} />
       </Routes>
     );
   }
 
-  /* ---------------------------------------------------------
-     PROTECTED APP LAYOUT (User Session Active)
-  --------------------------------------------------------- */
   return (
-    <div className="relative min-h-screen flex flex-col bg-gray-50 dark:bg-black">
-      <Navbar onMenuClick={() => setIsSidebarVisible(!isSidebarVisible)} onLogout={handleLogout} />
+    <div className="relative min-h-screen flex flex-col bg-gray-50 dark:bg-black font-roboto">
+      <div className="sticky top-0 z-40">
+        <Navbar onMenuClick={() => setIsSidebarVisible(!isSidebarVisible)} onLogout={handleLogout} />
+      </div>
       
       {isSidebarVisible && (
         <div className="fixed inset-0 z-50 flex">
-          <Sidebar menuItems={menuItems} onNavigate={() => setIsSidebarVisible(false)} />
+          <Sidebar 
+            menuItems={menuItems} 
+            onNavigate={() => setIsSidebarVisible(false)} 
+            onOpenModal={(key) => { setIsSidebarVisible(false); setActiveModalKey(key); }}
+          />
           <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={() => setIsSidebarVisible(false)} />
         </div>
       )}
@@ -1679,22 +2417,26 @@ const AppContent = () => {
       <div className="flex-1 p-4 overflow-y-auto">
         <Routes>
           <Route path="/" element={<Dashboard1 user={user} />} />
-          
-          {/* Allow Change Password while logged in as well */}
           <Route path="/change-password" element={<ChangePassword />} />
+
+          {/* CONSOLIDATED ROUTING: 
+              We removed the manual .map() of routeRows here.
+              All dynamic paths (/svi, /ap, etc.) are now handled by the '*' catch-all.
+          */}
 
           <Route 
             path="/page/:componentKey" 
             element={<UniversalRegistryRoute routeRows={routeRows} loadingMenu={loadingMenu} />} 
           />
 
-          {/* Catch-all for pasted URLs: Uses the instantly-available routeRows from sessionStorage */}
           <Route 
             path="*" 
             element={<UniversalRegistryRoute routeRows={routeRows} loadingMenu={loadingMenu} />} 
           />
         </Routes>
       </div>
+
+      <ModalHost modalKey={activeModalKey} onClose={() => setActiveModalKey(null)} />
     </div>
   );
 };
@@ -1713,9 +2455,6 @@ const App = () => (
 );
 
 export default App;
-
-
-
 
 
 

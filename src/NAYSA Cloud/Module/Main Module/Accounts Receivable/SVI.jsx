@@ -94,7 +94,7 @@ const SVI = () => {
   const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation(); 
-  const { companyInfo, currentUserRow,getAllDropDown } = useAuth();
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded } = useAuth();
   const [isViewDocument, setIsViewDocument] = useState(false);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
@@ -476,7 +476,19 @@ useEffect(() => {
   }, []);
 
 
+useEffect(() => {
+    // 🛑 STOP: If references haven't loaded yet, don't run the logic
+    if (!refsLoaded) return; 
 
+    // ✅ GO: Data is ready, now we can populate the dropdowns
+    const filteredTypes = getAllDropDown("SVITRAN_TYPE", docType); 
+    if (filteredTypes.length > 0) {
+      updateState({
+        sviTypes: filteredTypes,
+        selectedSVIType: "REG",
+      });
+    }
+}, [docType, refsLoaded]);
 
 
   
@@ -533,13 +545,13 @@ useEffect(() => {
 
       
  
-    const filteredTypes = getAllDropDown("SVITRAN_TYPE", docType); 
-    if (filteredTypes.length > 0) {
-      updateState({
-        sviTypes: filteredTypes,
-        selectedSVIType: "REG",
-      });
-    }
+    // const filteredTypes = getAllDropDown("SVITRAN_TYPE", docType); 
+    // if (filteredTypes.length > 0) {
+    //   updateState({
+    //     sviTypes: filteredTypes,
+    //     selectedSVIType: "REG",
+    //   });
+    // }
 
 
       // 🔹 2. Document row (independent)
