@@ -1,18 +1,22 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { fetchData } from "@/NAYSA Cloud/Configuration/BaseURL";
-import { useHandlePrintARReport, useHandleDownloadExcelARReport } from "@/NAYSA Cloud/Global/report";
+import { useHandlePrintAPReport, useHandleDownloadExcelAPReport } from "@/NAYSA Cloud/Global/report";
 import { useTopHSRptRow, useTopUserRow } from "@/NAYSA Cloud/Global/top1RefTable";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faMagnifyingGlass, faXmark, faCircleNotch, faRotateLeft, faBroom, faDownload, faPrint, faCircleXmark } from "@fortawesome/free-solid-svg-icons";
 import { useGetCurrentDay, useFormatToDate } from "@/NAYSA Cloud/Global/dates";
 import BranchLookupModal from "@/NAYSA Cloud/Lookup/SearchBranchRef";
 import PayeeMastLookupModal from "@/NAYSA Cloud/Lookup/SearchVendMast";
+import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
+import { useSelectedHSColConfig} from '@/NAYSA Cloud/Global/selectedData';
+import {exportGenericHistoryExcel} from "@/NAYSA Cloud/Global/report";
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 import Swal from "sweetalert2";
 
 /** -----------------------------------------------------------
  * APReportModal — Enhanced, responsive, accessible
  * ----------------------------------------------------------*/
-const APReportModal = ({ isOpen, onClose, userCode, closeOnBackdrop = true }) => {
+const EWTReportModal = ({ isOpen, onClose, userCode, closeOnBackdrop = true }) => {
   const today = useGetCurrentDay();
   const firstDayOfMonth = useMemo(() => {
     const d = new Date(today);
@@ -23,11 +27,10 @@ const APReportModal = ({ isOpen, onClose, userCode, closeOnBackdrop = true }) =>
   const [branchModalOpen, setBranchModalOpen] = useState(false);
   const [payeeModalOpen, setPayeeModalOpen] = useState(false);
   const [sPayeeMode, setPayeeMode] = useState("S");
-
+  const { companyInfo, currentUserRow } = useAuth();
   const [reportList, setReportList] = useState([]);
   const [reportQuery, setReportQuery] = useState("");
   const [selected, setSelected] = useState({ id: 0, name: "" });
-
   const [filters, setFilters] = useState({
     branchCode: "",
     branchName: "",
@@ -195,50 +198,73 @@ const APReportModal = ({ isOpen, onClose, userCode, closeOnBackdrop = true }) =>
     });
   };
 
-  const handlePreview = async () => {
-    try {
-      if (!selected.id) {
-        Swal.fire({ icon: "info", title: "Select a report", text: "Please choose a report first." });
-        return;
+
+
+  
+    
+    const handlePreview = async () => {
+      try {
+        if (!selected.id) {
+          Swal.fire({ icon: "info", title: "Select a report", text: "Please choose a report first." });
+          return;
+        }
+    
+        setLoading(true);
+    
+        const meta = await useTopHSRptRow(selected.id);
+    
+        const params = {
+          reportId: selected.id,
+          branchCode: filters.branchCode,
+          startDate: filters.startDate,
+          endDate: filters.endDate,
+          sPayeeCode: filters.sPayeeCode,
+          ePayeeCode: filters.ePayeeCode,
+          userCode,
+          mode:meta.sprocMode
+        };
+    
+      
+        if (!meta?.crptName && meta?.export !== "Y") {
+          Swal.fire({ icon: "info", title: "No Records Found", text: "Report File not Defined." });
+          return;
+        }
+    
+    
+        const response = meta.export === "Y"
+          ? await useHandleDownloadExcelAPReport(params)
+          : await useHandlePrintAPReport(params);
+    
+        if (meta.export === "Y") {
+          const colConfig = await useSelectedHSColConfig(meta.sprocMode, userCode);
+          
+          const payload = {
+            ReportName: meta.reportName,
+            UserCode: currentUserRow.userCode,
+            Branch: companyInfo.branchName,
+            JsonData: {
+              "Data": { [meta.reportName]: response.data }
+            },
+            companyName: companyInfo.compName,
+            companyAddress: companyInfo.compAddr,
+            companyTelNo: companyInfo.telNo,
+            StartDate: filters.startDate,
+            EndDate: filters.endDate,
+          };
+    
+          const columnConfigsMap = { [meta.reportName]: colConfig };
+    
+          await exportGenericHistoryExcel(payload, columnConfigsMap);
+        } 
+        
+      } catch (err) {
+        Swal.fire({ icon: "error", title: "Generate failed", text: err?.message ?? "Unexpected error." });
+      } finally {
+        setLoading(false);
       }
-
-      const { startDate, endDate } = normalizeDates(filters.startDate, filters.endDate);
-      updateState({ startDate, endDate });
-
-      setLoading(true);
-
-      const params = {
-        reportId: selected.id,
-        branchCode: filters.branchCode,
-        startDate,
-        endDate,
-        sPayeeCode: filters.sPayeeCode,
-        ePayeeCode: filters.ePayeeCode,
-        userCode,
-      };
-
-      const meta = await useTopHSRptRow(params.reportId);
-
-      if (!meta?.crptName && meta?.export !== "Y") {
-        Swal.fire({ icon: "info", title: "No Records Found", text: "Report file not defined." });
-        return;
-      }
-
-      const response =
-        meta.export === "Y"
-          ? await useHandleDownloadExcelARReport(params)
-          : await useHandlePrintARReport(params);
-
-      if (!meta.crptName && meta.export !== "Y") {
-        console.error("⚠️ Failed to generate report:", response);
-      }
-    } catch (err) {
-      console.error("❌ Error generating report:", err);
-      Swal.fire({ icon: "error", title: "Generate failed", text: err?.message ?? "Unexpected error." });
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+    
+      
 
   if (!isOpen) return null;
 
@@ -494,19 +520,13 @@ const APReportModal = ({ isOpen, onClose, userCode, closeOnBackdrop = true }) =>
                   </button>
                 </div>
               </div>
+
+
             </div>
           </div>
         </div>
 
-        {/* Loading overlay */}
-        {loading && (
-          <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] grid place-items-center pointer-events-none">
-            <div className="inline-flex items-center gap-3 text-blue-700 text-sm font-medium">
-              <FontAwesomeIcon icon={faCircleNotch} spin />
-              Processing…
-            </div>
-          </div>
-        )}
+        {loading && <LoadingSpinner />}
 
         {/* Child modals */}
         {branchModalOpen && (
@@ -520,4 +540,4 @@ const APReportModal = ({ isOpen, onClose, userCode, closeOnBackdrop = true }) =>
   );
 };
 
-export default APReportModal;
+export default EWTReportModal;

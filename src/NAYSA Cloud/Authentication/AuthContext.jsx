@@ -23,6 +23,7 @@ import Swal from "sweetalert2";
 import {
   useTopUserRow,
   useTopCompanyRow,
+  useTopDocDropDownAll,
 } from '@/NAYSA Cloud/Global/top1RefTable';
 
 
@@ -106,6 +107,7 @@ export default function AuthProvider({ children }) {
   const [refsLoading, setRefsLoading] = useState(false);
   const [refsLoaded, setRefsLoaded] = useState(false);
   const [companyInfo, setCompanyInfo] = useState(null);
+  const [allDropDown, setallDropDown] = useState(null);
   const [currentUserRow, setCurrentUserRow] = useState(null);
   const [currentMenu, setCurrentMenu] = useState(null);
 
@@ -126,6 +128,7 @@ export default function AuthProvider({ children }) {
 
     // Clear static refs as well
     setCompanyInfo(null);
+    setallDropDown(null);
     setCurrentUserRow(null);
     setCurrentMenu(null)
     setRefsLoaded(false);
@@ -321,15 +324,17 @@ export default function AuthProvider({ children }) {
     try {
       setRefsLoading(true);
 
-      const [companyRow, userRow,currentMenu] = await Promise.all([
+      const [companyRow, userRow,dropDown,currentMenu] = await Promise.all([
         useTopCompanyRow(),
         useTopUserRow(user.USER_CODE),
+        useTopDocDropDownAll(),
         fetchData("menu-items",{ USER_CODE: user?.USER_CODE})
       ]);
 
       setCompanyInfo(companyRow ?? null);
       setCurrentUserRow(userRow ?? null);
       setCurrentMenu(currentMenu ?? null)
+      setallDropDown(dropDown ?? null)
 
       setRefsLoaded(true);
     } catch (err) {
@@ -506,6 +511,17 @@ export default function AuthProvider({ children }) {
     []
   );
 
+
+
+  const getAllDropDown = useCallback((columnName, docCode) => {
+    return (allDropDown || []).filter(item => 
+        item.DROPDOWN_COLUMN === columnName && 
+        item.DOC_CODE === docCode
+    );
+  }, [allDropDown]);
+
+
+
   return (
     <AuthContext.Provider
       value={{
@@ -517,6 +533,7 @@ export default function AuthProvider({ children }) {
 
         // Expose static company/user info
         companyInfo,
+        getAllDropDown,
         currentUserRow,
         refsLoading,
         refsLoaded,

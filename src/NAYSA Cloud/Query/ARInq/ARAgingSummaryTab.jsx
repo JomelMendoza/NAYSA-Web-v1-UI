@@ -98,8 +98,8 @@ const ARAgingSummaryTab = forwardRef(function ARAgingSummaryTab({ registerAction
   const hydratedRef = useRef(false);
 
   const [state, setState] = useState({
-    branchCode: "",
-    branchName: "",
+    branchCode: currentUserRow.branchCode,
+    branchName: currentUserRow.branchName,
     custCode: "",
     custName: "",
     refDate: useGetCurrentDay(),
@@ -138,24 +138,7 @@ const ARAgingSummaryTab = forwardRef(function ARAgingSummaryTab({ registerAction
     return () => clearTimeout(t);
   }, [isLoading]);
 
-  // defaults (user/branch)
-  const loadDefaults = useCallback(async () => {
-    updateState({ showSpinner: true });
-    try {
-      const hsUser = await useTopUserRow(user?.USER_CODE);
-      if (hsUser) {
-        const hsBranch = await useTopBranchRow(hsUser.branchCode);
-        updateState({
-          branchCode: hsUser.branchCode,
-          branchName: hsBranch?.branchName || hsUser.branchName,
-        });
-      }
-    } catch (err) {
-      console.error("Error loading defaults data:", err);
-    } finally {
-      updateState({ showSpinner: false });
-    }
-  }, [user?.USER_CODE]);
+
 
   const handleReset = useCallback(async () => {
     updateState({
@@ -283,13 +266,12 @@ const ARAgingSummaryTab = forwardRef(function ARAgingSummaryTab({ registerAction
       }
 
       if (!user?.USER_CODE) return;
-      await loadDefaults();
       await handleReset();
       hydratedRef.current = true;
     };
     run();
     return () => { cancelled = true; };
-  }, [user?.USER_CODE, loadDefaults, handleReset]);
+  }, [user?.USER_CODE, handleReset]);
 
   // snapshot to cache
   useEffect(() => {

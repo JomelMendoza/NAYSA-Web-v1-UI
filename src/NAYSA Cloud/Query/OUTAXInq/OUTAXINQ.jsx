@@ -602,7 +602,7 @@ export default function OUTAXINQ() {
                     className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-600 flex items-center gap-2"
                   >
                     <FontAwesomeIcon icon={faNoteSticky} className="text-yellow-600" />
-                    <span>Generate SLP</span>
+                    <span>Generate SLS</span>
                   </button>
                 </div>
               )}

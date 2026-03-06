@@ -142,8 +142,8 @@ const JO = () => {
     isResetDisabled: false,
     isFetchDisabled: true,
 
-    branchCode: currentUserRow.branchCode,
-    branchName: currentUserRow.BranchName,
+    branchCode: currentUserRow?.branchCode||"",
+    branchName: currentUserRow?.BranchName||"",
     currCode: "",
     currName: "",
     attention: "",
@@ -154,9 +154,9 @@ const JO = () => {
     paytermName: "",
 
     // Currency information (not used by sproc_PHP_PR but kept for UI consistency)
-    currCode:companyInfo.currCode,
-    currName:companyInfo.currName,
-    currRate:formatNumber(companyInfo.currRate,6) ,
+    currCode:companyInfo?.currCode||"",
+    currName:companyInfo?.currName||"",
+    currRate:formatNumber(companyInfo?.currRate||1,6) ,
     defaultCurrRate: "1.000000",
 
     tblFieldArray :[],
@@ -385,10 +385,16 @@ const JO = () => {
 
 
 
-  useEffect(() => {
-    loadCompanyData();
+
+const isInitialMount = useRef(true);
+
+useEffect(() => {
+  if (isInitialMount.current) {
     handleReset();
-  }, []);
+    loadCompanyData();
+    isInitialMount.current = false;
+  }
+}, []);
 
 
   useEffect(() => {
@@ -410,12 +416,12 @@ const JO = () => {
    
 
     updateState({
-      branchCode: currentUserRow.branchCode,
-      branchName: currentUserRow.branchName,
-      userCode:currentUserRow.userCode,
-      currCode:companyInfo.currCode,
-      currName:companyInfo.currName,
-      currRate:formatNumber(companyInfo.currRate,6) ,
+      branchCode: currentUserRow?.branchCode||"",
+      branchName: currentUserRow?.branchName||"",
+      userCode:currentUserRow?.userCode||"",
+      currCode:companyInfo?.currCode||"",
+      currName:companyInfo?.currName||"",
+      currRate:formatNumber(companyInfo?.currRate||1,6) ,
       documentDate:useGetCurrentDay(),
       prNo: "", 
       rcCode: "",
@@ -2506,7 +2512,7 @@ const handleClosePRLookup = async (selection) => {
     <GlobalCombinedLookup
         isOpen={showOpenPRModal}
         title="Open Purchase Requisition"
-        summarySelectionMode="multiple" 
+        summarySelectionMode="single" 
         detailSelectionMode="multiple"
         summaryColumns={openPRJO_Col_Summary} 
         detailColumns={openPRJO_Col_Detail}

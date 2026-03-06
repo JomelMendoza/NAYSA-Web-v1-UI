@@ -47,7 +47,6 @@ import {
   useTopCurrencyRow,
   useTopHSOption,
   useTopDocControlRow,
-  useTopDocDropDown,
   useTopVatAmount,
   useTopATCAmount,
   useTopBillCodeRow,
@@ -95,7 +94,7 @@ const SVI = () => {
   const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation(); 
-  const { companyInfo, currentUserRow } = useAuth();
+  const { companyInfo, currentUserRow,getAllDropDown } = useAuth();
   const [isViewDocument, setIsViewDocument] = useState(false);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
@@ -115,7 +114,7 @@ const SVI = () => {
 
     // HS Option
     glCurrMode:"M",
-    glCurrDefault:companyInfo.currCode,
+    glCurrDefault:companyInfo?.currCode||"",
     withCurr2:false,
     withCurr3:false,
     glCurrGlobal1:"",
@@ -149,8 +148,8 @@ const SVI = () => {
 
 
 
-    branchCode: currentUserRow.branchCode,
-    branchName: currentUserRow.branchName,
+    branchCode: currentUserRow?.branchCode||"",
+    branchName: currentUserRow?.branchName||"",
     
     // Vendor information
     custCode: "",
@@ -158,10 +157,10 @@ const SVI = () => {
     attention: "",
     
     // Currency information
-    currCode: companyInfo.currCode,
-    currName: companyInfo.currName,
-    currRate: formatNumber(companyInfo.currRate,6),
-    defaultCurrRate:formatNumber(companyInfo.currRate,6),
+    currCode: companyInfo?.currCode||"",
+    currName: companyInfo?.currName||"",
+    currRate: formatNumber(companyInfo?.currRate||1,6),
+    defaultCurrRate:formatNumber(companyInfo?.currRate||1,6),
 
 
     //Other Header Info
@@ -175,7 +174,7 @@ const SVI = () => {
     billtermCode: "",
     billtermName: "",
     selectedSVIType : "REG",
-    userCode: currentUserRow.userCode, 
+    userCode: currentUserRow?.userCode||"", 
 
     //Detail 1-2
     detailRows  :[],
@@ -455,10 +454,15 @@ useEffect(() => {
 
 
 
-  useEffect(() => {
-    loadCompanyData();
+const isInitialMount = useRef(true);
+
+useEffect(() => {
+  if (isInitialMount.current) {
     handleReset();
-  }, []);
+    loadCompanyData();
+    isInitialMount.current = false;
+  }
+}, []);
 
 
 
@@ -478,15 +482,16 @@ useEffect(() => {
   
   const handleReset = () => {
 
+   
       updateState({
         
-      branchCode: currentUserRow.branchCode,
-      branchName: currentUserRow.branchName,
-      userCode:currentUserRow.userCode,
+      branchCode: currentUserRow?.branchCode||"",
+      branchName: currentUserRow?.branchName||"",
+      userCode:currentUserRow?.userCode||"",
       documentDate:useGetCurrentDay(),
-      currCode:companyInfo.currCode,
-      currName:companyInfo.currName,
-      currRate:formatNumber(companyInfo.currRate,6) ,
+      currCode:companyInfo?.currCode||"",
+      currName:companyInfo?.currName||"",
+      currRate:formatNumber(companyInfo?.currRate||1,6) ,
       refDocNo1: "",
       refDocNo2:"",
       fromDate:null,
@@ -518,21 +523,24 @@ useEffect(() => {
       updateTotalsDisplay (0, 0, 0, 0, 0, 0)
   };
 
-
+   
 
    const loadCompanyData = async () => {
 
     updateState({isLoading:true})
 
     try {
-      // 🔹 1. Run these in parallel since they don’t depend on each other      
-      const data = await useTopDocDropDown(docType,"SVITRAN_TYPE");
-      if(data){
-        updateState({
-         sviTypes: data,
-         selectedSVIType: "REG",
-          });
-        };   
+
+      
+ 
+    const filteredTypes = getAllDropDown("SVITRAN_TYPE", docType); 
+    if (filteredTypes.length > 0) {
+      updateState({
+        sviTypes: filteredTypes,
+        selectedSVIType: "REG",
+      });
+    }
+
 
       // 🔹 2. Document row (independent)
       const docRow = await useTopDocControlRow(docType);
@@ -2507,8 +2515,9 @@ return (
                     <input
                       type="text"
                       className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
-                        value={formatNumber(parseFormattedNumber(row.atcAmount)) || formatNumber(parseFormattedNumber(row.atcAmount)) || ""}
-                      onChange={(e) => handleDetailChange(index, 'ewtAmount', e.target.value)}
+                      readOnly
+                      value={formatNumber(parseFormattedNumber(row.atcAmount)) || formatNumber(parseFormattedNumber(row.atcAmount)) || ""}
+                      onChange={(e) => handleDetailChange(index, 'atcAmount', e.target.value)}
                     />
                 </td>
 

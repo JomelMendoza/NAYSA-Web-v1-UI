@@ -1,4 +1,4 @@
-import { apiClient ,postPdfRequest } from '@/NAYSA Cloud/Configuration/BaseURL';
+import { apiClient ,postPdfRequest,postRequest } from '@/NAYSA Cloud/Configuration/BaseURL';
 import { useTopDocControlRow,useTopHSRptRow } from '@/NAYSA Cloud/Global/top1RefTable';
 import { formatNumber } from "@/NAYSA Cloud/Global/behavior";
 import { stringify } from 'postcss';
@@ -127,7 +127,7 @@ export async function useHandlePrintARReport(params) {
               sprocName : "",
               export :"" };
 
-        console.log(JSON.stringify(payload))
+   
 
     const pdfBlob = await postPdfRequest("/printARReport", payload);
 
@@ -147,66 +147,30 @@ export async function useHandlePrintARReport(params) {
 
 
 
-export async function useHandleDownloadExcelARReport(params) {
- 
-   try {
-    const responseDocRpt = await useTopHSRptRow(params.reportId);
 
+
+
+export async function useHandleDownloadExcelARReport(params) {
+  const { mode, branchCode, startDate, endDate, sCustCode, eCustCode } = params;
+
+  try {
     const payload = {
-      branchCode: params.branchCode,
-      startDate: params.startDate,
-      endDate: params.endDate,
-      sCustCode: params.sCustCode,
-      eCustCode: params.eCustCode,
-      formName: responseDocRpt.crptName,
-      sprocMode: responseDocRpt.sprocMode,
-      sprocName: responseDocRpt.sprocName,
-      export: responseDocRpt.export,
-      reportName: responseDocRpt.reportName,
-      userCode:params.userCode
+      PARAMS: JSON.stringify({
+        mode,
+        branchcode: branchCode,
+        startdate: startDate,
+        enddate: endDate,
+        scustomer: sCustCode,
+        ecustomer: eCustCode
+      })
     };
 
-    // ⬇️ override only for this request
-    const response = await apiClient.post("/printARReport", payload, {
-      responseType: "blob",
-    });
-
-    if (!response || !response.data) {
-      return false; // no data received
-    }
-
-    // Determine filename from headers or fallback
-    let filename = responseDocRpt.reportName + ".xlsx";
-    const disposition = response.headers["content-disposition"];
-    if (disposition && disposition.includes("filename=")) {
-      filename = disposition
-        .split("filename=")[1]
-        .replace(/["']/g, "")
-        .trim();
-    }
-
-    // Create a blob and trigger download
-    const blob = new Blob([response.data], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    // Cleanup URL object
-    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-
-    return true;
+    return await postRequest("getARReport", payload);
   } catch (error) {
-    console.error("Error downloading report:", error);
-    return false;
+    console.error("Error downloading AR report:", error);
+    return { Data: {} }; 
   }
 }
-
 
 
 
@@ -261,71 +225,29 @@ export async function useHandlePrintAPReport(params) {
 
 
 
-export async function useHandleDownloadExcelAPReport(params) {
- 
-   try {
-    const responseDocRpt = await useTopHSRptRow(params.reportId);
 
+
+export async function useHandleDownloadExcelAPReport(params) {
+  const { mode, branchCode, startDate, endDate, sVendCode, eVendCode } = params;
+
+  try {
     const payload = {
-      branchCode: params.branchCode,
-      startDate: params.startDate,
-      endDate: params.endDate,
-      sPayee: params.sVendCode,
-      ePayee: params.eVendCode,
-      formName: responseDocRpt.crptName,
-      sprocMode: responseDocRpt.sprocMode,
-      sprocName: responseDocRpt.sprocName,
-      export: responseDocRpt.export,
-      reportName: responseDocRpt.reportName,
-      userCode:params.userCode
+      PARAMS: JSON.stringify({
+        mode,
+        branchCode: params.branchCode,
+        startDate: params.startDate,
+        endDate: params.endDate,
+        spayeeCode: params.sVendCode,
+        epayeeCode: params.eVendCode,
+      })
     };
 
-
-    console.log(JSON.stringify(payload))
-
-    // ⬇️ override only for this request
-    const response = await apiClient.post("/printAPReport", payload, {
-      responseType: "blob",
-    });
-
-    if (!response || !response.data) {
-      return false; // no data received
-    }
-
-    // Determine filename from headers or fallback
-    let filename = responseDocRpt.reportName + ".xlsx";
-    const disposition = response.headers["content-disposition"];
-    if (disposition && disposition.includes("filename=")) {
-      filename = disposition
-        .split("filename=")[1]
-        .replace(/["']/g, "")
-        .trim();
-    }
-
-    // Create a blob and trigger download
-    const blob = new Blob([response.data], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    // Cleanup URL object
-    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-
-    return true;
+    return await postRequest("getAPReport", payload);
   } catch (error) {
-    console.error("Error downloading report:", error);
-    return false;
+    console.error("Error downloading AP report:", error);
+    return { Data: {} }; 
   }
 }
-
-
-
 
 
 
@@ -382,70 +304,32 @@ export async function useHandlePrintGLReport(params) {
 
 
 
-export async function useHandleDownloadExcelGLReport(params) {
- 
-   try {
-    const responseDocRpt = await useTopHSRptRow(params.reportId);
 
+
+
+export async function useHandleDownloadExcelGLReport(params) {
+  const { mode, branchCode, startDate, endDate, sGL, eGL,sRC,eRC,sSL,eSL} = params;
+
+  try {
     const payload = {
-      branchCode: params.branchCode,
-      startDate: params.startDate,
-      endDate: params.endDate,
-      sGL: params.sGL,
-      eGL: params.eGL,
-      sSL: params.sSL,
-      eSL: params.eSL,
-      sRC: params.sRC,
-      eRC: params.eRC,
-      formName: responseDocRpt.crptName,
-      sprocMode: responseDocRpt.sprocMode,
-      sprocName: responseDocRpt.sprocName,
-      export: responseDocRpt.export,
-      reportName: responseDocRpt.reportName,
-      userCode:params.userCode
+      PARAMS: JSON.stringify({
+        mode,
+        branchCode: params.branchCode,
+        startDate: params.startDate,
+        endDate: params.endDate,
+        sGL: params.sGL,
+        eGL: params.eGL,
+        sSL:params.sSL,
+        eSL:params.eSL,
+        sRC:params.sRC,
+        eRC:params.eRC
+      })
     };
 
-
-  
-
-    // ⬇️ override only for this request
-    const response = await apiClient.post("/printGLReport", payload, {
-      responseType: "blob",
-    });
-
-    if (!response || !response.data) {
-      return false; // no data received
-    }
-
-    // Determine filename from headers or fallback
-    let filename = responseDocRpt.reportName + ".xlsx";
-    const disposition = response.headers["content-disposition"];
-    if (disposition && disposition.includes("filename=")) {
-      filename = disposition
-        .split("filename=")[1]
-        .replace(/["']/g, "")
-        .trim();
-    }
-
-    // Create a blob and trigger download
-    const blob = new Blob([response.data], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    // Cleanup URL object
-    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-
-    return true;
+    return await postRequest("getGLReport", payload);
   } catch (error) {
-    console.error("Error downloading report:", error);
-    return false;
+    console.error("Error downloading AP report:", error);
+    return { Data: {} }; 
   }
 }
 
@@ -1023,8 +907,11 @@ export async function exportGenericHistoryExcel(payload, columnConfigsMap, group
             const type = col.renderType;
             
             // Skip summation for 'currRate'
-            if (col.key.toLowerCase() === 'currrate' || col.key.toLowerCase().includes('rate') ) {
-                cell.value = ''; 
+            const excludedKeywords = ['rate', 'unitprice', 'unitcost',"unit_price","unit_cost"];
+            const colKeyLower = col.key.toLowerCase();
+
+            if (excludedKeywords.some(keyword => colKeyLower.includes(keyword))) {
+                cell.value = '';
                 return;
             }
             

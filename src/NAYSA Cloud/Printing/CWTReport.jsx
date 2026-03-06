@@ -1,47 +1,48 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef,useCallback } from "react";
 import { fetchData } from "@/NAYSA Cloud/Configuration/BaseURL";
-import { useHandlePrintAPReport, useHandleDownloadExcelAPReport } from "@/NAYSA Cloud/Global/report";
+import { useHandlePrintARReport, useHandleDownloadExcelARReport } from "@/NAYSA Cloud/Global/report";
 import { useTopHSRptRow, useTopUserRow } from "@/NAYSA Cloud/Global/top1RefTable";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faMagnifyingGlass, faXmark, faCircleNotch, faRotateLeft, faBroom, faDownload, faPrint, faCircleXmark } from "@fortawesome/free-solid-svg-icons";
+import { faMagnifyingGlass, faXmark, faCircleNotch, faRotateLeft, faBroom, faDownload, faPrint, faCircleXmark,faSpinner } from "@fortawesome/free-solid-svg-icons";
 import { useGetCurrentDay, useFormatToDate } from "@/NAYSA Cloud/Global/dates";
 import BranchLookupModal from "@/NAYSA Cloud/Lookup/SearchBranchRef";
-import PayeeMastLookupModal from "@/NAYSA Cloud/Lookup/SearchVendMast";
+import CustomerMastLookupModal from "@/NAYSA Cloud/Lookup/SearchCustMast";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 import { useSelectedHSColConfig} from '@/NAYSA Cloud/Global/selectedData';
 import {exportGenericHistoryExcel} from "@/NAYSA Cloud/Global/report";
 import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 import Swal from "sweetalert2";
 
-/** -----------------------------------------------------------
- * APReportModal — Enhanced, responsive, accessible
- * ----------------------------------------------------------*/
- const VIReportModal = ({ isOpen, onClose, userCode, closeOnBackdrop = true }) => {
- const today = useGetCurrentDay();
- const firstDayOfMonth = useMemo(() => {
- const d = new Date(today);
+
+const CWTReportModal = ({ isOpen, onClose, userCode, closeOnBackdrop = true }) => {
+
+  const today = useGetCurrentDay();
+  const firstDayOfMonth = useMemo(() => {
+    const d = new Date(today);
     return useFormatToDate(new Date(d.getFullYear(), d.getMonth(), 1));
   }, [today, useFormatToDate]);
 
+
   const [loading, setLoading] = useState(false);
   const [branchModalOpen, setBranchModalOpen] = useState(false);
-  const [payeeModalOpen, setPayeeModalOpen] = useState(false);
-  const [sPayeeMode, setPayeeMode] = useState("S");
-  const { companyInfo, currentUserRow } = useAuth();
+  const [customerModalOpen, setCustomerModalOpen] = useState(false);
+  const [sCustMode, setCustMode] = useState("S"); 
   const [reportList, setReportList] = useState([]);
   const [reportQuery, setReportQuery] = useState("");
   const [selected, setSelected] = useState({ id: 0, name: "" });
+  const { companyInfo, currentUserRow } = useAuth();
 
   const [filters, setFilters] = useState({
     branchCode: "",
     branchName: "",
     startDate: firstDayOfMonth,
     endDate: today,
-    sPayeeCode: "",
-    sPayeeName: "",
-    ePayeeCode: "",
-    ePayeeName: "",
+    sCustCode: "",
+    sCustName: "",
+    eCustCode: "",
+    eCustName: "",
   });
+
 
   const updateState = (patch) => setFilters((f) => ({ ...f, ...patch }));
   const alertFired = useRef(false);
@@ -60,55 +61,55 @@ import Swal from "sweetalert2";
     return () => (document.body.style.overflow = prev);
   }, [isOpen]);
 
-  // Fetch report list + user’s default branch
   useEffect(() => {
-    if (!isOpen) return;
-    let cancelled = false;
-    alertFired.current = false;
-    setLoading(true);
+     if (!isOpen) return;
+     let cancelled = false;
+     alertFired.current = false;
+     setLoading(true);
+ 
+     (async () => {
+       try {
+         const params = { mdl: "VO", userCode };
+         const [rptRes, userRes] = await Promise.all([
+           fetchData("hsrpt", params),
+           useTopUserRow(userCode),
+         ]);
+ 
+         if (!cancelled && userRes) {
+           updateState({
+             branchCode: userRes.branchCode,
+             branchName: userRes.branchName,
+           });
+         }
+ 
+         const list = rptRes?.data?.[0]?.result ? JSON.parse(rptRes.data[0].result) : [];
+         if (!cancelled) {
+           if (list.length === 0 && !alertFired.current) {
+             Swal.fire({ icon: "info", title: "No Records Found", text: "Management report not defined." });
+             alertFired.current = true;
+             onClose?.();
+             return;
+           }
+           setReportList(list);
+           if (list.length > 0) setSelected({ id: list[0].reportId, name: list[0].reportName });
+         }
+       } catch (e) {
+         if (!cancelled) {
+           console.error("Error fetching data:", e);
+           Swal.fire({ icon: "error", title: "Load failed", text: e?.message ?? "Unable to load reports." });
+         }
+       } finally {
+         if (!cancelled) setLoading(false);
+       }
+     })();
+ 
+     return () => {
+       cancelled = true;
+     };
+   }, [isOpen, userCode, onClose]);
 
-    (async () => {
-      try {
-        const params = { mdl: "VI", userCode };
-        const [rptRes, userRes] = await Promise.all([
-          fetchData("hsrpt", params),
-          useTopUserRow(userCode),
-        ]);
 
-        if (!cancelled && userRes) {
-          updateState({
-            branchCode: userRes.branchCode,
-            branchName: userRes.branchName,
-          });
-        }
-
-        const list = rptRes?.data?.[0]?.result ? JSON.parse(rptRes.data[0].result) : [];
-        if (!cancelled) {
-          if (list.length === 0 && !alertFired.current) {
-            Swal.fire({ icon: "info", title: "No Records Found", text: "Management report not defined." });
-            alertFired.current = true;
-            onClose?.();
-            return;
-          }
-          setReportList(list);
-          if (list.length > 0) setSelected({ id: list[0].reportId, name: list[0].reportName });
-        }
-      } catch (e) {
-        if (!cancelled) {
-          console.error("Error fetching data:", e);
-          Swal.fire({ icon: "error", title: "Load failed", text: e?.message ?? "Unable to load reports." });
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isOpen, userCode, onClose]);
-
-  // Keyboard handlers (ESC to close, focus trap with Tab)
+ // Keyboard handlers (ESC to close, focus trap with Tab)
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e) => {
@@ -137,6 +138,7 @@ import Swal from "sweetalert2";
     return () => window.removeEventListener("keydown", onKey);
   }, [isOpen, onClose]);
 
+
   // Backdrop click to close
   const handleBackdropClick = (e) => {
     if (!closeOnBackdrop) return;
@@ -145,7 +147,6 @@ import Swal from "sweetalert2";
 
   // Helpers
   const normalizeDates = useCallback((start, end) => {
-    // If accidentally swapped, auto-correct (and warn lightly)
     if (start && end && new Date(start) > new Date(end)) {
       Swal.fire({
         icon: "info",
@@ -172,104 +173,96 @@ import Swal from "sweetalert2";
     setBranchModalOpen(false);
   };
 
-  const handleClosePayeeModal = ({ payeeCode, payeeName }) => {
-    if (sPayeeMode === "S") {
-      updateState({
-        sPayeeCode: payeeCode,
-        sPayeeName: payeeName,
-        ePayeeCode: payeeCode,
-        ePayeeName: payeeName,
-      });
+
+
+  const handleCloseCustomerModal = ({ custCode, custName }) => {
+    if (sCustMode === "S") {
+      updateState({ sCustCode: custCode, sCustName: custName, eCustCode: custCode, eCustName: custName });
     } else {
-      updateState({ ePayeeCode: payeeCode, ePayeeName: payeeName });
+      updateState({ eCustCode: custCode, eCustName: custName });
     }
-    setPayeeModalOpen(false);
+    setCustomerModalOpen(false);
   };
 
-  const clearSPayee = () => updateState({ sPayeeCode: "", sPayeeName: "" });
-  const clearEPayee = () => updateState({ ePayeeCode: "", ePayeeName: "" });
+
+  
+  const clearSCustomer = () => updateState({ sCustCode: "", sCustName: "" });
+  const clearECustomer = () => updateState({ eCustCode: "", eCustName: "" });
 
   const handleReset = () => {
-    // Keep dates/branch, clear payees only
-    updateState({
-      sPayeeCode: "",
-      sPayeeName: "",
-      ePayeeCode: "",
-      ePayeeName: "",
-    });
+    updateState({ sCustCode: "", sCustName: "", eCustCode: "", eCustName: "" });
   };
 
 
-  
 
-  
-  const handlePreview = async () => {
-    try {
-      if (!selected.id) {
-        Swal.fire({ icon: "info", title: "Select a report", text: "Please choose a report first." });
-        return;
-      }
-  
-      setLoading(true);
-  
-      const meta = await useTopHSRptRow(selected.id);
-  
-      const params = {
-        reportId: selected.id,
-        branchCode: filters.branchCode,
-        startDate: filters.startDate,
-        endDate: filters.endDate,
-        sPayeeCode: filters.sPayeeCode,
-        ePayeeCode: filters.ePayeeCode,
-        userCode,
-        mode:meta.sprocMode
-      };
-  
-    
-      if (!meta?.crptName && meta?.export !== "Y") {
-        Swal.fire({ icon: "info", title: "No Records Found", text: "Report File not Defined." });
-        return;
-      }
-  
-  
-      const response = meta.export === "Y"
-        ? await useHandleDownloadExcelAPReport(params)
-        : await useHandlePrintAPReport(params);
-  
-      if (meta.export === "Y") {
-        const colConfig = await useSelectedHSColConfig(meta.sprocMode, userCode);
-        
-        const payload = {
-          ReportName: meta.reportName,
-          UserCode: currentUserRow.userCode,
-          Branch: companyInfo.branchName,
-          JsonData: {
-            "Data": { [meta.reportName]: response.data }
-          },
-          companyName: companyInfo.compName,
-          companyAddress: companyInfo.compAddr,
-          companyTelNo: companyInfo.telNo,
-          StartDate: filters.startDate,
-          EndDate: filters.endDate,
-        };
-  
-        const columnConfigsMap = { [meta.reportName]: colConfig };
-  
-        await exportGenericHistoryExcel(payload, columnConfigsMap);
-      } 
-      
-    } catch (err) {
-      Swal.fire({ icon: "error", title: "Generate failed", text: err?.message ?? "Unexpected error." });
-    } finally {
-      setLoading(false);
+
+const handlePreview = async () => {
+  try {
+    if (!selected.id) {
+      Swal.fire({ icon: "info", title: "Select a report", text: "Please choose a report first." });
+      return;
     }
-  };
+
+    setLoading(true);
+
+    const meta = await useTopHSRptRow(selected.id);
+
+    const params = {
+      reportId: selected.id,
+      branchCode: filters.branchCode,
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+      sCustCode: filters.sCustCode,
+      eCustCode: filters.eCustCode,
+      userCode,
+      mode:meta.sprocMode
+    };
+
   
+    if (!meta?.crptName && meta?.export !== "Y") {
+      Swal.fire({ icon: "info", title: "No Records Found", text: "Report File not Defined." });
+      return;
+    }
+
+
+    const response = meta.export === "Y"
+      ? await useHandleDownloadExcelARReport(params)
+      : await useHandlePrintARReport(params);
+
+    if (meta.export === "Y") {
+      const colConfig = await useSelectedHSColConfig(meta.sprocMode, userCode);
+      
+      const payload = {
+        ReportName: meta.reportName,
+        UserCode: currentUserRow.userCode,
+        Branch: companyInfo.branchName,
+        JsonData: {
+          "Data": { [meta.reportName]: response.data }
+        },
+        companyName: companyInfo.compName,
+        companyAddress: companyInfo.compAddr,
+        companyTelNo: companyInfo.telNo,
+        StartDate: filters.startDate,
+        EndDate: filters.endDate,
+      };
+
+      const columnConfigsMap = { [meta.reportName]: colConfig };
+
+      await exportGenericHistoryExcel(payload, columnConfigsMap);
+    } 
     
+  } catch (err) {
+    Swal.fire({ icon: "error", title: "Generate failed", text: err?.message ?? "Unexpected error." });
+  } finally {
+    setLoading(false);
+  }
+};
+
+  
 
   if (!isOpen) return null;
 
-  return (
+ return (
     <div
       ref={backdropRef}
       onMouseDown={handleBackdropClick}
@@ -281,13 +274,13 @@ import Swal from "sweetalert2";
       <div
         ref={dialogRef}
         className="relative w-full max-w-[1000px] md:rounded-2xl bg-white shadow-2xl md:my-8
-                   h-[100svh] md:h-auto md:max-h-[85vh] flex flex-col overflow-hidden"
+                   h-[100svh] md:h-auto md:max-h-[75vh] flex flex-col overflow-hidden"
         onMouseDown={(e) => e.stopPropagation()} // prevent backdrop close when clicking inside
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-2 md:px-6 py-3 border-b bg-gradient-to-r from-white to-blue-100">
           <h2 id="ap-report-title" className="text-sm md:text-base font-semibold text-blue-700">
-            VAT Input Reports
+            Creditable Withholding Tax Reports
           </h2>
           <button
             onClick={onClose}
@@ -303,14 +296,14 @@ import Swal from "sweetalert2";
         <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-2 p-2 md:p-4 overflow-hidden">
           {/* Left: Report list */}
           <div className="md:col-span-1 border rounded-xl overflow-hidden flex flex-col">
-            <div className="px-3 py-2 border-b bg-white/60 sticky top-0 z-10">
+            <div className="p-1 border-b bg-white/60 sticky top-0 z-10">
               <div className="relative">
                 <input
                   type="text"
                   value={reportQuery}
                   onChange={(e) => setReportQuery(e.target.value)}
                   placeholder="Search report…"
-                  className="w-full border rounded-lg pl-9 pr-3 py-2 text-xs md:text-sm focus:ring-2 focus:ring-blue-300 outline-none"
+                  className="w-full border rounded-lg pl-9 pr-3 py-2 text-xs md:text-xs focus:ring-2 focus:ring-blue-300 outline-none"
                   aria-label="Search report"
                 />
                 <FontAwesomeIcon icon={faMagnifyingGlass} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -340,7 +333,7 @@ import Swal from "sweetalert2";
                       aria-selected={active}
                       onClick={() => setSelected({ id: r.reportId, name: r.reportName })}
                       className={`w-full text-left px-3 py-2 text-xs md:text-[12px] border-b last:border-b-0
-                        ${active ? "bg-blue-50 text-blue-700 font-medium" : "hover:bg-gray-50"}`}
+                        ${active ? "bg-blue-50 text-blue-700 font-semibold" : "hover:bg-gray-50"}`}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="truncate">{r.reportName}</span>
@@ -365,14 +358,14 @@ import Swal from "sweetalert2";
           {/* Right: Options */}
           <div className="md:col-span-2 border rounded-xl overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-2 md:px-4 py-2 border-b bg-white/60">
-              <span className="text-xs md:text-[15px] font-semibold text-blue-700 truncate">
+              <span className="text-xs md:text-[16px] font-semibold text-blue-700 truncate">
                 {selected.name || "Report Options"}
               </span>
             </div>
 
-            <div className="p-3 md:p-5 space-y-2 md:space-y-5 overflow-y-auto">
+            <div className="p-3 md:p-5 space-y-2 md:space-y-3 overflow-y-auto">
               {/* Branch */}
-              <div className="grid grid-cols-1 md:grid-cols-[8rem_1fr] items-center gap-2 md:gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-[7.5rem_1fr] items-center gap-2 md:gap-4">
                 <label className="text-xs md:text-sm font-medium">Branch</label>
                 <div className="relative">
                   <input
@@ -393,7 +386,7 @@ import Swal from "sweetalert2";
               </div>
 
               {/* Start Date */}
-              <div className="grid grid-cols-1 md:grid-cols-[8rem_1fr] items-center gap-2 md:gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-[7.5rem_1fr] items-center gap-2 md:gap-4">
                 <label className="text-xs md:text-sm font-medium">Start Date</label>
                 <input
                   type="date"
@@ -404,7 +397,7 @@ import Swal from "sweetalert2";
               </div>
 
               {/* End Date */}
-              <div className="grid grid-cols-1 md:grid-cols-[8rem_1fr] items-center gap-2 md:gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-[7.5rem_1fr] items-center gap-2 md:gap-4">
                 <label className="text-xs md:text-sm font-medium">End Date</label>
                 <input
                   type="date"
@@ -414,23 +407,23 @@ import Swal from "sweetalert2";
                 />
               </div>
 
-              {/* Starting Payee */}
-              <div className="grid grid-cols-1 md:grid-cols-[8rem_1fr] items-center gap-2 md:gap-4">
-                <label className="text-xs md:text-sm font-medium">Starting Payee</label>
+              {/* Starting Customer */}
+              <div className="grid grid-cols-1 md:grid-cols-[7.5rem_1fr] items-center gap-2 md:gap-4">
+                <label className="text-xs md:text-sm font-medium">Starting Customer</label>
                 <div className="relative">
                   <input
                     type="text"
                     readOnly
-                    value={filters.sPayeeName}
-                    placeholder="Select payee"
+                    value={filters.sCustName}
+                    placeholder="Select Customer"
                     className="border rounded-lg pl-3 pr-20 py-2 w-full text-xs md:text-sm focus:ring-2 focus:ring-blue-300 outline-none"
                   />
-                  {filters.sPayeeName && (
+                  {filters.sCustName && (
                     <button
                       type="button"
-                      onClick={clearSPayee}
+                      onClick={clearSCustomer}
                       className="absolute right-9 inset-y-0 my-auto w-8 h-8 inline-flex items-center justify-center text-gray-500 hover:text-red-600 rounded-md"
-                      aria-label="Clear starting payee"
+                      aria-label="Clear starting Customer"
                       title="Clear"
                     >
                       <FontAwesomeIcon icon={faCircleXmark} />
@@ -438,31 +431,31 @@ import Swal from "sweetalert2";
                   )}
                   <button
                     className="absolute inset-y-0 right-1 my-auto w-8 h-8 inline-flex items-center justify-center text-white bg-blue-600 hover:bg-blue-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    onClick={() => { setPayeeMode("S"); setPayeeModalOpen(true); }}
-                    aria-label="Find starting payee"
+                    onClick={() => { setCustMode("S"); setCustomerModalOpen(true); }}
+                    aria-label="Find starting Customer"
                   >
                     <FontAwesomeIcon icon={faMagnifyingGlass} />
                   </button>
                 </div>
               </div>
 
-              {/* Ending Payee */}
-              <div className="grid grid-cols-1 md:grid-cols-[8rem_1fr] items-center gap-2 md:gap-4">
-                <label className="text-xs md:text-sm font-medium">Ending Payee</label>
+              {/* Ending Customer */}
+              <div className="grid grid-cols-1 md:grid-cols-[7.5rem_1fr] items-center gap-2 md:gap-4">
+                <label className="text-xs md:text-sm font-medium">Ending Customer</label>
                 <div className="relative">
                   <input
                     type="text"
                     readOnly
-                    value={filters.ePayeeName}
-                    placeholder="Select payee"
+                    value={filters.eCustName}
+                    placeholder="Select Customer"
                     className="border rounded-lg pl-3 pr-20 py-2 w-full text-xs md:text-sm focus:ring-2 focus:ring-blue-300 outline-none"
                   />
-                  {filters.ePayeeName && (
+                  {filters.eCustName && (
                     <button
                       type="button"
-                      onClick={clearEPayee}
+                      onClick={clearECustomer}
                       className="absolute right-9 inset-y-0 my-auto w-8 h-8 inline-flex items-center justify-center text-gray-500 hover:text-red-600 rounded-md"
-                      aria-label="Clear ending payee"
+                      aria-label="Clear ending Customer"
                       title="Clear"
                     >
                       <FontAwesomeIcon icon={faCircleXmark} />
@@ -470,15 +463,15 @@ import Swal from "sweetalert2";
                   )}
                   <button
                     className="absolute inset-y-0 right-1 my-auto w-8 h-8 inline-flex items-center justify-center text-white bg-blue-600 hover:bg-blue-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    onClick={() => { setPayeeMode("E"); setPayeeModalOpen(true); }}
-                    aria-label="Find ending payee"
+                    onClick={() => { setCustMode("E"); setCustomerModalOpen(true); }}
+                    aria-label="Find ending Customer"
                   >
                     <FontAwesomeIcon icon={faMagnifyingGlass} />
                   </button>
                 </div>
               </div>
 
-              {/* Actions */}
+             {/* Actions */}
               <div className="pt-2 md:pt-4">
                 <div className="grid grid-cols-3 md:flex md:justify-end gap-2 md:gap-3">
                   <button
@@ -521,22 +514,25 @@ import Swal from "sweetalert2";
                   </button>
                 </div>
               </div>
+
+
             </div>
           </div>
         </div>
 
-         {loading && <LoadingSpinner />}
+       {loading && <LoadingSpinner />}
 
         {/* Child modals */}
         {branchModalOpen && (
           <BranchLookupModal isOpen={branchModalOpen} onClose={handleCloseBranchModal} />
         )}
-        {payeeModalOpen && (
-          <PayeeMastLookupModal isOpen={payeeModalOpen} onClose={handleClosePayeeModal} />
+        {customerModalOpen && (
+          <CustomerMastLookupModal isOpen={customerModalOpen} onClose={handleCloseCustomerModal} />
         )}
       </div>
     </div>
   );
 };
 
-export default VIReportModal;
+
+export default CWTReportModal;

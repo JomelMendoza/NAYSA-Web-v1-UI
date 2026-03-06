@@ -126,7 +126,7 @@ const CR = () => {
 
     // HS Option
     glCurrMode:"M",
-    glCurrDefault:companyInfo.currCode,
+    glCurrDefault:companyInfo?.currCode||"",
     withCurr2:false,
     withCurr3:false,
     glCurrGlobal1:"",
@@ -160,8 +160,8 @@ const CR = () => {
 
 
 
-    branchCode: currentUserRow.branchCode,
-    branchName: currentUserRow.branchName,
+    branchCode: currentUserRow?.branchCode||"",
+    branchName: currentUserRow?.branchName||"",
     
     // Vendor information
     custCode: "",
@@ -171,10 +171,10 @@ const CR = () => {
 
     
     // Currency information
-    currCode: companyInfo.currCode,
-    currName: companyInfo.currName,
-    currRate: formatNumber(companyInfo.currRate,6),
-    defaultCurrRate:formatNumber(companyInfo.currRate,6),
+    currCode: companyInfo?.currCode||"",
+    currName: companyInfo?.currName||"",
+    currRate: formatNumber(companyInfo?.currRate||1,6),
+    defaultCurrRate:formatNumber(companyInfo?.currRate||1,6),
 
 
     //Other Header Info
@@ -198,7 +198,7 @@ const CR = () => {
     selectedPayType : "CR01",
     selectedCheckType:"CR21",
 
-    userCode: currentUserRow.userCode, 
+    userCode: currentUserRow?.userCode||"", 
 
     //Detail 1-2
     detailRows  :[],
@@ -467,10 +467,16 @@ useEffect(() => {
 
 
 
-  useEffect(() => {
+
+const isInitialMount = useRef(true);
+
+useEffect(() => {
+  if (isInitialMount.current) {
     handleReset();
-    loadCompanyData(); 
-  }, []);
+    loadCompanyData();
+    isInitialMount.current = false;
+  }
+}, []);
 
 
   
@@ -506,19 +512,21 @@ useEffect(() => {
   const handleReset = () => { 
       updateState({
 
-      branchCode: currentUserRow.branchCode,
-      branchName: currentUserRow.branchName,
-      userCode:currentUserRow.userCode,
+      branchCode: currentUserRow?.branchCode||"",
+      branchName: currentUserRow?.branchName||"",
+      userCode:currentUserRow?.userCode ||"",
       documentDate:useGetCurrentDay(),
-      currCode:companyInfo.currCode,
-      currName:companyInfo.currName,
-      currRate:formatNumber(companyInfo.currRate,6) ,
+      currCode:companyInfo?.currCode||"",
+      currName:companyInfo?.currName||"",
+      currRate:formatNumber(companyInfo?.currRate||1,6) ,
       noReprints:"0",
       
       refDocNo1: "",
       refDocNo2:"",
       checkDate:null,
       remarks:"",
+      checkNo:"",
+      bank:"",
 
       custName:"",
       custCode:"",
@@ -722,8 +730,9 @@ const fetchTranData = async (documentNo, branchCode,direction="") => {
       selectedCRType: data.crtranType,
       selectedPayType:data.paymentType,
       selectedCheckType:data.ckType,
-      depAcctName:"",
-      depAcctNo:"",
+      depBankCode:data.depBankCode,
+      depAcctName:data.depAcctName,
+      depAcctNo:data.depAcctNo,
       chainCode: data.chainCode,
       chainName: data.chainName,
       custCode: data.custCode,
@@ -3204,6 +3213,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                             type="text"
                             className="w-[300px] global-tran-td-inputclass-ui"
                             value={row.particular || ""}
+                            readOnly
                             onChange={(e) => handleDetailChange(index, 'particular', e.target.value)}
                           />
                     </td>
@@ -3281,6 +3291,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                       type="text"
                       className="w-[200px] global-tran-td-inputclass-ui"
                       value={row.atcName || ""}
+                      readOnly
                       onChange={(e) => handleDetailChange(index, 'atcName', e.target.value)}
                     />
                   </td>
