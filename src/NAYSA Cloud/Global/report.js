@@ -1091,7 +1091,7 @@ export const exportGenericQueryExcel = async (
     color: { argb: "FFFFFFFF" },
     };
     // REQUIRED: Header row height set to 25
-    const HEADER_ROW_HEIGHT = 25;
+    const HEADER_ROW_HEIGHT = 20;
         
         // Subtotal Row Fill Style (Light Yellow)
     const SUB_TOTAL_FILL_STYLE = {
@@ -1203,7 +1203,7 @@ export const exportGenericQueryExcel = async (
     name: "Aptos",
     size: 16,
     bold: true,
-    color: { argb: "FF0000FF" },
+    color: { argb: "000089" },
     };
     currentRowIndex++;
     setMeta(currentRowIndex, 1, compAddr || "");
@@ -1245,7 +1245,7 @@ export const exportGenericQueryExcel = async (
     cell.fill = {
     type: "pattern",
     pattern: "solid",
-    fgColor: { argb: "4E56C0" },
+    fgColor: { argb: "000089" },
     };
     });
 
