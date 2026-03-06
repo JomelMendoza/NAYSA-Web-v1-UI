@@ -47,7 +47,6 @@ import {
   useTopCurrencyRow,
   useTopHSOption,
   useTopDocControlRow,
-  useTopDocDropDown,
   useTopVatAmount,
   useTopATCAmount,
   useTopBillCodeRow,
@@ -95,7 +94,7 @@ const SVI = () => {
   const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation(); 
-  const { companyInfo, currentUserRow } = useAuth();
+  const { companyInfo, currentUserRow,getAllDropDown } = useAuth();
   const [isViewDocument, setIsViewDocument] = useState(false);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
@@ -483,6 +482,7 @@ useEffect(() => {
   
   const handleReset = () => {
 
+   
       updateState({
         
       branchCode: currentUserRow?.branchCode||"",
@@ -523,21 +523,24 @@ useEffect(() => {
       updateTotalsDisplay (0, 0, 0, 0, 0, 0)
   };
 
-
+   
 
    const loadCompanyData = async () => {
 
     updateState({isLoading:true})
 
     try {
-      // 🔹 1. Run these in parallel since they don’t depend on each other      
-      const data = await useTopDocDropDown(docType,"SVITRAN_TYPE");
-      if(data){
-        updateState({
-         sviTypes: data,
-         selectedSVIType: "REG",
-          });
-        };   
+
+      
+ 
+    const filteredTypes = getAllDropDown("SVITRAN_TYPE", docType); 
+    if (filteredTypes.length > 0) {
+      updateState({
+        sviTypes: filteredTypes,
+        selectedSVIType: "REG",
+      });
+    }
+
 
       // 🔹 2. Document row (independent)
       const docRow = await useTopDocControlRow(docType);

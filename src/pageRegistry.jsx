@@ -79,13 +79,120 @@ import INTAXINQ from "./NAYSA Cloud/Query/INTAXInq/INTAXINQ.jsx";
 import OUTAXINQ from "./NAYSA Cloud/Query/OUTAXInq/OUTAXINQ.jsx";
 
 // --- PRINTING / MODALS ---
-import ARReportModal from "./NAYSA Cloud/Printing/ARReport.jsx";
-import APReportModal from "./NAYSA Cloud/Printing/APReport.jsx";
-import GLReportModal from "./NAYSA Cloud/Printing/GLReport.jsx";
-import VIReportModal from "./NAYSA Cloud/Printing/VIReport.jsx";
-import EWTReportModal from "./NAYSA Cloud/Printing/EWTReport.jsx";
-import VOReportModal from "./NAYSA Cloud/Printing/VOReport.jsx";
-import CWTReportModal from "./NAYSA Cloud/Printing/CWTReport.jsx";
+// import ARReportModal from "./NAYSA Cloud/Printing/ARReport.jsx";
+// import APReportModal from "./NAYSA Cloud/Printing/APReport.jsx";
+// import GLReportModal from "./NAYSA Cloud/Printing/GLReport.jsx";
+// import VIReportModal from "./NAYSA Cloud/Printing/VIReport.jsx";
+// import EWTReportModal from "./NAYSA Cloud/Printing/EWTReport.jsx";
+// import VOReportModal from "./NAYSA Cloud/Printing/VOReport.jsx";
+// import CWTReportModal from "./NAYSA Cloud/Printing/CWTReport.jsx";
+// import UniversalReportModal from "./NAYSA Cloud/Printing/UniversalReport"
+
+
+
+// export const pageRegistry = {
+//   // Accounts Receivable
+//   SVI,
+//   SOA,
+//   ARCM,
+//   ARDM,
+//   CR,
+//   AR,
+
+//   // Accounts Payable
+//   APV,
+//   APCM,
+//   APDM,
+//   PCV,
+//   CV,
+//   CVHistory,
+
+//   // Purchasing
+//   PR,
+//   PO,
+//   JO,
+
+//   // Inventory
+//   MSRR,
+//   MSIS,
+//   MSST,
+//   MSAJ,
+//   MSRTV,
+
+//   // General Ledger & Master Data
+//   JV,
+//   COAMast,
+//   BankMast,
+//   RCMast,
+//   CustMast,
+//   VendMast,
+
+//   // Global & Queries
+//   AllTranHistory,
+//   ARINQ,
+//   APINQ,
+//   EWTINQ,
+//   CWTINQ,
+//   INTAXINQ,
+//   OUTAXINQ,
+//   CWTMonitoring,
+//   CheckRL,
+//   GLINQ,
+
+//   // Global Reference
+//   Company,
+//   CutoffRef,
+//   VATRef,
+//   CurrRef,
+//   DForexRef,
+//   BranchRef,
+//   BankRef,
+//   UpdateUser,
+//   UserAccessRights,
+//   MasterAccessRights,
+//   ATaxCode,
+
+//   // Posting
+//   PostSVI,
+//   PostSOA,
+//   PostARCM,
+//   PostARDM,
+//   PostCR,
+//   PostAR,
+//   PostCV,
+//   PostPCV,
+//   PostJV,
+//   PostAPV,
+//   PostAPCM,
+//   PostAPDM,
+//   PostMSRR,
+//   PostMSRTV,
+//   PostMSAJ,
+
+//   // Printing
+//   // GLReportModal,
+//   // ARReportModal,
+//   // APReportModal,
+//   // VIReportModal,
+//   // EWTReportModal,
+//   // CWTReportModal,
+//   // VOReportModal,
+
+//   APReportModal: (props) => <UniversalReportModal {...props} module="AP" />,
+//   VIReportModal: (props) => <UniversalReportModal {...props} module="VI" />,
+//   EWTReportModal: (props) => <UniversalReportModal {...props} module="EWT" />,
+  
+//   ARReportModal: (props) => <UniversalReportModal {...props} module="AR" />,
+//   VOReportModal: (props) => <UniversalReportModal {...props} module="VO" />,
+//   CWTReportModal: (props) => <UniversalReportModal {...props} module="CWT" />,
+  
+//   GLReportModal: (props) => <UniversalReportModal {...props} module="GL" />,
+// };
+
+// import UniversalReportModal from "./NAYSA Cloud/Printing/UniversalReport"
+import UniversalReportModal from "./NAYSA Cloud/Printing/UniversalReportModal.jsx";
+
+// ... ensure all other components (SVI, SOA, etc.) are imported above ...
 
 export const pageRegistry = {
   // Accounts Receivable
@@ -167,11 +274,14 @@ export const pageRegistry = {
   PostMSAJ,
 
   // Printing
-  GLReportModal,
-  ARReportModal,
-  APReportModal,
-  VIReportModal,
-  EWTReportModal,
-  CWTReportModal,
-  VOReportModal,
+  // These keys now point to the Universal component but inject the specific module prop
+  APReportModal: (props) => <UniversalReportModal {...props} module="AP" />,
+  VIReportModal: (props) => <UniversalReportModal {...props} module="VI" />,
+  EWTReportModal: (props) => <UniversalReportModal {...props} module="EWT" />,
+  
+  ARReportModal: (props) => <UniversalReportModal {...props} module="AR" />,
+  VOReportModal: (props) => <UniversalReportModal {...props} module="VO" />,
+  CWTReportModal: (props) => <UniversalReportModal {...props} module="CWT" />,
+  
+  GLReportModal: (props) => <UniversalReportModal {...props} module="GL" />,
 };
