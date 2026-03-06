@@ -33,7 +33,9 @@ import CVHistory from "./NAYSA Cloud/Module/Main Module/Accounts Payable/CVHisto
 // --- GENERAL LEDGER & MASTER DATA ---
 import JV from "./NAYSA Cloud/Module/Main Module/General Ledger/JV.jsx";
 import PostJV from "./NAYSA Cloud/Module/Main Module/General Ledger/PostJV.jsx";
-import COAMast from "./NAYSA Cloud/Master Data/COAMast.jsx";
+import COAMast from "./NAYSA Cloud/Master Data/ChartofAccounts/COAMast.jsx";
+import FSConso from "@/NAYSA Cloud/Master Data/ChartofAccounts/FSConsolidation.jsx";
+import GLFSMatching from "@/NAYSA Cloud/Master Data/ChartofAccounts/GLFSMatching.jsx";
 import CustMast from "./NAYSA Cloud/Master Data/CustMast.jsx";
 import VendMast from "./NAYSA Cloud/Master Data/VendMast.jsx";
 import BankMast from "./NAYSA Cloud/Master Data/BankMast.jsx";
@@ -225,7 +227,7 @@ export const pageRegistry = {
 
   // General Ledger & Master Data
   JV,
-  COAMast,
+  COAMast,FSConso,GLFSMatching,
   BankMast,
   RCMast,
   CustMast,

@@ -1,12 +1,11 @@
 import React from "react";
+import FieldRenderer from "./FieldRenderer";
 
-const RegistrationInfo = ({ data = {}, disabled = true, layout = "stacked" }) => {
+const RegistrationInfo = ({ data = {}, layout = "stacked", showHeader = true }) => {
   const v = data || {};
 
-  // ✅ Parse SQL datetime as LOCAL time (NO timezone shifting)
   const parseSqlLocal = (value) => {
     if (!value) return null;
-
     const s = String(value).trim();
     const [datePart, timePartRaw] = s.includes("T") ? s.split("T") : s.split(" ");
     if (!datePart) return null;
@@ -15,7 +14,6 @@ const RegistrationInfo = ({ data = {}, disabled = true, layout = "stacked" }) =>
     if (!yyyy || !mm || !dd) return null;
 
     let hh = 0, mi = 0, ss = 0;
-
     if (timePartRaw) {
       const timePart = timePartRaw.split(".")[0];
       const t = timePart.split(":").map(Number);
@@ -23,71 +21,77 @@ const RegistrationInfo = ({ data = {}, disabled = true, layout = "stacked" }) =>
       mi = t[1] || 0;
       ss = t[2] || 0;
     }
-
     return new Date(yyyy, mm - 1, dd, hh, mi, ss);
   };
 
-  // ✅ Format: Jan 22, 2026 09:29:17 AM
   const formatDateTime = (value) => {
     const d = parseSqlLocal(value);
     if (!d) return value ? String(value) : "";
 
-    const monthsShort = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    const monthsFull = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"
+    ];
     const pad = (n) => String(n).padStart(2, "0");
 
     let hours = d.getHours();
     const ampm = hours >= 12 ? "PM" : "AM";
     hours = hours % 12 || 12;
 
-    return `${monthsShort[d.getMonth()]} ${pad(d.getDate())}, ${d.getFullYear()} ${pad(hours)}:${pad(
-      d.getMinutes()
-    )}:${pad(d.getSeconds())} ${ampm}`;
+    return `${monthsFull[d.getMonth()]} ${pad(d.getDate())}, ${d.getFullYear()} ${pad(
+      hours
+    )}:${pad(d.getMinutes())}:${pad(d.getSeconds())} ${ampm}`;
   };
 
-  const inputClass = `peer global-ref-textbox-ui ${
-    disabled ? "global-ref-textbox-disabled" : "global-ref-textbox-enabled"
-  }`;
+  const auditFields = [
+    { label: "Registered By", value: v.registeredBy },
+    { label: "Registered Date", value: formatDateTime(v.registeredDate) },
+    { label: "Updated By", value: v.lastUpdatedBy },
+    { label: "Updated Date", value: formatDateTime(v.lastUpdatedDate) },
+  ];
 
-  const labelClass = "global-ref-floating-label global-ref-label-disabled";
+// ... inside RegistrationInfo component
 
-  const Field = ({ label, value }) => (
-    <div className="relative">
-      <input
-        type="text"
-        value={value || ""}
-        disabled={disabled}
-        readOnly
-        placeholder=" "
-        className={inputClass}
-      />
-      <label className={labelClass}>{label}</label>
-    </div>
-  );
+const getAuditClasses = (isReadOnly) => `
+  peer w-full 
+  h-6 sm:h-8
+  !px-2 
+  text-[10px] sm:text-[12px] font-normal
+  focus-visible:ring-0 focus-visible:ring-offset-0
+  border shadow-none transition-all
+  bg-gray-50 border-gray-200 text-gray-500
+  ${isReadOnly ? "cursor-default" : ""}
+`;
 
-  const registeredBy = v.registeredBy || "";
-  const registeredDate = formatDateTime(v.registeredDate);
-  const updatedBy = v.lastUpdatedBy || "";
-  const updatedDate = formatDateTime(v.lastUpdatedDate);
+const renderFields = () =>
+  auditFields.map((field) => (
+    <FieldRenderer
+      key={field.label}
+      type="text"
+      label={field.label}
+      value={field.value || ""}
+      readOnly={true}
+      disabled={true}     
+      variant="audit"    
+      // Pass the classes here
+      className={getAuditClasses(true)}
+    />
+  ));
 
-  // ✅ 2-column layout
-  if (layout === "twoCols") {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Field label="Registered By" value={registeredBy} />
-        <Field label="Updated By" value={updatedBy} />
-        <Field label="Registered Date" value={registeredDate} />
-        <Field label="Updated Date" value={updatedDate} />
-      </div>
-    );
-  }
-
-  // ✅ stacked layout (default)
   return (
-    <div className="flex flex-col gap-4">
-      <Field label="Registered By" value={registeredBy} />
-      <Field label="Registered Date" value={registeredDate} />
-      <Field label="Updated By" value={updatedBy} />
-      <Field label="Updated Date" value={updatedDate} />
+    <div className="bg-white p-4 rounded-lg border shadow-lg h-full flex flex-col gap-4 min-w-[300px]">
+      {showHeader && (
+        <h3 className="text-[9px] sm:text-[12px] font-bold text-slate-500 tracking-widest border-b pb-2 uppercase">
+          Registration Information
+        </h3>
+      )}
+      
+      <div className={layout === "twoCols" 
+        ? "grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4" 
+        : "flex flex-col gap-4"}
+      >
+        {renderFields()}
+      </div>
     </div>
   );
 };
