@@ -1110,58 +1110,77 @@ const SearchGlobalReferenceTable = forwardRef(
               </div>
 
               <table className="global-tran-table-div-ui border-collapse table-auto min-w-max w-max">
-                <thead className="global-tran-thead-div-ui text-[11px] sticky top-0 z-20 bg-white">
+                <thead className="global-tran-thead-div-ui text-[11px] sticky top-0 z-30 bg-white">
                   <tr>
-                    {visibleCols.map((col) => (
-                      <th
-                        key={col.key}
-                        className="global-tran-th-ui bg-blue-100 cursor-pointer select-none relative"
-                        draggable={!groupBy.includes(col.key)}
-                        onDragStart={(e) => handleColDragStart(e, col.key)}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={(e) => handleColDrop(e, col.key)}
-                        onClick={() => handleSort(col.key, col.sortable)}
-                        title="Click to sort • Drag to reorder • Drag to Group By bar"
-                        style={{
-                          width: colWidths[col.key] || autoColWidths[col.key] || 140,
-                          minWidth: 90,
-                        }}
-                      >
-                        <div className="flex items-center justify-between gap-2 min-w-0">
-                          <span className={headerCellWrap}>{col.label}</span>
-                          {sortConfig.key === col.key ? (
-                            <FontAwesomeIcon
-                              icon={sortConfig.direction === "asc" ? faSortUp : faSortDown}
-                            />
-                          ) : (
-                            <FontAwesomeIcon icon={faSort} className="opacity-30" />
-                          )}
-                        </div>
+                    {visibleCols.map((col, index) => {
+                      const isFirstTwo = index < 2;
+                      // Calculate the 'left' offset for the second sticky column
+                      const leftOffset = index === 0 ? 0 : (colWidths[visibleCols[0].key] || autoColWidths[visibleCols[0].key] || 140);
+                      
+                      return (
+                        <th
+                          key={col.key}
+                          className={`global-tran-th-ui bg-blue-100 cursor-pointer select-none relative ${isFirstTwo ? "sticky z-40" : ""}`}
+                          draggable={!groupBy.includes(col.key)}
+                          onDragStart={(e) => handleColDragStart(e, col.key)}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => handleColDrop(e, col.key)}
+                          onClick={() => handleSort(col.key, col.sortable)}
+                          title="Click to sort • Drag to reorder"
+                          style={{
+                            width: colWidths[col.key] || autoColWidths[col.key] || 140,
+                            minWidth: 90,
+                            left: isFirstTwo ? leftOffset : undefined,
+                          }}
+                        >
+                          <div className="flex items-center justify-between gap-2 min-w-0">
+                            <span className={headerCellWrap}>{col.label}</span>
+                            {sortConfig.key === col.key ? (
+                              <FontAwesomeIcon
+                                icon={sortConfig.direction === "asc" ? faSortUp : faSortDown}
+                              />
+                            ) : (
+                              <FontAwesomeIcon icon={faSort} className="opacity-30" />
+                            )}
+                          </div>
 
-                        {/* resize handle (desktop-only feel) */}
-                        <div
-                          className="absolute top-0 right-0 h-full w-2 cursor-col-resize select-none"
-                          onMouseDown={(e) => startResizing(e, col.key)}
-                        />
-                      </th>
-                    ))}
-                  </tr>
-
-                  {showFilters && hasDataFiltered && (
-                    <tr className="sticky top-[34px] z-10 bg-white">
-                      {visibleCols.map((col) => (
-                        <th key={`f-${col.key}`} className="global-tran-th-ui px-2 py-1">
-                          <input
-                            className={filterInputClass}
-                            placeholder="Filter..."
-                            value={filters[col.key] || ""}
-                            onChange={(e) => {
-                              setFilters((p) => ({ ...p, [col.key]: e.target.value }));
-                              setCurrentPage(1);
+                          {/* resize handle */}
+                          <div
+                            className="absolute top-0 right-0 h-full w-2 cursor-col-resize select-none z-50"
+                            onMouseDown={(e) => {
+                              e.stopPropagation(); // Prevent sort on resize
+                              startResizing(e, col.key);
                             }}
                           />
                         </th>
-                      ))}
+                      );
+                    })}
+                  </tr>
+
+                  {showFilters && hasDataFiltered && (
+                    <tr className="sticky top-[34px] z-20 bg-white">
+                      {visibleCols.map((col, index) => {
+                        const isFirstTwo = index < 2;
+                        const leftOffset = index === 0 ? 0 : (colWidths[visibleCols[0].key] || autoColWidths[visibleCols[0].key] || 140);
+
+                        return (
+                          <th 
+                            key={`f-${col.key}`} 
+                            className={`global-tran-th-ui px-2 py-1 bg-white ${isFirstTwo ? "sticky z-30" : ""}`}
+                            style={{ left: isFirstTwo ? leftOffset : undefined }}
+                          >
+                            <input
+                              className={filterInputClass}
+                              placeholder="Filter..."
+                              value={filters[col.key] || ""}
+                              onChange={(e) => {
+                                setFilters((p) => ({ ...p, [col.key]: e.target.value }));
+                                setCurrentPage(1);
+                              }}
+                            />
+                          </th>
+                        );
+                      })}
                     </tr>
                   )}
                 </thead>
@@ -1191,7 +1210,7 @@ const SearchGlobalReferenceTable = forwardRef(
                           >
                             <td
                               colSpan={visibleCols.length + (hasActionCol ? 1 : 0)}
-                              className="global-tran-td-ui font-semibold text-blue-900"
+                              className="global-tran-td-ui font-semibold text-blue-900 sticky left-0"
                             >
                               <div
                                 className="flex items-center"
@@ -1220,21 +1239,27 @@ const SearchGlobalReferenceTable = forwardRef(
                           className="global-tran-tr-ui hover:bg-gray-50"
                           onDoubleClick={() => onRowDoubleClick?.(row)}
                         >
-                          {visibleCols.map((col) => (
-                            <td
-                              key={col.key}
-                              className="global-tran-td-ui align-center"
-                              style={{
-                                width: colWidths[col.key] || autoColWidths[col.key] || 140,
-                              }}
-                            >
-                              <div className="w-full">
-                                {typeof col.render === "function"
-                                  ? col.render(row)
-                                  : formatValue(row[col.key], col)}
-                              </div>
-                            </td>
-                          ))}
+                          {visibleCols.map((col, index) => {
+                            const isFirstTwo = index < 2;
+                            const leftOffset = index === 0 ? 0 : (colWidths[visibleCols[0].key] || autoColWidths[visibleCols[0].key] || 140);
+
+                            return (
+                              <td
+                                key={col.key}
+                                className={`global-tran-td-ui align-center bg-white ${isFirstTwo ? "sticky z-10" : ""}`}
+                                style={{
+                                  width: colWidths[col.key] || autoColWidths[col.key] || 140,
+                                  left: isFirstTwo ? leftOffset : undefined,
+                                }}
+                              >
+                                <div className="w-full">
+                                  {typeof col.render === "function"
+                                    ? col.render(row)
+                                    : formatValue(row[col.key], col)}
+                                </div>
+                              </td>
+                            );
+                          })}
                         </tr>
                       );
                     })

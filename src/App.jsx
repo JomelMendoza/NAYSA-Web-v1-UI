@@ -1513,7 +1513,7 @@ import {
   useLocation 
 } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { toast } from "react-hot-toast";
+// import { toast } from "react-hot-toast";
 
 import { pageRegistry } from "./pageRegistry.jsx";
 import ErrorBoundary from "./NAYSA Cloud/Components/ErrorBoundary";
