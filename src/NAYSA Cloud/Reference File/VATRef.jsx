@@ -1,1138 +1,591 @@
-// src/NAYSA Cloud/Reference File/VATRef.jsx
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
-import Swal from "sweetalert2";
 
+
+// Import Lookup Modals
+import SearchCOAClassRef from "@/NAYSA Cloud/Lookup/SearchCOAClassRef";
+import SearchGlobalReferenceTable from "@/NAYSA Cloud/Lookup/SearchGlobalReferenceTable";
+
+
+
+// Icons & Globals
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faEdit,
-  faTrashAlt,
-  faPlus,
-  faFileExport,
-  faSave,
-  faUndo,
-  faInfoCircle,
-  faChevronDown,
-} from "@fortawesome/free-solid-svg-icons";
+import { faPlus, faSave, faUndo, faEdit, faTrashAlt, faInfoCircle, faChevronDown, faFilePdf, faVideo } from "@fortawesome/free-solid-svg-icons";
+import { reftables, reftablesPDFGuide, reftablesVideoGuide } from "@/NAYSA Cloud/Global/reftable";
+import { useTopDocDropDown } from "@/NAYSA Cloud/Global/top1RefTable";
+import { useSwalErrorAlert, useSwalSuccessAlert, useSwalDeleteConfirm, useSwalDeleteRecord } from "@/NAYSA Cloud/Global/behavior";
+import { useFieldLenghtCheck, useGetFieldLength,} from '@/NAYSA Cloud/Global/procedure';
 
-import {
-  reftables,
-  reftablesPDFGuide,
-  reftablesVideoGuide,
-} from "@/NAYSA Cloud/Global/reftable";
 
-import {
-  useSwalErrorAlert,
-  useSwalSuccessAlert,
-  useSwalWarningAlert,
-} from "@/NAYSA Cloud/Global/behavior";
 
-// Global UI helpers
+// UI Helpers
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer";
 import ButtonBar from "@/NAYSA Cloud/Global/ButtonBar";
+// import AcctLookupModal from "@/NAYSA Cloud/Lookup/SearchAcctRef";
 
-// ✅ COA Lookup Modal (SearchCOAMast.jsx)
-import COAMastLookupModal from "@/NAYSA Cloud/Lookup/SearchCOAMast.jsx";
+import RegistrationInfo from "@/NAYSA Cloud/Global/RegistrationInfo.jsx";
+
+const INITIAL_FORM = {
+  vatCode: "", vatName: "", vatType: "" , vatClass: "" ,vatRate: "0", vatCat: "A",
+  acctCode: "", 
+  tblFieldArray :[],
+};
+
+const INITIAL_REG = { registeredBy: "", registeredDate: "", lastUpdatedBy: "", lastUpdatedDate: "" };
 
 const VATRef = () => {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
   const docType = "VATRef";
-  const documentTitle = reftables[docType];
+  const guideRef = useRef(null);
   const pdfLink = reftablesPDFGuide[docType];
   const videoLink = reftablesVideoGuide[docType];
 
-  const { user } = useAuth();
 
-  // ───── Form state ─────
-  const [vatCode, setVatCode] = useState("");
-  const [description, setDescription] = useState(""); // maps to vatName in sproc
-  const [vatType, setVatType] = useState(""); // "I" / "O"
-  const [vatClass, setVatClass] = useState(""); // "G" / "S"
-  const [vatRate, setVatRate] = useState(""); // string with 2 decimals
-  const [acctCode, setAcctCode] = useState("");
-  const [acctName, setAcctName] = useState("");
-  const [oldCode, setOldCode] = useState("");
-  const [vatCategory, setVatCategory] = useState(""); // "V", "E", "Z" etc.
-  const [registeredBy, setRegisteredBy] = useState("");
-  const [registeredDate, setRegisteredDate] = useState("");
-  const [lastUpdatedBy, setLastUpdatedBy] = useState("");
-  const [lastUpdatedDate, setLastUpdatedDate] = useState("");
-
-  // ✅ Lookup Modal
-  const [acctModalOpen, setAcctModalOpen] = useState(false);
-
-  // ✅ COA Map (fallback so acctName shows in table even if /vat doesn't return acctName)
-  const [coaNameMap, setCoaNameMap] = useState({});
-  const coaLoadedRef = useRef(false);
-
-  // Table state
-  const [vatList, setVatList] = useState([]);
-  const [selectedVAT, setSelectedVAT] = useState(null);
+  const [formData, setFormData] = useState(INITIAL_FORM);
+  const [registrationInfo, setRegistrationInfo] = useState(INITIAL_REG);
   const [isEditing, setIsEditing] = useState(false);
-  const [isAdding, setIsAdding] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [selectedAcctCode, setSelectedAcctCode] = useState(null);
+  // const [modals, setModals] = useState({ coaClass: false, guide: false });
+  const [isOpenGuide, setOpenGuide] = useState(false);
+  const [activeTab, setActiveTab] = useState("vatRef");
+  const [isLoading, setIsLoading] = useState(false);
+  const [tblFieldArray, setTblFieldArray] = useState([]);
 
-  // Table helpers
-  const [query, setQuery] = useState("");
-  const [sortBy, setSortBy] = useState("vatCode");
-  const [sortDir, setSortDir] = useState("asc");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
 
-  // Per-column filters
-  const [columnFilters, setColumnFilters] = useState({
-    vatCode: "",
-    description: "",
-    vatType: "",
-    vatClass: "",
-    vatRate: "",
-    acctCode: "",
-    acctName: "",
-    oldCode: "",
-    vatCategory: "",
+  const toggleModal = (name, isOpen) => setModals(prev => ({ ...prev, [name]: isOpen }));
+
+
+  const { data: dropdowns, isLoading: isDropdownLoading } = useQuery({
+    queryKey: ["vatDropdowns"],  // sa API ba To kinuha?? //for check ng cobtroller
+    queryFn: async () => {
+
+      const [ typ, cls, cat] = await Promise.all([
+        useTopDocDropDown("VATREF", "VAT_TYPE"),
+        useTopDocDropDown("VATREF", "VAT_CLASS"),
+        useTopDocDropDown("VATREF", "VAT_CATEGORY"),
+        
+      ]);
+      return { grp, typ, cls };
+    }
   });
 
-  // Help dropdown
-  const [isOpenGuide, setOpenGuide] = useState(false);
-  const guideRef = useRef(null);
 
-  // VAT options
-  const vatTypeOptions = [
-    { value: "I", label: "Input" },
-    { value: "O", label: "Output" },
-  ];
-  const vatClassOptions = [
-    { value: "G", label: "Goods" },
-    { value: "S", label: "Services" },
-  ];
-  const vatCategoryOptions = [
-    { value: "V", label: "VATABLE" },
-    { value: "E", label: "EXEMPT" },
-    { value: "Z", label: "ZERO-RATED" },
-  ];
-
-  const includesCI = (str, searchValue) =>
-    String(str || "")
-      .toLowerCase()
-      .includes(String(searchValue || "").toLowerCase());
-
-  // ───── Duplicate helper ─────
-  const isDuplicateVatCode = (code, currentCode = null) => {
-    const normalized = String(code || "").trim().toUpperCase();
-    const currentNormalized = currentCode
-      ? String(currentCode || "").trim().toUpperCase()
-      : null;
-
-    if (!normalized) return false;
-
-    return vatList.some((item) => {
-      const existingCode = String(item.vatCode || "").trim().toUpperCase();
-      if (currentNormalized && existingCode === currentNormalized) return false;
-      return existingCode === normalized;
-    });
-  };
-
-  useEffect(() => {
-    if (!isEditing) return;
-    const normalized = (vatCode || "").trim().toUpperCase();
-    if (!normalized) return;
-
-    const originalCode = selectedVAT?.vatCode || null;
-
-    if (isDuplicateVatCode(normalized, originalCode)) {
-      (async () => {
-        await useSwalErrorAlert(
-          "Duplicate Code",
-          "Duplicate VAT Code is not allowed."
-        );
-        setVatCode("");
-      })();
-    }
-  }, [vatCode, isEditing, selectedVAT, vatList]);
-
-  // ✅ COA MAP LOADER (fallback for acctName)
-  const fetchCOANameMap = async () => {
-    try {
-      // Use the same endpoint SearchCOAMast uses
-      // It expects: { PARAMS: JSON.stringify({ search, page, pageSize }) }
-      const { data } = await apiClient.post("/lookupCOA", {
-        PARAMS: JSON.stringify({ search: "", page: 1, pageSize: 5000 }),
-      });
-
-      const rows =
-        Array.isArray(data?.data) && data.data[0]?.result
-          ? JSON.parse(data.data[0].result || "[]")
-          : [];
-
-      const map = {};
-      (rows || []).forEach((r) => {
-        const code = String(r.acctCode || r.ACCT_CODE || "").trim();
-        const name = r.acctName || r.ACCT_NAME || "";
-        if (code) map[code] = name;
-      });
-
-      setCoaNameMap(map);
-    } catch (e) {
-      setCoaNameMap({});
-    } finally {
-      coaLoadedRef.current = true;
-    }
-  };
-
-  // load COA map once
-  useEffect(() => {
-    fetchCOANameMap();
-  }, []);
-
-  // ✅ MODAL HANDLERS (COA LOOKUP)
-  const handleOpenAcctModal = () => {
-    if (isEditing) setAcctModalOpen(true);
-  };
-
-  // COAMastLookupModal calls: onClose(accountData, source)
-  const handleCloseAcctModal = (selectedAcct = null /*, source */) => {
-    setAcctModalOpen(false);
-
-    if (selectedAcct) {
-      setAcctCode(selectedAcct.acctCode || "");
-      setAcctName(selectedAcct.acctName || "");
-    }
-  };
-
-  // ───── FETCH VAT LIST ─────
-  const fetchVATList = async () => {
-    setLoading(true);
-    try {
+  const { data: accounts = [], isLoading: isListLoading } = useQuery({
+    queryKey: ["vatList"],  //for check ng cobtroller
+    queryFn: async () => {
       const { data } = await apiClient.get("/vat");
-      let raw = [];
+      const raw = data?.data?.[0]?.result || data?.result;
+      return raw ? JSON.parse(raw) : [];
+    }
+  });
 
-      if (data?.data && Array.isArray(data.data) && data.data[0]?.result) {
-        raw = JSON.parse(data.data[0].result || "[]");
-      } else if (Array.isArray(data.data)) {
-        raw = data.data;
+
+    // --- TANSTACK QUERY: Save Mutation ---
+    const { mutate: saveVAT, isLoading: isSaving } = useMutation({
+    mutationFn: async (payload) => await apiClient.post("/upsertVat", payload),
+
+
+    onSuccess: (response) => {
+      // 1) SPROC row style (errorcount/errormsg)
+      const sqlRow = response?.data?.data?.[0];
+      if (sqlRow?.errorcount > 0) {
+        useSwalErrorAlert("Error", sqlRow?.errormsg || "Failed to save Branch.");
+        resetForm(); // ✅ reset on failure
+        return;
       }
 
-      const normalized = (raw || []).map((r) => {
-        const code = r.acctCode ?? r.ACCT_CODE ?? "";
-        const nameFromVat =
-          r.acctName ?? r.ACCT_NAME ?? r.acct_name ?? r.accountName ?? "";
+      // 2) API status style
+      const status = response?.data?.status ?? response?.data?.data?.status;
+      const success = response?.data?.success || status === "success" || !status;
 
-        return {
-          vatCode: r.vatCode ?? r.VAT_CODE ?? "",
-          vatName: r.vatName ?? r.VAT_NAME ?? "",
-          vatType: r.vatType ?? r.VAT_TYPE ?? "",
-          vatClass: r.vatClass ?? r.VAT_CLASS ?? "",
-          vatRate: r.vatRate ?? r.VAT_RATE ?? 0,
-          vatCategory: r.vatCategory ?? r.VAT_CATEGORY ?? "",
-          acctCode: code,
-          // ✅ fallback to coaNameMap if backend didn't provide acctName
-          acctName: nameFromVat || coaNameMap[code] || "",
-          oldCode: r.oldCode ?? r.OLD_CODE ?? "",
-          registeredBy: r.registeredBy ?? r.REGISTERED_BY ?? "",
-          registeredDate: r.registeredDate ?? r.REGISTERED_DATE ?? "",
-          lastUpdatedBy: r.lastUpdatedBy ?? r.LAST_UPDATED_BY ?? "",
-          lastUpdatedDate: r.lastUpdatedDate ?? r.LAST_UPDATED_DATE ?? "",
-        };
-      });
 
-      setVatList(normalized);
-    } catch (error) {
-      setVatList([]);
-      await useSwalErrorAlert("Error", "Failed to load VAT records.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // load VAT list (also re-run after COA map loads so acctName can be filled)
-  useEffect(() => {
-    fetchVATList();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [Object.keys(coaNameMap).length]);
-
-  // ───── FILTER & SORT ─────
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-
-    const base = q
-      ? vatList.filter((v) =>
-          [
-            v.vatCode,
-            v.vatName,
-            v.vatType,
-            v.vatClass,
-            v.vatRate,
-            v.acctCode,
-            v.acctName,
-            v.oldCode,
-            v.vatCategory,
-          ].some((x) => String(x || "").toLowerCase().includes(q))
-        )
-      : vatList;
-
-    const f = columnFilters;
-
-    const withColFilters = base.filter((v) => {
-      if (f.vatCode && !includesCI(v.vatCode, f.vatCode)) return false;
-      if (f.description && !includesCI(v.vatName, f.description)) return false;
-      if (f.vatType && !includesCI(v.vatType, f.vatType)) return false;
-      if (f.vatClass && !includesCI(v.vatClass, f.vatClass)) return false;
-      if (f.vatRate && !includesCI(v.vatRate, f.vatRate)) return false;
-      if (f.acctCode && !includesCI(v.acctCode, f.acctCode)) return false;
-      if (f.acctName && !includesCI(v.acctName, f.acctName)) return false;
-      if (f.oldCode && !includesCI(v.oldCode, f.oldCode)) return false;
-      if (f.vatCategory && !includesCI(v.vatCategory, f.vatCategory))
-        return false;
-      return true;
-    });
-
-    const factor = sortDir === "asc" ? 1 : -1;
-
-    return [...withColFilters].sort((a, b) => {
-      let A = "";
-      let B = "";
-
-      if (sortBy === "description") {
-        A = String(a.vatName ?? "");
-        B = String(b.vatName ?? "");
-      } else {
-        A = String(a?.[sortBy] ?? "");
-        B = String(b?.[sortBy] ?? "");
+      if (!success) {
+        useSwalErrorAlert(
+          "Error",
+          response?.data?.message ||
+            response?.data?.data?.message ||
+            "Failed to save Account."
+        );
+        resetForm(); // ✅ reset on failure
+        return;
       }
 
-      return A.localeCompare(B) * factor;
-    });
-  }, [vatList, query, columnFilters, sortBy, sortDir]);
+      // ✅ success path
+      queryClient.invalidateQueries({ queryKey: ["vatList"] });
+      useSwalSuccessAlert("Success!", "VAT saved successfully!");
+      resetForm();
+    },
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
 
-  const pageRows = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, page, pageSize]);
-
-  // ───── RESET FORM / FILTERS ─────
-  const resetForm = () => {
-    setVatCode("");
-    setDescription("");
-    setVatType("");
-    setVatClass("");
-    setVatRate("");
-    setAcctCode("");
-    setAcctName("");
-    setOldCode("");
-    setVatCategory("");
-    setRegisteredBy("");
-    setRegisteredDate("");
-    setLastUpdatedBy("");
-    setLastUpdatedDate("");
-    setSelectedVAT(null);
-    setIsEditing(false);
-    setIsAdding(false);
-  };
-
-  const resetFilters = () => {
-    setQuery("");
-    setColumnFilters({
-      vatCode: "",
-      description: "",
-      vatType: "",
-      vatClass: "",
-      vatRate: "",
-      acctCode: "",
-      acctName: "",
-      oldCode: "",
-      vatCategory: "",
-    });
-    setPage(1);
-  };
-
-  // ───── SAVE VAT ─────
-  const handleSaveVAT = async () => {
-    const normalizedCode = vatCode.trim().toUpperCase();
-    const trimmedDescription = description.trim();
-    const normalizedRate = Number(vatRate || 0).toFixed(2);
-
-    if (
-      !normalizedCode ||
-      !trimmedDescription ||
-      !vatType ||
-      !vatClass ||
-      vatRate === "" ||
-      !acctCode ||
-      !vatCategory
-    ) {
-      await useSwalErrorAlert(
-        "Error!",
-        "Please fill out all required fields (VAT Code, Description, Type, Class, Rate, Account Code, VAT Category)."
+    onError: (error) => {
+      useSwalErrorAlert(
+        "System Error",
+        error?.response?.status ? `HTTP ${error.response.status}` : error?.message || String(error)
       );
-      return;
-    }
+      resetForm(); // ✅ reset on request error too
+    },
+  });
 
-    const originalCode = selectedVAT?.vatCode || null;
-    if (isDuplicateVatCode(normalizedCode, originalCode)) {
-      await useSwalErrorAlert(
-        "Duplicate Code",
-        "Duplicate VAT Code is not allowed."
-      );
-      return;
-    }
 
-    setSaving(true);
-    try {
-      const userCode = user?.USER_CODE || user?.username || "SYSTEM";
-
-      const wrapper = {
+  // --- ACTIONS ---
+  const handleSave = () => {
+  
+    const payload = {
+      json_data: JSON.stringify({
         json_data: {
-          vatCode: normalizedCode,
-          vatName: trimmedDescription,
-          vatType,
-          vatClass,
-          vatRate: normalizedRate,
-          vatCategory,
-          acctCode,
-          userCode,
-        },
-      };
-
-      const payload = {
-        json_data: JSON.stringify(wrapper),
-      };
-
-      const response = await apiClient.post("/upsertVat", payload);
-
-      if (response.data?.status === "success" || response.data?.success) {
-        await fetchVATList();
-        await useSwalSuccessAlert("Success!", "VAT record saved.");
-        resetForm();
-      } else {
-        await useSwalErrorAlert(
-          "Error!",
-          response.data?.message || "Failed to save VAT record."
-        );
-      }
-    } catch (e) {
-      await useSwalErrorAlert(
-        "Error!",
-        e?.response?.data?.message || e.message || "Error saving VAT record."
-      );
-    } finally {
-      setSaving(false);
-    }
+          ...formData,
+          action: selectedAcctCode ? "EDIT" : "ADD",
+          userCode: user?.USER_CODE || "ADMIN",
+        }
+      })
+    };
+    saveVAT(payload);
   };
 
-  // ───── EDIT VAT ─────
-  const handleEditVAT = (vat) => {
-    if (!vat) return;
 
-    setVatCode(vat.vatCode || "");
-    setDescription(vat.vatName || "");
-    setVatType(vat.vatType || "");
-    setVatClass(vat.vatClass || "");
-    setVatRate(
-      vat.vatRate !== null && vat.vatRate !== undefined
-        ? Number(vat.vatRate).toFixed(2)
-        : ""
-    );
-    setAcctCode(vat.acctCode || "");
-    setAcctName(vat.acctName || coaNameMap[vat.acctCode] || "");
-    setOldCode(vat.oldCode || "");
-    setVatCategory(vat.vatCategory || "");
+  // --- MUTATION: UPSERT ---
+  
 
-    setRegisteredBy(vat.registeredBy || "");
-    setRegisteredDate(vat.registeredDate || "");
-    setLastUpdatedBy(vat.lastUpdatedBy || "");
-    setLastUpdatedDate(vat.lastUpdatedDate || "");
+  const resetForm = () => {
+    setFormData(INITIAL_FORM);
+    setRegistrationInfo(INITIAL_REG);
+    setSelectedAcctCode(null);
+    setIsEditing(false);
+  };
 
-    setSelectedVAT(vat);
+  const handleEdit = (row) => {
+    const classNameFromRow = row.className;
+
+
+    const classNameFromDropdown =
+      dropdowns?.cls?.find(d => d.DROPDOWN_CODE === row.classCode)?.DROPDOWN_NAME || "";
+
+    setSelectedAcctCode(row.acctCode);
+
+    setFormData({
+      ...INITIAL_FORM,
+      ...row,
+      classCode: row.classCode,
+      className: classNameFromRow || classNameFromDropdown,  // ✅ important
+    });
+  
+    setRegistrationInfo({
+      registeredBy: row.registeredBy,
+      registeredDate: row.registeredDate,
+      lastUpdatedBy: row.lastUpdatedBy,
+      lastUpdatedDate: row.lastUpdatedDate
+    });
+
     setIsEditing(true);
-    setIsAdding(false);
-  };
+  };  
 
-  const handleDeleteVAT = async () => {
-    if (!selectedVAT) {
-      await useSwalWarningAlert(
-        "No Record Selected",
-        "Please select a VAT record to delete."
-      );
-      return;
-    }
 
-    try {
-      const result = await Swal.fire({
-        title: `Delete VAT Code ${selectedVAT.vatCode}?`,
-        text: "This action cannot be undone.",
-        icon: "warning",
-        showCancelButton: true,
-        confirmButtonText: "Yes, delete",
-        cancelButtonText: "Cancel",
-        reverseButtons: true,
-      });
-
-      if (!result.isConfirmed) return;
-
-      const userCode = user?.USER_CODE || user?.username || "SYSTEM";
-
-      const payload = {
-        vatCode: selectedVAT.vatCode,
-        userCode,
-      };
-
-      const response = await apiClient.post("/deleteVat", payload);
-
-      if (response.data?.success || response.data?.status === "success") {
-        await useSwalSuccessAlert(
-          "Deleted",
-          `VAT Code ${selectedVAT.vatCode} has been deleted.`
-        );
-        await fetchVATList();
-        resetForm();
-      } else {
-        await useSwalErrorAlert(
-          "Error!",
-          response.data?.message || "Failed to delete VAT record."
-        );
-      }
-    } catch (e) {
-      await useSwalErrorAlert(
-        "Error!",
-        e?.response?.data?.message || e.message || "Error deleting VAT record."
-      );
-    }
-  };
-
-  // ───── NEW VAT ─────
-  const startNew = () => {
+const { mutate: deleteVAT, isLoading: isDeleting } = useMutation({
+  mutationFn: async (payload) => await apiClient.post("/deleteVAT", payload),
+  onSuccess: (response) => {
+    queryClient.invalidateQueries(["vatList"]);
+    useSwalDeleteRecord("Deleted!", "The account has been removed from the system.");
     resetForm();
-    setIsEditing(true);
-    setIsAdding(true);
-  };
+  },
+  onError: (error) => useSwalErrorAlert("Delete Error", error)
+});
 
-  // ───── EXPORT PLACEHOLDER ─────
-  const handleExport = async () => {
-    await useSwalWarningAlert(
-      "Export",
-      "Export functionality for VATRef will be added later."
+
+const handleDelete = async (row) => {
+  try {
+    setIsLoading(true); // Ensure you have a general loading state or use the mutation's state
+    const payload = {
+      json_data: {
+        vatCode: row.vatCode 
+      }
+    };
+
+
+    // 1. Check if used in other tables via SPROC
+    const response = await apiClient.post("/checkInUsedVat", payload);    
+    const sqlRow = response?.data?.data?.[0];
+    const rawJsonString = sqlRow?.result || Object.values(sqlRow || {})[0];  
+    const parsedData = JSON.parse(rawJsonString || '{"result":"0"}');
+
+    if (parsedData.result === "1") {
+      setIsLoading(false);
+      return useSwalErrorAlert(
+        `Cannot Delete VAT Code: ${row.vatCode}`, 
+        `Code was already used.`
+      );
+    }
+
+    // 2. Confirmations
+    const confirm = await useSwalDeleteConfirm(
+      "Confirm Delete", 
+      `Are you sure you want to delete Code: ${row.vatCode}?`
     );
-  };
 
-  // ───── HELP MENU / CLICK-AWAY ─────
+    if (confirm.isConfirmed) {
+      deleteCOA(payload); 
+    }
+  } catch (error) {
+    useSwalErrorAlert("System Error", error);
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+
+
+// --- VALIDATION: Check for Duplicate Code ---
+const handleCheckDuplicate = async (code) => {
+  
+  if (isEditing && selectedAcctCode) return; 
+  if (!code) return;
+
+  try {
+    const payload = { json_data: { vatCode: code } };
+    const response = await apiClient.post("/checkDuplicateVat", payload);
+    
+    const sqlRow = response?.data?.data?.[0];
+    const rawJsonString = sqlRow?.result || Object.values(sqlRow || {})[0];
+    const parsedData = JSON.parse(rawJsonString || '{"result":"0"}');
+
+    if (parsedData.result === "1") {
+      setIsLoading(false);
+      resetForm();
+      return useSwalErrorAlert(
+        `Duplicate VAT Code: ${code}`, 
+        `Code was already used.`
+      );
+    }
+
+  } catch (error) {
+    console.error("Duplicate Check Error:", error);
+  }
+};
+
+
+const updateForm = (updates) => setFormData(prev => ({ ...prev, ...updates }));
+
+
+const columns = useMemo(() => [
+  { key: "vatCode", label: "VAT Code", sortable: true },
+  { key: "vatName", label: "VAT Name", sortable: true },
+
+
+{
+    key: "vatType",
+    label: "VAT Type",
+    sortable: true,
+    render: (row) => {
+      const match = dropdowns?.typ?.find((d) => d.DROPDOWN_CODE === row.vatType);
+      return match ? match.DROPDOWN_NAME : row.vatType;
+    },
+  },
+
+ {
+    key: "vatClass",
+    label: "VAT Classification",
+    sortable: true,
+    render: (row) => {
+      const match = dropdowns?.cls?.find((d) => d.DROPDOWN_CODE === row.vatClass);
+      return match ? match.DROPDOWN_NAME : row.vatClass;
+    },
+  },
+
+  
+  {
+    key: "vatRate",
+    label: "VAT Rate (%)",
+    sortable: true,
+    render: (row) => {
+      // Convert to number, default to 0 if null/undefined
+      const rate = parseFloat(row.vatRate || 0);
+      
+      // Formats 12 to "12.00"
+      return rate.toFixed(2); 
+    },
+  },
+
+   {
+    key: "vatCat",
+    label: "VAT Category",
+    sortable: true,
+    render: (row) => {
+      const match = dropdowns?.cat?.find((d) => d.DROPDOWN_CODE === row.vatCategory);
+      return match ? match.DROPDOWN_NAME : row.vatCategory;
+    },
+  },
+
+
+   {
+    key: "acctCode",
+    label: "Account Code",  //not sure galing modal 
+    sortable: true,
+    render: (row) => {
+      const match = dropdowns?.cls?.find((d) => d.DROPDOWN_CODE === row.acctCode);
+      return match ? match.DROPDOWN_NAME : row.acctCode;
+    },
+  },
+
+
+    {
+    key: "__actions",
+    label: "Actions",
+    render: (row) => (
+      <div className="flex gap-2 justify-center">
+        <button
+          onClick={() => handleEdit(row)}
+          className="py-1 px-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          title="Edit"
+        >
+          <FontAwesomeIcon icon={faEdit} />
+        </button>
+
+        <button
+          onClick={() => handleDelete(row)}
+          className="py-1 px-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+          title="Delete"
+        >
+          <FontAwesomeIcon icon={faTrashAlt} />
+        </button>
+      </div>
+    ),
+  },
+
+
+  ], [dropdowns, handleDelete]);
+
+
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (guideRef.current && !guideRef.current.contains(e.target)) {
-        setOpenGuide(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    const handleKey = (e) => { if (e.ctrlKey && e.key === "s") { e.preventDefault(); handleSave(); } };
+    const handleClick = (e) => { if (guideRef.current && !guideRef.current.contains(e.target)) setOpenGuide(false); };
+    window.addEventListener("keydown", handleKey);
+    document.addEventListener("mousedown", handleClick);
+    return () => { window.removeEventListener("keydown", handleKey); document.removeEventListener("mousedown", handleClick); };
+  }, [formData]);
 
-  const handlePDFGuide = () => {
-    if (pdfLink) window.open(pdfLink, "_blank");
-    setOpenGuide(false);
-  };
 
-  const handleVideoGuide = () => {
-    if (videoLink) window.open(videoLink, "_blank");
-    setOpenGuide(false);
-  };
 
-  // ───── CTRL+S SAVE ─────
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.ctrlKey && e.key.toLowerCase() === "s") {
-        e.preventDefault();
-        if (!saving && isEditing) handleSaveVAT();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [
-    saving,
-    isEditing,
-    vatCode,
-    description,
-    vatType,
-    vatClass,
-    vatRate,
-    acctCode,
-    vatCategory,
-  ]);
+    // load max length metadata once
+    useEffect(() => {
+      let mounted = true;
 
-  const resetLabel = isEditing || selectedVAT ? "Reset" : "Reset Filters";
+      (async () => {
+        const res = await useFieldLenghtCheck("VAT_REF");
+        if (mounted) setTblFieldArray(res || []);
+      })();
 
-  // ───── RENDER ─────
+      return () => { mounted = false; };
+    }, []);
+
+
+    const getMax = (col) => useGetFieldLength(tblFieldArray, col);
+
+
   return (
-    <div className="global-ref-main-div-ui mt-24">
-      {/* Loading overlay */}
-      {loading && (
-        <div className="fixed inset-0 z-[70] bg-black/20 flex items-center justify-center">
-          <div className="bg-white rounded-xl px-6 py-4 shadow-xl">
-            Loading…
+    <div className="global-ref-main-div-ui">
+      {(isDropdownLoading || isListLoading || isSaving || isDeleting)  && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-[2px] flex items-center justify-center">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-4">
+            <div className="relative">
+              <div className="w-12 h-12 border-4 border-blue-100 dark:border-gray-700 rounded-full"></div>
+              <div className="absolute top-0 left-0 w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+            <span className="text-sm font-semibold animate-pulse">{isSaving ? "Saving..." : isDeleting ? "Deleting..." : "Loading..."}</span>
           </div>
         </div>
       )}
 
-      {/* ✅ Account lookup modal */}
-      <COAMastLookupModal
-        isOpen={acctModalOpen}
-        onClose={handleCloseAcctModal}
-        source="vatref_acct"
-        customParam="" // set to filter key if needed
-      />
+      {/* Lookup Modals */}
+      {/* <SearchVATCat isOpen={modals.coaClass} onClose={(v) => { toggleModal("coaClass", false); if(v) updateForm({ classCode: v.classCode, className: v.className }) }} /> */}
 
-      {/* Header */}
-      <div className="fixed mt-4 top-14 left-6 right-6 z-30 global-ref-header-ui flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <h1 className="global-ref-headertext-ui">{documentTitle}</h1>
-        </div>
 
-        <div className="flex gap-2 justify-end text-xs">
-          <ButtonBar
-            buttons={[
-              {
-                key: "add",
-                label: "Add",
-                icon: faPlus,
-                onClick: startNew,
-                disabled: isEditing,
-              },
-              {
-                key: "delete",
-                label: "Delete",
-                icon: faTrashAlt,
-                onClick: handleDeleteVAT,
-                disabled: !selectedVAT,
-              },
-              {
-                key: "save",
-                label: saving ? "Saving..." : "Save",
-                icon: faSave,
-                onClick: handleSaveVAT,
-                disabled: !isEditing || saving,
-                className:
-                  "bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 " +
-                  (!isEditing || saving
-                    ? "opacity-50 cursor-not-allowed"
-                    : "hover:bg-blue-700"),
-              },
-              {
-                key: "reset",
-                label: resetLabel,
-                icon: faUndo,
-                onClick: () => {
-                  if (isEditing || selectedVAT) resetForm();
-                  else resetFilters();
-                },
-                disabled: false,
-              },
-            ]}
-          />
+      {/* Header Section */}
+      <div className="global-ref-header-ui">
+        <div className="w-full flex flex-col gap-3 md:grid md:grid-cols-3 md:items-center md:gap-0"></div>
 
-          <button
-            onClick={handleExport}
-            className="bg-green-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700"
-          >
-            <FontAwesomeIcon icon={faFileExport} /> Export
-          </button>
+          {/* 3) Buttons + Info */}
+          <div className="w-full md:w-auto flex md:justify-end">
+            <div className="w-full md:w-auto flex items-center justify-center md:justify-end gap-2 flex-wrap">
 
-          <div ref={guideRef} className="relative">
-            <button
-              onClick={() => setOpenGuide((v) => !v)}
-              className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
-            >
-              <FontAwesomeIcon icon={faInfoCircle} /> Info{" "}
-              <FontAwesomeIcon icon={faChevronDown} className="text-xs" />
-            </button>
-            {isOpenGuide && (
-              <div className="absolute right-0 mt-1 w-40 rounded-md shadow-lg bg-white ring-1 ring-black/10 z-[60] dark:bg-gray-800">
-                <button
-                  onClick={handlePDFGuide}
-                  className="block w-full text-left px-4 py-2 text-sm hover:bg-blue-50 dark:hover:bg-blue-900"
-                >
-                  PDF User Guide
-                </button>
-                <button
-                  onClick={handleVideoGuide}
-                  className="block w-full text-left px-4 py-2 text-sm hover:bg-blue-50 dark:hover:bg-blue-900"
-                >
-                  Video Guide
-                </button>
+              {/* ButtonBar: allow wrapping on mobile */}
+              <div className="flex flex-wrap justify-center md:justify-end gap-2">
+                <ButtonBar
+                  buttons={[
+                    {
+                      key: "add",
+                      label: <span className="hidden sm:inline ml-1">Add</span>,
+                      icon: faPlus,
+                      onClick: () => { resetForm(); setIsEditing(true); },
+                      className:
+                        "flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
+                    },
+                    {
+                      key: "save",
+                      label: <span className="hidden sm:inline ml-1">Save</span>,
+                      icon: faSave,
+                      onClick: handleSave,
+                      disabled: !isEditing || isSaving || activeTab !== "coa",
+                      className: `flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md transition-all
+                        ${(!isEditing || isSaving || activeTab !== "coa")
+                          ? "bg-blue-500 opacity-50 cursor-not-allowed text-white"
+                          : "bg-blue-600 text-white hover:bg-blue-700"
+                        }`,
+                    },
+                    {
+                      key: "reset",
+                      label: <span className="hidden sm:inline ml-1">Reset</span>,
+                      icon: faUndo,
+                      onClick: resetForm,
+                      className:
+                        "flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
+                    },
+                  ]}
+                />
               </div>
-            )}
+
+              {/* Info Dropdown */}
+              <div ref={guideRef} className="relative">
+                <button
+                  onClick={() => setOpenGuide((v) => !v)}
+                  className="bg-blue-600 text-white h-8 w-8 sm:w-auto sm:h-8 sm:px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
+                >
+                  <FontAwesomeIcon icon={faInfoCircle} className="text-[12px]" />
+                  <span className="hidden sm:inline ml-1 text-[11px] font-medium">Info</span>
+                  <FontAwesomeIcon icon={faChevronDown} className="hidden sm:inline text-[10px] opacity-80" />
+                </button>
+
+                {isOpenGuide && (
+                  <div className="absolute right-0 mt-2 w-52 rounded-md shadow-xl bg-white ring-1 ring-black/10 z-[60] dark:bg-gray-800 overflow-hidden">
+                    <button
+                      onClick={() => { window.open(pdfLink, "_blank"); setOpenGuide(false); }}
+                      className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900 border-b border-gray-100 dark:border-gray-700"
+                    >
+                      <FontAwesomeIcon icon={faFilePdf} className="mr-2 text-red-500" /> PDF Guide
+                    </button>
+                    <button
+                      onClick={() => { window.open(videoLink, "_blank"); setOpenGuide(false); }}
+                      className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900"
+                    >
+                      <FontAwesomeIcon icon={faVideo} className="mr-2 text-blue-500" /> Video Guide
+                    </button>
+                  </div>
+                )}
+              </div>
+
+            </div>
           </div>
+
         </div>
-      </div>
 
-      {/* Form */}
-      <div className="global-tran-tab-div-ui">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Column 1 */}
-          <div className="space-y-2">
+
+{/* Main Content */}
+
+      <div className="mt-44 sm:mt-24 flex flex-col lg:flex-row lg:items-stretch gap-2">
+        {/* LEFT DIV: Main Form Fields */}
+        <div className="flex-1 bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-100 dark:border-gray-700 shadow-lg grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+          {/* Sub-Column 1 */}
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-3">
+              <FieldRenderer
+                label="VAT Code"
+                required
+                type="text"
+                value={formData.vatCode}
+                disabled={!isEditing || (isEditing && selectedAcctCode)}
+                onChange={(v) => updateForm({ vatCode: v })}
+                onBlur={(e) => handleCheckDuplicate(e.target.value)}
+                maxLength={getMax("VAT_CODE")}
+              />
+            </div>
+
             <FieldRenderer
-              label="VAT Code"
-              required={true}
+              label="VAT Name"
+              required
               type="text"
-              value={vatCode}
-              disabled={!isAdding}
-              onChange={(val) => setVatCode((val || "").toUpperCase())}
-              onBlur={async () => {
-                const normalized = (vatCode || "").trim().toUpperCase();
-                if (!normalized) return;
+              value={formData.vatName}
+              disabled={!isEditing}
+              onChange={(v) => updateForm({ vatName: v })}
+              maxLength={getMax("VAT_NAME")}
+            />
 
-                const originalCode = selectedVAT?.vatCode || null;
+            <div className="grid grid-cols-2 gap-3">
+              <FieldRenderer
+                label="VAT Type"
+                required
+                type="select"
+                value={formData.vatType}
+                disabled={!isEditing}
+                options={dropdowns?.typ?.map((d) => ({
+                  value: d.DROPDOWN_CODE,
+                  label: d.DROPDOWN_NAME,
+                }))}
+                onChange={(v) => updateForm({ vatType: v })}
+              />
 
-                if (isDuplicateVatCode(normalized, originalCode)) {
-                  await useSwalErrorAlert(
-                    "Duplicate Code",
-                    "Duplicate VAT Code is not allowed."
-                  );
-                  setVatCode("");
-                  return;
-                }
+              <FieldRenderer
+                label="Account Classification"
+                required
+                type="select"
+                value={formData.vatClass}
+                disabled={!isEditing}
+                options={dropdowns?.grp?.map((d) => ({
+                  value: d.DROPDOWN_CODE,
+                  label: d.DROPDOWN_NAME,
+                }))}
+                onChange={(v) => updateForm({ vatClass: v })}
+              />
+            </div>
+          </div>
 
-                setVatCode(normalized);
+          {/* Sub-Column 2 */}
+          <div className="space-y-6">
+            <FieldRenderer
+              label="VAT Rate (%)"
+              required
+              type="number"
+              placeholder="0.00"
+              value={formData.vatRate}
+              disabled={!isEditing}
+              onChange={(v) => updateForm({ vatRate: v })}
+              onBlur={(e) => {
+                const val = parseFloat(e.target.value || 0).toFixed(2);
+                updateForm({ vatRate: val });
               }}
             />
 
             <FieldRenderer
-              label="Description"
-              required={true}
-              type="text"
-              value={description}
-              disabled={!isEditing}
-              onChange={(val) => setDescription(val)}
-            />
-            <FieldRenderer
-              label="VAT Type"
-              required={true}
-              type="select"
-              value={vatType}
-              disabled={!isEditing}
-              onChange={(val) => setVatType(val)}
-              options={vatTypeOptions}
-            />
-            <FieldRenderer
-              label="VAT Class"
-              required={true}
-              type="select"
-              value={vatClass}
-              disabled={!isEditing}
-              onChange={(val) => setVatClass(val)}
-              options={vatClassOptions}
-            />
-            <FieldRenderer
-              label="VAT Rate"
-              required={true}
-              type="number"
-              value={vatRate}
-              disabled={!isEditing}
-              onChange={(val) => setVatRate(val)}
-              onBlur={() =>
-                setVatRate(Number(vatRate === "" ? 0 : vatRate).toFixed(2))
-              }
-            />
-          </div>
-
-          {/* Column 2 */}
-          <div className="space-y-2">
-            {/* ✅ Account Code lookup */}
-            <div className="flex items-center gap-3">
-              <label className="w-32 text-xs text-gray-600">
-                <span className="global-ref-asterisk-ui">*</span> Account Code
-              </label>
-
-              <div
-                className={`flex-1 flex items-center global-ref-textbox-ui ${
-                  isEditing
-                    ? "global-ref-textbox-enabled cursor-pointer"
-                    : "global-ref-textbox-disabled"
-                }`}
-                onClick={handleOpenAcctModal}
-                title={isEditing ? "Click to lookup Account Code" : ""}
-              >
-                <input
-                  type="text"
-                  value={acctCode}
-                  readOnly
-                  className="flex-1 bg-transparent border-none focus:outline-none cursor-pointer text-xs"
-                />
-                <FontAwesomeIcon
-                  icon={faEdit}
-                  className={isEditing ? "ml-2 text-blue-600" : "ml-2 text-gray-400"}
-                />
-              </div>
-            </div>
-
-            <FieldRenderer
-              label="Account Name"
-              type="text"
-              value={acctName}
-              disabled={true}
-              onChange={() => {}}
-            />
-
-            <FieldRenderer
-              label="Old Code"
-              type="text"
-              value={oldCode}
-              disabled={!isEditing}
-              onChange={(val) => setOldCode(val)}
-            />
-
-            <FieldRenderer
               label="VAT Category"
-              required={true}
+              required
               type="select"
-              value={vatCategory}
+              value={formData.vatCategory}
               disabled={!isEditing}
-              onChange={(val) => setVatCategory(val)}
-              options={vatCategoryOptions}
+              options={dropdowns?.bal?.map((d) => ({
+                value: d.DROPDOWN_CODE,
+                label: d.DROPDOWN_NAME,
+              }))}
+              onChange={(v) => updateForm({ vatCategory: v })}
             />
-          </div>
 
-          {/* Column 3 */}
-          <div className="space-y-2">
             <FieldRenderer
-              label="Registered By"
-              type="text"
-              value={registeredBy}
-              disabled={true}
-              onChange={() => {}}
-            />
-            <FieldRenderer
-              label="Registered Date"
-              type="text"
-              value={registeredDate}
-              disabled={true}
-              onChange={() => {}}
-            />
-            <FieldRenderer
-              label="Last Updated By"
-              type="text"
-              value={lastUpdatedBy}
-              disabled={true}
-              onChange={() => {}}
-            />
-            <FieldRenderer
-              label="Last Updated Date"
-              type="text"
-              value={lastUpdatedDate}
-              disabled={true}
-              onChange={() => {}}
+              label="Account Code"
+              required
+              type="lookup"
+              value={formData.acctCode}
+              disabled={!isEditing}
+              onLookup={() => toggleModal("acctCode", true)}
+              readOnly
             />
           </div>
         </div>
-      </div>
 
-      {/* Table */}
-      <div className="global-ref-tab-div-ui mt-6">
-        <div className="global-ref-table-main-div-ui">
-          <div className="global-ref-table-main-sub-div-ui">
-            <div className="global-ref-table-div-ui">
-              <table className="global-ref-table-div-ui">
-                <thead className="global-ref-thead-div-ui">
-                  {/* Sortable header row */}
-                  <tr>
-                    {[
-                      ["vatCode", "VAT Code"],
-                      ["description", "Description"],
-                      ["vatType", "Type"],
-                      ["vatClass", "Class"],
-                      ["vatRate", "Rate"],
-                      ["acctCode", "Acct Code"],
-                      ["acctName", "Acct Name"],
-                      ["oldCode", "Old Code"],
-                      ["vatCategory", "VAT Category"],
-                      ["_edit", "Edit"],
-                      ["_delete", "Delete"],
-                    ].map(([key, label]) => (
-                      <th
-                        key={key}
-                        className={`global-ref-th-ui ${
-                          key.startsWith("_") ? "" : "cursor-pointer select-none"
-                        }`}
-                        onClick={() => {
-                          if (key.startsWith("_")) return;
-                          setSortBy(key);
-                          setSortDir((prev) =>
-                            sortBy === key && prev === "asc" ? "desc" : "asc"
-                          );
-                        }}
-                        title={!key.startsWith("_") ? "Click to sort" : undefined}
-                      >
-                        {label}{" "}
-                        {sortBy === key ? (sortDir === "asc" ? "▲" : "▼") : ""}
-                      </th>
-                    ))}
-                  </tr>
-
-                  {/* Filter row */}
-                  <tr>
-                    <th className="global-ref-th-ui">
-                      <input
-                        className="w-full global-ref-filterbox-ui global-ref-filterbox-enabled"
-                        placeholder="Filter…"
-                        value={columnFilters.vatCode}
-                        onChange={(e) => {
-                          setColumnFilters((s) => ({
-                            ...s,
-                            vatCode: e.target.value,
-                          }));
-                          setPage(1);
-                        }}
-                      />
-                    </th>
-
-                    <th className="global-ref-th-ui">
-                      <input
-                        className="w-full global-ref-filterbox-ui global-ref-filterbox-enabled"
-                        placeholder="Filter…"
-                        value={columnFilters.description}
-                        onChange={(e) => {
-                          setColumnFilters((s) => ({
-                            ...s,
-                            description: e.target.value,
-                          }));
-                          setPage(1);
-                        }}
-                      />
-                    </th>
-
-                    <th className="global-ref-th-ui">
-                      <input
-                        className="w-full global-ref-filterbox-ui global-ref-filterbox-enabled"
-                        placeholder="Filter…"
-                        value={columnFilters.vatType}
-                        onChange={(e) => {
-                          setColumnFilters((s) => ({
-                            ...s,
-                            vatType: e.target.value,
-                          }));
-                          setPage(1);
-                        }}
-                      />
-                    </th>
-
-                    <th className="global-ref-th-ui">
-                      <input
-                        className="w-full global-ref-filterbox-ui global-ref-filterbox-enabled"
-                        placeholder="Filter…"
-                        value={columnFilters.vatClass}
-                        onChange={(e) => {
-                          setColumnFilters((s) => ({
-                            ...s,
-                            vatClass: e.target.value,
-                          }));
-                          setPage(1);
-                        }}
-                      />
-                    </th>
-
-                    <th className="global-ref-th-ui">
-                      <input
-                        className="w-full global-ref-filterbox-ui global-ref-filterbox-enabled"
-                        placeholder="Filter…"
-                        value={columnFilters.vatRate}
-                        onChange={(e) => {
-                          setColumnFilters((s) => ({
-                            ...s,
-                            vatRate: e.target.value,
-                          }));
-                          setPage(1);
-                        }}
-                      />
-                    </th>
-
-                    <th className="global-ref-th-ui">
-                      <input
-                        className="w-full global-ref-filterbox-ui global-ref-filterbox-enabled"
-                        placeholder="Filter…"
-                        value={columnFilters.acctCode}
-                        onChange={(e) => {
-                          setColumnFilters((s) => ({
-                            ...s,
-                            acctCode: e.target.value,
-                          }));
-                          setPage(1);
-                        }}
-                      />
-                    </th>
-
-                    <th className="global-ref-th-ui">
-                      <input
-                        className="w-full global-ref-filterbox-ui global-ref-filterbox-enabled"
-                        placeholder="Filter…"
-                        value={columnFilters.acctName}
-                        onChange={(e) => {
-                          setColumnFilters((s) => ({
-                            ...s,
-                            acctName: e.target.value,
-                          }));
-                          setPage(1);
-                        }}
-                      />
-                    </th>
-
-                    <th className="global-ref-th-ui">
-                      <input
-                        className="w-full global-ref-filterbox-ui global-ref-filterbox-enabled"
-                        placeholder="Filter…"
-                        value={columnFilters.oldCode}
-                        onChange={(e) => {
-                          setColumnFilters((s) => ({
-                            ...s,
-                            oldCode: e.target.value,
-                          }));
-                          setPage(1);
-                        }}
-                      />
-                    </th>
-
-                    <th className="global-ref-th-ui">
-                      <select
-                        className="w-full global-ref-filterbox-ui global-ref-filterbox-enabled"
-                        value={columnFilters.vatCategory}
-                        onChange={(e) => {
-                          setColumnFilters((s) => ({
-                            ...s,
-                            vatCategory: e.target.value,
-                          }));
-                          setPage(1);
-                        }}
-                      >
-                        <option value="">All</option>
-                        {vatCategoryOptions.map((cat) => (
-                          <option key={cat.value} value={cat.value}>
-                            {cat.label}
-                          </option>
-                        ))}
-                      </select>
-                    </th>
-
-                    <th className="global-ref-th-ui"></th>
-                    <th className="global-ref-th-ui"></th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan="11" className="global-ref-norecords-ui">
-                        Loading…
-                      </td>
-                    </tr>
-                  ) : pageRows.length === 0 ? (
-                    <tr>
-                      <td colSpan="11" className="global-ref-norecords-ui">
-                        No records found
-                      </td>
-                    </tr>
-                  ) : (
-                    pageRows.map((vat, idx) => (
-                      <tr
-                        key={`${vat.vatCode}-${idx}`}
-                        className={`global-tran-tr-ui ${
-                          selectedVAT?.vatCode === vat.vatCode ? "bg-blue-50" : ""
-                        }`}
-                        onClick={() => handleEditVAT(vat)}
-                      >
-                        <td className="global-ref-td-ui">{vat.vatCode || "-"}</td>
-                        <td className="global-ref-td-ui">{vat.vatName || "-"}</td>
-                        <td className="global-ref-td-ui">{vat.vatType || "-"}</td>
-                        <td className="global-ref-td-ui">{vat.vatClass || "-"}</td>
-                        <td className="global-ref-td-ui">
-                          {vat.vatRate !== null && vat.vatRate !== undefined
-                            ? Number(vat.vatRate).toFixed(2)
-                            : "-"}
-                        </td>
-                        <td className="global-ref-td-ui">{vat.acctCode || "-"}</td>
-                        <td className="global-ref-td-ui">
-                          {vat.acctName || coaNameMap[vat.acctCode] || "-"}
-                        </td>
-                        <td className="global-ref-td-ui">{vat.oldCode || "-"}</td>
-                        <td className="global-ref-td-ui">{vat.vatCategory || "-"}</td>
-
-                        <td className="global-ref-td-ui text-center sticky right-10">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditVAT(vat);
-                            }}
-                            className="global-ref-td-button-edit-ui"
-                          >
-                            <FontAwesomeIcon icon={faEdit} />
-                          </button>
-                        </td>
-
-                        <td className="global-ref-td-ui text-center sticky right-0">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedVAT(vat);
-                              handleDeleteVAT();
-                            }}
-                            className="global-ref-td-button-delete-ui"
-                            title={`Delete ${vat.vatCode}`}
-                          >
-                            <FontAwesomeIcon icon={faTrashAlt} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-
-              {/* Pagination */}
-              <div className="flex items-center justify-between p-3">
-                <div className="text-xs opacity-80 font-semibold">
-                  Total Records: {filtered.length}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <select
-                    className="px-7 py-2 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-900"
-                    value={pageSize}
-                    onChange={(e) => {
-                      setPageSize(Number(e.target.value));
-                      setPage(1);
-                    }}
-                  >
-                    {[10, 20, 50, 100].map((n) => (
-                      <option key={n} value={n}>
-                        {n}/page
-                      </option>
-                    ))}
-                  </select>
-
-                  <div className="text-xs opacity-80 font-semibold">
-                    Page {page} of {totalPages}
-                  </div>
-
-                  <button
-                    disabled={page <= 1}
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    className="px-7 py-2 text-xs font-medium text-white bg-blue-800 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Prev
-                  </button>
-
-                  <button
-                    disabled={page >= totalPages}
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    className="px-7 py-2 text-xs font-medium text-white bg-blue-800 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+        {/* RIGHT: Registration Info */}
+        <div className="w-full lg:w-[320px]">
+          <RegistrationInfo layout="stacked" data={registrationInfo} />
         </div>
       </div>
-    </div>
+      </div>
   );
 };
 
