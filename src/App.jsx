@@ -2227,6 +2227,7 @@
 
 
 
+
 import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { 
   BrowserRouter as Router, 
@@ -2238,7 +2239,6 @@ import {
   useLocation 
 } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-
 import { pageRegistry } from "./pageRegistry.jsx";
 import ErrorBoundary from "./NAYSA Cloud/Components/ErrorBoundary";
 import { fetchData, getTenant } from "./NAYSA Cloud/Configuration/BaseURL.jsx";
@@ -2455,8 +2455,6 @@ const App = () => (
 );
 
 export default App;
-
-
 
 
 
