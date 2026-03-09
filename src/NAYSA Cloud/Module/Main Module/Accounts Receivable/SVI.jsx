@@ -677,6 +677,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       documentID: data.sviId,
       documentNo: data.sviNo,
       branchCode: data.branchCode,
+      branchName:data.branchName,
       documentDate: useFormatToDate(data.sviDate),
       selectedSVIType: data.svitranType,
       custCode: data.custCode,

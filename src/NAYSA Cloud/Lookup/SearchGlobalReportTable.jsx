@@ -159,16 +159,39 @@ const SearchGlobalReportTable = forwardRef(
                 maximumFractionDigits: digits,
               });
         }
+       
         case "date": {
-          try {
-            const datePart = String(value).split("T")[0];
-            return typeof useReturnToDate === "function"
-              ? useReturnToDate(datePart)
-              : datePart;
-          } catch {
-            return String(value);
+              try {
+                const datePart = String(value).split("T")[0];
+                return typeof useReturnToDate === "function"
+                  ? useReturnToDate(datePart)
+                  : datePart;
+              } catch {
+                return String(value);
+              }
+            }
+
+         case "datetime": {
+            try {
+              // 1. Normalize the string for cross-browser parsing
+              const normalized = String(value).replace(" ", "T");
+              const dateObj = new Date(normalized);
+
+              if (isNaN(dateObj.getTime())) return String(value);
+
+              // 2. Format to 12-hour AM/PM: "MM/DD/YYYY hh:mm AM/PM"
+              return dateObj.toLocaleString("en-US", {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true, // This forces AM/PM
+              });
+            } catch (e) {
+              return String(value);
+            }
           }
-        }
         default:
           return String(value);
       }
