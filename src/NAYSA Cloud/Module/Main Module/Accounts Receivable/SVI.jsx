@@ -477,10 +477,7 @@ useEffect(() => {
 
 
 useEffect(() => {
-    // 🛑 STOP: If references haven't loaded yet, don't run the logic
     if (!refsLoaded) return; 
-
-    // ✅ GO: Data is ready, now we can populate the dropdowns
     const filteredTypes = getAllDropDown("SVITRAN_TYPE", docType); 
     if (filteredTypes.length > 0) {
       updateState({

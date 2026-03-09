@@ -32,7 +32,6 @@ const UsersLookupModal = ({ isOpen, onClose }) => {
         queryKey: ['lookupUserAll'],
         queryFn: async () => {
             const { data: result } = await apiClient.get("/lookupUserAll");
-            // Assuming the same nested structure as your previous code
             const rawData = result?.data?.[0]?.result || "[]";
             return Array.isArray(rawData) ? rawData : JSON.parse(rawData);
         },

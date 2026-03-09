@@ -72,6 +72,8 @@ import {
   useSwalHandleOpenSpecsModal
 } from "@/NAYSA Cloud/Global/behavior";
 
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
+
 // Header
 import Header from "@/NAYSA Cloud/Components/Header";
 
@@ -80,7 +82,7 @@ import Header from "@/NAYSA Cloud/Components/Header";
   const navigate = useNavigate();
   const location = useLocation(); 
   const [isViewDocument, setIsViewDocument] = useState(false);
-  const { companyInfo, currentUserRow } = useAuth();
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded } = useAuth();
   const decQty = companyInfo?.itemDecqtyPur ?? 2;
 
 
@@ -332,22 +334,36 @@ useEffect(() => {
     }
   }, [glCurrMode, glCurrDefault, currCode]);
 
-  const LoadingSpinner = () => (
-    <div className="global-tran-spinner-main-div-ui">
-      <div className="global-tran-spinner-sub-div-ui">
-        <FontAwesomeIcon
-          icon={faSpinner}
-          spin
-          size="2x"
-          className="text-blue-500 mb-2"
-        />
-        <p>Please wait...</p>
-      </div>
-    </div>
-  );
 
 
   
+  useEffect(() => {
+  if (!refsLoaded) return;
+
+  // 1. Fetch PR dropdown data synchronously
+  const prTranDrop = getAllDropDown("PRTRAN_TYPE", docType);
+  const prTypeDrop = getAllDropDown("PR_TYPE", docType);
+
+  // 2. Prepare a single update object
+  const updates = {};
+
+  if (prTranDrop.length > 0) {
+    updates.prTranTypes = prTranDrop;
+    updates.selectedPrTranType = prTranDrop[0]?.DROPDOWN_CODE ?? "";
+  }
+
+  if (prTypeDrop.length > 0) {
+    updates.prTypes = prTypeDrop;
+    updates.selectedPrType = prTypeDrop[0]?.DROPDOWN_CODE ?? "";
+  }
+
+  // 3. Batch update the state
+  if (Object.keys(updates).length > 0) {
+    updateState(updates);
+  }
+}, [docType, refsLoaded]);
+
+
   // ==========================
   // INITIAL LOAD / RESET
   // ==========================
@@ -402,24 +418,7 @@ useEffect(() => {
   const loadCompanyData = async () => {
     updateState({ isLoading: true });
     try {
-      const [prTranDrop, prTypeDrop] = await Promise.all([
-        useTopDocDropDown(docType, "PRTRAN_TYPE"),
-        useTopDocDropDown(docType, "PR_TYPE"),
-      ]);
-
-      if (prTranDrop) {
-        updateState({
-          prTranTypes: prTranDrop,
-          selectedPrTranType: prTranDrop[0]?.DROPDOWN_CODE ?? "",
-        });
-      }
-      if (prTypeDrop) {
-        updateState({
-          prTypes: prTypeDrop,
-          selectedPrType: prTypeDrop[0]?.DROPDOWN_CODE ?? "",
-        });
-      }
-
+     
       const hsOption = await useTopHSOption();
       if (hsOption) {
         updateState({
@@ -544,6 +543,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       documentID: data.prId,
       documentNo: data.prNo,
       branchCode: data.branchCode,
+      BranchName:data.branchName,
       documentDate: useFormatToDate(data.prDate),
       headerDateNeeded:useFormatToDate(data.dateNeeded),
       rcCode: data.rcCode,
@@ -2340,27 +2340,28 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
 
 
       {/* HISTORY TAB */}
-      <div className={topTab === "history" ? "" : "hidden"}>
-        <AllTranHistory
-        showHeader={false}
-        endpoint="/getPRHistory"
-        cacheKey={`PR:${state.branchCode || ""}:${state.docNo || ""}`}  // ✅ per-transaction
-        activeTabKey="PR_Summary"
-        branchCode={state.branchCode}
-        startDate={state.fromDate}
-        endDate={state.toDate}
-          status={(() => {
-            const s = (state.status || "").toUpperCase();
-            if (s === "FINALIZED") return "F";
-            if (s === "CANCELLED") return "X";
-            if (s === "CLOSED")    return "C";
-            if (s === "OPEN")      return "";
-            return "All";
-          })()}
-          onRowDoubleClick={handleHistoryRowPick}
-          historyExportName={`${documentTitle} History`} 
-    />
-      </div>
+     <div className={topTab === "history" ? "" : "hidden"}>
+       <AllTranHistory
+         showHeader={false}
+         isActive={topTab === "history"}
+         endpoint="/getPRHistory"
+         cacheKey={`PR:${state.branchCode || ""}:${state.fromDate || ""}:${state.toDate || ""}`}
+         activeTabKey="PR_Summary"
+         branchCode={state.branchCode}
+         startDate={state.fromDate}
+         endDate={state.toDate}
+         status={(() => {
+           const s = (state.status || "").toUpperCase();
+           if (s === "FINALIZED") return "F";
+           if (s === "CANCELLED") return "X";
+           if (s === "CLOSED") return "C";
+           if (s === "OPEN") return "";
+           return "All";
+         })()}
+         onRowDoubleClick={handleHistoryRowPick}
+         historyExportName={`${documentTitle} History`}
+       />
+     </div>
 
 
 

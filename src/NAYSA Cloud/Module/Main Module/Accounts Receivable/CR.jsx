@@ -106,7 +106,7 @@ const CR = () => {
     const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation(); 
-  const { companyInfo, currentUserRow } = useAuth();
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded } = useAuth();
   const [isViewDocument, setIsViewDocument] = useState(false);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
@@ -509,6 +509,40 @@ useEffect(() => {
 
 
 
+  
+  useEffect(() => {
+  if (!refsLoaded) return;
+
+    // 1. Fetch data synchronously using the dropdown utility
+    const crTran = getAllDropDown("CRTRAN_TYPE", docType);
+    const crType = getAllDropDown("CR_TYPE", docType);
+    const crCheck = getAllDropDown("CRCHECK_TYPE", docType);
+
+    // 2. Build a single update object to avoid multiple re-renders
+    const updates = {};
+
+    if (crTran.length > 0) {
+      updates.crTypes = crTran;
+      updates.selectedCRType = "CR11";
+    }
+
+    if (crType.length > 0) {
+      updates.paymentTypes = crType;
+      updates.selectedPayType = "CR01";
+    }
+
+    if (crCheck.length > 0) {
+      updates.checkTypes = crCheck;
+      updates.selectedCheckType = "CR21";
+    }
+
+    // 3. Batch the update if any data was found
+    if (Object.keys(updates).length > 0) {
+      updateState(updates);
+    }
+  }, [docType, refsLoaded]);
+
+
   const handleReset = () => { 
       updateState({
 
@@ -561,24 +595,7 @@ useEffect(() => {
     updateState({isLoading:true})
 
     try {
-      // 🔹 1. Run these in parallel since they don’t depend on each other
-      const [crTran, crType, crCheck] = await Promise.all([
-        useTopDocDropDown(docType, "CRTRAN_TYPE"),
-        useTopDocDropDown(docType, "CR_TYPE"),
-        useTopDocDropDown(docType, "CRCHECK_TYPE"),
-      ]);
-
-      if (crTran) {
-        updateState({ crTypes: crTran, selectedCRType: "CR11" });
-      }
-      if (crType) {
-        updateState({ paymentTypes: crType, selectedPayType: "CR01" });
-      }
-      if (crCheck) {
-        updateState({ checkTypes: crCheck, selectedCheckType: "CR21" });
-      }
-
-
+    
 
       // 🔹 2. Document row (independent)
       const docRow = await useTopDocControlRow(docType);
@@ -726,6 +743,7 @@ const fetchTranData = async (documentNo, branchCode,direction="") => {
       documentID: data.crId,
       documentNo: data.crNo,
       branchCode: data.branchCode,
+      branchName: data.branchName,
       documentDate: useFormatToDate(data.crDate),
       selectedCRType: data.crtranType,
       selectedPayType:data.paymentType,
@@ -3768,26 +3786,27 @@ const handleCloseBranchModal = (selectedBranch) => {
 
 
   <div className={topTab === "history" ? "" : "hidden"}>
-      <AllTranHistory
-        showHeader={false}
-        endpoint="/getCRHistory"
-        cacheKey={`CR:${state.branchCode || ""}:${state.docNo || ""}`}  // ✅ per-transaction
-        activeTabKey="CR_Summary"
-        branchCode={state.branchCode}
-        startDate={state.fromDate}
-        endDate={state.toDate}
-        status={(() => {
-            const s = (state.status || "").toUpperCase();
-            if (s === "FINALIZED") return "F";
-            if (s === "CANCELLED") return "X";
-            if (s === "CLOSED")    return "C";
-            if (s === "OPEN")      return "";
-            return "All";
-          })()}
-          onRowDoubleClick={handleHistoryRowPick}
-          historyExportName={`${documentTitle} History`} 
-    />
-  </div>
+  <AllTranHistory
+    showHeader={false}
+    isActive={topTab === "history"}
+    endpoint="/getCRHistory"
+    cacheKey={`CR:${state.branchCode || ""}:${state.fromDate || ""}:${state.toDate || ""}`}
+    activeTabKey="CR_Summary"
+    branchCode={state.branchCode}
+    startDate={state.fromDate}
+    endDate={state.toDate}
+    status={(() => {
+      const s = (state.status || "").toUpperCase();
+      if (s === "FINALIZED") return "F";
+      if (s === "CANCELLED") return "X";
+      if (s === "CLOSED") return "C";
+      if (s === "OPEN") return "";
+      return "All";
+    })()}
+    onRowDoubleClick={handleHistoryRowPick}
+    historyExportName={`${documentTitle} History`}
+  />
+</div>
 
 
 </div>

@@ -49,7 +49,6 @@ import {
   useTopHSOption,
   useTopCompanyRow,
   useTopDocControlRow,
-  useTopDocDropDown,
   useTopBankMastRow,
 } from '@/NAYSA Cloud/Global/top1RefTable';
 
@@ -103,7 +102,7 @@ const AR = () => {
    const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation(); 
-  const { companyInfo, currentUserRow } = useAuth();
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded } = useAuth();
   const [isViewDocument, setIsViewDocument] = useState(false);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
@@ -505,6 +504,39 @@ useEffect(() => {
   };
 
 
+useEffect(() => {
+  if (!refsLoaded) return;
+
+  // Fetch all dropdown data synchronously
+  const crTran = getAllDropDown("ARTRAN_TYPE", docType);
+  const crType = getAllDropDown("AR_TYPE", docType);
+  const crCheck = getAllDropDown("ARCHECK_TYPE", docType);
+
+  // Initialize an object to batch updates
+  const updates = {};
+
+  if (crTran.length > 0) {
+    updates.arTypes = crTran;
+    updates.selectedARType = "AR11";
+  }
+
+  if (crType.length > 0) {
+    updates.paymentTypes = crType;
+    updates.selectedPayType = "AR01";
+  }
+
+  if (crCheck.length > 0) {
+    updates.checkTypes = crCheck;
+    updates.selectedCheckType = "AR21";
+  }
+
+  // Only trigger updateState if we found valid data
+  if (Object.keys(updates).length > 0) {
+    updateState(updates);
+  }
+}, [docType, refsLoaded]);
+
+
 
   const handleReset = () => { 
       updateState({
@@ -557,24 +589,7 @@ useEffect(() => {
     updateState({isLoading:true})
 
     try {
-      // 🔹 1. Run these in parallel since they don’t depend on each other
-      const [crTran, crType, crCheck] = await Promise.all([
-        useTopDocDropDown(docType, "ARTRAN_TYPE"),
-        useTopDocDropDown(docType, "AR_TYPE"),
-        useTopDocDropDown(docType, "ARCHECK_TYPE"),
-      ]);
-
-      if (crTran) {
-        updateState({ arTypes: crTran, selectedARType: "AR11" });
-      }
-      if (crType) {
-        updateState({ paymentTypes: crType, selectedPayType: "AR01" });
-      }
-      if (crCheck) {
-        updateState({ checkTypes: crCheck, selectedCheckType: "AR21" });
-      }
-
-
+    
 
       // 🔹 2. Document row (independent)
       const docRow = await useTopDocControlRow(docType);
@@ -724,6 +739,7 @@ const fetchTranData = async (documentNo, branchCode,direction="") => {
       documentID: data.arId,
       documentNo: data.arNo,
       branchCode: data.branchCode,
+      branchName: data.branchName,
       documentDate: useFormatToDate(data.arDate),
       selectedARType: data.artranType,
       selectedPayType:data.paymentType,
@@ -3762,26 +3778,27 @@ const handleCloseBranchModal = (selectedBranch) => {
 
 
   <div className={topTab === "history" ? "" : "hidden"}>
-      <AllTranHistory
-        showHeader={false}
-        endpoint="/getARHistory"
-        cacheKey={`AR:${state.branchCode || ""}:${state.docNo || ""}`}  // ✅ per-transaction
-        activeTabKey="AR_Summary"
-        branchCode={state.branchCode}
-        startDate={state.fromDate}
-        endDate={state.toDate}
-        status={(() => {
-            const s = (state.status || "").toUpperCase();
-            if (s === "FINALIZED") return "F";
-            if (s === "CANCELLED") return "X";
-            if (s === "CLOSED")    return "C";
-            if (s === "OPEN")      return "";
-            return "All";
-          })()}
-          onRowDoubleClick={handleHistoryRowPick}
-          historyExportName={`${documentTitle} History`} 
-    />
-  </div>
+  <AllTranHistory
+    showHeader={false}
+    isActive={topTab === "history"}
+    endpoint="/getARHistory"
+    cacheKey={`AR:${state.branchCode || ""}:${state.fromDate || ""}:${state.toDate || ""}`}
+    activeTabKey="AR_Summary"
+    branchCode={state.branchCode}
+    startDate={state.fromDate}
+    endDate={state.toDate}
+    status={(() => {
+      const s = (state.status || "").toUpperCase();
+      if (s === "FINALIZED") return "F";
+      if (s === "CANCELLED") return "X";
+      if (s === "CLOSED") return "C";
+      if (s === "OPEN") return "";
+      return "All";
+    })()}
+    onRowDoubleClick={handleHistoryRowPick}
+    historyExportName={`${documentTitle} History`}
+  />
+</div>
 
 
 </div>

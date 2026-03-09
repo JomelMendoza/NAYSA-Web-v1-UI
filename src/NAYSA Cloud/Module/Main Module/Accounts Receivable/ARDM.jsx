@@ -102,7 +102,7 @@ const ARDM = () => {
     const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation(); 
-  const { companyInfo, currentUserRow } = useAuth();
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded } = useAuth();
   const [isViewDocument, setIsViewDocument] = useState(false);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
@@ -473,6 +473,19 @@ useEffect(() => {
   };
 
 
+  
+  useEffect(() => {
+  if (!refsLoaded) return;
+  const ardmType = getAllDropDown("ARDMTRAN_TYPE", docType);
+  if (ardmType.length > 0) {
+    updateState({
+      ardmTypes: ardmType,
+      selectedARMType: "ARDM01",
+    });
+  }
+}, [docType, refsLoaded]);
+
+
 
   const handleReset = () => { 
       updateState({
@@ -526,16 +539,6 @@ useEffect(() => {
     updateState({isLoading:true})
 
     try {
-      // 🔹 1. Run these in parallel since they don’t depend on each other
-      const [ ardmType] = await Promise.all([
-        useTopDocDropDown(docType, "ARDMTRAN_TYPE"),
-      ]);
-      if (ardmType) {
-        updateState({ ardmTypes: ardmType, selectedARMType: "ARDM01" });
-      }
-     
-
-
 
       // 🔹 2. Document row (independent)
       const docRow = await useTopDocControlRow(docType);
@@ -678,6 +681,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       documentID: data.ardmId,
       documentNo: data.ardmNo,
       branchCode: data.branchCode,
+      branchName: data.branchName,
       documentDate: useFormatToDate(data.ardmDate),
       selectedARDMType: data.ardmtranType,
       custCode: data.custCode,
@@ -3431,6 +3435,7 @@ const handleCloseBranchModal = (selectedBranch) => {
   <div className={topTab === "history" ? "" : "hidden"}>
       <AllTranHistory
         showHeader={false}
+        isActive={topTab === "history"}
         endpoint="/getARDMHistory"
         cacheKey={`ARDM:${state.branchCode || ""}:${state.docNo || ""}`}  // ✅ per-transaction
         activeTabKey="ARDM_Summary"

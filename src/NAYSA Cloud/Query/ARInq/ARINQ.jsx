@@ -168,7 +168,7 @@ export default function ARINQ() {
       </div>
 
       {/* Main Content - Pushing content down to avoid header overlap */}
-      <div className="mt-44 sm:mt-24 px-4">
+      <div className="mt-44 sm:mt-24 px-0">
         {ActiveComp && <ActiveComp registerActions={registerActions} />}
       </div>
     </div>

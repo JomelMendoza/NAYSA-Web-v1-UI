@@ -9,6 +9,7 @@ import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 // Import Lookup Modals
 import SearchGlobalReportTable from "../../Lookup/SearchGlobalReportTable";
 import BranchLookupModal from "@/NAYSA Cloud/Lookup/SearchBranchRef";
+import UsersLookupModal from "@/NAYSA Cloud/Lookup/SearchUsers";
 
 // Icons & Globals
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -163,7 +164,10 @@ const AuditTrail = () => {
 
   const [filterTrans, setFilterTrans] = useState(initialTrans);
   const [filterRef, setFilterRef] = useState(initialRef);
-  const [modals, setModals] = useState({ branch: false });
+  const [modals, setModals] = useState({ 
+  branch: false, 
+  user: false // Add this
+});
   const [clearedTabs, setClearedTabs] = useState({ transactions: false, reference: false });
   const [isManualSearch, setIsManualSearch] = useState(false);
 
@@ -265,6 +269,29 @@ const AuditTrail = () => {
         }} 
       />
 
+
+     <UsersLookupModal 
+        isOpen={modals.user} 
+        onClose={(selectedUser) => {
+          setModals(prev => ({ ...prev, user: false }));
+          if (selectedUser) {
+            if (activeTab === "transactions") {
+              setFilterTrans(prev => ({ 
+                ...prev, 
+                userCode: selectedUser.userCode, 
+                userName: selectedUser.userName 
+              }));
+            } else {
+              setFilterRef(prev => ({ 
+                ...prev, 
+                userCode: selectedUser.userCode, 
+                userName: selectedUser.userName 
+              }));
+            }
+          }
+        }} 
+      />
+
       <div className="global-ref-header-ui flex-none">
         <div className="w-full flex flex-col gap-3 md:grid md:grid-cols-3 md:items-center">
           <h1 className="global-ref-headertext-ui truncate">Audit Trail - {activeTab === "transactions" ? "Transactions" : "Reference File"}</h1>
@@ -286,7 +313,8 @@ const AuditTrail = () => {
         </div>
       </div>
 
-      <div className="flex-none mt-32 sm:mt-24 bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-100 shadow-sm mx-4">
+      <div className="flex-none mt-44 sm:mt-24 bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-100 shadow-sm mx-0">
+        
         {activeTab === "transactions" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
             <div className="relative">
@@ -298,37 +326,41 @@ const AuditTrail = () => {
               {filterTrans.docName && <ClearButton onClear={() => setFilterTrans(p => ({ ...p, docCode: "", docName: "" }))} />}
             </div>
             <FieldRenderer label="Document No" type="text" value={filterTrans.docNo} onChange={(v) => setFilterTrans(p => ({ ...p, docNo: v }))} />
-            <div className="relative">
-              <FieldRenderer label="User" type="lookup" value={filterTrans.userName} onLookup={() => {}} />
-              {filterTrans.userName && <ClearButton onClear={() => setFilterTrans(p => ({ ...p, userCode: "", userName: "" }))} />}
-            </div>
+            <FieldRenderer label="User" type="lookup" value={filterTrans.userName} onLookup={() => setModals(p => ({ ...p, user: true }))} /> {filterTrans.userName && <ClearButton onClear={() => setFilterTrans(p => ({ ...p, userCode: "", userName: "" }))} />}
             <FieldRenderer label="Starting Date" type="date" value={filterTrans.startDate} onChange={(v) => setFilterTrans(p => ({ ...p, startDate: v }))} />
             <FieldRenderer label="Ending Date" type="date" value={filterTrans.endDate} onChange={(v) => setFilterTrans(p => ({ ...p, endDate: v }))} />
           </div>
-        ) : (
+     
+    
+    ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="relative">
               <FieldRenderer label="Reference File" type="text" value={filterRef.refFile} onChange={(v) => setFilterRef(p => ({ ...p, refFile: v }))} />
               {filterRef.refFile && <ClearButton onClear={() => setFilterRef(p => ({ ...p, refFile: "", refName: "" }))} />}
             </div>
             <div className="relative">
-              <FieldRenderer label="User" type="lookup" value={filterRef.userName} onLookup={() => {}} />
-              {filterRef.userName && <ClearButton onClear={() => setFilterRef(p => ({ ...p, userCode: "", userName: "" }))} />}
+            <FieldRenderer label="User" type="lookup" value={filterRef.userName} onLookup={() => setModals(p => ({ ...p, user: true }))} />{filterRef.userName && <ClearButton onClear={() => setFilterRef(p => ({ ...p, userCode: "", userName: "" }))} />}
             </div>
             <FieldRenderer label="Starting Date" type="date" value={filterRef.startDate} onChange={(v) => setFilterRef(p => ({ ...p, startDate: v }))} />
             <FieldRenderer label="Ending Date" type="date" value={filterRef.endDate} onChange={(v) => setFilterRef(p => ({ ...p, endDate: v }))} />
           </div>
-        )}
+        )}     
       </div>
 
-      <div className={`mt-4 flex-1 min-h-0 px-4 ${activeTab === "transactions" ? "block" : "hidden"}`}>
-        <SearchGlobalReportTable ref={tableRefTrans} loading={isColsTransLoading || (isFetchTrans && isManualSearch)} columns={colsTrans} data={dataTrans || []} itemsPerPage={50} showFilters rightActionLabel="View" onRowAction={handleViewRow} onStateChange={(tbl) => { tableStateRef.current.transactions = tbl; }} />
-      </div>
-      <div className={`mt-4 flex-1 min-h-0 px-4 ${activeTab === "reference" ? "block" : "hidden"}`}>
-        <SearchGlobalReportTable ref={tableRefRef} loading={isColsRefLoading || (isFetchRef && isManualSearch)} columns={colsRef} data={dataRef || []} itemsPerPage={50} showFilters rightActionLabel="View" onRowAction={handleViewRow} onStateChange={(tbl) => { tableStateRef.current.reference = tbl; }} />
-      </div>
+
+  
+        <div className={`mt-3 pb-6 flex-1 min-h-0 px-0 ${activeTab === "transactions" ? "block" : "hidden"}`}>
+          <SearchGlobalReportTable ref={tableRefTrans} loading={isColsTransLoading || (isFetchTrans && isManualSearch)} columns={colsTrans} data={dataTrans || []} itemsPerPage={0} showFilters rightActionLabel="View" onRowAction={handleViewRow} onStateChange={(tbl) => { tableStateRef.current.transactions = tbl; }} />
+        </div>
+
+     
+        <div className={`mt-3 pb-6 flex-1 min-h-0 px-0 ${activeTab === "reference" ? "block" : "hidden"}`}>
+          <SearchGlobalReportTable ref={tableRefRef} loading={isColsRefLoading || (isFetchRef && isManualSearch)} columns={colsRef} data={dataRef || []} itemsPerPage={0} showFilters rightActionLabel="View" onRowAction={handleViewRow} onStateChange={(tbl) => { tableStateRef.current.reference = tbl; }} />
+        </div>
+
     </div>
   );
 };
 
 export default AuditTrail;
+
