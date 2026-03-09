@@ -269,9 +269,9 @@ const Company = () => {
             <FieldRenderer label="Company Name" required type="text" value={formData.compName} disabled={!isEditing} onChange={(v) => updateForm({ compName: v })} />
             <div className="grid grid-cols-2 gap-3">
               <FieldRenderer label="Classification" required type="select" value={formData.classification} onChange={(v) => updateForm({ classification: v })} options={[{ value: "VAT REG", label: "VAT REG" }, { value: "NON-VAT", label: "NON-VAT" }]} />
-              <FieldRenderer label="RDO Code" type="text" value={formData.rdoCode} onChange={(v) => updateForm({ rdoCode: v })} maxLength={getMax("TCON_RDOCODE")}/>
+              <FieldRenderer label="RDO Code" required type="text" value={formData.rdoCode} onChange={(v) => updateForm({ rdoCode: v })} maxLength={getMax("TCON_RDOCODE")}/>
             </div>
-            <FieldRenderer label="Company Email" type="text" value={formData.compEmail} onChange={(v) => updateForm({ compEmail: v })} maxLength={getMax("COMP_EMAIL")} />
+            <FieldRenderer label="Company Email" required type="text" value={formData.compEmail} onChange={(v) => updateForm({ compEmail: v })} maxLength={getMax("COMP_EMAIL")} />
             <FieldRenderer label="Branch" type="lookup" value={formData.branchName || formData.branchCode} onLookup={() => toggleModal("branch", true)} />
             <FieldRenderer label="Cut-Off" type="lookup" value={formData.cutoffCode ? `(${formData.cutoffCode}) - ${formData.cutoffName}` : ""} onLookup={() => toggleModal("cutoff", true)} />
           </div>
@@ -292,6 +292,14 @@ const Company = () => {
           <FieldRenderer label="BIR AC No." labelWidth="w-56" type="text" classname="global-ref-textbox-ui" value={formData.birAcNo} onChange={(v) => updateForm({ birAcNo: v })} />
           <FieldRenderer label="BIR Release No." labelWidth="w-56" type="text" classname="global-ref-textbox-ui" value={formData.birReleaseNo} onChange={(v) => updateForm({ birReleaseNo: v })} />
           <FieldRenderer label="Date Issued" labelWidth="w-56" type="date" classname="global-ref-textbox-ui" value={formData.birAcDateIssued} onChange={(v) => updateForm({ birAcDateIssued: v })} />
+        {/* <FieldRenderer
+  label="Date Issued"
+  labelWidth="w-56"
+  type="date"
+  className="global-ref-textbox-ui date-input-right"
+  value={formData.birAcDateIssued}
+  onChange={(v) => updateForm({ birAcDateIssued: v })}
+/> */}
         </div>
       </div>
     </div>

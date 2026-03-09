@@ -118,7 +118,7 @@ const FieldRenderer = ({
             disabled={!isEnabled || isAudit}
             className={`
               absolute right-0 h-7 sm:h-8 w-8 flex items-center justify-center rounded
-              ${!disabled ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-gray-200 text-gray-400"}
+              ${!disabled ? "bg-blue-200 text-blue-800 hover:bg-blue-600 hover:text-blue-50" : "bg-gray-200 text-gray-400"}
             `}
           >
             <FontAwesomeIcon icon={faMagnifyingGlass} className="text-[12px]" />

@@ -4,8 +4,8 @@ import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 
 // Import Lookup Modals
-import SearchCOAClassRef from "../../Lookup/SearchCOAClassRef";
-import SearchGlobalReferenceTable from "../../Lookup/SearchGlobalReferenceTable";
+import SearchCOAClassRef from "@/NAYSA Cloud/Lookup/SearchCOAClassRef";
+import SearchGlobalReferenceTable from "@/NAYSA Cloud/Lookup/SearchGlobalReferenceTable";
 
 // Icons & Globals
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -14,7 +14,7 @@ import { reftables, reftablesPDFGuide, reftablesVideoGuide } from "@/NAYSA Cloud
 import { useTopDocDropDown } from "@/NAYSA Cloud/Global/top1RefTable";
 import { useSwalErrorAlert, useSwalSuccessAlert, useSwalErrorAlertAPI, useSwalDeleteConfirm, useSwalDeleteRecord } from "@/NAYSA Cloud/Global/behavior";
 import { useFieldLenghtCheck, useGetFieldLength,} from '@/NAYSA Cloud/Global/procedure';
-
+import { Plus, Trash2 } from "lucide-react";
 // UI Helpers
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer";
 import ButtonBar from "@/NAYSA Cloud/Global/ButtonBar";
@@ -168,6 +168,8 @@ const COAMast = () => {
       lastUpdatedDate: row.lastUpdatedDate
     });
 
+    console.log("Edit Row:", row);
+
     setIsEditing(true);
   };  
 
@@ -258,6 +260,30 @@ const updateForm = (updates) => setFormData(prev => ({ ...prev, ...updates }));
 
   // --- TABLE COLUMNS ---
 const columns = useMemo(() => [
+    {
+    key: "__actions",
+    label: "Actions",
+    render: (row) => (
+      <div className="flex gap-1 justify-center">
+        <button
+          onClick={() => handleEdit(row)}
+          className="py-1 px-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-600 hover:text-blue-50 transition-colors"
+          title="Edit"
+        >
+          <FontAwesomeIcon icon={faEdit} />
+        </button>
+
+        <button
+          onClick={() => handleDelete(row)}
+          className="py-1 px-2 bg-red-100 text-red-700 rounded-md hover:bg-red-600 hover:text-red-50 transition-colors"
+          title="Delete"
+        >
+          <FontAwesomeIcon icon={faTrashAlt} />
+        </button>
+      </div>
+    ),
+  },
+
   { key: "acctCode", label: "Account Code", sortable: true },
   { key: "acctName", label: "Account Name", sortable: true },
 
@@ -324,29 +350,7 @@ const columns = useMemo(() => [
     render: (row) => (row.active === "Y" ? "Yes" : "No") 
   },
 
-  {
-    key: "__actions",
-    label: "Actions",
-    render: (row) => (
-      <div className="flex gap-2 justify-center">
-        <button
-          onClick={() => handleEdit(row)}
-          className="py-1 px-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-          title="Edit"
-        >
-          <FontAwesomeIcon icon={faEdit} />
-        </button>
 
-        <button
-          onClick={() => handleDelete(row)}
-          className="py-1 px-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-          title="Delete"
-        >
-          <FontAwesomeIcon icon={faTrashAlt} />
-        </button>
-      </div>
-    ),
-  },
 ], [dropdowns, handleDelete]);
 
   useEffect(() => {
@@ -375,17 +379,64 @@ const columns = useMemo(() => [
 
   return (
     <div className="global-ref-main-div-ui">
-      {(isDropdownLoading || isListLoading || isSaving || isDeleting)  && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-[2px] flex items-center justify-center">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-4">
-            <div className="relative">
-              <div className="w-12 h-12 border-4 border-blue-100 dark:border-gray-700 rounded-full"></div>
-              <div className="absolute top-0 left-0 w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-            </div>
-            <span className="text-sm font-semibold animate-pulse">{isSaving ? "Saving..." : isDeleting ? "Deleting..." : "Loading..."}</span>
+    {(isDropdownLoading || isListLoading || isSaving || isDeleting) && (
+      <div className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center px-4">
+        <div
+          className="
+            w-full max-w-xs sm:max-w-sm
+            rounded-3xl border border-white/20
+            bg-white/95 dark:bg-gray-900/95
+            shadow-[0_20px_60px_rgba(0,0,0,0.25)]
+            px-6 py-7 sm:px-8 sm:py-8
+            flex flex-col items-center text-center
+          "
+        >
+          {/* Spinner */}
+          <div className="relative mb-5">
+            <div className="w-16 h-16 rounded-full border-4 border-blue-100 dark:border-gray-700" />
+            <div className="absolute inset-0 w-16 h-16 rounded-full border-4 border-blue-600 border-t-transparent animate-spin" />
+            <div className="absolute inset-[10px] rounded-full bg-blue-50 dark:bg-gray-800" />
+          </div>
+
+          {/* Main text */}
+          <div className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-100">
+            {isSaving
+              ? "Saving record"
+              : isDeleting
+              ? "Deleting record"
+              : "Loading. Please wait"}
+            <span className="inline-flex ml-1">
+              <span className="animate-bounce [animation-delay:-0.3s]">.</span>
+              <span className="animate-bounce [animation-delay:-0.15s]">.</span>
+              <span className="animate-bounce">.</span>
+            </span>
+          </div>
+
+          {/* Sub text */}
+          {/* <div className="mt-2 text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+            {isSaving
+              ? "Please wait while your changes are being saved."
+              : isDeleting
+              ? "Please wait while the selected record is being removed."
+              : "Please wait . . ."}
+          </div> */}
+
+          {/* Progress bar effect */}
+          <div className="mt-5 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+            <div className="h-full w-1/2 rounded-full bg-blue-600 animate-[loadingBar_1.2s_ease-in-out_infinite]" />
           </div>
         </div>
-      )}
+
+        <style>
+          {`
+            @keyframes loadingBar {
+              0% { transform: translateX(-100%); }
+              100% { transform: translateX(300%); }
+            }
+          `}
+        </style>
+      </div>
+    )}
 
       {/* Lookup Modals */}
       <SearchCOAClassRef isOpen={modals.coaClass} onClose={(v) => { toggleModal("coaClass", false); if(v) updateForm({ classCode: v.classCode, className: v.className }) }} />
@@ -406,7 +457,7 @@ const columns = useMemo(() => [
           {/* 2) Tabs */}
           <div className="w-full md:justify-center flex">
             <div className="w-full md:w-auto">
-              <div className="flex flex-nowrap overflow-x-auto no-scrollbar border-b border-gray-200 dark:border-gray-700">
+              <div className="flex flex-nowrap overflow-x-auto no-scrollbar border-b border-blue-300 dark:border-gray-700">
                 {[
                   { id: "coa", label: "Chart of Accounts" },
                   { id: "fsconso", label: "FS Consolidation" },
@@ -415,7 +466,7 @@ const columns = useMemo(() => [
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`shrink-0 whitespace-nowrap px-3 py-2 text-[12px] sm:text-[12px] font-bold transition-all border-b-2
+                    className={`shrink-0 whitespace-nowrap px-3 py-2 text-[11px] sm:text-[12px] font-bold transition-all border-b-2  rounded-md
                       ${activeTab === tab.id
                         ? "border-blue-600 text-blue-600 bg-blue-50/50"
                         : "border-transparent text-gray-500 hover:text-blue-500"
@@ -655,7 +706,7 @@ const columns = useMemo(() => [
               data={accounts}
               isLoading={isListLoading}
               onRowDoubleClick={handleEdit}
-              itemsPerPage={50}
+              itemsPerPage={100}
             />
           </div>
         </>
