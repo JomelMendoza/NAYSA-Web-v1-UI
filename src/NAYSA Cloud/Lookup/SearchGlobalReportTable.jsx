@@ -1104,10 +1104,10 @@ const SearchGlobalReportTable = forwardRef(
             >
               <table className="min-w-full border-collapse relative table-fixed">
                 <thead className="sticky top-0 z-20 shadow-sm">
-                  <tr className="bg-blue-700 text-white text-[10px] sm:text-[11px]">
+                  <tr className="bg-blue-200 text-blue-900 text-[10px] sm:text-[11px]">
                     {hasActionCol && (
                       <th
-                        className="sticky left-0 top-0 z-50 px-2 py-2 font-bold border-r border-blue-800 bg-blue-700 w-[64px]"
+                        className="sticky left-0 top-0 z-50 px-2 py-2 font-bold border-r border-blue-800 bg-blue-200 w-[64px]"
                         style={{
                           minWidth: ACTION_COL_WIDTH,
                           maxWidth: ACTION_COL_WIDTH,
@@ -1147,7 +1147,7 @@ const SearchGlobalReportTable = forwardRef(
                           onDragOver={(e) => e.preventDefault()}
                           onDrop={(e) => handleColDrop(e, col.key)}
                           className={`px-3 py-3 font-bold select-none cursor-grab whitespace-nowrap overflow-hidden text-ellipsis ${
-                            meta.sticky ? "sticky z-40 bg-blue-700" : ""
+                            meta.sticky ? "sticky z-40 bg-blue-200" : ""
                           } ${numberAlignClass(col)} relative`}
                           style={style}
                           onClick={() => handleSort(col.key, col.sortable)}

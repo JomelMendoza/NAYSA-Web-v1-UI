@@ -288,4 +288,5 @@ export const pageRegistry = {
   CWTReportModal: (props) => <UniversalReportModal {...props} module="CWT" />,
   
   GLReportModal: (props) => <UniversalReportModal {...props} module="GL" />,
+  BIRReportModal: (props) => <UniversalReportModal {...props} module="BIR" />,
 };
