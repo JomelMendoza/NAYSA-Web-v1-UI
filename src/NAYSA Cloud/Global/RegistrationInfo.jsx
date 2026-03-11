@@ -43,28 +43,19 @@ const RegistrationInfo = ({ data = {}, layout = "stacked", showHeader = true }) 
     )}:${pad(d.getMinutes())}:${pad(d.getSeconds())} ${ampm}`;
   };
 
-  const auditFields = [
+  // Define fields as pairs for the minimize mode
+  const registrationFields = [
     { label: "Registered By", value: v.registeredBy },
     { label: "Registered Date", value: formatDateTime(v.registeredDate) },
+  ];
+
+  const updateFields = [
     { label: "Updated By", value: v.lastUpdatedBy },
     { label: "Updated Date", value: formatDateTime(v.lastUpdatedDate) },
   ];
 
-// ... inside RegistrationInfo component
-
-const getAuditClasses = (isReadOnly) => `
-  peer w-full 
-  h-6 sm:h-8
-  !px-2 
-  text-[10px] sm:text-[12px] font-normal
-  focus-visible:ring-0 focus-visible:ring-offset-0
-  border shadow-none transition-all
-  bg-gray-50 border-gray-200 text-gray-500
-  ${isReadOnly ? "cursor-default" : ""}
-`;
-
-const renderFields = () =>
-  auditFields.map((field) => (
+  // Helper to render individual field
+  const renderField = (field) => (
     <FieldRenderer
       key={field.label}
       type="text"
@@ -72,26 +63,37 @@ const renderFields = () =>
       value={field.value || ""}
       readOnly={true}
       disabled={true}     
-      variant="audit"    
-      // Pass the classes here
-      className={getAuditClasses(true)}
+      variant="audit"     
     />
-  ));
+  );
 
   return (
-    <div className="bg-white p-4 rounded-lg border shadow-lg h-full flex flex-col gap-4 min-w-[300px]">
+    <div className={`bg-white p-4 rounded-lg border shadow-sm h-full flex flex-col gap-4 ${layout === 'minimize' ? 'max-w-2xl' : ''}`}>
       {showHeader && (
-        <h3 className="text-[9px] sm:text-[12px] font-bold text-slate-500 tracking-widest border-b pb-2 uppercase">
+        <h3 className="text-[10px] font-bold text-slate-500 tracking-widest border-b pb-2 uppercase">
           Registration Information
         </h3>
       )}
       
-      <div className={layout === "twoCols" 
-        ? "grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4" 
-        : "flex flex-col gap-4"}
-      >
-        {renderFields()}
-      </div>
+      {layout === "minimize" ? (
+        /* MINIMIZE MODE: 2 Columns (Registration on left, Updates on right) */
+        <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+          <div className="flex flex-col gap-3">
+            {registrationFields.map(renderField)}
+          </div>
+          <div className="flex flex-col gap-3">
+            {updateFields.map(renderField)}
+          </div>
+        </div>
+      ) : (
+        /* STANDARD MODES: twoCols or stacked */
+        <div className={layout === "twoCols" 
+          ? "grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4" 
+          : "flex flex-col gap-4"}
+        >
+          {[...registrationFields, ...updateFields].map(renderField)}
+        </div>
+      )}
     </div>
   );
 };

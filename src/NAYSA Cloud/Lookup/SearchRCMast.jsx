@@ -1,182 +1,159 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTimes, faSpinner } from '@fortawesome/free-solid-svg-icons'; // Added faSpinner for loading
-import { fetchData } from '../Configuration/BaseURL'; // Assuming this path is correct
+import { faTimes, faSpinner, faSyncAlt } from '@fortawesome/free-solid-svg-icons';
+import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx"; // Updated to use your apiClient
 
 const RCLookupModal = ({ isOpen, onClose, customParam }) => {
-    const [rc, setRCs] = useState([]);
-    const [filtered, setFiltered] = useState([]);
     const [filters, setFilters] = useState({ rcCode: '', rcName: '', rcType: '' });
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null); // Added error state
 
-    useEffect(() => {
-        if (!isOpen) {
-            // Reset states when modal is closed, mirroring BranchLookupModal and SLMastLookupModal
-            setRCs([]);
-            setFiltered([]);
-            setFilters({ rcCode: '', rcName: '', rcType: '' });
-            setError(null); // Clear any previous error
-            return; // Exit early if not open
-        }
+    // 1. Fetching with Polling (Auto-Refresh every 10s)
+    const { 
+        data: rcList = [], 
+        isLoading, 
+        isFetching, 
+        error, 
+        isError, 
+        refetch 
+    } = useQuery({
+        queryKey: ['lookupRCMast', customParam],
+        queryFn: async () => {
+            let actualCustomParam = customParam;
+            if (customParam === "apv_hd") actualCustomParam = "ActiveAll";
 
-        setLoading(true);
-        setError(null); // Clear previous errors when opening the modal
-
-        // Custom parameter adjustment (keeping existing logic)
-        let actualCustomParam = customParam;
-        switch (customParam) {
-            case "apv_hd":
-                actualCustomParam = "ActiveAll";
-                break;
-            default:
-                break;
-        }
-
-        const params = {
-            PARAMS: JSON.stringify({
-                search: "",
-                page: 1,
-                pageSize: 10,
-                // If customParam needs to be sent to the backend:
-                // customParam: actualCustomParam, 
-            }),
-        };
-
-        fetchData("/lookupRCMast", params)
-            .then((result) => {
-                if (result.success) {
-                    // *** IMPORTANT: This line assumes your /lookupRCMast endpoint
-                    // still returns data nested as result.data[0].result.
-                    // If it now returns a direct array like /lookupSL, change to:
-                    // const rcData = result.data;
-                    const rcData = JSON.parse(result.data[0].result);
-                    setRCs(rcData);
-                    setFiltered(rcData);
-                } else {
-                    setError(result.message || "Failed to fetch RC data.");
-                    setRCs([]); // Ensure state is empty if no data
-                    setFiltered([]);
-                }
-            })
-            .catch((err) => {
-                console.error("Failed to fetch RC:", err);
-                setError(`Error: ${err.message || 'An unexpected error occurred.'}`); // Use internal error state
-            })
-            .finally(() => {
-                setLoading(false);
+            const { data: result } = await apiClient.get("/lookupRCMast", {
+                params: {
+                    PARAMS: JSON.stringify({
+                        search: "",
+                        page: 1,
+                        pageSize: 100, // Matches your currency logic
+                    }),
+                },
             });
-    }, [isOpen, customParam]); // customParam added as dependency for consistency
 
-    useEffect(() => {
-        const newFiltered = rc.filter(item =>
-            (item.rcCode || '').toLowerCase().includes((filters.rcCode || '').toLowerCase()) &&
-            (item.rcName || '').toLowerCase().includes((filters.rcName || '').toLowerCase()) &&
-            (item.rcType || '').toLowerCase().includes((filters.rcType || '').toLowerCase())
+            const rawData = result?.data?.[0]?.result || "[]";
+            return Array.isArray(rawData) ? rawData : JSON.parse(rawData);
+        },
+        enabled: isOpen,
+        staleTime: 1000 * 5,         // Consider data stale after 5s
+        refetchInterval: 1000 * 10,  // 🔄 AUTO-REFRESH: Every 10 seconds
+        refetchIntervalInBackground: false,
+    });
+
+    // 2. High-Performance Filtering
+    const filtered = useMemo(() => {
+        return rcList.filter(item =>
+            (item.rcCode || '').toLowerCase().includes(filters.rcCode.toLowerCase()) &&
+            (item.rcName || '').toLowerCase().includes(filters.rcName.toLowerCase()) &&
+            (item.rcType || '').toLowerCase().includes(filters.rcType.toLowerCase())
         );
-        setFiltered(newFiltered);
-    }, [filters, rc]);
+    }, [filters, rcList]);
 
-    const handleApply = (selectedRC) => { // Renamed param to selectedRC for clarity
+    const handleApply = (selectedRC) => {
         onClose(selectedRC);
-    };
-
-    const handleFilterChange = (e, key) => {
-        setFilters({ ...filters, [key]: e.target.value });
+        setFilters({ rcCode: '', rcName: '', rcType: '' });
     };
 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 sm:p-6 lg:p-8 animate-fade-in">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col relative overflow-hidden transform scale-95 animate-scale-in">
-                {/* Close Icon */}
-                <button
-                    onClick={() => onClose(null)}
-                    className="absolute top-3 right-3 text-blue-500 hover:text-blue-700 transition duration-200 focus:outline-none p-1 rounded-full hover:bg-blue-100"
-                    aria-label="Close modal"
-                >
-                    <FontAwesomeIcon icon={faTimes} size="lg" />
-                </button>
-
-                <h2 className="text-sm font-semibold text-blue-800 p-3 border-b border-gray-100">Select RC</h2>
-
-                <div className="flex-grow overflow-hidden">
-                    {loading ? (
-                        <div className="flex items-center justify-center h-full min-h-[200px] text-blue-500">
-                            <FontAwesomeIcon icon={faSpinner} spin size="2x" className="mr-3" />
-                            <span>Loading RC accounts...</span>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4 animate-fade-in">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col relative overflow-hidden transform animate-scale-in border border-slate-200">
+                
+                {/* Header */}
+                <div className="flex items-center justify-between p-2 border-b bg-slate-100">
+                    <div className="flex items-center gap-3">
+                        <div className="relative">
+                            <h2 className="text-md font-bold text-blue-800 propercase tracking-tight pl-2">Select Responsibility Center</h2>
+                            {/* Visual sync indicator */}
+                            <div className="absolute -top-1 -right-4 flex h-2 w-2">
+                                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 ${isFetching ? "block" : "hidden"}`}></span>
+                                <span className={`relative inline-flex rounded-full h-2 w-2 bg-blue-500 ${isFetching ? "block" : "hidden"}`}></span>
+                            </div>
                         </div>
-                    ) : error ? (
-                        <div className="p-4 text-center bg-red-100 border border-red-400 text-red-700" role="alert">
-                            <strong className="font-bold">Error:</strong>
-                            <span className="block sm:inline"> {error}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => refetch()}
+                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all"
+                            title="Manual Refresh"
+                        >
+                            <FontAwesomeIcon icon={faSyncAlt} size="sm" spin={isFetching} />
+                        </button>
+                        <button
+                            onClick={() => onClose(null)}
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-all"
+                        >
+                            <FontAwesomeIcon icon={faTimes} size="lg" />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Main Content */}
+                <div className="flex-grow overflow-hidden flex flex-col">
+                    {isLoading ? (
+                        <div className="flex flex-col items-center justify-center h-64 text-slate-400">
+                            <FontAwesomeIcon icon={faSpinner} spin size="2x" className="mb-4 text-blue-500" />
+                            <p className="text-sm">Fetching Responsibility Centers...</p>
+                        </div>
+                    ) : isError ? (
+                        <div className="p-4 m-4 text-center bg-red-50 border border-red-200 text-red-700 rounded-lg">
+                            <p className="font-bold text-sm">Error Loading Data</p>
+                            <p className="text-xs">{error.message}</p>
                         </div>
                     ) : (
-                        <div className="overflow-auto max-h-[calc(90vh-120px)] custom-scrollbar">
-                            <table className="min-w-full divide-y divide-gray-100">
-                                <thead className="bg-gray-100 sticky top-0 z-10 shadow-sm">
+                        <div className="overflow-auto custom-scrollbar">
+                            <table className="min-w-full divide-y divide-slate-200"> 
+                                <thead className="bg-slate-200 sticky top-0 z-10">
                                     <tr>
-                                        <th className="px-4 py-2 text-left text-xs font-bold text-blue-900 tracking-wider cursor-pointer hover:bg-blue-100 transition-colors duration-200">RC Code</th>
-                                        <th className="px-4 py-2 text-left text-xs font-bold text-blue-900 tracking-wider cursor-pointer hover:bg-blue-100 transition-colors duration-200">Description</th>
-                                        <th className="px-4 py-2 text-left text-xs font-bold text-blue-900 tracking-wider cursor-pointer hover:bg-blue-100 transition-colors duration-200">RC Type</th>
-                                        <th className="px-4 py-2 text-left text-xs font-bold text-blue-900 tracking-wider cursor-pointer hover:bg-blue-100 transition-colors duration-200">Action</th>
-                                    </tr>
-                                    <tr className="bg-gray-100">
-                                        <th className="px-3 py-1">
+                                        <th className="px-4 py-2 text-left">
+                                            <label className="block text-[13px] font-bold text-slate-600 propercase mb-1 ">RC Code</label>
                                             <input
                                                 type="text"
                                                 value={filters.rcCode}
-                                                onChange={(e) => handleFilterChange(e, 'rcCode')}
+                                                onChange={(e) => setFilters(p => ({ ...p, rcCode: e.target.value }))}
                                                 placeholder="Filter..."
-                                                className="block w-full px-2 py-1 text-xs text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                                className="w-full px-2 py-1 text-xs border rounded bg-white outline-none focus:ring-2 focus:ring-blue-500/20"
                                             />
                                         </th>
-                                        <th className="px-3 py-1">
+                                        <th className="px-4 py-2 text-left">
+                                            <label className="block text-[13px] font-bold text-slate-600 propercase mb-1">Description</label>
                                             <input
                                                 type="text"
                                                 value={filters.rcName}
-                                                onChange={(e) => handleFilterChange(e, 'rcName')}
+                                                onChange={(e) => setFilters(p => ({ ...p, rcName: e.target.value }))}
                                                 placeholder="Filter..."
-                                                className="block w-full px-2 py-1 text-xs text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                                className="w-full px-2 py-1 text-xs border rounded bg-white outline-none focus:ring-2 focus:ring-blue-500/20"
                                             />
                                         </th>
-                                        <th className="px-3 py-1">
+                                        <th className="px-4 py-2 text-left">
+                                            <label className="block text-[13px] font-bold text-slate-600 propercase mb-1">Type</label>
                                             <input
                                                 type="text"
                                                 value={filters.rcType}
-                                                onChange={(e) => handleFilterChange(e, 'rcType')}
+                                                onChange={(e) => setFilters(p => ({ ...p, rcType: e.target.value }))}
                                                 placeholder="Filter..."
-                                                className="block w-full px-2 py-1 text-xs text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                                className="w-full px-2 py-1 text-xs border rounded bg-white outline-none focus:ring-2 focus:ring-blue-500/20"
                                             />
                                         </th>
-                                        <th className="px-3 py-1"></th> {/* Empty header for action column */}
                                     </tr>
                                 </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
+                                <tbody className="divide-y divide-slate-100 bg-white">
                                     {filtered.length > 0 ? (
-                                        filtered.map((rcItem, index) => ( // Renamed 'rc' to 'rcItem' to avoid conflict with state variable
+                                        filtered.map((rcItem, index) => (
                                             <tr key={index}
-                                                className="hover:bg-blue-50 transition-colors duration-150 cursor-pointer text-xs"
-                                                onClick={() => handleApply(rcItem)} // Allow clicking row to apply
+                                                onClick={() => handleApply(rcItem)}
+                                                className="group hover:bg-blue-50 cursor-pointer transition-colors"
                                             >
-                                                <td className="px-4 py-1 whitespace-nowrap">{rcItem.rcCode}</td>
-                                                <td className="px-4 py-1 whitespace-nowrap">{rcItem.rcName}</td>
-                                                <td className="px-4 py-1 whitespace-nowrap">{rcItem.rcType}</td>
-                                                <td className="px-4 py-1 whitespace-nowrap">
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); handleApply(rcItem); }} // Stop propagation to prevent row click
-                                                        className="px-6 py-1 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-150"
-                                                    >
-                                                        Apply
-                                                    </button>
-                                                </td>
+                                                <td className="px-4 py-2 text-xs font-bold text-slate-700 w-[120px]">{rcItem.rcCode}</td>
+                                                <td className="px-4 py-2 text-xs text-slate-600">{rcItem.rcName}</td>
+                                                <td className="px-4 py-2 text-xs text-slate-600 w-[120px]">{rcItem.rcType}</td>
                                             </tr>
                                         ))
                                     ) : (
                                         <tr>
-                                            <td colSpan="4" className="px-4 py-6 text-center text-gray-500 text-lg">
-                                                No matching RC accounts found.
+                                            <td colSpan="3" className="px-4 py-10 text-center text-slate-400 text-sm">
+                                                No matching records found.
                                             </td>
                                         </tr>
                                     )}
@@ -186,46 +163,30 @@ const RCLookupModal = ({ isOpen, onClose, customParam }) => {
                     )}
                 </div>
 
-                {/* Footer with count */}
-                <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end items-center text-xs text-gray-600">
-                    <div className="font-semibold">
-                        Showing <strong>{filtered.length}</strong> of {rc.length} entries
+                {/* Footer */}
+                <div className="p-2 px-4 border-t bg-slate-50 flex justify-between items-center">
+                    <span className="text-[11px] text-slate-500 font-medium">
+                        {filtered.length} Records Found
+                    </span>
+                    <div className="flex items-center gap-2">
+                        {isFetching && (
+                            <span className="text-[10px] text-blue-500 animate-pulse flex items-center gap-1">
+                                <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
+                                Auto-syncing...
+                            </span>
+                        )}
                     </div>
                 </div>
             </div>
 
-            {/* Tailwind CSS Animations and Custom Scrollbar styles */}
             <style jsx="true">{`
-                @keyframes fade-in {
-                    from { opacity: 0; }
-                    to { opacity: 1; }
-                }
-                @keyframes scale-in {
-                    from { transform: scale(0.95); opacity: 0; }
-                    to { transform: scale(1); opacity: 1; }
-                }
-                .animate-fade-in {
-                    animation: fade-in 0.2s ease-out forwards;
-                }
-                .animate-scale-in {
-                    animation: scale-in 0.3s ease-out forwards;
-                }
-                /* Custom Scrollbar */
-                .custom-scrollbar::-webkit-scrollbar {
-                    width: 8px;
-                    height: 8px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-track {
-                    background: #f1f1f1;
-                    border-radius: 10px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background: #888;
-                    border-radius: 10px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-                    background: #555;
-                }
+                .animate-fade-in { animation: fadeIn 0.15s ease-out forwards; }
+                .animate-scale-in { animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+                @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+                @keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+                .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
             `}</style>
         </div>
     );

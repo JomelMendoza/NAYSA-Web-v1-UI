@@ -371,29 +371,42 @@
 
 
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { 
-    faTimes, faSort, faSortUp, faSortDown, 
+import {
+    faTimes, faSort, faSortUp, faSortDown,
     faSpinner, faSearch, faFilter, faUser,
 } from '@fortawesome/free-solid-svg-icons';
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
+
+
+function useDebounce(value, delay) {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+
+    useEffect(() => {
+        const handler = setTimeout(() => setDebouncedValue(value), delay);
+        return () => clearTimeout(handler);
+    }, [value, delay]);
+
+    return debouncedValue;
+}
 
 const CustomerMastLookupModal = ({ isOpen, onClose, customParam }) => {
     const columnConfig = [
         { key: 'custCode', label: 'Customer Code', width: '120px' },
         { key: 'custName', label: 'Customer Name', width: '350px' },
-        { key: 'source',   label: 'Source',        width: '80px'  },
-        { key: 'custTin',  label: 'TIN',           width: '200px' },
-        { key: 'atcCode',  label: 'ATC',           width: '60px'  },
-        { key: 'vatCode',  label: 'VAT',           width: '60px'  },
-        { key: 'addr',     label: 'Address',       width: 'auto'  }
+        { key: 'source', label: 'Source', width: '80px' },
+        { key: 'custTin', label: 'TIN', width: '200px' },
+        { key: 'atcCode', label: 'ATC', width: '60px' },
+        { key: 'vatCode', label: 'VAT', width: '60px' },
+        { key: 'addr', label: 'Address', width: 'auto' }
     ];
 
-    const [customers, setCustomers] = useState([]);
+    
     const [filtered, setFiltered] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
-    const [searchMode, setSearchMode] = useState('part'); 
+    const [searchMode, setSearchMode] = useState('part');
     const [filters, setFilters] = useState(
         columnConfig.reduce((acc, col) => ({ ...acc, [col.key]: '' }), {})
     );
@@ -402,64 +415,63 @@ const CustomerMastLookupModal = ({ isOpen, onClose, customParam }) => {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 50;
 
-    const fetchData = useCallback(async () => {
-        setLoading(true);
-        try {
-            const json_values = {
-                search: searchTerm.trim() || null,
-                filter: customParam || "ActiveAll",
-                searchMode: searchMode 
+    const debouncedSearch = useDebounce(searchTerm, 500);
+
+    const {
+        data: customers = [],
+        isLoading,
+        isFetching,
+        refetch
+    } = useQuery({
+        queryKey: ['lookupCustomer', debouncedSearch, searchMode, customParam],
+
+        queryFn: async () => {
+
+            const payload = {
+                json_data: {
+                    search: debouncedSearch.trim() || null,
+                    filter: customParam || "ActiveAll",
+                    searchMode: searchMode
+                }
             };
-            const payload = { json_data: json_values };
+
             const { data: result } = await apiClient.get("/lookupCustomer", {
                 params: { json_data: JSON.stringify(payload) }
             });
 
-            const custData = Array.isArray(result?.data) && result.data[0]?.result
-                ? JSON.parse(result.data[0].result)
-                : [];
+            const rawData = result?.data?.[0]?.result;
 
-            setCustomers(custData);
-            setFiltered(custData);
-            setCurrentPage(1); 
-        } catch (err) {
-            console.error("Failed to fetch customers:", err);
-            setCustomers([]);
-            setFiltered([]);
-        } finally {
-            setLoading(false);
-        }
-    }, [searchTerm, customParam, searchMode]);
+            return rawData ? JSON.parse(rawData) : [];
+        },
 
-    useEffect(() => {
-        if (isOpen) {
-            fetchData();
-        } else {
-            // Reset state on close
-            setSearchTerm('');
-            setFilters(columnConfig.reduce((acc, col) => ({ ...acc, [col.key]: '' }), {}));
-        }
-    }, [isOpen]);
+        enabled: isOpen,
+        staleTime: 1000 * 60,
+        placeholderData: keepPreviousData
+    });
 
-    useEffect(() => {
-        let currentFiltered = [...customers];
-        currentFiltered = currentFiltered.filter(item =>
-            columnConfig.every(col => 
+    const filteredAndSorted = useMemo(() => {
+
+        let result = [...customers].filter(item =>
+            columnConfig.every(col =>
                 (item[col.key] || '').toLowerCase().includes((filters[col.key] || '').toLowerCase())
             )
         );
 
         if (sortConfig.key) {
-            currentFiltered.sort((a, b) => {
-                const aValue = a[sortConfig.key] || '';
-                const bValue = b[sortConfig.key] || '';
-                if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
-                if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
-                return 0;
+            result.sort((a, b) => {
+                const aVal = String(a[sortConfig.key] || '');
+                const bVal = String(b[sortConfig.key] || '');
+
+                return sortConfig.direction === 'asc'
+                    ? aVal.localeCompare(bVal, undefined, { numeric: true })
+                    : bVal.localeCompare(aVal, undefined, { numeric: true });
             });
         }
-        setFiltered(currentFiltered);
-    }, [filters, customers, sortConfig]);
+
+        return result;
+
+    }, [customers, filters, sortConfig]);
+
 
     const handleSort = (key) => {
         let direction = 'asc';
@@ -471,15 +483,19 @@ const CustomerMastLookupModal = ({ isOpen, onClose, customParam }) => {
 
     if (!isOpen) return null;
 
-    const paginatedData = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-    const totalItems = filtered.length;
+    const paginatedData = filteredAndSorted.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
+
+    const totalItems = filteredAndSorted.length;
     const startItem = totalItems > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
     const endItem = Math.min(currentPage * itemsPerPage, totalItems);
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-7xl max-h-[90vh] flex flex-col relative overflow-hidden">
-                
+
                 <button onClick={() => onClose(null)} className="absolute top-3 right-3 text-blue-500 hover:text-blue-700 p-1 rounded-full hover:bg-blue-100 z-20">
                     <FontAwesomeIcon icon={faTimes} size="lg" />
                 </button>
@@ -500,7 +516,7 @@ const CustomerMastLookupModal = ({ isOpen, onClose, customParam }) => {
                             onKeyDown={(e) => e.key === 'Enter' && fetchData()}
                         />
                         {searchTerm && (
-                            <button 
+                            <button
                                 onClick={() => setSearchTerm('')}
                                 className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-red-500 transition-colors"
                             >
@@ -528,7 +544,7 @@ const CustomerMastLookupModal = ({ isOpen, onClose, customParam }) => {
                 </div>
 
                 <div className="flex-grow overflow-hidden flex flex-col">
-                    {loading ? (
+                    {isLoading ? (
                         <div className="flex items-center justify-center h-64 text-blue-500">
                             <FontAwesomeIcon icon={faSpinner} spin size="2x" className="mr-3" />
                             <span>Fetching data...</span>
@@ -541,7 +557,7 @@ const CustomerMastLookupModal = ({ isOpen, onClose, customParam }) => {
                                         {columnConfig.map(col => (
                                             <th key={col.key} style={{ width: col.width, minWidth: col.width }} className="px-4 py-2 text-left cursor-pointer hover:bg-blue-100 border-b border-gray-200" onClick={() => handleSort(col.key)}>
                                                 <div className="flex items-center justify-between">
-                                                    {col.label} {sortConfig.key === col.key ? (sortConfig.direction === 'asc' ? <FontAwesomeIcon icon={faSortUp} className="text-blue-500"/> : <FontAwesomeIcon icon={faSortDown} className="text-blue-500"/>) : <FontAwesomeIcon icon={faSort} className="text-gray-400" />}
+                                                    {col.label} {sortConfig.key === col.key ? (sortConfig.direction === 'asc' ? <FontAwesomeIcon icon={faSortUp} className="text-blue-500" /> : <FontAwesomeIcon icon={faSortDown} className="text-blue-500" />) : <FontAwesomeIcon icon={faSort} className="text-gray-400" />}
                                                 </div>
                                             </th>
                                         ))}
@@ -550,12 +566,12 @@ const CustomerMastLookupModal = ({ isOpen, onClose, customParam }) => {
                                     <tr className="bg-gray-50">
                                         {columnConfig.map(col => (
                                             <th key={col.key} className="px-3 py-1 border-b border-gray-200">
-                                                <input 
-                                                    type="text" 
-                                                    value={filters[col.key]} 
-                                                    onChange={(e) => setFilters({ ...filters, [col.key]: e.target.value })} 
-                                                    placeholder={`Filter...`} 
-                                                    className="block w-full px-2 py-1 text-[10px] border border-gray-300 rounded-md focus:border-blue-400 outline-none" 
+                                                <input
+                                                    type="text"
+                                                    value={filters[col.key]}
+                                                    onChange={(e) => setFilters({ ...filters, [col.key]: e.target.value })}
+                                                    placeholder={`Filter...`}
+                                                    className="block w-full px-2 py-1 text-[10px] border border-gray-300 rounded-md focus:border-blue-400 outline-none"
                                                 />
                                             </th>
                                         ))}
