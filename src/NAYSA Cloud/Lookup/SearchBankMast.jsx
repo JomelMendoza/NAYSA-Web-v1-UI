@@ -17,7 +17,7 @@ const BankMastLookupModal = ({ isOpen, onClose}) => {
       const params = {
         PARAMS: JSON.stringify({
           search: "",
-          page: 1,
+          page: 1, 
           pageSize: 10,
         }),
       };

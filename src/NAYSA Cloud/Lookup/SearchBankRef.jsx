@@ -100,7 +100,7 @@ const BankTypeLookupModal = ({ isOpen, onClose }) => {
                                     <tr>
                                         <th className="px-4 py-3 text-left border-b border-slate-200">
                                             <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
-                                                Bank Code
+                                                Bank Code 
                                             </label>
                                             <input
                                                 type="text"

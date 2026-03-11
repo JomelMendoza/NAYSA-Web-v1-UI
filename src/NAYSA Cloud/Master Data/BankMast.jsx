@@ -1,27 +1,30 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  Plus,
+  Save,
+  Undo2,
+  Edit,
+  Trash2,
+  Loader2,
+  FileText,
+  Info,
+} from "lucide-react";
+
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
+import {
+  useSwalErrorAlert,
+  useSwalSuccessAlert,
+} from "@/NAYSA Cloud/Global/behavior";
+
 import SearchGlobalReferenceTable from "../Lookup/SearchGlobalReferenceTable";
 import RegistrationInfo from "@/NAYSA Cloud/Global/RegistrationInfo.jsx";
+import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
+import BankRef from "../Reference File/BankRef";
 
 import Swal from "sweetalert2";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faPlus,
-  faSave,
-  faUndo,
-  faFileExport,
-  faInfoCircle,
-  faChevronDown,
-  faSpinner,
-  faFilePdf,
-  faVideo,
-  faEdit,
-  faTrash
-} from "@fortawesome/free-solid-svg-icons";
 
-import ButtonBar from "@/NAYSA Cloud/Global/ButtonBar.jsx";
-import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 import {
   reftables,
   reftablesPDFGuide,
@@ -29,584 +32,663 @@ import {
 } from "@/NAYSA Cloud/Global/reftable";
 
 import SearchBankRef from "@/NAYSA Cloud/Lookup/SearchBankRef.jsx";
+import SearchCOAMast from "../Lookup/SearchCOAMast";
+import SearchCurrencyRef from "../Lookup/SearchCurrRef";
 
-const BankMast = () => {
-  const { user } = useAuth();
-  const userCode =
-    user?.USER_CODE || user?.username || user?.userCode || "SYSTEM";
+/* ================= HELPERS ================= */
 
-  const docType = "BankMaster";
-  const documentTitle = reftables[docType] || "Bank Master Data";
-  const pdfLink = reftablesPDFGuide[docType];
-  const videoLink = reftablesVideoGuide[docType];
+const extractRows = (payload) => {
+  const res =
+    payload?.data?.data?.[0]?.result ??
+    payload?.data?.result ??
+    payload?.data?.data;
 
-  const [banks, setBanks] = useState([]);
+  if (!res) return [];
+  if (Array.isArray(res)) return res;
 
-  const emptyBank = {
-    bankCode: "",
-    acctCode: "",
-    acctName: "",
-    bankAcctNo: "",
-    bankAcctType: "",
-    currCode: "",
-    startCheckNo: "",
-    lastCheckNo: "",
-    autoCk: "Y",
-    bankAddr1: "",
-    bankAddr2: "",
-    bankContact: "",
-    bankPosition: "",
-    bankTelNo: "",
-    bankBranch: "",
-    bankTypeCode: "",
-    bankTypeName: "",
-    __existing: false,
-  };
-  const [editingBank, setEditingBank] = useState(emptyBank);
-  const [isEditing, setIsEditing] = useState(false);
-  const [isAdding, setIsAdding] = useState(false);
-  const [selectedRow, setSelectedRow] = useState(null);
-  useEffect(() => {
-    fetchBanks();
-  }, []);
-
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  const [isOpenExport, setOpenExport] = useState(false);
-  const [isOpenGuide, setOpenGuide] = useState(false);
-  const [isBankTypeModalOpen, setBankTypeModalOpen] = useState(false);
-
-  const guideRef = useRef(null);
-  const exportRef = useRef(null);
-
-  // ───────────────────────────
-  // Loading Spinner
-  // ───────────────────────────
-  const LoadingSpinner = () => (
-    <div className="fixed inset-0 z-[70] bg-black/20 backdrop-blur-sm flex items-center justify-center">
-      <div className="bg-white rounded-xl px-6 py-4 shadow-xl">
-        {saving ? "Saving…" : "Loading…"}
-      </div>
-    </div>
-  );
-
-  // ───────────────────────────
-  // Extract Rows Helper
-  // ───────────────────────────
-  const extractRows = (data) => {
-    const result =
-      data?.data?.[0]?.result || data?.[0]?.result || data?.result;
-    if (!result) return [];
+  if (typeof res === "string") {
     try {
-      return JSON.parse(result) || [];
+      return JSON.parse(res) || [];
     } catch {
       return [];
     }
-  };
+  }
 
-  // ───────────────────────────
-  // Fetch Banks
-  // ───────────────────────────
-  const fetchBanks = async () => {
-    setLoading(true);
-    try {
-      const { data } = await apiClient.get("/bank");
-      setBanks(extractRows(data));
-    } catch (err) {
-      Swal.fire("Error", "Failed to load bank records.", "error");
-    } finally {
-      setLoading(false);
-    }
-  };
+  return [];
+};
+
+const DEFAULT_FORM = {
+  bankCode: "",
+  acctCode: "",
+  acctName: "",
+  bankAcctNo: "",
+  bankAcctType: "SA",
+  autoCk: "Y",
+  startCheckNo: "",
+  lastCheckNo: "",
+  currCode: "",
+  currName: "",
+  bankTypeCode: "",
+  bankTypeName: "",
+  bankBranch: "",
+  bankContact: "",
+  bankAddr1: "",
+  bankAddr2: "",
+  bankTelNo: "",
+  bankPosition: "",
+  __existing: false,
+};
+
+const toYN = (v, def = "N") => {
+  const x = String(v ?? "").trim().toUpperCase();
+  if (x === "Y" || x === "YES" || x === "TRUE" || x === "1") return "Y";
+  if (x === "N" || x === "NO" || x === "FALSE" || x === "0") return "N";
+  return def;
+};
+
+/* ================= COMPONENT ================= */
+
+const BankMast = () => {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  const docType = "BankMast";
+  const documentTitle = reftables?.[docType] || "Bank Master";
+
+  const bankRefTabRef = useRef(null);
+  const bankCodeInputRef = useRef(null);
+  const enterValidatedRef = useRef(false);
+
+  const [isDupCode, setIsDupCode] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [selectedRow, setSelectedRow] = useState(null);
+
+  const [isBankTypeModalOpen, setBankTypeModalOpen] = useState(false);
+  const [isAccountModalOpen, setAccountModalOpen] = useState(false);
+  const [isCurrencyModalOpen, setCurrencyModalOpen] = useState(false);
+
+  const [activeTab, setActiveTab] = useState("bamast");
+  const [form, setForm] = useState(DEFAULT_FORM);
+
+  const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+  const resetForm = (next = DEFAULT_FORM) => setForm(next);
+
+  const tabs = useMemo(
+    () => [
+      { id: "bamast", label: "Bank Master Data" },
+      { id: "banktypes", label: "Bank Types" },
+    ],
+    []
+  );
+
+  const activeHeaderTitle =
+    activeTab === "banktypes" ? "Bank Type Codes" : "Bank Master Data";
 
   useEffect(() => {
-    fetchBanks();
-    setIsEditing(true);
-    setIsAdding(true);
-  }, []);
+    document.title = activeHeaderTitle || documentTitle;
+  }, [activeHeaderTitle, documentTitle]);
 
   const startNew = () => {
-    setEditingBank(emptyBank);
-    setIsAdding(true);
+    resetForm(DEFAULT_FORM);
     setIsEditing(true);
     setSelectedRow(null);
+    setIsDupCode(false);
+    setTimeout(() => bankCodeInputRef.current?.focus?.(), 0);
   };
 
-  const resetForm = () => {
-    setEditingBank(emptyBank);
+  const handleReset = () => {
+    resetForm(DEFAULT_FORM);
     setIsEditing(false);
-    setIsAdding(false);
     setSelectedRow(null);
+    setIsDupCode(false);
   };
 
-  // ───────────────────────────
-  // Load Single Record
-  // ───────────────────────────
-  const handleEdit = async (row) => {
-    if (!row) return;
+  /* ================= TANSTACK QUERY ================= */
 
-    setLoading(true);
-    try {
-      const { data } = await apiClient.get("/getBank", {
-        params: { bankCode: row.bankCode },
-      });
+  const bankListQuery = useQuery({
+    queryKey: ["bankList"],
+    queryFn: async () => {
+      const res = await apiClient.get("/bank");
+      return extractRows(res);
+    },
+  });
 
-      const rec = extractRows(data)[0];
-      if (!rec) {
-        Swal.fire("Error", "Bank record not found.", "error");
+  const banks = useMemo(() => bankListQuery.data || [], [bankListQuery.data]);
+  const isInitialLoading = bankListQuery.isLoading;
+
+  const saveMutation = useMutation({
+    mutationFn: async (payload) => {
+      const requestBody = {
+        json_data: JSON.stringify({ json_data: payload }),
+      };
+      return apiClient.post("/upsertBank", requestBody);
+    },
+    onSuccess: (response) => {
+      const sqlRow = response?.data?.data?.[0] || {};
+      const errorcount = Number(sqlRow.errorcount ?? sqlRow.ERRORCOUNT ?? 0);
+      const errormsg = String(sqlRow.errormsg ?? sqlRow.ERRORMSG ?? "");
+
+      if (errorcount > 0) {
+        useSwalErrorAlert("Error", errormsg);
         return;
       }
 
-      setEditingBank({ ...rec, __existing: true });
+      queryClient.invalidateQueries({ queryKey: ["bankList"] });
+      useSwalSuccessAlert("Success!", "Bank record saved successfully.");
+      setIsEditing(false);
+      resetForm(DEFAULT_FORM);
+      setSelectedRow(null);
+    },
+    onError: (error) => {
+      useSwalErrorAlert("System Error", error.message);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (bankCode) => {
+      return apiClient.post("/deleteBank", { json_data: { bankCode } });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bankList"] });
+      Swal.fire("Deleted", "Bank record has been removed.", "success");
+      handleReset();
+    },
+    onError: (error) => {
+      useSwalErrorAlert("System Error", error.message);
+    },
+  });
+
+  /* ================= ACTIONS ================= */
+
+  const checkDuplicate = async (bankCode) => {
+    const c = String(bankCode || "").trim();
+    if (!c) return false;
+
+    const res = await apiClient.post("/checkDuplicateBank", {
+      json_data: { bankCode: c },
+    });
+
+    const row0 = res?.data?.data?.[0] || {};
+    const raw = row0?.result ?? row0?.[""] ?? '{"result":"0"}';
+    const parsed = JSON.parse(raw);
+
+    return String(parsed?.result) === "1";
+  };
+
+  const handleBankCodeValidate = async (arg) => {
+    const isEvent = arg && typeof arg === "object" && "type" in arg;
+
+    if (isEvent && arg.type === "keydown") {
+      if (arg.key !== "Enter") return;
+      enterValidatedRef.current = true;
+    }
+
+    if (isEvent && arg.type === "blur" && enterValidatedRef.current) {
+      enterValidatedRef.current = false;
+      return;
+    }
+
+    const code = String(form.bankCode || "").trim();
+    if (!code || !isEditing || form.__existing) return;
+
+    const dup = await checkDuplicate(code);
+
+    if (dup) {
+      setIsDupCode(true);
+      Swal.fire("Duplicate Entry", `Bank Code "${code}" is already in use.`, "error");
+      setField("bankCode", "");
+      setTimeout(() => bankCodeInputRef.current?.focus?.(), 0);
+    } else {
+      setIsDupCode(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!isEditing || saveMutation.isPending) return;
+
+    const { __existing, acctName, currName, bankTypeName, ...payload } = form;
+
+    saveMutation.mutate({
+      ...payload,
+      bankCode: String(form.bankCode || "").trim().toUpperCase(),
+      autoCk: toYN(form.autoCk, "Y"),
+      userCode: user?.USER_CODE || "ADMIN",
+    });
+  };
+
+  const handleEdit = async (row) => {
+    try {
+      const res = await apiClient.get("/getBank", {
+        params: { bankCode: row.bankCode },
+      });
+
+      const record = extractRows(res)?.[0];
+      resetForm({ ...DEFAULT_FORM, ...record, __existing: true });
       setIsEditing(true);
-      setIsAdding(false);
       setSelectedRow(row);
     } catch {
-      Swal.fire("Error", "Failed to retrieve record.", "error");
-    } finally {
-      setLoading(false);
+      Swal.fire("Error", "Could not fetch record", "error");
     }
   };
 
-  // ───────────────────────────
-  // Save
-  // ───────────────────────────
-  const handleSave = async () => {
-    if (!editingBank) return;
+  /* ================= TABLE COLUMNS ================= */
 
-    const required = [
-      "bankCode",
-      "acctCode",
-      "bankAcctNo",
-      "bankAcctType",
-      "currCode",
-    ];
-
-    const missing = required.filter(
-      (f) => !editingBank[f]?.toString().trim()
-    );
-
-    if (missing.length > 0) {
-      Swal.fire(
-        "Missing Data",
-        "Please fill all required fields.",
-        "warning"
-      );
-      return;
-    }
-
-    const confirm = await Swal.fire({
-      title: "Save Bank Master?",
-      icon: "question",
-      showCancelButton: true,
-    });
-
-    if (!confirm.isConfirmed) return;
-
-    setSaving(true);
-    try {
-      const { data } = await apiClient.post("/upsertBank", {
-        json_data: {
-          ...editingBank,
-          userCode,
-        },
-      });
-
-      if (data?.success || data?.status === "success") {
-        Swal.fire("Saved", "Bank record saved successfully.", "success");
-        fetchBanks();
-        resetForm();
-      } else {
-        Swal.fire("Error", data?.message || "Save failed.", "error");
-      }
-    } catch {
-      Swal.fire("Error", "Error saving record.", "error");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!selectedRow) {
-      Swal.fire("Warning", "Please select a record to delete.", "warning");
-      return;
-    }
-
-    const confirm = await Swal.fire({
-      title: "Delete Record?",
-      text: `Bank Code: ${selectedRow.bankCode}`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "Delete",
-    });
-
-    if (!confirm.isConfirmed) return;
-
-    setLoading(true);
-    try {
-      const { data } = await apiClient.post("/deleteBank", {
-        bankCode: selectedRow.bankCode,
-        userCode,
-      });
-
-      if (data?.success || data?.status === "success") {
-        Swal.fire("Deleted", "Record deleted successfully.", "success");
-        fetchBanks();
-        resetForm();
-      } else {
-        Swal.fire("Error", data?.message || "Delete failed.", "error");
-      }
-    } catch {
-      Swal.fire("Error", "Error deleting record.", "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ───────────────────────────
-  // Table Columns
-  // ───────────────────────────
-  const bankColumns = useMemo(
+  const columns = useMemo(
     () => [
-      { key: "bankCode", label: "Bank Code", sortable: true },
-      { key: "bankTypeCode", label: "Bank Type", sortable: true },
-      { key: "acctCode", label: "Acct Code", sortable: true },
-      { key: "acctName", label: "Account Name", sortable: true },
-      { key: "bankAcctNo", label: "Bank Acct No", sortable: true },
-      { key: "bankAcctType", label: "Acct Type", sortable: true },
       {
-        key: "autoCk",
-        label: "Auto",
-        render: (row) => (row.autoCk === "N" ? "No" : "Yes"),
+        key: "bankCode",
+        label: "Bank Code",
+        sortable: true,
+        className: "sticky left-0 z-10 bg-white shadow-[1px_0_0_0_#e2e8f0]",
       },
+      {
+        key: "bankTypeCode",
+        label: "Bank Type",
+        sortable: true,
+        className: "sticky left-[100px] z-10 bg-white shadow-[1px_0_0_0_#e2e8f0]",
+      },
+      {
+        key: "acctCode",
+        label: "Account Code",
+        sortable: true,
+        className: "sticky left-[200px] z-10 bg-white shadow-[1px_0_0_0_#e2e8f0]",
+      },
+      {
+        key: "acctName",
+        label: "Account Name",
+        sortable: true,
+        className:
+          "sticky left-[320px] z-10 bg-white shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]",
+      },
+      { key: "bankAcctNo", label: "Bank Account No", sortable: true },
+      { key: "bankAcctType", label: "Account Type", sortable: true },
+      { key: "autoCk", label: "Auto Generated", sortable: true },
+      { key: "startCheckNo", label: "Start Check No", sortable: true },
+      { key: "lastCheckNo", label: "Last Check No", sortable: true },
       { key: "currCode", label: "Currency", sortable: true },
       { key: "bankBranch", label: "Branch", sortable: true },
       {
+        key: "fullAddress",
+        label: "Address",
+        sortable: false,
+        render: (row) =>
+          `${row.bankAddr1 || ""} ${row.bankAddr2 || ""}`.trim() || "-",
+      },
+      { key: "bankContact", label: "Contact Person", sortable: true },
+      { key: "bankTelNo", label: "Contact No", sortable: true },
+      { key: "bankPosition", label: "Position", sortable: true },
+      {
         key: "__actions",
         label: "Actions",
-        renderType: "actions",
+        sortable: false,
         render: (row) => (
-          <button
-            className="px-2 py-1 text-xs bg-blue-600 text-white rounded"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleEdit(row);
-            }}
-          >
-            <FontAwesomeIcon icon={faEdit} />
-          </button>
+          <div className="flex items-center justify-center gap-3">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEdit(row);
+              }}
+              className="p-1 rounded-md bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-600 hover:text-white transition-colors"
+            >
+              <Edit size={16} />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                deleteMutation.mutate(row.bankCode);
+              }}
+              className="p-1 rounded-md bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white transition-colors"
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
         ),
       },
     ],
     []
   );
 
+  /* ================= DYNAMIC HEADER BUTTONS ================= */
+
+  const bankMastButtons = (
+    <div className="flex gap-2 justify-center text-xs flex-wrap">
+      <button
+        type="button"
+        onClick={startNew}
+        className={`bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 ${
+          isEditing ? "opacity-50 cursor-not-allowed" : ""
+        }`}
+        disabled={isEditing}
+      >
+        <Plus size={16} /> Add
+      </button>
+
+      <button
+        type="button"
+        onClick={handleSave}
+        className={`bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 ${
+          !isEditing || saveMutation.isPending ? "opacity-50 cursor-not-allowed" : ""
+        }`}
+        disabled={!isEditing || saveMutation.isPending}
+      >
+        <Save size={16} /> Save
+      </button>
+
+      <button
+        type="button"
+        onClick={handleReset}
+        className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
+        disabled={saveMutation.isPending}
+      >
+        <Undo2 size={16} /> Reset
+      </button>
+    </div>
+  );
+
+  const bankTypeButtons = (
+    <div className="flex gap-2 justify-center text-xs flex-wrap">
+      <button
+        type="button"
+        onClick={() => bankRefTabRef.current?.startNew?.()}
+        className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
+      >
+        <Plus size={16} /> Add
+      </button>
+
+      <button
+        type="button"
+        onClick={() => bankRefTabRef.current?.save?.()}
+        className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
+      >
+        <Save size={16} /> Save
+      </button>
+
+      <button
+        type="button"
+        onClick={() => bankRefTabRef.current?.reset?.()}
+        className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
+      >
+        <Undo2 size={16} /> Reset
+      </button>
+
+
+      <button
+        type="button"
+        onClick={() => bankRefTabRef.current?.openInfo?.()}
+        className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
+      >
+        <Info size={16} /> Info
+      </button>
+    </div>
+  );
+
+  const activeHeaderButtons =
+    activeTab === "banktypes" ? bankTypeButtons : bankMastButtons;
+
+  /* ================= RENDER ================= */
+
   return (
     <div className="global-ref-main-div-ui mt-24">
-      {(loading || saving) && <LoadingSpinner />}
-
       {/* HEADER */}
-      <div className="fixed mt-4 top-14 left-6 right-6 z-30 global-ref-header-ui flex justify-between items-center">
-        <h1 className="global-ref-headertext-ui">{documentTitle}</h1>
+      <div className="fixed mt-4 top-14 left-6 right-6 z-30 global-ref-header-ui flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 bg-white/80 backdrop-blur p-3 rounded-xl border border-slate-200 shadow-sm">
+        <h1 className="global-ref-headertext-ui">{activeHeaderTitle}</h1>
 
-        <div className="flex gap-2 text-xs">
-          <ButtonBar
-            buttons={[
-              {
-                key: "add",
-                label: "Add",
-                icon: faPlus,
-                onClick: startNew,
-                disabled: isEditing,
-              },
-              {
-                key: "save",
-                label: "Save",
-                icon: faSave,
-                onClick: handleSave,
-                disabled: !isEditing || saving,
-              },
-              {
-                key: "delete",
-                label: "Delete",
-                icon: faTrash,
-                onClick: handleDelete,
-                disabled: !selectedRow || isEditing,
-              },
-              {
-                key: "reset",
-                label: "Reset",
-                icon: faUndo,
-                onClick: resetForm,
-                disabled: saving,
-              },
-            ]}
+        <div className="flex flex-wrap gap-1 overflow-x-hidden">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setActiveTab(t.id)}
+              className={`flex items-center px-3 py-2 rounded-md text-xs md:text-sm font-bold transition-colors duration-200 mr-1 ${
+                activeTab === t.id
+                  ? "bg-blue-100 text-blue-700"
+                  : "text-gray-600 hover:bg-gray-100 hover:text-blue-700"
+              }`}
+            >
+              <span className="whitespace-nowrap">{t.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {activeHeaderButtons}
+      </div>
+
+      {/* BODY */}
+      <div
+        className="global-tran-tab-div-ui mt-8 p-6"
+        style={{ minHeight: "calc(100vh - 170px)" }}
+      >
+        {activeTab === "banktypes" ? (
+          <BankRef
+            ref={bankRefTabRef}
+            embedded
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            tabs={tabs}
           />
-        </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+              <div className="md:col-span-10 bg-white p-6 rounded-xl border shadow-sm">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                  <div className="flex flex-col gap-4">
+                    <FieldRenderer
+                      label="Bank Code"
+                      value={form.bankCode}
+                      inputRef={bankCodeInputRef}
+                      onChange={(e) =>
+                        setField("bankCode", e.target.value.toUpperCase())
+                      }
+                      onBlur={handleBankCodeValidate}
+                      disabled={!isEditing || form.__existing}
+                      required
+                    />
+
+                    <FieldRenderer
+                      label="Account Code"
+                      type="lookup"
+                      value={form.acctCode}
+                      onLookup={() => setAccountModalOpen(true)}
+                      disabled={!isEditing}
+                      required
+                      readOnly
+                    />
+
+                    <FieldRenderer
+                      label="Account Name"
+                      value={form.acctName}
+                      readOnly
+                      disabled={!isEditing}
+                    />
+
+                    <FieldRenderer
+                      label="Bank Account No"
+                      value={form.bankAcctNo}
+                      onChange={(e) => setField("bankAcctNo", e.target.value)}
+                      disabled={!isEditing}
+                      required
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-4">
+                    <FieldRenderer
+                      label="Bank Account Type"
+                      type="select"
+                      value={form.bankAcctType}
+                      onChange={(val) => setField("bankAcctType", val)}
+                      options={[
+                        { value: "SA", label: "Savings Account" },
+                        { value: "CA", label: "Current Account" },
+                      ]}
+                      disabled={!isEditing}
+                      required
+                    />
+
+                    <FieldRenderer
+                      label="Auto Generated?"
+                      type="select"
+                      value={form.autoCk}
+                      onChange={(val) => setField("autoCk", val)}
+                      options={[
+                        { value: "Y", label: "Yes" },
+                        { value: "N", label: "No" },
+                      ]}
+                      disabled={!isEditing}
+                    />
+
+                    <FieldRenderer
+                      label="Start Check No"
+                      value={form.startCheckNo}
+                      onChange={(e) => setField("startCheckNo", e.target.value)}
+                      disabled={!isEditing || form.autoCk === "N"}
+                    />
+
+                    <FieldRenderer
+                      label="Last Check No"
+                      value={form.lastCheckNo}
+                      onChange={(e) => setField("lastCheckNo", e.target.value)}
+                      disabled={!isEditing || form.autoCk === "N"}
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-4">
+                    <FieldRenderer
+                      label="Currency"
+                      type="lookup"
+                      value={
+                        form.currCode ? `${form.currCode} - ${form.currName || ""}` : ""
+                      }
+                      onLookup={() => setCurrencyModalOpen(true)}
+                      disabled={!isEditing}
+                      required
+                      readOnly
+                    />
+
+                    <FieldRenderer
+                      label="Bank Type"
+                      type="lookup"
+                      value={
+                        form.bankTypeCode
+                          ? `${form.bankTypeCode} - ${form.bankTypeName || ""}`
+                          : ""
+                      }
+                      onLookup={() => setBankTypeModalOpen(true)}
+                      disabled={!isEditing}
+                      readOnly
+                    />
+
+                    <FieldRenderer
+                      label="Bank Branch"
+                      value={form.bankBranch}
+                      onChange={(e) => setField("bankBranch", e.target.value)}
+                      disabled={!isEditing}
+                    />
+
+                    <FieldRenderer
+                      label="Contact Person"
+                      value={form.bankContact}
+                      onChange={(e) => setField("bankContact", e.target.value)}
+                      disabled={!isEditing}
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-4">
+                    <FieldRenderer
+                      label="Address 1"
+                      value={form.bankAddr1}
+                      onChange={(e) => setField("bankAddr1", e.target.value)}
+                      disabled={!isEditing}
+                    />
+
+                    <FieldRenderer
+                      label="Address 2"
+                      value={form.bankAddr2}
+                      onChange={(e) => setField("bankAddr2", e.target.value)}
+                      disabled={!isEditing}
+                    />
+
+                    <FieldRenderer
+                      label="Contact No"
+                      value={form.bankTelNo}
+                      onChange={(e) => setField("bankTelNo", e.target.value)}
+                      disabled={!isEditing}
+                    />
+
+                    <FieldRenderer
+                      label="Position"
+                      value={form.bankPosition}
+                      onChange={(e) => setField("bankPosition", e.target.value)}
+                      disabled={!isEditing}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="md:col-span-2">
+                <RegistrationInfo data={form} layout="stacked" />
+              </div>
+            </div>
+
+            <div className="global-tran-table-main-div-ui mt-6 relative border border-slate-200 rounded-xl overflow-x-auto bg-white shadow-sm">
+              {isInitialLoading && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/70 z-20 backdrop-blur-sm">
+                  <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
+                  <p className="mt-3 text-sm font-bold text-slate-600 animate-pulse">
+                    Synchronizing Data...
+                  </p>
+                </div>
+              )}
+
+              <SearchGlobalReferenceTable
+                docType={docType}
+                columns={columns}
+                data={banks}
+                itemsPerPage={50}
+                showFilters
+                onRowDoubleClick={handleEdit}
+                selectedRow={selectedRow}
+                onRowClick={(row) => setSelectedRow(row)}
+              />
+            </div>
+          </>
+        )}
       </div>
+      
 
-      {/* FORM CONTAINER */}
-      <div className="border rounded-lg bg-gray-50 p-6 mt-6">
-
-        <div className="grid grid-cols-5 gap-x-6 gap-y-3 items-start">
-
-          {/* ================= MAIN FORM (COL 1-4) ================= */}
-          <div className="col-span-4 grid grid-cols-4 gap-x-6 gap-y-4">
-
-            {/* ROW 1 */}
-            <FieldRenderer
-              label="Bank Code"
-              required
-              type="text"
-              value={editingBank.bankCode}
-              disabled={!isEditing || editingBank.__existing}
-              onChange={(val) =>
-                setEditingBank((prev) => ({
-                  ...prev,
-                  bankCode: (val || "").toUpperCase(),
-                }))
-              }
-            />
-
-            <FieldRenderer
-              label="Bank Type"
-              type="lookup"
-              value={
-                editingBank.bankTypeCode
-                  ? `${editingBank.bankTypeCode} - ${editingBank.bankTypeName || ""}`
-                  : ""
-              }
-              disabled={!isEditing}
-              onLookup={() => setBankTypeModalOpen(true)}
-            />
-
-            <FieldRenderer
-              label="Account Code"
-              required
-              type="text"
-              value={editingBank.acctCode}
-              disabled={!isEditing}
-              onChange={(val) =>
-                setEditingBank((prev) => ({
-                  ...prev,
-                  acctCode: (val || "").toUpperCase(),
-                }))
-              }
-            />
-
-            <FieldRenderer
-              label="Account Name"
-              type="text"
-              value={editingBank.acctName}
-              disabled
-            />
-
-            {/* ROW 2 */}
-            <FieldRenderer
-              label="Bank Account No"
-              required
-              type="text"
-              value={editingBank.bankAcctNo}
-              disabled={!isEditing}
-              onChange={(val) =>
-                setEditingBank((prev) => ({
-                  ...prev,
-                  bankAcctNo: val,
-                }))
-              }
-            />
-
-            <FieldRenderer
-              label="Bank Account Type"
-              required
-              type="select"
-              value={editingBank.bankAcctType}
-              disabled={!isEditing}
-              options={[
-                { value: "Current", label: "Current" },
-                { value: "Savings", label: "Savings" },
-                { value: "Time", label: "Time Deposit" },
-              ]}
-              onChange={(val) =>
-                setEditingBank((prev) => ({
-                  ...prev,
-                  bankAcctType: val,
-                }))
-              }
-            />
-
-            <FieldRenderer
-              label="Bank Branch"
-              type="text"
-              value={editingBank.bankBranch}
-              disabled={!isEditing}
-              onChange={(val) =>
-                setEditingBank((prev) => ({
-                  ...prev,
-                  bankBranch: val,
-                }))
-              }
-            />
-
-            <FieldRenderer
-              label="Contact Person"
-              type="text"
-              value={editingBank.bankContact}
-              disabled={!isEditing}
-              onChange={(val) =>
-                setEditingBank((prev) => ({
-                  ...prev,
-                  bankContact: val,
-                }))
-              }
-            />
-
-            {/* ROW 3 */}
-            <FieldRenderer
-              label="Auto?"
-              type="select"
-              value={editingBank.autoCk === "N" ? "No" : "Yes"}
-              disabled={!isEditing}
-              options={[
-                { value: "Yes", label: "Yes" },
-                { value: "No", label: "No" },
-              ]}
-              onChange={(val) =>
-                setEditingBank((prev) => ({
-                  ...prev,
-                  autoCk: val === "Yes" ? "Y" : "N",
-                }))
-              }
-            />
-
-            <FieldRenderer
-              label="Start Check No"
-              type="text"
-              value={editingBank.startCheckNo}
-              disabled={!isEditing}
-              onChange={(val) =>
-                setEditingBank((prev) => ({
-                  ...prev,
-                  startCheckNo: val,
-                }))
-              }
-            />
-
-            <FieldRenderer
-              label="Last Check No"
-              type="text"
-              value={editingBank.lastCheckNo}
-              disabled={!isEditing}
-              onChange={(val) =>
-                setEditingBank((prev) => ({
-                  ...prev,
-                  lastCheckNo: val,
-                }))
-              }
-            />
-
-            <FieldRenderer
-              label="Currency"
-              required
-              type="text"
-              value={editingBank.currCode}
-              disabled={!isEditing}
-              onChange={(val) =>
-                setEditingBank((prev) => ({
-                  ...prev,
-                  currCode: (val || "").toUpperCase(),
-                }))
-              }
-            />
-
-            {/* ROW 4 */}
-            <FieldRenderer
-              label="Position"
-              type="text"
-              value={editingBank.bankPosition}
-              disabled={!isEditing}
-              onChange={(val) =>
-                setEditingBank((prev) => ({
-                  ...prev,
-                  bankPosition: val,
-                }))
-              }
-            />
-
-            <FieldRenderer
-              label="Contact No"
-              type="text"
-              value={editingBank.bankTelNo}
-              disabled={!isEditing}
-              onChange={(val) =>
-                setEditingBank((prev) => ({
-                  ...prev,
-                  bankTelNo: val,
-                }))
-              }
-            />
-
-            <FieldRenderer
-              label="Address 1"
-              type="text"
-              value={editingBank.bankAddr1}
-              disabled={!isEditing}
-              onChange={(val) =>
-                setEditingBank((prev) => ({
-                  ...prev,
-                  bankAddr1: val,
-                }))
-              }
-            />
-
-            <FieldRenderer
-              label="Address 2"
-              type="text"
-              value={editingBank.bankAddr2}
-              disabled={!isEditing}
-              onChange={(val) =>
-                setEditingBank((prev) => ({
-                  ...prev,
-                  bankAddr2: val,
-                }))
-              }
-            />
-
-          </div>
-
-          {/* ================= REGISTRATION PANEL ================= */}
-          <div className="border-l border-gray-300 pl-6">
-            <RegistrationInfo
-              data={editingBank}
-              layout="stacked"
-            />
-          </div>
-
-        </div>
-      </div>
-
-      {/* TABLE */}
-      <div className="mt-6">
-        <SearchGlobalReferenceTable
-          docType={docType}
-          columns={bankColumns}
-          data={banks}
-          itemsPerPage={50}
-          showFilters
-          isLoading={loading}
-          selectedRow={selectedRow}
-          onRowClick={(row) => setSelectedRow(row)}
-          onRowDoubleClick={handleEdit}
-        />
-      </div>
-
+      {/* LOOKUP MODALS */}
       <SearchBankRef
         isOpen={isBankTypeModalOpen}
-        onClose={() => setBankTypeModalOpen(false)}
+        onClose={(v) => {
+          if (v) {
+            setField("bankTypeCode", v.bankTypeCode);
+            setField("bankTypeName", v.bankTypeName);
+          }
+          setBankTypeModalOpen(false);
+        }}
+      />
+
+      <SearchCOAMast
+        isOpen={isAccountModalOpen}
+        onClose={(v) => {
+          if (v) {
+            setField("acctCode", v.acctCode);
+            setField("acctName", v.acctName);
+          }
+          setAccountModalOpen(false);
+        }}
+      />
+
+      <SearchCurrencyRef
+        isOpen={isCurrencyModalOpen}
+        onClose={(v) => {
+          if (v) {
+            setField("currCode", v.currCode);
+            setField("currName", v.currName);
+          }
+          setCurrencyModalOpen(false);
+        }}
       />
     </div>
-
   );
 };
 

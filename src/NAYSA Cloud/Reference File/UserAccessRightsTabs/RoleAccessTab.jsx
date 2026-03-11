@@ -168,6 +168,16 @@ const RoleAccessTab = forwardRef(({ roles }, ref) => {
       else next.add(menuCode);
       return next;
     });
+
+    const toggleSelectAllMenus = () => {
+      if (checkedMenus.size === menus.length) {
+        // uncheck all
+        setCheckedMenus(new Set());
+      } else {
+        // check all
+        setCheckedMenus(new Set(menus.map((m) => m.menuCode)));
+      }
+    };
   };
 
   return (
@@ -254,7 +264,17 @@ const RoleAccessTab = forwardRef(({ roles }, ref) => {
                       <tr>
                         <th className="global-ref-th-ui">Menu Code</th>
                         <th className="global-ref-th-ui">Menu Name</th>
-                        <th className="global-ref-th-ui text-center">Access</th>
+                        <th className="global-ref-th-ui text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            Access
+                            <input
+                              type="checkbox"
+                              className="h-3 w-3 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                              checked={menus.length > 0 && checkedMenus.size === menus.length}
+                              onChange={toggleSelectAllMenus}
+                            />
+                          </div>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
