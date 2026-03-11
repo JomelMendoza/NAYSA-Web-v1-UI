@@ -52,6 +52,7 @@ const SearchGlobalReferenceTable = forwardRef(
       onStateChange,
       totalExemptions = ["rate", "percent", "ratio", "id", "code"],
       isLoading = false,
+      tableSize = "Full"
     },
     ref,
   ) => {
@@ -382,55 +383,54 @@ const SearchGlobalReferenceTable = forwardRef(
         return cleanRow;
       });
     }, [data, filters, globalSearch, visibleCols, sortConfig, columns]);
+const autoColWidths = useMemo(() => {
+  const MIN = 60;
+  const MAX = 400;
+  const SAMPLE = 80;
 
-    const autoColWidths = useMemo(() => {
-      const MIN = 90;
-      const MAX = 260;
-      const SAMPLE = 80;
+  const sampleRows = (Array.isArray(filteredData) ? filteredData : []).slice(0, SAMPLE);
+  const out = {};
 
-      const sampleRows = (Array.isArray(filteredData) ? filteredData : []).slice(0, SAMPLE);
-      const out = {};
+  visibleCols.forEach((col) => {
+    let w = estimatePx(col.label || "");
 
-      visibleCols.forEach((col) => {
-        let w = estimatePx(col.label);
+    for (const r of sampleRows) {
+      let str = "";
 
-        for (const r of sampleRows) {
-          const val =
-            typeof col.render === "function" ? col.render(r) : formatValue(r?.[col.key], col);
+      if (col.autoWidthValue) {
+        str = String(col.autoWidthValue(r) ?? "");
+      } else if (typeof col.render === "function") {
+        str = String(r?.[col.key] ?? "");
+      } else {
+        str = String(formatValue(r?.[col.key], col) ?? "");
+      }
 
-          const str =
-            typeof val === "string" || typeof val === "number"
-              ? String(val)
-              : String(r?.[col.key] ?? "");
+      w = Math.max(w, estimatePx(str));
+    }
 
-          w = Math.max(w, estimatePx(str));
-        }
+    const colBase = Number(col.width);
+    if (Number.isFinite(colBase)) w = Math.max(w, colBase);
 
-        const colBase = Number(col.width);
-        if (Number.isFinite(colBase)) w = Math.max(w, colBase);
+    out[col.key] = clamp(w, MIN, MAX);
+  });
 
-        out[col.key] = clamp(w, MIN, MAX);
-      });
-
-      return out;
-    }, [visibleCols, filteredData]);
+  return out;
+}, [visibleCols, filteredData]);
 
 
 
     const [manualResizedCols, setManualResizedCols] = useState({});
 
-    const getColWidth = (col) => {
-      const manualWidth = colWidths[col.key];
-      const isManual = manualResizedCols[col.key];
-      const autoWidth = autoColWidths[col.key];
+const getColWidth = (col) => {
+  const manualWidth = colWidths[col.key];
+  const isManual = manualResizedCols[col.key];
+  const autoWidth = autoColWidths[col.key];
+  const defaultWidth = col.width || 140;
 
-      if (autoFillGrid) {
-        if (isManual && manualWidth) return manualWidth;
-        return autoWidth || 140;
-      }
+  if (isManual && manualWidth) return manualWidth;
+  return autoWidth || defaultWidth;
+};
 
-      return manualWidth || autoWidth || 140;
-    };
 
     const getStickyLeftOffset = (index) => {
       if (index <= 0) return 0;
@@ -1022,9 +1022,15 @@ const renderMobileCard = (row, idx) => {
                 </div>
 
                 {groupBy.length === 0 && (
-                  <div className="text-[10px] sm:text-xs text-gray-400 italic border border-dashed border-gray-300 rounded px-20 py-1">
-                    Drag Header Here...
-                  </div>
+                  <div
+                  className={`text-gray-400 italic border border-dashed border-gray-300 rounded py-1
+                    ${tableSize === "Half"
+                      ? "text-[8px] sm:text-[9px] px-4"
+                      : "text-[10px] sm:text-xs px-20"
+                    }`}
+                >
+                  Drag Header Here...
+                </div>
                 )}
 
                 {groupBy.map((gKey) => (
@@ -1089,8 +1095,12 @@ const renderMobileCard = (row, idx) => {
                     setCurrentPage(1);
                   }}
                   placeholder="Search all columns..."
-                  className="h-8 w-full md:w-64 px-3 text-xs rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-300"
-                />
+                  className={`w-full rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-300
+                      ${tableSize === "Half"
+                        ? "h-7 md:w-44 px-2 text-[11px]"
+                        : "h-8 md:w-64 px-3 text-xs"
+                      }`}
+                  />
 
                 {globalSearch?.trim() && (
                   <button

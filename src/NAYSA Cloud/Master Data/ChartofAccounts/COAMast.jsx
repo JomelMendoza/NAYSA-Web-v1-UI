@@ -51,6 +51,12 @@ const COAMast = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [tblFieldArray, setTblFieldArray] = useState([]);
 
+  const coaTabs = [
+    { id: "coa", label: "Chart of Accounts" },
+    { id: "fsconso", label: "FS Consolidation" },
+    { id: "glmatching", label: "GL - FS Matching" },
+  ];
+
   const toggleModal = (name, isOpen) => setModals(prev => ({ ...prev, [name]: isOpen }));
 
   // --- TANSTACK QUERY: Fetch Dropdowns & List ---
@@ -706,7 +712,7 @@ const columns = useMemo(() => [
               data={accounts}
               isLoading={isListLoading}
               onRowDoubleClick={handleEdit}
-              itemsPerPage={100}
+              itemsPerPage={200}
             />
           </div>
         </>
@@ -715,13 +721,23 @@ const columns = useMemo(() => [
 
         {activeTab === "fsconso" && (
           <div className="mt-4">
-            <FSConso />
+            <FSConso
+              embedded={true}
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
+              tabs={coaTabs}
+            />
           </div>
         )}
 
         {activeTab === "glmatching" && (
           <div className="mt-4">
-            <GLFSMatching />
+            <GLFSMatching
+              embedded={true}
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
+              tabs={coaTabs}
+            />
           </div>
         )}
 

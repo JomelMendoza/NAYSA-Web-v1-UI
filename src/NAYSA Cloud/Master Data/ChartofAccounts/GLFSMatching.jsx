@@ -227,7 +227,9 @@ const GLFSMatching = forwardRef(
 );
 
 return (
-  <div className={embedded ? "w-full" : "global-ref-main-div-ui mt-24"}>
+  // <div className={embedded ? "w-full" : "global-ref-main-div-ui mt-24"}>
+    
+      <div className={`${embedded ? "mt-28" : "global-ref-main-div-ui mt-24"} flex flex-col gap-3`}>
     <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 h-full">
       {/* LEFT SIDE */}
       <div className="xl:col-span-4 min-h-0">
@@ -277,6 +279,7 @@ return (
               if (isEditing) return;
               handleRowSelect(row);
             }}
+            tableSize = "Half"
           />
         </div>
       </div>

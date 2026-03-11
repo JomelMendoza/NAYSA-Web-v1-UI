@@ -217,7 +217,7 @@ body {
   }
 
   .global-tran-table-main-sub-div-ui {
-    @apply max-h-[360px] overflow-y-auto relative;
+    @apply max-h-[600px] sm:max-h-[450px] overflow-y-auto relative;
  
   }
 
