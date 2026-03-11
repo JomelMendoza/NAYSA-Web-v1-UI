@@ -161,7 +161,7 @@ const CurrLookupModal = ({ isOpen, onClose }) => {
                         {curr.currName}
                       </td>
                     </tr>
-                  ))}
+                  ))} 
                 </tbody>
               </table>
             </div>

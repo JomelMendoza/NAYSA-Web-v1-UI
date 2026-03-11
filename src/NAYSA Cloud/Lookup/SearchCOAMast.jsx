@@ -27,7 +27,7 @@ const COAMastLookupModal = ({ isOpen, onClose, source, customParam }) => {
     const resetFilters = () => setFilters({ acctCode: '', acctName: '', acctBalance: '', reqSL: '', reqRC: '' });
 
     const debouncedFilters = useDebounce(filters, 300);
-
+ 
     useEffect(() => {
         setCurrentPage(1);
     }, [debouncedFilters]);

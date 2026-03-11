@@ -18,7 +18,6 @@ import {
 import PayTermRef from "@/NAYSA Cloud/Master Data/CustMastTabs/ReferenceCodes/PayTermRef";
 import BillTermRef from "@/NAYSA Cloud/Master Data/CustMastTabs/ReferenceCodes/BillTermRef";
 import { SalesRep } from "@/NAYSA Cloud/Master Data/CustMastTabs/ReferenceCodes/SalesRep";
-// import { BillCodeRef } from "@/NAYSA Cloud/Reference File/BillCodeRef";
 
 /* ===================== UI helpers ===================== */
 const SectionHeader = ({ title, subtitle }) => (
@@ -46,7 +45,6 @@ const ReferenceCodesTab = forwardRef(({ variant = "customer" }, ref) => {
       { id: "salesrep", label: "Sales Rep Codes", icon: faUserTie },
       { id: "zone", label: "Zone Codes", icon: faMapMarkedAlt },
       { id: "area", label: "Area Codes", icon: faMapPin },
-      { id: "billcodes", label: "Billing Codes", icon: faReceipt },
       { id: "custtype", label: "Customer Types", icon: faUsers },
       { id: "billingterm", label: "Billing Terms", icon: faReceipt },
       { id: "pricegroup", label: "Price Group", icon: faTags },
@@ -79,7 +77,6 @@ const ReferenceCodesTab = forwardRef(({ variant = "customer" }, ref) => {
     if (activeRefTab === "payterm") return <PayTermRef />;
     if (activeRefTab === "billingterm") return <BillTermRef />;
     if (activeRefTab === "salesrep") return <SalesRep />;
-    if (activeRefTab === "billcodes") return <BillCodeRef />;
 
     // ✅ Placeholders (until you wire API)
     return (

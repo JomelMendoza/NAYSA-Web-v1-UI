@@ -160,7 +160,7 @@ const RCLookupModal = ({ isOpen, onClose, customParam }) => {
                                 </tbody>
                             </table>
                         </div>
-                    )}
+                    )} 
                 </div>
 
                 {/* Footer */}

@@ -615,7 +615,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
                       ? `${form.advancesAcct}${form.advancesName ? ` - ${form.advancesName}` : ""}`
                       : ""
                   }
-                  onChange={(e) => setField("advancesAcct", e.target.value)}
+                  onChange={(e) => setField("advancesAcct", e.target.value)} 
                   onLookup={() => handleOpenAccountLookup("advancesAcct")}
                   disabled={!isEditing}
                 />

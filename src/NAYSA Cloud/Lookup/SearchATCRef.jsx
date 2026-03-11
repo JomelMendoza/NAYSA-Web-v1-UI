@@ -17,7 +17,7 @@ const ATCLookupModal = ({ isOpen, onClose, customParam }) => {
     atcCode: "",
     atcName: "",
     atcRate: "",
-  });
+  }); 
 
   const [loading, setLoading] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: "", direction: "asc" });

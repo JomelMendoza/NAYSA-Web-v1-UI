@@ -23,7 +23,6 @@ import Swal from "sweetalert2";
 import {
   useTopUserRow,
   useTopCompanyRow,
-  useTopDocDropDownAll,
 } from '@/NAYSA Cloud/Global/top1RefTable';
 
 
@@ -327,7 +326,6 @@ export default function AuthProvider({ children }) {
       const [companyRow, userRow,dropDown,currentMenu] = await Promise.all([
         useTopCompanyRow(),
         useTopUserRow(user.USER_CODE),
-        useTopDocDropDownAll(),
         fetchData("menu-items",{ USER_CODE: user?.USER_CODE})
       ]);
 

@@ -411,7 +411,8 @@ const BankRef = forwardRef(
         })),
       [bankTypes]
     );
-
+ 
+    
     const registrationData = useMemo(
   () => ({
     registeredBy: form?.registeredBy,
