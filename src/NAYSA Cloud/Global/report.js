@@ -268,7 +268,7 @@ export async function useHandleDownloadExcelBIRReport(params) {
         }  
       })
     };
-   
+
     return await postRequest("generateBIRBooks", payload);
   } catch (error) {
     console.error("Error downloading AP report:", error);
@@ -573,6 +573,468 @@ const getFormattedDateTime = () => {
  const borderThin = {};
 
 
+// export async function exportGenericHistoryExcel(payload, columnConfigsMap, groupingKeys = []) {
+//   const {
+//     ReportName,
+//     UserCode,
+//     Branch,
+//     StartDate,
+//     EndDate,
+//     JsonData,
+//     companyName,
+//     companyAddress,
+//     companyTelNo,
+//   } = payload;
+
+//   const sheetsData = JsonData?.Data || {};
+//   const sheetKeys = Object.keys(sheetsData);
+
+//   if (sheetKeys.length === 0) {
+//     alert("No data found to export.");
+//     return;
+//   }
+
+//   const workbook = new ExcelJS.Workbook();
+//   workbook.creator = UserCode || "System";
+//   workbook.created = new Date();
+//   workbook.properties.defaultFont = { name: "Aptos", size: 10 };
+
+//   const MAX_COL_WIDTH = 60;
+//   const MIN_COL_WIDTH = 10;
+//   const PADDING = 2;
+
+//   const SHEET_COLORS = [
+//     "FFADD8E6",
+//     "FF98FB98",
+//     "FFFFB6C1",
+//     "FF87CEFA",
+//     "FFFFE4B5",
+//     "FFDDA0DD",
+//     "FFB0C4DE",
+//     "FFF0E68C",
+//     "FFFFDAB9",
+//     "FF40E0D0",
+//   ];
+
+//   const getColLetter = (colIndex) => {
+//     let letter = "";
+//     let temp = colIndex;
+//     while (temp > 0) {
+//       const modulo = (temp - 1) % 26;
+//       letter = String.fromCharCode(65 + modulo) + letter;
+//       temp = Math.floor((temp - 1) / 26);
+//     }
+//     return letter;
+//   };
+
+//   for (let i = 0; i < sheetKeys.length; i++) {
+//     const sheetKey = sheetKeys[i];
+//     const safeSheetName = sheetKey.replace(/[*?:\/\[\]]/g, " ").substring(0, 31);
+//     const tabColorArgb = SHEET_COLORS[i % SHEET_COLORS.length];
+
+//     const ws = workbook.addWorksheet(safeSheetName || "Sheet", {
+//       properties: {
+//         tabColor: { argb: tabColorArgb },
+//       },
+//     });
+
+//     const rawRows = sheetsData[sheetKey] || [];
+
+//     let columnsDef = columnConfigsMap[sheetKey];
+//     if (!columnsDef || columnsDef.length === 0) {
+//       if (rawRows.length > 0) {
+//         columnsDef = Object.keys(rawRows[0]).map((k) => ({
+//           key: k,
+//           label: k.toUpperCase(),
+//           renderType: "text",
+//         }));
+//       } else {
+//         continue;
+//       }
+//     }
+
+//     const formatMMddyyyy = (value) => {
+//       if (!value) return "";
+
+//       const d = new Date(value);
+//       if (isNaN(d.getTime())) return "";
+
+//       const mm = String(d.getMonth() + 1).padStart(2, "0");
+//       const dd = String(d.getDate()).padStart(2, "0");
+//       const yyyy = d.getFullYear();
+
+//       return `${mm}${dd}${yyyy}`;
+//     };
+
+//     const formattedStartDate = formatMMddyyyy(StartDate);
+//     const formattedEndDate = formatMMddyyyy(EndDate);
+//     const activeCols = columnsDef.filter((c) => !c.hidden);
+
+//     const colWidths = activeCols.map((col) => {
+//       let maxLen = (col.label || col.key).length;
+
+//       for (let r = 0; r < rawRows.length; r++) {
+//         const val = rawRows[r][col.key];
+//         const valLen = val ? String(val).length : 0;
+//         const buffer =
+//           col.renderType === "number" || col.renderType === "currency" ? 4 : 0;
+
+//         if (valLen + buffer > maxLen) maxLen = valLen + buffer;
+//         if (maxLen >= MAX_COL_WIDTH) break;
+//       }
+
+//       const finalWidth = Math.min(
+//         Math.max(maxLen + PADDING, MIN_COL_WIDTH),
+//         MAX_COL_WIDTH
+//       );
+
+//       return { width: finalWidth };
+//     });
+
+//     ws.columns = colWidths;
+
+//     const setMeta = (r, c, val, bold = false) => {
+//       const cell = ws.getCell(r, c);
+//       cell.value = val;
+//       cell.font = {
+//         name: "Aptos",
+//         size: 10,
+//         bold,
+//         color: { argb: STANDARD_FONT_COLOR },
+//       };
+//       cell.alignment = { horizontal: "left", wrapText: false };
+//     };
+
+//     let currentRowIndex = 1;
+
+//     ws.getCell(currentRowIndex, 1).value = companyName || "";
+//     ws.getCell(currentRowIndex, 1).alignment = {
+//       horizontal: "left",
+//       vertical: "middle",
+//     };
+//     ws.getCell(currentRowIndex, 1).font = {
+//       name: "Aptos",
+//       size: 16,
+//       bold: true,
+//       color: { argb: STANDARD_FONT_COLOR },
+//     };
+//     currentRowIndex++;
+
+//     setMeta(currentRowIndex, 1, companyAddress || "");
+//     currentRowIndex++;
+
+//     setMeta(currentRowIndex, 1, `Tel No: ${companyTelNo || ""}`);
+//     currentRowIndex++;
+
+//     ws.getCell(currentRowIndex, 1).value =
+//     formattedStartDate && formattedEndDate
+//       ? `${ReportName || ""} ${formattedStartDate} to ${formattedEndDate}`
+//       : ReportName || "";
+
+
+//     ws.getCell(currentRowIndex, 1).alignment = {
+//       horizontal: "left",
+//       vertical: "middle",
+//     };
+//     ws.getCell(currentRowIndex, 1).font = {
+//       name: "Aptos",
+//       size: 11,
+//       bold: true,
+//       italic: true,
+//       color: { argb: STANDARD_FONT_COLOR },
+//     };
+//     currentRowIndex++;
+
+//     setMeta(
+//       currentRowIndex,
+//       1,
+//       `Extracted By: ${UserCode || ""} | Date/Time: ${getFormattedDateTime()}`
+//     );
+//     currentRowIndex++;
+
+//     if (StartDate && EndDate) {
+//       setMeta(currentRowIndex, 1, `Date Range: ${StartDate} - ${EndDate}`);
+//       currentRowIndex++;
+//     }
+
+//     const headerRowIdx = currentRowIndex + 1;
+//     const headerRow = ws.getRow(headerRowIdx);
+
+//     ws.views = [{ state: "frozen", ySplit: headerRowIdx }];
+
+//     activeCols.forEach((col, idx) => {
+//       const cell = headerRow.getCell(idx + 1);
+//       cell.value = col.label || col.key;
+//       cell.font = {
+//         name: "Aptos",
+//         size: 10,
+//         bold: true,
+//         color: { argb: STANDARD_FONT_COLOR },
+//       };
+//       cell.alignment = {
+//         horizontal: "center",
+//         vertical: "middle",
+//         wrapText: false,
+//       };
+//       cell.fill = {
+//         type: "pattern",
+//         pattern: "solid",
+//         fgColor: { argb: STANDARD_HEADER_FILL },
+//       };
+//       cell.border = borderThin;
+//     });
+
+//     headerRow.height = 25;
+
+//     ws.autoFilter = {
+//       from: { row: headerRowIdx, column: 1 },
+//       to: { row: headerRowIdx, column: activeCols.length },
+//     };
+
+//     const totalableColumns = activeCols
+//       .filter(
+//         (col) =>
+//           (col.renderType === "number" || col.renderType === "currency") &&
+//           col.key.toLowerCase() !== "currrate"
+//       )
+//       .map((col) => col.key);
+
+//     let processedRows = rawRows;
+//     const grandTotalAccumulator = {};
+//     const isGroupedMode =
+//       Array.isArray(groupingKeys) && groupingKeys.length > 0 && rawRows.length > 0;
+
+//     if (isGroupedMode) {
+//       totalableColumns.forEach((key) => {
+//         grandTotalAccumulator[key] = 0;
+//       });
+
+//       const sortedRows = [...rawRows].sort((a, b) => {
+//         for (const key of groupingKeys) {
+//           if (a[key] < b[key]) return -1;
+//           if (a[key] > b[key]) return 1;
+//         }
+//         return 0;
+//       });
+
+//       processedRows = [];
+//       let currentGroup = {};
+//       let currentGroupRows = [];
+
+//       const calculateSubtotal = (groupValue) => {
+//         if (currentGroupRows.length === 0) return null;
+
+//         const subtotalRow = { __isSubtotal: true, __groupingValue: groupValue };
+
+//         totalableColumns.forEach((key) => {
+//           const subtotal = currentGroupRows.reduce(
+//             (sum, row) => sum + (parseFloat(row[key]) || 0),
+//             0
+//           );
+//           subtotalRow[key] = subtotal;
+//           grandTotalAccumulator[key] += subtotal;
+//         });
+
+//         return subtotalRow;
+//       };
+
+//       const isGroupChange = (row) => {
+//         if (currentGroupRows.length === 0) return true;
+//         for (const key of groupingKeys) {
+//           if (row[key] !== currentGroup[key]) return true;
+//         }
+//         return false;
+//       };
+
+//       sortedRows.forEach((row, index) => {
+//         if (isGroupChange(row)) {
+//           const subtotalRow = calculateSubtotal(currentGroup[groupingKeys[0]]);
+//           if (subtotalRow) {
+//             processedRows.push({ __isBlank: true });
+//             processedRows.push(subtotalRow);
+//           }
+
+//           currentGroup = {};
+//           groupingKeys.forEach((key) => {
+//             currentGroup[key] = row[key];
+//           });
+//           currentGroupRows = [];
+//         }
+
+//         currentGroupRows.push(row);
+//         processedRows.push(row);
+
+//         if (index === sortedRows.length - 1) {
+//           const subtotalRow = calculateSubtotal(currentGroup[groupingKeys[0]]);
+//           if (subtotalRow) {
+//             processedRows.push({ __isBlank: true });
+//             processedRows.push(subtotalRow);
+//           }
+//         }
+//       });
+//     }
+
+//     const dataStartRowIdx = headerRowIdx + 1;
+//     let dataRowCounter = dataStartRowIdx;
+
+//     processedRows.forEach((rowItem) => {
+//       const wsRow = ws.getRow(dataRowCounter);
+//       const isSubtotalRow = rowItem.__isSubtotal;
+//       const isBlank = rowItem.__isBlank;
+
+//       if (isBlank) {
+//         dataRowCounter++;
+//         return;
+//       }
+
+//       activeCols.forEach((col, colIdx) => {
+//         const cell = wsRow.getCell(colIdx + 1);
+//         const rawVal = rowItem[col.key];
+//         const type = col.renderType || "text";
+
+//         cell.font = {
+//           name: "Aptos",
+//           size: 10,
+//           bold: isSubtotalRow,
+//           color: { argb: STANDARD_FONT_COLOR },
+//         };
+
+//         if (isSubtotalRow) {
+//           cell.fill = {
+//             type: "pattern",
+//             pattern: "solid",
+//             fgColor: { argb: STANDARD_SUBTOTAL_FILL },
+//           };
+//           cell.border = {
+//             ...borderThin,
+//             bottom: { style: "double" },
+//           };
+
+//           if (type === "number" || type === "currency") {
+//             const num = parseFloat(rawVal);
+//             if (!isNaN(num)) {
+//               cell.value = num;
+//               const digits = col.roundingOff ?? 2;
+//               const zeros = digits > 0 ? "." + "0".repeat(digits) : "";
+//               cell.numFmt = `#,##0${zeros};[Red]-#,##0${zeros};0${zeros}`;
+//               cell.alignment = { horizontal: "right", wrapText: false };
+//             } else {
+//               cell.value = "";
+//             }
+//           } else if (colIdx === 0) {
+//             cell.value = `SUBTOTAL for ${rowItem.__groupingValue}`;
+//             cell.alignment = { horizontal: "left", wrapText: false };
+//           } else {
+//             cell.value = "";
+//           }
+//         } else {
+//           if (type === "number" || type === "currency") {
+//             const num = parseFloat(rawVal);
+//             if (!isNaN(num)) {
+//               cell.value = num;
+//               const digits = col.roundingOff ?? 2;
+//               const zeros = digits > 0 ? "." + "0".repeat(digits) : "";
+//               cell.numFmt = `#,##0${zeros};[Red]-#,##0${zeros};0${zeros}`;
+//               cell.alignment = { horizontal: "right", wrapText: false };
+//             } else {
+//               cell.value = rawVal ?? "";
+//               cell.alignment = { horizontal: "right", wrapText: false };
+//             }
+//           } else if (type === "date") {
+//             cell.value = rawVal ? new Date(rawVal) : "";
+//             cell.numFmt = "mm/dd/yyyy";
+//             cell.alignment = { horizontal: "center", wrapText: false };
+//           } else {
+//             cell.value = rawVal ?? "";
+//             cell.alignment = { horizontal: "left", wrapText: false };
+//           }
+//         }
+//       });
+
+//       dataRowCounter++;
+//     });
+
+//     const lastDataRow = dataRowCounter - 1;
+//     const firstDataRow = dataStartRowIdx;
+
+//     if (lastDataRow >= firstDataRow) {
+//       if (isGroupedMode) {
+//         dataRowCounter++;
+//       }
+
+//       const totalRow = ws.getRow(dataRowCounter);
+//       const totalLabelCell = totalRow.getCell(1);
+
+//       totalLabelCell.value = isGroupedMode ? "GRAND TOTAL" : "TOTAL";
+//       totalLabelCell.font = {
+//         name: "Aptos",
+//         size: 10,
+//         bold: true,
+//         color: { argb: STANDARD_FONT_COLOR },
+//       };
+//       totalLabelCell.alignment = { horizontal: "right", wrapText: false };
+
+//       activeCols.forEach((col, idx) => {
+//         const colIdx = idx + 1;
+//         const cell = totalRow.getCell(colIdx);
+//         const type = col.renderType;
+//         const colKeyLower = col.key.toLowerCase();
+
+//         cell.fill = {
+//           type: "pattern",
+//           pattern: "solid",
+//           fgColor: { argb: STANDARD_TOTAL_FILL },
+//         };
+
+//         const excludedKeywords = [
+//           "rate",
+//           "unitprice",
+//           "unitcost",
+//           "unit_price",
+//           "unit_cost",
+//         ];
+
+//         if (excludedKeywords.some((keyword) => colKeyLower.includes(keyword))) {
+//           cell.value = "";
+//           return;
+//         }
+
+//         if (type === "number" || type === "currency") {
+//           cell.font = {
+//             name: "Aptos",
+//             size: 10,
+//             bold: true,
+//             color: { argb: STANDARD_FONT_COLOR },
+//           };
+//           cell.alignment = { horizontal: "right", wrapText: false };
+
+//           const digits = col.roundingOff ?? 2;
+//           const zeros = digits > 0 ? "." + "0".repeat(digits) : "";
+//           cell.numFmt = `#,##0${zeros};[Red]-#,##0${zeros};0${zeros}`;
+
+//           if (isGroupedMode) {
+//             cell.value = grandTotalAccumulator[col.key] || 0;
+//           } else {
+//             const letter = getColLetter(colIdx);
+//             cell.value = { formula: `SUM(${letter}${firstDataRow}:${letter}${lastDataRow})` };
+//           }
+//         }
+//       });
+//     }
+//   }
+
+//   const buf = await workbook.xlsx.writeBuffer();
+//   const fileName = `${ReportName || "Export"}.xlsx`;
+
+//   saveAs(
+//     new Blob([buf], {
+//       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+//     }),
+//     fileName
+//   );
+// }
+
+
 export async function exportGenericHistoryExcel(payload, columnConfigsMap, groupingKeys = []) {
   const {
     ReportName,
@@ -599,7 +1061,10 @@ export async function exportGenericHistoryExcel(payload, columnConfigsMap, group
   workbook.created = new Date();
   workbook.properties.defaultFont = { name: "Aptos", size: 10 };
 
-  const MAX_COL_WIDTH = 60;
+  const MAX_TEXT_CHAR_WIDTH = 40;
+  const MAX_NUM_CHAR_WIDTH = 25;
+  const MAX_DATE_CHAR_WIDTH = 15;
+  const FIRST_COL_CHAR_WIDTH = 15;
   const MIN_COL_WIDTH = 10;
   const PADDING = 2;
 
@@ -625,6 +1090,29 @@ export async function exportGenericHistoryExcel(payload, columnConfigsMap, group
       temp = Math.floor((temp - 1) / 26);
     }
     return letter;
+  };
+
+  const getDisplayLength = (value, renderType) => {
+    if (value === null || value === undefined) return 0;
+
+    if (renderType === "date") {
+      return MAX_DATE_CHAR_WIDTH;
+    }
+
+    if (renderType === "number" || renderType === "currency") {
+      const num = parseFloat(value);
+      if (!isNaN(num)) return String(num).length;
+      return String(value).length;
+    }
+
+    return String(value).length;
+  };
+
+  const getColumnMaxWidth = (renderType, colIndex) => {
+    if (colIndex === 0) return FIRST_COL_CHAR_WIDTH;
+    if (renderType === "date") return MAX_DATE_CHAR_WIDTH;
+    if (renderType === "number" || renderType === "currency") return MAX_NUM_CHAR_WIDTH;
+    return MAX_TEXT_CHAR_WIDTH;
   };
 
   for (let i = 0; i < sheetKeys.length; i++) {
@@ -670,22 +1158,25 @@ export async function exportGenericHistoryExcel(payload, columnConfigsMap, group
     const formattedEndDate = formatMMddyyyy(EndDate);
     const activeCols = columnsDef.filter((c) => !c.hidden);
 
-    const colWidths = activeCols.map((col) => {
-      let maxLen = (col.label || col.key).length;
+    const colWidths = activeCols.map((col, colIndex) => {
+      if (colIndex === 0) {
+        return { width: FIRST_COL_CHAR_WIDTH };
+      }
+
+      let maxLen = String(col.label || col.key || "").length;
+      const maxAllowed = getColumnMaxWidth(col.renderType, colIndex);
 
       for (let r = 0; r < rawRows.length; r++) {
-        const val = rawRows[r][col.key];
-        const valLen = val ? String(val).length : 0;
-        const buffer =
-          col.renderType === "number" || col.renderType === "currency" ? 4 : 0;
+        const val = rawRows[r]?.[col.key];
+        const valLen = getDisplayLength(val, col.renderType);
 
-        if (valLen + buffer > maxLen) maxLen = valLen + buffer;
-        if (maxLen >= MAX_COL_WIDTH) break;
+        if (valLen > maxLen) maxLen = valLen;
+        if (maxLen >= maxAllowed) break;
       }
 
       const finalWidth = Math.min(
         Math.max(maxLen + PADDING, MIN_COL_WIDTH),
-        MAX_COL_WIDTH
+        maxAllowed
       );
 
       return { width: finalWidth };
@@ -727,10 +1218,9 @@ export async function exportGenericHistoryExcel(payload, columnConfigsMap, group
     currentRowIndex++;
 
     ws.getCell(currentRowIndex, 1).value =
-    formattedStartDate && formattedEndDate
-      ? `${ReportName || ""} ${formattedStartDate} to ${formattedEndDate}`
-      : ReportName || "";
-
+      formattedStartDate && formattedEndDate
+        ? `${ReportName || ""} ${formattedStartDate} to ${formattedEndDate}`
+        : ReportName || "";
 
     ws.getCell(currentRowIndex, 1).alignment = {
       horizontal: "left",
@@ -1033,6 +1523,8 @@ export async function exportGenericHistoryExcel(payload, columnConfigsMap, group
     fileName
   );
 }
+
+
 
 
 

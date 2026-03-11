@@ -365,6 +365,9 @@ const generateMutation = useMutation({
     const response = await handler(params);
 
     if (module === "BIR") {
+
+     
+
       const rawRows = Array.isArray(response?.data)
         ? response.data
         : Array.isArray(response?.data?.data)
