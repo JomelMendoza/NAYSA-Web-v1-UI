@@ -267,7 +267,7 @@ const columns = useMemo(() => [
       <div className="flex gap-1 justify-center">
         <button
           onClick={() => handleEdit(row)}
-          className="py-1 px-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-600 hover:text-blue-50 transition-colors"
+          className="py-1 px-2 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-colors"
           title="Edit"
         >
           <FontAwesomeIcon icon={faEdit} />
@@ -275,7 +275,7 @@ const columns = useMemo(() => [
 
         <button
           onClick={() => handleDelete(row)}
-          className="py-1 px-2 bg-red-100 text-red-700 rounded-md hover:bg-red-600 hover:text-red-50 transition-colors"
+          className="py-1 px-2 bg-red-100 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors"
           title="Delete"
         >
           <FontAwesomeIcon icon={faTrashAlt} />
@@ -466,9 +466,9 @@ const columns = useMemo(() => [
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`shrink-0 whitespace-nowrap px-3 py-2 text-[11px] sm:text-[12px] font-bold transition-all border-b-2  rounded-md
+                    className={`shrink-0 whitespace-nowrap px-3 py-1 sm:py-2 sm:px-4 text-[10px] sm:text-[13px] font-bold transition-all border-b-2  rounded-md
                       ${activeTab === tab.id
-                        ? "border-blue-600 text-blue-600 bg-blue-50/50"
+                        ? "border-blue-700 text-blue-700 bg-blue-50/50"
                         : "border-transparent text-gray-500 hover:text-blue-500"
                       }`}
                   >
@@ -489,19 +489,19 @@ const columns = useMemo(() => [
                   buttons={[
                     {
                       key: "add",
-                      label: <span className="hidden sm:inline ml-1">Add</span>,
+                      label: <span className="sm:inline ml-1">Add</span>,
                       icon: faPlus,
                       onClick: () => { resetForm(); setIsEditing(true); },
                       className:
-                        "flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
+                        "flex items-center justify-center h-7 w-14 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
                     },
                     {
                       key: "save",
-                      label: <span className="hidden sm:inline ml-1">Save</span>,
+                      label: <span className="sm:inline ml-1">Save</span>,
                       icon: faSave,
                       onClick: handleSave,
                       disabled: !isEditing || isSaving || activeTab !== "coa",
-                      className: `flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md transition-all
+                      className: `flex items-center justify-center h-7 w-14 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md transition-all
                         ${(!isEditing || isSaving || activeTab !== "coa")
                           ? "bg-blue-500 opacity-50 cursor-not-allowed text-white"
                           : "bg-blue-600 text-white hover:bg-blue-700"
@@ -509,11 +509,11 @@ const columns = useMemo(() => [
                     },
                     {
                       key: "reset",
-                      label: <span className="hidden sm:inline ml-1">Reset</span>,
+                      label: <span className="sm:inline ml-1">Reset</span>,
                       icon: faUndo,
                       onClick: resetForm,
                       className:
-                        "flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
+                        "flex items-center justify-center h-7 w-14 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
                     },
                   ]}
                 />
@@ -523,10 +523,10 @@ const columns = useMemo(() => [
               <div ref={guideRef} className="relative">
                 <button
                   onClick={() => setOpenGuide((v) => !v)}
-                  className="bg-blue-600 text-white h-8 w-8 sm:w-auto sm:h-8 sm:px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
+                  className="bg-blue-600 text-white h-7 w-14 sm:w-auto sm:h-8 sm:px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
                 >
                   <FontAwesomeIcon icon={faInfoCircle} className="text-[12px]" />
-                  <span className="hidden sm:inline ml-1 text-[11px] font-medium">Info</span>
+                  <span className="sm:inline ml-1 text-[11px] font-medium">Info</span>
                   <FontAwesomeIcon icon={faChevronDown} className="hidden sm:inline text-[10px] opacity-80" />
                 </button>
 
@@ -558,7 +558,7 @@ const columns = useMemo(() => [
       {/* Main Content */}
       {activeTab === "coa" && (
         <>
-          <div className="mt-44 sm:mt-24 flex flex-col lg:flex-row lg:items-stretch gap-2">
+          <div className="mt-40 sm:mt-24 flex flex-col lg:flex-row lg:items-stretch gap-2">
             
             {/* LEFT DIV: Main Form Fields (Takes 75% of width on large screens) */}
             <div className="flex-1 bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-100 dark:border-gray-700 shadow-lg grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">

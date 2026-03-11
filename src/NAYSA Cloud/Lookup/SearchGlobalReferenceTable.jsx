@@ -67,6 +67,7 @@ const SearchGlobalReferenceTable = forwardRef(
       () => Boolean(initialState?.autoFillGrid ?? false),
     );
 
+
     useEffect(() => {
       const checkSmall = () => setIsMobileView(window.innerWidth < 640); // Tailwind sm
       checkSmall();
@@ -85,6 +86,7 @@ const SearchGlobalReferenceTable = forwardRef(
 
     const [filters, setFilters] = useState(() => initialState?.filters || {});
     const [globalSearch, setGlobalSearch] = useState(() => initialState?.globalSearch || "");
+
 
     const [sortConfig, setSortConfig] = useState(
       () => initialState?.sortConfig || { key: null, direction: null },
@@ -413,8 +415,22 @@ const SearchGlobalReferenceTable = forwardRef(
       return out;
     }, [visibleCols, filteredData]);
 
-    const getColWidth = (col) =>
-      autoFillGrid ? undefined : colWidths[col.key] || autoColWidths[col.key] || 140;
+
+
+    const [manualResizedCols, setManualResizedCols] = useState({});
+
+    const getColWidth = (col) => {
+      const manualWidth = colWidths[col.key];
+      const isManual = manualResizedCols[col.key];
+      const autoWidth = autoColWidths[col.key];
+
+      if (autoFillGrid) {
+        if (isManual && manualWidth) return manualWidth;
+        return autoWidth || 140;
+      }
+
+      return manualWidth || autoWidth || 140;
+    };
 
     const getStickyLeftOffset = (index) => {
       if (index <= 0) return 0;
@@ -422,11 +438,11 @@ const SearchGlobalReferenceTable = forwardRef(
       let offset = 0;
       for (let i = 0; i < index; i++) {
         const prevCol = visibleCols[i];
-        offset += prevCol ? getColWidth(prevCol) || 140 : 140;
+        offset += prevCol ? getColWidth(prevCol) : 140;
       }
       return offset;
     };
-
+    
     const shouldSumColumn = (col) => {
       const noTotalKeys = ["unitcost", "currrate", "unitprice", "runbal"];
       if (!col) return false;
@@ -633,10 +649,13 @@ const SearchGlobalReferenceTable = forwardRef(
     // --- Column resize ---
     const handleMouseMove = useCallback((e) => {
       if (!resizingRef.current) return;
+
       const { startX, startWidth, key } = resizingRef.current;
       const delta = e.clientX - startX;
       const newWidth = Math.max(60, startWidth + delta);
+
       setColWidths((prev) => ({ ...prev, [key]: newWidth }));
+      setManualResizedCols((prev) => ({ ...prev, [key]: true }));
     }, []);
 
     const handleMouseUp = useCallback(() => {
@@ -893,40 +912,86 @@ const SearchGlobalReferenceTable = forwardRef(
       else setUserHiddenCols([]);
     };
 
+
+    const handleRowOpen = (row) => {
+      onRowDoubleClick?.(row);
+    };
+
     const filterInputClass =
-      "w-full min-w-0 px-2 py-1.5 text-[11px] rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-300";
+      "w-full min-w-0 px-2 py-1 text-[11px] rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-300";
 
     // ✅ Mobile Card renderer
-    const renderMobileCard = (row, idx) => {
-      const primaryCol = visibleCols?.[0];
+const renderMobileCard = (row, idx) => {
+  if (row?.isGroup) {
+    const uniqueId = `${row.key}-${row.value}-${row.level}`;
+    const isExpanded = expandedGroups[uniqueId];
 
-      const title = primaryCol ? getCellDisplayText(row, primaryCol) : `Row ${idx + 1}`;
+    return (
+      <div
+        key={`g-${uniqueId}`}
+        className="rounded-lg border bg-gray-50 p-3 cursor-pointer"
+        onClick={() => toggleGroup(row)}
+      >
+        <div className="flex items-center">
+          <FontAwesomeIcon
+            icon={isExpanded ? faChevronDown : faChevronRight}
+            className="mr-2 text-gray-500"
+          />
+          <span className="mr-2 text-gray-600">
+            {columns.find((c) => c.key === row.key)?.label}:
+          </span>
+          <span className="mr-2 font-bold">{row.value}</span>
+          <span className="bg-blue-200 text-blue-800 text-[10px] px-2 rounded-full">
+            {row.count}
+          </span>
+        </div>
+      </div>
+    );
+  }
 
-      return (
-        <div
-          key={row.__idx ?? idx}
-          className="border rounded-xl bg-white shadow-sm p-3 space-y-2 active:scale-[0.99] transition"
-          onDoubleClick={() => onRowDoubleClick?.(row)}
-        >
-          <div className="text-sm font-semibold text-gray-900 truncate">{title}</div>
+  const firstCols = visibleCols.slice(0, 4);
+  const otherCols = visibleCols.slice(4);
 
-          <div className="grid grid-cols-1 gap-1">
-            {visibleCols.slice(1).map((col) => (
+  return (
+    <div
+      key={row.__idx ?? idx}
+      className="rounded-lg border bg-white shadow-sm p-3 cursor-pointer active:scale-[0.99] transition"
+      onClick={() => handleRowOpen(row)}
+    >
+      <div className="space-y-2">
+        {firstCols.map((col) => (
+          <div key={col.key} className="flex items-start justify-between gap-3">
+            <span className="text-[11px] font-semibold text-gray-600 min-w-[110px]">
+              {col.label}
+            </span>
+            <div className="text-[11px] text-gray-800 text-right break-words flex-1">
+              {typeof col.render === "function"
+                ? col.render(row)
+                : formatValue(row[col.key], col)}
+            </div>
+          </div>
+        ))}
+
+        {otherCols.length > 0 && (
+          <div className="pt-2 border-t border-gray-100 space-y-2">
+            {otherCols.map((col) => (
               <div key={col.key} className="flex items-start justify-between gap-3">
-                <div className="text-[11px] text-gray-500 w-32 shrink-0">{col.label}</div>
-                <div className="text-[11px] text-gray-800 text-right break-words">
-                  {getCellDisplayText(row, col)}
+                <span className="text-[11px] font-semibold text-gray-600 min-w-[110px]">
+                  {col.label}
+                </span>
+                <div className="text-[11px] text-gray-800 text-right break-words flex-1">
+                  {typeof col.render === "function"
+                    ? col.render(row)
+                    : formatValue(row[col.key], col)}
                 </div>
               </div>
             ))}
           </div>
-
-          <div className="text-[10px] text-gray-400 pt-1 border-t">
-            Double-tap / double-click to open
-          </div>
-        </div>
-      );
-    };
+        )}
+      </div>
+    </div>
+  );
+};
 
     return (
       <div
@@ -939,7 +1004,7 @@ const SearchGlobalReferenceTable = forwardRef(
         {hasDataFiltered && (
           <div
             className="
-              p-2 bg-gray-50 border border-gray-200 rounded-md mb-2
+              p-2 rounded-md
               flex flex-col md:flex-row md:items-center md:justify-between gap-2
             "
             onDragOver={(e) => {
@@ -957,7 +1022,7 @@ const SearchGlobalReferenceTable = forwardRef(
                 </div>
 
                 {groupBy.length === 0 && (
-                  <div className="text-[10px] sm:text-sm text-gray-400 italic border border-dashed border-gray-300 rounded px-3 py-1">
+                  <div className="text-[10px] sm:text-xs text-gray-400 italic border border-dashed border-gray-300 rounded px-20 py-1">
                     Drag Header Here...
                   </div>
                 )}
@@ -1043,27 +1108,48 @@ const SearchGlobalReferenceTable = forwardRef(
               </div>
 
               {!isMobile && (
-                <button
-                  type="button"
-                  onClick={() => setAutoFillGrid((p) => !p)}
-                  className={`px-3 py-2 h-8 text-xs font-medium rounded-md active:scale-[0.98] transition ${
-                    autoFillGrid
-                      ? "text-white bg-indigo-600 hover:bg-indigo-700"
-                      : "text-gray-700 bg-white border hover:bg-gray-100"
-                  }`}
+                <label
+                  className="inline-flex items-center cursor-pointer select-none"
                   title={autoFillGrid ? "Disable auto fit" : "Enable auto fit"}
                 >
-                  {autoFillGrid ? "Auto Fit On" : "Auto Fit Off"}
-                </button>
+                  <input
+                    type="checkbox"
+                    checked={autoFillGrid}
+                    onChange={() => setAutoFillGrid((p) => !p)}
+                    className="sr-only"
+                  />
+
+                  <div
+                    className={`relative w-20 h-8 rounded-full transition-colors duration-200 ${
+                      autoFillGrid ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-600" 
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-[2px] h-7 w-7 rounded-full bg-white shadow-md transition-all duration-200 ${
+                        autoFillGrid ? "left-[50px]" : "left-[2px]"
+                      }`}
+                    />
+
+                    <span
+                      className={`absolute inset-0 flex items-center text-[11px] font-medium pointer-events-none transition-all duration-200 ${
+                        autoFillGrid
+                          ? "justify-start pl-2 text-white"
+                          : "justify-end pr-2 text-gray-700"
+                      }`}
+                    >
+                      Auto Fit
+                    </span>
+                  </div>
+                </label>
               )}
 
               {/* EXPORT */}
-              <div className="relative" data-sgrt-export>
+              <div className="relative flex-1 md:flex-none min-w-[110px]" data-sgrt-export>
                 <button
                   type="button"
                   onClick={() => hasDataFiltered && setShowExportMenu((p) => !p)}
                   disabled={!hasDataFiltered}
-                  className="px-3 py-2 h-8 text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 active:scale-[0.98] transition"
+                  className="w-full px-3 py-2 h-8 text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 active:scale-[0.98] transition"
                 >
                   <FontAwesomeIcon icon={faFileExport} className="mr-1" />
                   Export
@@ -1120,11 +1206,11 @@ const SearchGlobalReferenceTable = forwardRef(
               </div>
 
               {/* COLUMNS */}
-              <div className="relative" data-sgrt-cols>
+              <div className="relative flex-1 md:flex-none min-w-[110px]" data-sgrt-cols>
                 <button
                   type="button"
                   onClick={() => setShowColumnChooser((p) => !p)}
-                  className="px-3 py-2 h-8 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-[0.98] transition"
+                  className="w-full px-3 py-2 h-8 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-[0.98] transition"
                 >
                   <FontAwesomeIcon icon={faColumns} className="mr-1" />
                   Columns
@@ -1178,7 +1264,7 @@ const SearchGlobalReferenceTable = forwardRef(
           {isLoadingColumns ? (
             <TableLoader />
           ) : useCardView ? (
-            <div className="flex-1 overflow-auto space-y-3 p-2">
+            <div className="flex-1 overflow-auto space-y-2 p-2">
               {displayRows.map((row, idx) => renderMobileCard(row, idx))}
             </div>
           ) : (
@@ -1202,6 +1288,8 @@ const SearchGlobalReferenceTable = forwardRef(
                     {visibleCols.map((col, index) => {
                       const isStickyLeft = index < 3;
                       const leftOffset = getStickyLeftOffset(index);
+                      const colWidth = getColWidth(col);
+                      const isManual = manualResizedCols[col.key];
 
                       return (
                         <th
@@ -1220,9 +1308,14 @@ const SearchGlobalReferenceTable = forwardRef(
                           onClick={() => handleSort(col.key, col.sortable)}
                           title={!isMobile ? "Click to sort • Drag to reorder/group" : "Click to sort"}
                           style={{
-                            width: getColWidth(col),
-                            minWidth: autoFillGrid ? 120 : 90,
-                            left: isStickyLeft ? leftOffset : undefined,
+                            ...(autoFillGrid && !isManual
+                              ? {}
+                              : {
+                                  width: `${colWidth}px`,
+                                  minWidth: `${colWidth}px`,
+                                  maxWidth: `${colWidth}px`,
+                                }),
+                            left: isStickyLeft ? `${leftOffset}px` : undefined,
                           }}
                         >
                           <div className="flex items-center justify-between gap-2 min-w-0">
@@ -1253,17 +1346,24 @@ const SearchGlobalReferenceTable = forwardRef(
                       {visibleCols.map((col, index) => {
                         const isStickyLeft = index < 3;
                         const leftOffset = getStickyLeftOffset(index);
+                        const colWidth = getColWidth(col);
+                        const isManual = manualResizedCols[col.key];
 
                         return (
                           <th
                             key={`f-${col.key}`}
-                            className={`global-tran-th-ui px-2 py-1 bg-white ${
+                            className={`global-tran-th-ui px-1 py-1 bg-white ${
                               isStickyLeft ? "sticky z-30" : ""
                             }`}
                             style={{
-                              width: getColWidth(col),
-                              minWidth: autoFillGrid ? 120 : 90,
-                              left: isStickyLeft ? leftOffset : undefined,
+                              ...(autoFillGrid && !isManual
+                                ? {}
+                                : {
+                                    width: `${colWidth}px`,
+                                    minWidth: `${colWidth}px`,
+                                    maxWidth: `${colWidth}px`,
+                                  }),
+                              left: isStickyLeft ? `${leftOffset}px` : undefined,
                             }}
                           >
                             <input
@@ -1330,9 +1430,14 @@ const SearchGlobalReferenceTable = forwardRef(
 
                       return (
                         <tr
-                          key={row.__idx ?? idx}
-                          className="global-tran-tr-ui hover:bg-gray-50"
-                          onDoubleClick={() => onRowDoubleClick?.(row)}
+                            key={row.__idx ?? idx}
+                            className="global-tran-tr-ui hover:bg-gray-50 cursor-pointer"
+                            onClick={() => {
+                              if (isMobile) handleRowOpen(row);
+                            }}
+                            onDoubleClick={() => {
+                              if (!isMobile) handleRowOpen(row);
+                            }}
                         >
                           {visibleCols.map((col, index) => {                           
                             const isStickyLeft = index < 3;
@@ -1375,7 +1480,7 @@ const SearchGlobalReferenceTable = forwardRef(
   <div
     className="
       border-t bg-white shrink-0
-      px-3 py-3 sm:px-4
+      px-3 py-2 sm:px-2
       flex flex-col gap-3
       lg:flex-row lg:items-center lg:justify-between
     "
@@ -1399,7 +1504,7 @@ const SearchGlobalReferenceTable = forwardRef(
         flex flex-col sm:flex-row sm:flex-wrap
         items-stretch sm:items-center
         justify-center lg:justify-end
-        gap-2 sm:gap-3
+        gap-2 sm:gap-2
         w-full lg:w-auto
       "
     >
@@ -1411,8 +1516,8 @@ const SearchGlobalReferenceTable = forwardRef(
         <select
           className="
             global-tran-textbox-ui global-tran-textbox-enabled
-            h-9 min-w-[80px] w-24
-            rounded-md text-xs sm:text-sm
+            h-8 min-w-[70px] w-20
+            rounded-md sm:text-xs
           "
           value={rowsPerPage}
           onChange={(e) => {
@@ -1420,7 +1525,7 @@ const SearchGlobalReferenceTable = forwardRef(
             setCurrentPage(1);
           }}
         >
-          {[10, 20, 50, 100].map((n) => (
+          {[10, 20, 50, 100, 200, 500, 1000].map((n) => (
             <option key={n} value={n}>
               {n}
             </option>
@@ -1438,8 +1543,10 @@ const SearchGlobalReferenceTable = forwardRef(
         <button
           className="
             global-tran-btn-ui
-            h-9 px-3 sm:px-4
+            h-8 px-3 sm:px-4
             min-w-[80px]
+            rounded-md
+            hover:bg-blue-100 hover:text-blue-800
             text-xs sm:text-sm
             active:scale-[0.98] transition
             disabled:opacity-50 disabled:cursor-not-allowed
@@ -1458,8 +1565,10 @@ const SearchGlobalReferenceTable = forwardRef(
         <button
           className="
             global-tran-btn-ui
-            h-9 px-3 sm:px-4
+            h-8 px-3 sm:px-4
             min-w-[80px]
+            rounded-md
+            hover:bg-blue-100 hover:text-blue-800
             text-xs sm:text-sm
             active:scale-[0.98] transition
             disabled:opacity-50 disabled:cursor-not-allowed

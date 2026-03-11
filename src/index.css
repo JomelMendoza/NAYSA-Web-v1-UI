@@ -322,7 +322,7 @@ body {
 
   .global-ref-header-ui {
     /* items-center centers children horizontally in flex-col (mobile) */
-    @apply bg-gradient-to-r from-blue-200 to-blue-200 p-2 rounded-lg text-blue-900 shadow-lg fixed top-14 left-6 right-6 z-30 
+    @apply bg-gradient-to-r from-blue-100 to-blue-100 p-2 rounded-lg text-blue-900 shadow-lg fixed top-14 left-6 right-6 z-30 
           flex flex-col items-center sm:flex-row sm:justify-between sm:items-center gap-4
 
           dark:from-blue-900 dark:bg-blue-900 dark:text-white;
@@ -330,7 +330,7 @@ body {
 
   .global-ref-headertext-ui {
     /* ml-0 on mobile to avoid off-center shift, ml-2 restored on sm screens */
-    @apply text-sm lg:text-2xl font-semibold ml-0 sm:ml-2 whitespace-nowrap text-center sm:text-left;
+    @apply text-xs lg:text-2xl font-semibold ml-0 sm:ml-2 whitespace-nowrap text-center sm:text-left;
   }
 
     
