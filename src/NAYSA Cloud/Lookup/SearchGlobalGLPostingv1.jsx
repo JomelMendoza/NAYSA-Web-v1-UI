@@ -789,3 +789,5 @@ const GlobalGLPostingModalv1 = ({
 };
 
 export default GlobalGLPostingModalv1;
+
+

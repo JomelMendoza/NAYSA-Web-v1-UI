@@ -24,7 +24,7 @@ const BillCodeLookupModal = ({ isOpen, onClose, customParam }) => {
 
         const params = {
             PARAMS: JSON.stringify({
-                search: "",
+                search: "", 
                 page: 1,
                 pageSize: 100, // Increased pageSize to fetch more data initially for filtering
             }),

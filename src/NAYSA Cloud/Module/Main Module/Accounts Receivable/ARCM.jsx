@@ -107,7 +107,7 @@ const ARCM = () => {
   const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation(); 
-  const { companyInfo, currentUserRow } = useAuth();
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded } = useAuth();
   const [isViewDocument, setIsViewDocument] = useState(false);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
@@ -467,6 +467,21 @@ useEffect(() => {
   };
 
 
+  useEffect(() => {
+  if (!refsLoaded) return;
+  const arcmType = getAllDropDown("ARCMTRAN_TYPE", docType);
+  if (arcmType.length > 0) {
+    updateState({
+      arcmTypes: arcmType,
+      selectedARMType: "ARCM01",
+    });
+  }
+}, [docType, refsLoaded]);
+
+
+
+
+
 
   const handleReset = () => { 
       updateState({
@@ -520,16 +535,8 @@ useEffect(() => {
     updateState({isLoading:true})
 
     try {
-      // 🔹 1. Run these in parallel since they don’t depend on each other
-      const [ arcmType] = await Promise.all([
-        useTopDocDropDown(docType, "ARCMTRAN_TYPE"),
-      ]);
-      if (arcmType) {
-        updateState({ arcmTypes: arcmType, selectedARMType: "ARCM01" });
-      }
      
-
-
+     
 
       // 🔹 2. Document row (independent)
       const docRow = await useTopDocControlRow(docType);
@@ -670,6 +677,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       documentID: data.arcmId,
       documentNo: data.arcmNo,
       branchCode: data.branchCode,
+      branchName:data.branchName,
       documentDate: useFormatToDate(data.arcmDate),
       selectedARCMType: data.arcmtranType,
       custCode: data.custCode,
@@ -3423,27 +3431,28 @@ const handleCloseBranchModal = (selectedBranch) => {
   </div>
 
 
-  <div className={topTab === "history" ? "" : "hidden"}>
-      <AllTranHistory
-        showHeader={false}
-        endpoint="/getARCMHistory"
-        cacheKey={`ARCM:${state.branchCode || ""}:${state.docNo || ""}`}  // ✅ per-transaction
-        activeTabKey="ARCM_Summary"
-        branchCode={state.branchCode}
-        startDate={state.fromDate}
-        endDate={state.toDate}
-        status={(() => {
-            const s = (state.status || "").toUpperCase();
-            if (s === "FINALIZED") return "F";
-            if (s === "CANCELLED") return "X";
-            if (s === "CLOSED")    return "C";
-            if (s === "OPEN")      return "";
-            return "All";
-          })()}
-          onRowDoubleClick={handleHistoryRowPick}
-          historyExportName={`${documentTitle} History`} 
-    />
-  </div>
+ <div className={topTab === "history" ? "" : "hidden"}>
+  <AllTranHistory
+    showHeader={false}
+    isActive={topTab === "history"}
+    endpoint="/getARCMHistory"
+    cacheKey={`ARCM:${state.branchCode || ""}:${state.fromDate || ""}:${state.toDate || ""}`}
+    activeTabKey="ARCM_Summary"
+    branchCode={state.branchCode}
+    startDate={state.fromDate}
+    endDate={state.toDate}
+    status={(() => {
+      const s = (state.status || "").toUpperCase();
+      if (s === "FINALIZED") return "F";
+      if (s === "CANCELLED") return "X";
+      if (s === "CLOSED") return "C";
+      if (s === "OPEN") return "";
+      return "All";
+    })()}
+    onRowDoubleClick={handleHistoryRowPick}
+    historyExportName={`${documentTitle} History`}
+  />
+</div>
 
 
 </div>

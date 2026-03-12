@@ -22,7 +22,7 @@
 //         }),
 //       };
 
-//       fetchData("/lookupBillterm", params)
+//       fetchData("/lookupBillterm", params) 
 //       .then((result) => {
 //         if (result.success) {
 //           const resultData = JSON.parse(result.data[0].result);

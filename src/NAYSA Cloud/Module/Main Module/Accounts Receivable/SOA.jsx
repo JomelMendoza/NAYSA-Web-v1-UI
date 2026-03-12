@@ -48,7 +48,6 @@ import {
   useTopCurrencyRow,
   useTopHSOption,
   useTopDocControlRow,
-  useTopDocDropDown,
   useTopVatAmount,
   useTopATCAmount,
   useTopBillCodeRow,
@@ -101,7 +100,7 @@ const SOA = () => {
    const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation(); 
-  const { companyInfo, currentUserRow } = useAuth();
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded } = useAuth();
   const [isViewDocument, setIsViewDocument] = useState(false);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
@@ -474,7 +473,19 @@ useEffect(() => {
 
 
   
+  useEffect(() => {
+      if (!refsLoaded) return; 
+      const filteredTypes = getAllDropDown("SOATRAN_TYPE", docType); 
+      if (filteredTypes.length > 0) {
+        updateState({
+          soaTypes: filteredTypes,
+          selectedSOAType: "REG",
+        });
+      }
+  }, [docType, refsLoaded]);
   
+  
+
   const handleReset = () => {
 
       updateState({
@@ -523,15 +534,7 @@ useEffect(() => {
     updateState({isLoading:true})
 
     try {
-      // 🔹 1. Run these in parallel since they don’t depend on each other      
-      const data = await useTopDocDropDown(docType,"SOATRAN_TYPE");
-      if(data){
-        updateState({
-         soaTypes: data,
-         selectedSOAType: "REG",
-          });
-        };   
-
+     
       // 🔹 2. Document row (independent)
       const docRow = await useTopDocControlRow(docType);
       if (docRow) {
@@ -655,6 +658,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       documentID: data.soaId,
       documentNo: data.soaNo,
       branchCode: data.branchCode,
+      branchName:data.branchName,
       documentDate: useFormatToDate(data.soaDate), 
       selectedSOAType: data.soatranType,
       custCode: data.custCode,
@@ -3441,25 +3445,26 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
   </div>
 
 
-  <div className={topTab === "history" ? "" : "hidden"}>
-      <AllTranHistory
-        showHeader={false}
-        endpoint="/getSOAHistory"
-        cacheKey={`SOA:${state.branchCode || ""}:${state.docNo || ""}`}  // ✅ per-transaction
-        activeTabKey="SOA_Summary"
-        branchCode={state.branchCode}
-        startDate={state.fromDate}
-        endDate={state.toDate}
-        status={(() => {
-            const s = (state.status || "").toUpperCase();
-            if (s === "FINALIZED") return "F";
-            if (s === "CANCELLED") return "X";
-            if (s === "CLOSED")    return "C";
-            if (s === "OPEN")      return "";
-            return "All";
-          })()}
-          onRowDoubleClick={handleHistoryRowPick}
-          historyExportName={`${documentTitle} History`} 
+   <div className={topTab === "history" ? "" : "hidden"}>
+    <AllTranHistory
+      showHeader={false}
+      isActive={topTab === "history"}
+      endpoint="/getSOAHistory"
+      cacheKey={`SOA:${state.branchCode || ""}:${state.fromDate || ""}:${state.toDate || ""}`}
+      activeTabKey="SOA_Summary"
+      branchCode={state.branchCode}
+      startDate={state.fromDate}
+      endDate={state.toDate}
+      status={(() => {
+        const s = (state.status || "").toUpperCase();
+        if (s === "FINALIZED") return "F";
+        if (s === "CANCELLED") return "X";
+        if (s === "CLOSED") return "C";
+        if (s === "OPEN") return "";
+        return "All";
+      })()}
+      onRowDoubleClick={handleHistoryRowPick}
+      historyExportName={`${documentTitle} History`}
     />
   </div>
 

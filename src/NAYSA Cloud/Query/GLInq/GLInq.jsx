@@ -40,6 +40,7 @@ import SearchSLMast from "@/NAYSA Cloud/Lookup/SearchSLMast.jsx";
 import SearchRCMast from "@/NAYSA Cloud/Lookup/SearchRCMast.jsx";
 import SearchCutOffRef from "@/NAYSA Cloud/Lookup/SearchCutOffRef.jsx";
 import COAMastLookupModal from "@/NAYSA Cloud/Lookup/SearchCOAMast.jsx";
+import CurrLookupModal from "@/NAYSA Cloud/Lookup/SearchCurrRef.jsx";
 
 /**
  * GLINQ.jsx
@@ -60,7 +61,7 @@ export default function GLINQ() {
 
   // ---------- Tabs ----------
   const tabConfigs = useMemo(() => {
-    const commonYTD = ["Branch", "Cut Off", "RC Code"];
+    const commonYTD = ["Branch", "Cut Off", "RC Code", "Currency"];
     const commonQuery = [
       "Branch",
       "Account Code",
@@ -70,7 +71,7 @@ export default function GLINQ() {
       "End Cut Off",
     ];
     const slQueryFilters = ["Branch", "Account Code", "Cut Off"];
-    const tbQueryFilters = ["Branch", "Cut Off", "RC Code"]; // ✅ TB Query filters
+    const tbQueryFilters = ["Branch", "Cut Off", "RC Code","Currency"];
     const incExpFilters = [
       "Branch",
       "Starting Account",
@@ -81,40 +82,39 @@ export default function GLINQ() {
       "Ending RC",
     ];
 
-    return {
-      glQuery: { label: "GL Query", filters: commonQuery, icon: faFileLines },
-      slQuery: { label: "SL Query", filters: slQueryFilters, icon: faReceipt },
+   return {
+    glQuery: { label: "GL Query", filters: commonQuery, icon: faFileLines },
+    slQuery: { label: "SL Query", filters: slQueryFilters, icon: faReceipt },
 
-      // ✅ ADDED tbQuery tab key (so your jumpToGLQueryFromTB has a real source tab)
-      tbQuery: { label: "TB Query", filters: tbQueryFilters, icon: faBalanceScale },
+    tbQuery: { label: "TB Query", filters: tbQueryFilters, icon: faBalanceScale },
 
-      trialBalance: {
-        label: "Trial Balance",
-        filters: commonYTD,
-        icon: faBalanceScale,
-      },
-      balSheetYTD: {
-        label: "Balance Sheet YTD",
-        filters: commonYTD,
-        icon: faMoneyBillTrendUp,
-      },
-      incStatementYTD: {
-        label: "Income Statement YTD",
-        filters: commonYTD,
-        icon: faChartSimple,
-      },
-      isMTD: {
-        label: "Income Statement (MTD)",
-        filters: ["Branch", "Start Cut Off", "End Cut Off", "Starting RC", "Ending RC"],
-        icon: faCalendarDay,
-      },
-      incExp: {
-        label: "Income and Expense",
-        filters: incExpFilters,
-        icon: faWallet,
-      },
-    };
-  }, []);
+    trialBalance: {
+      label: "Trial Balance",
+      filters: commonYTD,
+      icon: faBalanceScale,
+    },
+    balSheetYTD: {
+      label: "Balance Sheet YTD",
+      filters: commonYTD,
+      icon: faMoneyBillTrendUp,
+    },
+    incStatementYTD: {
+      label: "Income Statement YTD",
+      filters: commonYTD,
+      icon: faChartSimple,
+    },
+    isMTD: {
+      label: "Income Statement (MTD)",
+      filters: ["Branch", "Start Cut Off", "End Cut Off", "Starting RC", "Ending RC", "Currency"],
+      icon: faCalendarDay,
+    },
+    incExp: {
+      label: "Income and Expense",
+      filters: incExpFilters,
+      icon: faWallet,
+    },
+  };
+}, []);
 
   const TAB_ENDPOINTS = useMemo(
     () => ({
@@ -142,6 +142,9 @@ export default function GLINQ() {
     () => ({
       branchCode: currentUserRow.branchCode,
       branchName: currentUserRow.branchName,
+
+      currCode:companyInfo?.currCode||"",
+      currName: companyInfo?.currName||"",
 
       // account
       accCode: "",
@@ -269,32 +272,36 @@ export default function GLINQ() {
   }, [tabConfigs, EMPTY_VIEW]);
 
   // ---------- Helpers ----------
-  const buildPayloadForTab = useCallback(
-    (tabKey, f) => {
-      const needed = tabConfigs?.[tabKey]?.filters || [];
-      const has = (name) => needed.includes(name);
+ const buildPayloadForTab = useCallback(
+  (tabKey, f) => {
+    const needed = tabConfigs?.[tabKey]?.filters || [];
+    const has = (name) => needed.includes(name);
 
-      const p = {};
-      if (has("Branch")) p.branchCode = f.branchCode || "";
+    const p = {};
+    if (has("Branch")) p.branchCode = f.branchCode || "";
 
-      if (has("Account Code")) p.accCode = f.accCode || "";
-      if (has("Starting Account")) p.accCodeStart = f.accCodeStart || "";
-      if (has("Ending Account")) p.accCodeEnd = f.accCodeEnd || "";
+    if (has("Account Code")) p.accCode = f.accCode || "";
+    if (has("Starting Account")) p.accCodeStart = f.accCodeStart || "";
+    if (has("Ending Account")) p.accCodeEnd = f.accCodeEnd || "";
 
-      if (has("SL Code")) p.slCode = f.slCode || "";
+    if (has("SL Code")) p.slCode = f.slCode || "";
 
-      if (has("RC Code")) p.rcCode = f.rcCode || "";
-      if (has("Starting RC")) p.rcCodeStart = f.rcCodeStart || "";
-      if (has("Ending RC")) p.rcCodeEnd = f.rcCodeEnd || "";
+    if (has("RC Code")) p.rcCode = f.rcCode || "";
+    if (has("Starting RC")) p.rcCodeStart = f.rcCodeStart || "";
+    if (has("Ending RC")) p.rcCodeEnd = f.rcCodeEnd || "";
 
-      if (has("Cut Off")) p.cutoffCode = f.cutoffCode || "";
-      if (has("Start Cut Off")) p.cutoffStart = f.cutoffStartCode || "";
-      if (has("End Cut Off")) p.cutoffEnd = f.cutoffEndCode || "";
+    if (has("Currency")) p.currCode = f.currCode || "PHP";
 
-      return p;
-    },
-    [tabConfigs]
-  );
+    if (has("Cut Off")) p.cutoffCode = f.cutoffCode || "";
+    if (has("Start Cut Off")) p.cutoffStart = f.cutoffStartCode || "";
+    if (has("End Cut Off")) p.cutoffEnd = f.cutoffEndCode || "";
+
+    return p;
+  },
+  [tabConfigs]
+);
+
+
 
   const normalizeRows = (resp) => {
     const directRows =
@@ -321,79 +328,82 @@ export default function GLINQ() {
   };
 
   const buildJsonDataByTab = (tab, payload) => {
-    switch (tab) {
-      case "glQuery":
-        return {
-          mode: "data",
-          branchCode: payload.branchCode || "",
-          acctCode: payload.accCode || "",
-          sLCode: payload.slCode || "",
-          rCode: payload.rcCode || "",
-          startingCutoff: payload.cutoffStart || "",
-          endingCutoff: payload.cutoffEnd || "",
-        };
+  switch (tab) {
+    case "glQuery":
+      return {
+        mode: "data",
+        branchCode: payload.branchCode || "",
+        acctCode: payload.accCode || "",
+        sLCode: payload.slCode || "",
+        rCode: payload.rcCode || "",
+        startingCutoff: payload.cutoffStart || "",
+        endingCutoff: payload.cutoffEnd || "",
+      };
 
-      case "slQuery":
-        return {
-          mode: "data",
-          branchCode: payload.branchCode || "",
-          acctCode: payload.accCode || "",
-          cutoffCode: payload.cutoffCode || "",
-        };
+    case "slQuery":
+      return {
+        mode: "data",
+        branchCode: payload.branchCode || "",
+        acctCode: payload.accCode || "",
+        cutoffCode: payload.cutoffCode || "",
+      };
 
-      // ✅ tbQuery needs a JSON mapping that matches your TB endpoint
-      case "tbQuery":
-        return {
-          mode: "data",
-          branchCode: payload.branchCode || "",
-          cutoffCode: payload.cutoffCode || "",
-          rcCode: payload.rcCode || "",
-        };
+    case "tbQuery":
+      return {
+        mode: "data",
+        branchCode: payload.branchCode || "",
+        cutoffCode: payload.cutoffCode || "",
+        rcCode: payload.rcCode || "",
+        currCode: payload.currCode || "PHP",
+      };
 
-      case "trialBalance":
-        return {
-          mode: "data",
-          branchCode: payload.branchCode || "",
-          acctCode: payload.accCode || "",
-          rcCode: payload.rcCode || "",
-          cutoffCode: payload.cutoffCode || "",
-        };
+    case "trialBalance":
+      return {
+        mode: "data",
+        branchCode: payload.branchCode || "",
+        acctCode: payload.accCode || "",
+        rcCode: payload.rcCode || "",
+        cutoffCode: payload.cutoffCode || "",
+        currCode: payload.currCode || "PHP",
+      };
 
-      case "balSheetYTD":
-      case "incStatementYTD":
-        return {
-          mode: "data",
-          branchCode: payload.branchCode || "",
-          cutoffCode: payload.cutoffCode || "",
-          rcCode: payload.rcCode || "",
-        };
+    case "balSheetYTD":
+    case "incStatementYTD":
+      return {
+        mode: "data",
+        branchCode: payload.branchCode || "",
+        cutoffCode: payload.cutoffCode || "",
+        rcCode: payload.rcCode || "",
+        currCode: payload.currCode || "PHP",
+      };
 
-      case "isMTD":
-        return {
-          mode: "data",
-          branchCode: payload.branchCode || "",
-          cutoffStart: payload.cutoffStart || "",
-          cutoffEnd: payload.cutoffEnd || "",
-          rcCodeStart: payload.rcCodeStart || "",
-          rcCodeEnd: payload.rcCodeEnd || "",
-        };
+    case "isMTD":
+      return {
+        mode: "data",
+        branchCode: payload.branchCode || "",
+        cutoffStart: payload.cutoffStart || "",
+        cutoffEnd: payload.cutoffEnd || "",
+        rcCodeStart: payload.rcCodeStart || "",
+        rcCodeEnd: payload.rcCodeEnd || "",
+        currCode: payload.currCode || "PHP",
+      };
 
-      case "incExp":
-        return {
-          mode: "data",
-          branchCode: payload.branchCode || "",
-          accCodeStart: payload.accCodeStart || "",
-          accCodeEnd: payload.accCodeEnd || "",
-          cutoffStart: payload.cutoffStart || "",
-          cutoffEnd: payload.cutoffEnd || "",
-          rcCodeStart: payload.rcCodeStart || "",
-          rcCodeEnd: payload.rcCodeEnd || "",
-        };
+    case "incExp":
+      return {
+        mode: "data",
+        branchCode: payload.branchCode || "",
+        accCodeStart: payload.accCodeStart || "",
+        accCodeEnd: payload.accCodeEnd || "",
+        cutoffStart: payload.cutoffStart || "",
+        cutoffEnd: payload.cutoffEnd || "",
+        rcCodeStart: payload.rcCodeStart || "",
+        rcCodeEnd: payload.rcCodeEnd || "",
+      };
 
-      default:
-        return { ...payload, mode: "data" };
-    }
-  };
+    default:
+      return { ...payload, mode: "data" };
+  }
+};
 
   // -----------------------------
   // RUN QUERY (Option A: parallel header + data)
@@ -584,6 +594,8 @@ export default function GLINQ() {
         cutoffStartName: filters.cutoffStartName,
         cutoffEndCode: filters.cutoffEndCode,
         cutoffEndName: filters.cutoffEndName,
+        currCode: companyInfo?.currCode||"",
+        currName: companyInfo?.currName||"",
       },
       activeTab
     );
@@ -1042,6 +1054,7 @@ const FilterModal = ({ tabConfig, filters, onClose, onApply, updateLookupState, 
   const hasCutoff = tabConfig.filters.some((f) =>
     ["Cut Off", "Start Cut Off", "End Cut Off"].includes(f)
   );
+  const hasCurrency = tabConfig.filters.includes("Currency");
 
   return (
     <div
@@ -1052,7 +1065,6 @@ const FilterModal = ({ tabConfig, filters, onClose, onApply, updateLookupState, 
         className="bg-white rounded-xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[88vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="px-4 py-3 border-b flex justify-between items-center bg-gradient-to-r from-blue-50 to-white">
           <h3 className="text-[15px] sm:text-base font-semibold text-gray-800 flex items-center gap-2">
             <FontAwesomeIcon icon={faFilter} className="text-blue-600" />
@@ -1067,7 +1079,6 @@ const FilterModal = ({ tabConfig, filters, onClose, onApply, updateLookupState, 
           </button>
         </div>
 
-        {/* Content */}
         <div className="p-3 sm:p-4 space-y-3 overflow-y-auto">
           {hasBranchAcc && (
             <ModalSection title="Branch & Account">
@@ -1223,9 +1234,28 @@ const FilterModal = ({ tabConfig, filters, onClose, onApply, updateLookupState, 
               )}
             </ModalSection>
           )}
+
+          {hasCurrency && (
+            <ModalSection title="Currency">
+              <DualFilterInput
+                labelCode="Currency Code"
+                labelName="Currency Name"
+                codeValue={filters.currCode}
+                nameValue={filters.currName}
+                modalType="currency"
+                updateLookupState={updateLookupState}
+                disabled={isLoading}
+                onClear={() =>
+                  updateLookupState({
+                    currCode: "PHP",
+                    currName: "Philippine Peso",
+                  })
+                }
+              />
+            </ModalSection>
+          )}
         </div>
 
-        {/* Footer */}
         <div className="px-4 py-3 border-t flex justify-end gap-2 bg-gray-50">
           <button
             onClick={onClose}
@@ -1414,9 +1444,18 @@ const LookupManager = ({ filters, updateFilters }) => {
     updateFilters({ showLookupModal: false, lookupType: "", cutoffModalType: "" });
   };
 
+  const handleCurrencySelect = (row) => {
+    updateFilters({
+      currCode: row.currCode || "PHP",
+      currName: row.currName ||  "Philippine Peso",
+      showLookupModal: false,
+      lookupType: "",
+      cutoffModalType: "",
+    });
+  };
+
   switch (cutoffModalType) {
     case "branch":
-      // NOTE: your SearchBranchRef prop name is probably onClose(row) callback.
       return <SearchBranchRef isOpen={showLookupModal} onClose={handleBranchSelect} />;
 
     case "sl":
@@ -1449,9 +1488,17 @@ const LookupManager = ({ filters, updateFilters }) => {
         />
       );
 
+    case "currency":
+      return (
+        <CurrLookupModal
+          isOpen={showLookupModal}
+          onClose={handleCurrencySelect}
+          context={cutoffModalType}
+        />
+      );
+
     default:
       close();
       return null;
   }
 };
-

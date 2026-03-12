@@ -12,27 +12,14 @@ import {
   faSave,
   faUndo,
   faPenToSquare,
-  faBackwardFast,
-  faChevronLeft,
-  faChevronRight,
-  faForwardFast,
-  faClockRotateLeft,
-  faTrash
+  faTrash,
 } from "@fortawesome/free-solid-svg-icons";
 
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import ButtonBar from "@/NAYSA Cloud/Global/ButtonBar";
 import AttachFileModal from "@/NAYSA Cloud/Lookup/AttachFileModal.jsx";
-import AllTranDocNo from "@/NAYSA Cloud/Lookup/SearchDocNo.jsx";
 
-import {
-  useSwalErrorAlert,
-  useSwalDeleteConfirm,
-  useSwalDeleteRecord,
-  useSwalshowSave,
-  useSwalValidationAlert,
-} from "@/NAYSA Cloud/Global/behavior";
-
+import { useSwalErrorAlert, useSwalValidationAlert, useSwalSuccessAlert, useSwalErrorAlertAPI, useSwalDeleteConfirm, useSwalDeleteRecord } from "@/NAYSA Cloud/Global/behavior";
 import PayeeSetupTab from "@/NAYSA Cloud/Master Data/CustMastTabs/PayeeSetupTab";
 import PayeeMasterDataTab from "@/NAYSA Cloud/Master Data/CustMastTabs/PayeeMasterDataTab";
 import ReferenceCodesTab from "@/NAYSA Cloud/Master Data/CustMastTabs/ReferenceCodesTab";
@@ -144,35 +131,44 @@ const VendMast = () => {
 
   const updateForm = (patch) => setForm((p) => ({ ...p, ...patch }));
 
-  /* ------------------------------------------------------------------
-     ✅ Standard swal validation format (same pattern used in COAMast)
-  ------------------------------------------------------------------ */
   const showValidation = async (title, lines) => {
     const msg = Array.isArray(lines) ? lines.join("\n") : String(lines || "");
     return useSwalValidationAlert({ icon: "error", title, message: msg });
   };
 
-  // Extract errorCount/errorMsg returned by sprocs (COAMast style)
   const extractSprocError = (axiosResponse) => {
     const payload = axiosResponse?.data;
     const data = payload?.data;
 
-    // common: { data: [ { errorMsg, errorCount } ] }
-    if (Array.isArray(data) && data[0] && (data[0].errorCount !== undefined || data[0].errorMsg !== undefined)) {
-      const errorCount = Number(data[0].errorCount || 0);
-      const errorMsg = String(data[0].errorMsg || "");
+    if (
+      Array.isArray(data) &&
+      data[0] &&
+      (data[0].errorCount !== undefined ||
+        data[0].errorMsg !== undefined ||
+        data[0].errorcount !== undefined ||
+        data[0].errormsg !== undefined)
+    ) {
+      const errorCount = Number(
+        data[0].errorCount ?? data[0].errorcount ?? 0
+      );
+      const errorMsg = String(data[0].errorMsg ?? data[0].errormsg ?? "");
       return { errorCount, errorMsg };
     }
 
-    // sometimes wrapped as { data: [ { result: '...json...' } ] }
     if (Array.isArray(data) && data[0]?.result) {
       try {
         const parsed = JSON.parse(data[0].result);
         const row = Array.isArray(parsed) ? parsed[0] : parsed;
-        if (row && (row.errorCount !== undefined || row.errorMsg !== undefined)) {
+        if (
+          row &&
+          (row.errorCount !== undefined ||
+            row.errorMsg !== undefined ||
+            row.errorcount !== undefined ||
+            row.errormsg !== undefined)
+        ) {
           return {
-            errorCount: Number(row.errorCount || 0),
-            errorMsg: String(row.errorMsg || ""),
+            errorCount: Number(row.errorCount ?? row.errorcount ?? 0),
+            errorMsg: String(row.errorMsg ?? row.errormsg ?? ""),
           };
         }
       } catch {
@@ -180,21 +176,17 @@ const VendMast = () => {
       }
     }
 
-    // fallback: some endpoints return { message } / { error }
     const fallbackMsg = payload?.message || payload?.error || payload?.msg;
     if (fallbackMsg) return { errorCount: 1, errorMsg: String(fallbackMsg) };
 
     return null;
   };
 
-  // ✅ FIX: documentNo should be the actual code only
   const documentNo = useMemo(() => {
-    const code = String(form?.vendCode || form?.custCode || "").trim();
-    return code;
+    return String(form?.vendCode || form?.custCode || "").trim();
   }, [form]);
 
-  /* -------------------- NAVIGATOR (after masterRows exists) -------------------- */
-  const [recentCodes, setRecentCodes] = useState([]); // most recent first
+  const [recentCodes, setRecentCodes] = useState([]);
 
   const currentCode = useMemo(
     () => String(form?.vendCode || form?.custCode || "").trim(),
@@ -204,7 +196,9 @@ const VendMast = () => {
   const indexInRows = useMemo(() => {
     if (!currentCode) return -1;
     return masterRows.findIndex(
-      (r) => String(r?.vendCode || "").trim().toUpperCase() === currentCode.toUpperCase()
+      (r) =>
+        String(r?.vendCode || "").trim().toUpperCase() ===
+        currentCode.toUpperCase()
     );
   }, [masterRows, currentCode]);
 
@@ -213,7 +207,6 @@ const VendMast = () => {
     if (!c) return;
     setRecentCodes((prev) => [c, ...prev.filter((x) => x !== c)].slice(0, 20));
   };
-  /* --------------------------------------------------------------------------- */
 
   const parseSprocJsonResult = (rows) => {
     if (!rows) return [];
@@ -239,12 +232,11 @@ const VendMast = () => {
       const normalized = list.map((x) => ({
         ...x,
         sltypeCode: normalizeSlType(x?.sltypeCode),
-        vendCode: x.vendCode ?? "",
-        vendName: x.vendName ?? "",
+        vendCode: x?.vendCode ?? "",
+        vendName: x?.vendName ?? "",
         address:
-          x.address ??
-          [x.vendAddr1, x.vendAddr2, x.vendAddr3].filter(Boolean).join(" ") ??
-          "",
+          x?.address ??
+          [x?.vendAddr1, x?.vendAddr2, x?.vendAddr3].filter(Boolean).join(" "),
       }));
 
       setMasterAllRows(normalized);
@@ -261,13 +253,16 @@ const VendMast = () => {
 
   useEffect(() => {
     loadMasterList();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleOpenAttach = () => {
+  const handleOpenAttach = async () => {
     const code = String(form?.vendCode || form?.custCode || "").trim();
     if (!code) {
-      Swal.fire({ icon: "warning", title: "Required", text: "Payee Code is required." });
+      await useSwalValidationAlert({
+        icon: "warning",
+        title: "Required",
+        message: "Payee Code is required.",
+      });
       return;
     }
     setIsAttachOpen(true);
@@ -284,11 +279,11 @@ const VendMast = () => {
       const row = Array.isArray(parsed) ? parsed?.[0] : null;
 
       if (!row) {
-        Swal.fire("Info", "Payee not found.", "info");
+        await useSwalErrorAlert("Info", "Payee not found.");
         return;
       }
 
-      const sl = normalizeSlType(row.sltypeCode ?? "SU");
+      const sl = normalizeSlType(row?.sltypeCode ?? "SU");
 
       updateForm({
         ...emptyForm,
@@ -296,88 +291,64 @@ const VendMast = () => {
         sltypeCode: sl,
 
         vendCode: code,
-        custCode: code, // keep mirrored for CU
+        custCode: code,
 
-        vendName: row.vendName ?? "",
-        custName: row.vendName ?? "",
+        vendName: row?.vendName ?? "",
+        custName: row?.vendName ?? "",
 
-        vendContact: row.vendContact ?? "",
-        vendPosition: row.vendPosition ?? "",
-        vendTelno: row.vendTelno ?? "",
-        vendMobileno: row.vendMobileno ?? "",
-        vendEmail: row.vendEmail ?? "",
+        vendContact: row?.vendContact ?? "",
+        vendPosition: row?.vendPosition ?? "",
+        vendTelno: row?.vendTelno ?? "",
+        vendMobileno: row?.vendMobileno ?? "",
+        vendEmail: row?.vendEmail ?? "",
 
-        vendAddr1: row.vendAddr1 ?? "",
-        vendAddr2: row.vendAddr2 ?? "",
-        vendAddr3: row.vendAddr3 ?? "",
-        vendZip: row.vendZip ?? "",
-        vendTin: row.vendTin ?? "",
+        vendAddr1: row?.vendAddr1 ?? "",
+        vendAddr2: row?.vendAddr2 ?? "",
+        vendAddr3: row?.vendAddr3 ?? "",
+        vendZip: row?.vendZip ?? "",
+        vendTin: row?.vendTin ?? "",
 
-        custTin: row.vendTin ?? "",
+        custTin: row?.vendTin ?? "",
 
-        businessName: row.businessName ?? "",
-        firstName: row.firstName ?? "",
-        middleName: row.middleName ?? "",
-        lastName: row.lastName ?? "",
-        taxClass: row.taxClass ?? "",
+        businessName: row?.businessName ?? "",
+        firstName: row?.firstName ?? "",
+        middleName: row?.middleName ?? "",
+        lastName: row?.lastName ?? "",
+        taxClass: row?.taxClass ?? "",
 
-        branchCode: row.branchCode ?? "",
-        source: row.source ?? "L",
-        currCode: row.currCode ?? "PHP",
-        vatCode: row.vatCode ?? "",
-        atcCode: row.atcCode ?? "",
-        paytermCode: row.paytermCode ?? "",
-        acctCode: row.acctCode ?? "",
-        active: row.active ?? "Y",
-        oldCode: row.oldcode ?? row.oldCode ?? "",
-        registeredBy: row.registeredBy ?? row.registered_by ?? "",
-        registeredDate: row.registeredDate ?? row.registered_date ?? "",
-        updatedBy: row.updatedBy ?? row.updated_by ?? "",
-        updatedDate: row.updatedDate ?? row.updated_date ?? "",
-
+        branchCode: row?.branchCode ?? "",
+        source: row?.source ?? "L",
+        currCode: row?.currCode ?? "PHP",
+        vatCode: row?.vatCode ?? "",
+        atcCode: row?.atcCode ?? "",
+        paytermCode: row?.paytermCode ?? "",
+        acctCode: row?.acctCode ?? "",
+        active: row?.active ?? "Y",
+        oldCode: row?.oldcode ?? row?.oldCode ?? "",
+        registeredBy: row?.registeredBy ?? row?.registered_by ?? "",
+        registeredDate: row?.registeredDate ?? row?.registered_date ?? "",
+        updatedBy: row?.updatedBy ?? row?.updated_by ?? "",
+        updatedDate: row?.updatedDate ?? row?.updated_date ?? "",
       });
 
       setSelectedVendCode(code);
       pushRecent(code);
     } catch (e) {
       console.error(e);
-      Swal.fire("Error", "Failed to fetch payee.", "error");
+      await useSwalErrorAlertAPI("Fetch Error", e?.message || "Failed to fetch payee.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  /* -------------------- NAV ACTIONS -------------------- */
   const navOpen = async (targetCode) => {
     const code = String(targetCode || "").trim();
     if (!code) return;
     setActiveTab("setup");
-    setIsEditing(false); // open in view mode
+    setIsEditing(false);
     await fetchVendorByCode(code);
   };
 
-  const goFirst = async () => {
-    if (!masterRows.length) return;
-    await navOpen(masterRows[0]?.vendCode);
-  };
-
-  const goLast = async () => {
-    if (!masterRows.length) return;
-    await navOpen(masterRows[masterRows.length - 1]?.vendCode);
-  };
-
-  const goPrev = async () => {
-    if (indexInRows <= 0) return;
-    await navOpen(masterRows[indexInRows - 1]?.vendCode);
-  };
-
-  const goNext = async () => {
-    if (indexInRows < 0 || indexInRows >= masterRows.length - 1) return;
-    await navOpen(masterRows[indexInRows + 1]?.vendCode);
-  };
-
-
-  /* ----------------------------------------------------- */
   const deleteVendor = async () => {
     const code = String(form?.vendCode || form?.custCode || "").trim();
     if (!code) {
@@ -389,7 +360,7 @@ const VendMast = () => {
       "Delete Payee?",
       `This will permanently delete Payee Code ${code}. This action cannot be undone.`
     );
-    if (!confirm) return;
+    if (!confirm?.isConfirmed) return;
 
     setIsLoading(true);
     try {
@@ -413,88 +384,189 @@ const VendMast = () => {
     }
   };
 
+  // const upsertVendor = async () => {
+  //   const code = String(form?.vendCode || form?.custCode || "").trim();
+
+  //   setIsLoading(true);
+  //   try {
+  //     const jsonData = {
+  //       json_data: {
+  //         action: selectedVendCode ? "edit" : "add",
+
+  //         vendCode: code,
+  //         vendName: form.vendName || form.custName || "",
+  //         businessName: form.businessName || "",
+
+  //         firstName: form.firstName || "",
+  //         middleName: form.middleName || "",
+  //         lastName: form.lastName || "",
+
+  //         taxClass: form.taxClass || "",
+
+  //         vendAddr1: form.vendAddr1 || "",
+  //         vendAddr2: form.vendAddr2 || "",
+  //         vendAddr3: form.vendAddr3 || "",
+  //         vendZip: form.vendZip || "",
+  //         vendTin: form.vendTin || form.custTin || "",
+
+  //         branchCode: form.branchCode || "",
+  //         vendContact: form.vendContact || "",
+  //         vendPosition: form.vendPosition || "",
+  //         vendTelno: form.vendTelno || "",
+  //         vendMobileno: form.vendMobileno || "",
+  //         vendEmail: form.vendEmail || "",
+
+  //         source: form.source || "",
+  //         currCode: form.currCode || "",
+  //         vatCode: form.vatCode || "",
+  //         atcCode: form.atcCode || "",
+  //         paytermCode: form.paytermCode || "",
+
+  //         acctCode: form.acctCode || "",
+  //         sltypeCode: normalizeSlType(form.sltypeCode),
+  //         active: form.active || "Y",
+  //         oldCode: form.oldCode || "",
+  //         userCode,
+  //       },
+  //     };
+
+  //     const payload = {
+  //       json_data: JSON.stringify(jsonData),
+  //     };
+
+  //     console.log("upsert payload", payload);
+
+  //     const res = await apiClient.post("/upsertPayee", payload);
+
+  //     const rows = res?.data?.data || [];
+  //     const r0 = rows[0] || {};
+
+  //     const errorCount = Number(r0.errorcount ?? r0.errorCount ?? 0);
+  //     const errorMsg = String(r0.errormsg ?? r0.errorMsg ?? "");
+
+  //     if (errorCount > 0) {
+  //       await useSwalValidationAlert({
+  //         icon: "error",
+  //         title: "Missing Required Field(s)",
+  //         message: errorMsg,
+  //       });
+  //       return;
+  //     }
+
+  //     await useSwalSuccessAlert("Success!", "Payee saved successfully.");
+  //     const code = variables?._meta?.code || "";
+  //     setSelectedVendCode(code);
+  //     pushRecent(code);
+  //     setIsEditing(false);
+  //     await queryClient.invalidateQueries({ queryKey: ["payeeList"] });
+  //     await fetchVendorByCode(code);
+
+  //     const sprocErr = extractSprocError(e?.response);
+  //     if (sprocErr?.errorMsg) {
+  //       await useSwalValidationAlert({
+  //         icon: "error",
+  //         title: "Missing Required Field(s)",
+  //         message: String(sprocErr.errorMsg),
+  //       });
+  //       return;
+  //     }
+
+  //     const msg =
+  //       e?.response?.data?.message ||
+  //       e?.response?.data?.error ||
+  //       e?.response?.data?.msg ||
+  //       e?.message ||
+  //       "Failed to save payee.";
+
+  //     await useSwalErrorAlert("Save Failed", msg);
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
 
   const upsertVendor = async () => {
     const code = String(form?.vendCode || form?.custCode || "").trim();
 
     setIsLoading(true);
     try {
-      const payload = {
-        action: selectedVendCode ? "edit" : "add",
+      const jsonData = {
+        json_data: {
+          action: selectedVendCode ? "edit" : "add",
 
-        vendCode: code,
-        vendName: form.vendName || form.custName || "",
-        businessName: form.businessName || "",
+          vendCode: code,
+          vendName: form.vendName || form.custName || "",
+          businessName: form.businessName || "",
 
-        firstName: form.firstName || "",
-        middleName: form.middleName || "",
-        lastName: form.lastName || "",
+          firstName: form.firstName || "",
+          middleName: form.middleName || "",
+          lastName: form.lastName || "",
 
-        taxClass: form.taxClass || "",
+          taxClass: form.taxClass || "",
 
-        vendAddr1: form.vendAddr1 || "",
-        vendAddr2: form.vendAddr2 || "",
-        vendAddr3: form.vendAddr3 || "",
-        vendZip: form.vendZip || "",
-        vendTin: form.vendTin || form.custTin || "",
+          vendAddr1: form.vendAddr1 || "",
+          vendAddr2: form.vendAddr2 || "",
+          vendAddr3: form.vendAddr3 || "",
+          vendZip: form.vendZip || "",
+          vendTin: form.vendTin || form.custTin || "",
 
-        branchCode: form.branchCode || "",
-        vendContact: form.vendContact || "",
-        vendPosition: form.vendPosition || "",
-        vendTelno: form.vendTelno || "",
-        vendMobileno: form.vendMobileno || "",
-        vendEmail: form.vendEmail || "",
+          branchCode: form.branchCode || "",
+          vendContact: form.vendContact || "",
+          vendPosition: form.vendPosition || "",
+          vendTelno: form.vendTelno || "",
+          vendMobileno: form.vendMobileno || "",
+          vendEmail: form.vendEmail || "",
 
-        source: form.source || "",
-        currCode: form.currCode || "",
-        vatCode: form.vatCode || "",
-        atcCode: form.atcCode || "",
-        paytermCode: form.paytermCode || "",
+          source: form.source || "",
+          currCode: form.currCode || "",
+          vatCode: form.vatCode || "",
+          atcCode: form.atcCode || "",
+          paytermCode: form.paytermCode || "",
 
-        acctCode: form.acctCode || "",
-        sltypeCode: normalizeSlType(form.sltypeCode),
-        active: form.active || "y",
-        oldCode: form.oldCode || "",
-        userCode, // ✅ always from session/aut
+          acctCode: form.acctCode || "",
+          sltypeCode: normalizeSlType(form.sltypeCode),
+          active: form.active || "Y",
+          oldCode: form.oldCode || "",
+          userCode,
+        },
       };
 
-      const res = await apiClient.post("/upsertPayee", {
-        json_data: payload,
-      });
+      const payload = {
+        json_data: JSON.stringify(jsonData),
+      };
 
-      // 🔴 SQL validation (COAMast standard)
+      console.log("upsert payload", payload);
+
+      const res = await apiClient.post("/upsertPayee", payload);
+
       const rows = res?.data?.data || [];
       const r0 = rows[0] || {};
 
-      const errorCount = Number(r0.errorcount ?? 0);
-      const errorMsg = String(r0.errormsg ?? "");
+      const errorCount = Number(r0.errorcount ?? r0.errorCount ?? 0);
+      const errorMsg = String(r0.errormsg ?? r0.errorMsg ?? "");
 
       if (errorCount > 0) {
-        await useSwalValidationAlert({
-          icon: "error",
-          title: "Missing Required Field(s)",
-          message: errorMsg,
-        });
+        await useSwalErrorAlert(
+          "Missing Required Field(s)",
+          errorMsg || "Please complete the required fields."
+        );
         return;
       }
 
-      // ✅ SUCCESS
-      await useSwalshowSave(async () => {
-        setSelectedVendCode(code);
-        pushRecent(code);
-        setIsEditing(false);
-        await loadMasterList();
-      }, () => { });
+      await useSwalSuccessAlert("Success!", "Payee saved successfully.");
+      setSelectedVendCode(code);
+      pushRecent(code);
+      setIsEditing(false);
+      await queryClient.invalidateQueries({ queryKey: ["payeeList"] });
+      await fetchVendorByCode(code);
     } catch (e) {
       console.error(e);
 
       const sprocErr = extractSprocError(e?.response);
       if (sprocErr?.errorMsg) {
-        await useSwalValidationAlert({
-          icon: "error",
-          title: "Missing Required Field(s)",
-          message: String(sprocErr.errorMsg),
-        });
+        await useSwalErrorAlert(
+          "Missing Required Field(s)",
+          String(sprocErr.errorMsg)
+        );
         return;
       }
 
@@ -503,14 +575,13 @@ const VendMast = () => {
         e?.response?.data?.error ||
         e?.response?.data?.msg ||
         e?.message ||
-        "failed to save payee.";
+        "Failed to save payee.";
 
-      await useSwalErrorAlert("save failed", msg);
+      await useSwalErrorAlert("Save Failed", msg);
     } finally {
       setIsLoading(false);
     }
   };
-
 
   const applyMasterFilters = () => {
     const selectedType = normalizeSlType(subsidiaryType);
@@ -559,10 +630,14 @@ const VendMast = () => {
     setAttachmentRows([]);
   };
 
-  const handleEdit = () => {
-    const code = String(form?.vendCode || form?.custCode || "").trim();
+  const handleEdit = async () => {
+    const code = String(form?.vendCode || "").trim();
     if (!code) {
-      Swal.fire("Required", "Please select a Payee record first.", "warning");
+      await useSwalErrorAlert({
+        icon: "warning",
+        title: "Required",
+        message: "Please select a Payee record first.",
+      });
       return;
     }
     setIsEditing(true);
@@ -585,7 +660,8 @@ const VendMast = () => {
     []
   );
 
-  const handleMasterRowDoubleClick = async ({ code }) => {
+  const handleMasterRowDoubleClick = async (row) => {
+    const code = String(row?.vendCode || row?.code || "").trim();
     if (!code) return;
     setActiveTab("setup");
     setIsEditing(false);
@@ -598,9 +674,6 @@ const VendMast = () => {
     const hasRecord =
       String(form?.vendCode || form?.custCode || "").trim() && !form.__isNew;
 
-    const baseBtn =
-      "h-9 px-3 text-sm rounded-lg flex items-center gap-2 whitespace-nowrap disabled:opacity-50";
-
     return [
       { key: "add", label: "Add", icon: faPlus, onClick: handleAdd, disabled: isLoading },
       { key: "edit", label: "Edit", icon: faPenToSquare, onClick: handleEdit, disabled: isLoading },
@@ -609,9 +682,7 @@ const VendMast = () => {
       { key: "attach", label: "Attach File", icon: faPaperclip, onClick: handleOpenAttach, disabled: isLoading, variant: "ghost" },
       { key: "delete", label: "Delete", icon: faTrash, onClick: deleteVendor, disabled: isLoading || isEditing || !hasRecord, variant: "danger" },
     ];
-
   }, [activeTab, isLoading, isEditing, form]);
-
 
   return (
     <div className="global-ref-main-div-ui mt-24">
@@ -626,10 +697,9 @@ const VendMast = () => {
               key={t.id}
               type="button"
               onClick={() => setActiveTab(t.id)}
-              className={`flex items-center px-3 py-2 rounded-md text-xs md:text-sm font-bold transition-colors duration-200 mr-1
-                ${activeTab === t.id
-                  ? "bg-blue-100 text-blue-700"
-                  : "text-gray-600 hover:bg-gray-100 hover:text-blue-700"
+              className={`flex items-center px-3 py-2 rounded-md text-xs md:text-sm font-bold transition-colors duration-200 mr-1 ${activeTab === t.id
+                ? "bg-blue-100 text-blue-700"
+                : "text-gray-600 hover:bg-gray-100 hover:text-blue-700"
                 }`}
             >
               <FontAwesomeIcon icon={t.icon} className="w-4 h-4 mr-2" />
@@ -643,7 +713,10 @@ const VendMast = () => {
         </div>
       </div>
 
-      <div className="global-tran-tab-div-ui mt-5" style={{ minHeight: "calc(100vh - 170px)" }}>
+      <div
+        className="global-tran-tab-div-ui mt-5"
+        style={{ minHeight: "calc(100vh - 170px)" }}
+      >
         {activeTab === "setup" && (
           <PayeeSetupTab
             isLoading={isLoading}
@@ -654,7 +727,6 @@ const VendMast = () => {
               { value: "EM", label: "EMPLOYEE" },
               { value: "OT", label: "OTHERS" },
               { value: "SU", label: "SUPPLIER" },
-
             ]}
             sourceOptions={[
               { value: "L", label: "Local" },

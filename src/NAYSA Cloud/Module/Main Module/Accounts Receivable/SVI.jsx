@@ -94,7 +94,7 @@ const SVI = () => {
   const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation(); 
-  const { companyInfo, currentUserRow,getAllDropDown } = useAuth();
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded } = useAuth();
   const [isViewDocument, setIsViewDocument] = useState(false);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
@@ -476,7 +476,16 @@ useEffect(() => {
   }, []);
 
 
-
+useEffect(() => {
+    if (!refsLoaded) return; 
+    const filteredTypes = getAllDropDown("SVITRAN_TYPE", docType); 
+    if (filteredTypes.length > 0) {
+      updateState({
+        sviTypes: filteredTypes,
+        selectedSVIType: "REG",
+      });
+    }
+}, [docType, refsLoaded]);
 
 
   
@@ -533,13 +542,13 @@ useEffect(() => {
 
       
  
-    const filteredTypes = getAllDropDown("SVITRAN_TYPE", docType); 
-    if (filteredTypes.length > 0) {
-      updateState({
-        sviTypes: filteredTypes,
-        selectedSVIType: "REG",
-      });
-    }
+    // const filteredTypes = getAllDropDown("SVITRAN_TYPE", docType); 
+    // if (filteredTypes.length > 0) {
+    //   updateState({
+    //     sviTypes: filteredTypes,
+    //     selectedSVIType: "REG",
+    //   });
+    // }
 
 
       // 🔹 2. Document row (independent)
@@ -665,6 +674,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       documentID: data.sviId,
       documentNo: data.sviNo,
       branchCode: data.branchCode,
+      branchName:data.branchName,
       documentDate: useFormatToDate(data.sviDate),
       selectedSVIType: data.svitranType,
       custCode: data.custCode,
@@ -3507,11 +3517,12 @@ return (
     </div>
 
 
-    <div className={topTab === "history" ? "" : "hidden"}>
+
+    {/* <div className={topTab === "history" ? "" : "hidden"}>
       <AllTranHistory
         showHeader={false}
         endpoint="/getSVIHistory"
-        cacheKey={`SVI:${state.branchCode || ""}:${state.docNo || ""}`}  // ✅ per-transaction
+        cacheKey={`SVI:${state.branchCode || ""}:${state.fromDate || ""}:${state.toDate || ""}`}
         activeTabKey="SVI_Summary"
         branchCode={state.branchCode}
         startDate={state.fromDate}
@@ -3527,7 +3538,31 @@ return (
           onRowDoubleClick={handleHistoryRowPick}
           historyExportName={`${documentTitle} History`} 
     />
-  </div>
+  </div> */}
+
+
+  <div className={topTab === "history" ? "" : "hidden"}>
+  <AllTranHistory
+    showHeader={false}
+    isActive={topTab === "history"}
+    endpoint="/getSVIHistory"
+    cacheKey={`SVI:${state.branchCode || ""}:${state.fromDate || ""}:${state.toDate || ""}`}
+    activeTabKey="SVI_Summary"
+    branchCode={state.branchCode}
+    startDate={state.fromDate}
+    endDate={state.toDate}
+    status={(() => {
+      const s = (state.status || "").toUpperCase();
+      if (s === "FINALIZED") return "F";
+      if (s === "CANCELLED") return "X";
+      if (s === "CLOSED") return "C";
+      if (s === "OPEN") return "";
+      return "All";
+    })()}
+    onRowDoubleClick={handleHistoryRowPick}
+    historyExportName={`${documentTitle} History`}
+  />
+</div>
 
 
 </div>

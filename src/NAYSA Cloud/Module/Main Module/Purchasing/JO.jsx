@@ -91,7 +91,7 @@ const JO = () => {
     const navigate = useNavigate();
     const location = useLocation(); 
     const [isViewDocument, setIsViewDocument] = useState(false);
-    const { companyInfo, currentUserRow } = useAuth();
+    const { companyInfo, currentUserRow,getAllDropDown,refsLoaded } = useAuth();
     const decUPrice = companyInfo?.pur_decuprice ?? 2;
   
   
@@ -665,6 +665,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       documentID: data.joId,
       documentNo: data.joNo,
       branchCode: data.branchCode,
+      branchName:data.branchName,
       documentDate: useFormatToDate(data.joDate),
       rcCode: data.rcCode,
       rcName: data.rcName,
@@ -2375,26 +2376,28 @@ const handleClosePRLookup = async (selection) => {
       </div>
 
         {/* HISTORY TAB */}
-      <div className={topTab === "history" ? "" : "hidden"}>
-        <AllTranHistory
-        showHeader={false}
-        endpoint="/getJOHistory"
-        cacheKey={`JO:${state.branchCode || ""}:${state.docNo || ""}`}  // ✅ per-transaction
-        activeTabKey="JO_Summary"
-        branchCode={state.branchCode}
-        startDate={state.fromDate}
-        endDate={state.toDate}
-          status={(() => {
-            const s = (state.status || "").toUpperCase();
-            if (s === "CANCELLED") return "X";
-            if (s === "CLOSED")    return "C";
-            if (s === "OPEN")      return "";
-            return "All";
-          })()}
-          onRowDoubleClick={handleHistoryRowPick}
-          historyExportName={`${documentTitle} History`} 
-    />
-      </div>
+     <div className={topTab === "history" ? "" : "hidden"}>
+  <AllTranHistory
+    showHeader={false}
+    isActive={topTab === "history"}
+    endpoint="/getJOHistory"
+    cacheKey={`JO:${state.branchCode || ""}:${state.fromDate || ""}:${state.toDate || ""}`}
+    activeTabKey="JO_Summary"
+    branchCode={state.branchCode}
+    startDate={state.fromDate}
+    endDate={state.toDate}
+    status={(() => {
+      const s = (state.status || "").toUpperCase();
+      if (s === "FINALIZED") return "F";
+      if (s === "CANCELLED") return "X";
+      if (s === "CLOSED") return "C";
+      if (s === "OPEN") return "";
+      return "All";
+    })()}
+    onRowDoubleClick={handleHistoryRowPick}
+    historyExportName={`${documentTitle} History`}
+  />
+</div>
 
 
 

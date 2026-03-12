@@ -63,14 +63,14 @@ const UserAccessRights = () => {
   const guideRef = useRef(null);
 
   // Loading spinner component
- const LoadingSpinner = () => (
-     <div className="global-tran-spinner-main-div-ui">
-       <div className="global-tran-spinner-sub-div-ui">
-         <FontAwesomeIcon icon={faSpinner} spin size="2x" className="text-blue-500 mb-2" />
-         <p>Please wait...</p>
-       </div>
-     </div>
-   );
+  const LoadingSpinner = () => (
+    <div className="global-tran-spinner-main-div-ui">
+      <div className="global-tran-spinner-sub-div-ui">
+        <FontAwesomeIcon icon={faSpinner} spin size="2x" className="text-blue-500 mb-2" />
+        <p>Please wait...</p>
+      </div>
+    </div>
+  );
 
   // Fetch roles 
   const fetchRoles = async () => {
@@ -253,6 +253,9 @@ const UserAccessRights = () => {
     setOpenGuide(false);
   };
 
+  const primaryBtn =
+    "bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 transition duration-200";
+
   // Define the tabs structure
   const tabs = [
     { id: "userRoles", label: "User Roles", icon: faUsers, color: "blue" },
@@ -260,28 +263,21 @@ const UserAccessRights = () => {
     { id: "roleAccess", label: "Role Access Rights", icon: faShield, color: "purple" },
     // { id: "userAccess", label: "User Access Rights", icon: faKey, color: "orange" },
   ];
-
   const renderActionButtons = () => {
     switch (activeTab) {
+
       case "userRoles":
         return (
           <>
-            <button
-              className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
-              onClick={() => usersTabRef.current?.add?.()}
-            >
+            <button className={primaryBtn} onClick={() => usersTabRef.current?.add?.()}>
               <FontAwesomeIcon icon={faPlus} /> Add
             </button>
-            <button
-              className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
-              onClick={() => usersTabRef.current?.save?.()}
-            >
+
+            <button className={primaryBtn} onClick={() => usersTabRef.current?.save?.()}>
               <FontAwesomeIcon icon={faSave} /> Save
             </button>
-            <button
-              className="bg-gray-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-700"
-              onClick={() => usersTabRef.current?.reset?.()}
-            >
+
+            <button className={primaryBtn} onClick={() => usersTabRef.current?.reset?.()}>
               <FontAwesomeIcon icon={faUndo} /> Reset
             </button>
           </>
@@ -290,22 +286,15 @@ const UserAccessRights = () => {
       case "roleUserMatch":
         return (
           <>
-            <button
-              className="bg-purple-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-700"
-              onClick={() => rolesTabRef.current?.viewRole?.()}
-            >
+            <button className={primaryBtn} onClick={() => rolesTabRef.current?.viewRole?.()}>
               <FontAwesomeIcon icon={faEye} /> View Role
             </button>
-            <button
-              className="bg-gray-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-700"
-              onClick={() => rolesTabRef.current?.reset?.()}
-            >
+
+            <button className={primaryBtn} onClick={() => rolesTabRef.current?.reset?.()}>
               <FontAwesomeIcon icon={faUndo} /> Reset
             </button>
-            <button
-              className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
-              onClick={() => rolesTabRef.current?.apply?.()}
-            >
+
+            <button className={primaryBtn} onClick={() => rolesTabRef.current?.apply?.()}>
               <FontAwesomeIcon icon={faCheck} /> Apply
             </button>
           </>
@@ -314,22 +303,15 @@ const UserAccessRights = () => {
       case "roleAccess":
         return (
           <>
-            <button
-              className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
-              onClick={() => roleAccessTabRef.current?.viewModules?.()}
-            >
+            <button className={primaryBtn} onClick={() => roleAccessTabRef.current?.viewModules?.()}>
               <FontAwesomeIcon icon={faEye} /> View Modules
             </button>
-            <button
-              className="bg-gray-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-700"
-              onClick={() => roleAccessTabRef.current?.reset?.()}
-            >
+
+            <button className={primaryBtn} onClick={() => roleAccessTabRef.current?.reset?.()}>
               <FontAwesomeIcon icon={faUndo} /> Reset
             </button>
-            <button
-              className="bg-green-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700"
-              onClick={() => roleAccessTabRef.current?.saveAccess?.()}
-            >
+
+            <button className={primaryBtn} onClick={() => roleAccessTabRef.current?.saveAccess?.()}>
               <FontAwesomeIcon icon={faSave} /> Save Access
             </button>
           </>
@@ -338,22 +320,15 @@ const UserAccessRights = () => {
       case "userAccess":
         return (
           <>
-            <button
-              className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
-              onClick={() => userAccessTabRef.current?.viewRights?.()}
-            >
+            <button className={primaryBtn} onClick={() => userAccessTabRef.current?.viewRights?.()}>
               <FontAwesomeIcon icon={faEye} /> View Rights
             </button>
-            <button
-              className="bg-gray-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-700"
-              onClick={() => userAccessTabRef.current?.reset?.()}
-            >
+
+            <button className={primaryBtn} onClick={() => userAccessTabRef.current?.reset?.()}>
               <FontAwesomeIcon icon={faUndo} /> Reset
             </button>
-            <button
-              className="bg-green-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700"
-              onClick={() => userAccessTabRef.current?.apply?.()}
-            >
+
+            <button className={primaryBtn} onClick={() => userAccessTabRef.current?.apply?.()}>
               <FontAwesomeIcon icon={faCheck} /> Apply
             </button>
           </>
@@ -400,7 +375,7 @@ const UserAccessRights = () => {
           <div ref={exportRef} className="relative">
             <button
               onClick={() => setOpenExport((v) => !v)}
-              className="bg-green-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700"
+              className={primaryBtn}
             >
               <FontAwesomeIcon icon={faPrint} /> Export <FontAwesomeIcon icon={faChevronDown} className="text-xs" />
             </button>
@@ -431,7 +406,7 @@ const UserAccessRights = () => {
           <div ref={guideRef} className="relative">
             <button
               onClick={() => setOpenGuide((v) => !v)}
-              className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
+              className={primaryBtn}
             >
               <FontAwesomeIcon icon={faInfoCircle} /> Help <FontAwesomeIcon icon={faChevronDown} className="text-xs" />
             </button>
