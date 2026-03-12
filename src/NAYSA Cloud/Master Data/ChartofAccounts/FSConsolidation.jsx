@@ -443,7 +443,7 @@ const columns = useMemo(() => [
             e.stopPropagation();
             addRow();
           }}
-          className="py-1 px-2 bg-blue-200 text-blue-900 rounded-md hover:bg-blue-600 hover:text-white transition-colors"
+          className="py-1 px-2 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-colors"
           title="Add"
         >
           <FontAwesomeIcon icon={faPlus} />
@@ -454,7 +454,7 @@ const columns = useMemo(() => [
             e.stopPropagation();
             handleDelete(row);
           }}
-          className="py-1 px-2 bg-red-200 text-red-900 rounded-md hover:bg-red-600 hover:text-white transition-colors"
+          className="py-1 px-2 bg-red-100 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors"
           title="Delete"
         >
           <FontAwesomeIcon icon={faTrashAlt} />
@@ -465,7 +465,7 @@ const columns = useMemo(() => [
             e.stopPropagation();
             openRegistrationModal(row);
           }}
-          className="py-1 px-2 bg-indigo-200 text-indigo-900 rounded-md hover:bg-indigo-600 hover:text-white transition-colors"
+          className="py-1 px-2 bg-indigo-100 text-indigo-600 rounded-md hover:bg-indigo-600 hover:text-white transition-colors"
           title="Registration Info"
         >
           <FontAwesomeIcon icon={faClipboardList} />
@@ -685,27 +685,27 @@ const updateSelectedRowField = (field, value) => {
                 buttons={[
                   {
                     key: "add",
-                    label: <span className="hidden sm:inline ml-1">Add Row</span>,
+                    label: <span className="sm:inline ml-1">Add Row</span>,
                     icon: faPlus,
                     onClick: addRow,
                     className:
-                      "flex items-center justify-center h-8 w-8 sm:w-auto sm:h-9 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
+                      "flex items-center justify-center h-7 w-14 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
                   },
                   {
                     key: "save",
-                    label: <span className="hidden sm:inline ml-1">Save All</span>,
+                    label: <span className="sm:inline ml-1">Save</span>,
                     icon: faSave,
                     onClick: handleSaveAll,
                     className:
-                      "flex items-center justify-center h-8 w-8 sm:w-auto sm:h-9 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
+                      "flex items-center justify-center h-7 w-14 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
                   },
                   {
                     key: "reset",
-                    label: <span className="hidden sm:inline ml-1">Reset</span>,
+                    label: <span className="sm:inline ml-1">Reset</span>,
                     icon: faUndo,
                     onClick: resetTable,
                     className:
-                      "flex items-center justify-center h-8 w-8 sm:w-auto sm:h-9 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
+                      "flex items-center justify-center h-7 w-14 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
                   },
                 ]}
               />
@@ -713,10 +713,10 @@ const updateSelectedRowField = (field, value) => {
               <div ref={guideRef} className="relative">
                 <button
                   onClick={() => setOpenGuide((v) => !v)}
-                  className="bg-blue-600 text-white h-8 w-8 sm:w-auto sm:h-9 sm:px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
+                  className="bg-blue-600 text-white h-7 w-14 sm:w-auto sm:h-8 sm:px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
                 >
                   <FontAwesomeIcon icon={faInfoCircle} className="text-[12px]" />
-                  <span className="hidden sm:inline ml-1 text-[11px] font-medium">Info</span>
+                  <span className="sm:inline ml-1 text-[11px] font-medium">Info</span>
                   <FontAwesomeIcon icon={faChevronDown} className="hidden sm:inline text-[10px] opacity-80" />
                 </button>
 

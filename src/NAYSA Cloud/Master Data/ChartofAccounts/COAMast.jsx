@@ -15,15 +15,17 @@ import { useTopDocDropDown } from "@/NAYSA Cloud/Global/top1RefTable";
 import { useSwalErrorAlert, useSwalSuccessAlert, useSwalErrorAlertAPI, useSwalDeleteConfirm, useSwalDeleteRecord } from "@/NAYSA Cloud/Global/behavior";
 import { useFieldLenghtCheck, useGetFieldLength,} from '@/NAYSA Cloud/Global/procedure';
 import { Plus, Trash2 } from "lucide-react";
+
 // UI Helpers
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer";
+import RegistrationInfo from "@/NAYSA Cloud/Global/RegistrationInfo.jsx";
 import ButtonBar from "@/NAYSA Cloud/Global/ButtonBar";
 
-import RegistrationInfo from "@/NAYSA Cloud/Global/RegistrationInfo.jsx";
-
+// Tabs
 import FSConso from "@/NAYSA Cloud/Master Data/ChartofAccounts/FSConsolidation.jsx";
 import GLFSMatching from "@/NAYSA Cloud/Master Data/ChartofAccounts/GLFSMatching.jsx";
 
+// Initial Form State
 const INITIAL_FORM = {
   acctCode: "", acctName: "", classCode: "REG" , className: "Regular Account" ,acctType: "BS", acctGroup: "A",
   acctBalance: "DR", reqSL: "N", reqRC: "N", fsConsoCode: "", fsConsoName: "",
@@ -31,8 +33,11 @@ const INITIAL_FORM = {
   tblFieldArray :[],
 };
 
+// Initial Form State for Registration Info
 const INITIAL_REG = { registeredBy: "", registeredDate: "", lastUpdatedBy: "", lastUpdatedDate: "" };
 
+
+// Main Component
 const COAMast = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -86,16 +91,16 @@ const COAMast = () => {
   const { mutate: saveCOA, isLoading: isSaving } = useMutation({
     mutationFn: async (payload) => await apiClient.post("/upsertCOA", payload),
   
+    // SPROC result (errorcount/errormsg)
     onSuccess: (response) => {
-      // 1) SPROC row style (errorcount/errormsg)
       const sqlRow = response?.data?.data?.[0];
       if (sqlRow?.errorcount > 0) {
         useSwalErrorAlert("Error", sqlRow?.errormsg || "Failed to save Branch.");
-        resetForm(); // ✅ reset on failure
+        resetForm();
         return;
       }
   
-      // 2) API status style
+      // API status
       const status = response?.data?.status ?? response?.data?.data?.status;
       const success = response?.data?.success || status === "success" || !status;
   
@@ -106,7 +111,7 @@ const COAMast = () => {
             response?.data?.data?.message ||
             "Failed to save Account."
         );
-        resetForm(); // ✅ reset on failure
+        resetForm();
         return;
       }
   
@@ -177,6 +182,8 @@ const COAMast = () => {
     console.log("Edit Row:", row);
 
     setIsEditing(true);
+    setIsMobileActionSheetOpen(false); // close sheet after action
+
   };  
 
 
@@ -267,28 +274,44 @@ const updateForm = (updates) => setFormData(prev => ({ ...prev, ...updates }));
   // --- TABLE COLUMNS ---
 const columns = useMemo(() => [
     {
-    key: "__actions",
-    label: "Actions",
-    render: (row) => (
-      <div className="flex gap-1 justify-center">
-        <button
-          onClick={() => handleEdit(row)}
-          className="py-1 px-2 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-colors"
-          title="Edit"
-        >
-          <FontAwesomeIcon icon={faEdit} />
-        </button>
+  key: "__actions",
+  label: <span className="hidden md:inline">Actions</span>,
+  render: (row) => (
+    <div className="flex gap-2 justify-center w-full">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          if (isMobile) {
+            openMobileActionSheet(row);
+          } else {
+            handleEdit(row);
+          }
+        }}
+        className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-blue-50 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-colors text-xs"
+        title="Edit"
+      >
+        <FontAwesomeIcon icon={faEdit} />
+        <span className="md:hidden">Edit</span>
+      </button>
 
-        <button
-          onClick={() => handleDelete(row)}
-          className="py-1 px-2 bg-red-100 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors"
-          title="Delete"
-        >
-          <FontAwesomeIcon icon={faTrashAlt} />
-        </button>
-      </div>
-    ),
-  },
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          if (isMobile) {
+            openMobileActionSheet(row);
+          } else {
+            handleEdit(row);
+          }
+        }}
+        className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-red-50 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors text-xs"
+        title="Delete"
+      >
+        <FontAwesomeIcon icon={faTrashAlt} />
+        <span className="md:hidden">Delete</span>
+      </button>
+    </div>
+  ),
+},
 
   { key: "acctCode", label: "Account Code", sortable: true },
   { key: "acctName", label: "Account Name", sortable: true },
@@ -382,6 +405,36 @@ const columns = useMemo(() => [
 
     const getMax = (col) => useGetFieldLength(tblFieldArray, col);
 
+  const [isMobile, setIsMobile] = useState(false);
+  const [isMobileActionSheetMounted, setIsMobileActionSheetMounted] = useState(false);
+  const [isMobileActionSheetOpen, setIsMobileActionSheetOpen] = useState(false);
+  const [selectedMobileRow, setSelectedMobileRow] = useState(null);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  const openMobileActionSheet = (row) => {
+    setSelectedMobileRow(row);
+    setIsMobileActionSheetMounted(true);
+
+    requestAnimationFrame(() => {
+      setIsMobileActionSheetOpen(true);
+    });
+  };
+
+  const closeMobileActionSheet = () => {
+    setIsMobileActionSheetOpen(false);
+
+    setTimeout(() => {
+      setIsMobileActionSheetMounted(false);
+      setSelectedMobileRow(null);
+    }, 300);
+  };
 
   return (
     <div className="global-ref-main-div-ui">
@@ -499,7 +552,7 @@ const columns = useMemo(() => [
                       icon: faPlus,
                       onClick: () => { resetForm(); setIsEditing(true); },
                       className:
-                        "flex items-center justify-center h-7 w-14 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
+                        "flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
                     },
                     {
                       key: "save",
@@ -507,7 +560,7 @@ const columns = useMemo(() => [
                       icon: faSave,
                       onClick: handleSave,
                       disabled: !isEditing || isSaving || activeTab !== "coa",
-                      className: `flex items-center justify-center h-7 w-14 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md transition-all
+                      className: `flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md transition-all
                         ${(!isEditing || isSaving || activeTab !== "coa")
                           ? "bg-blue-500 opacity-50 cursor-not-allowed text-white"
                           : "bg-blue-600 text-white hover:bg-blue-700"
@@ -519,7 +572,7 @@ const columns = useMemo(() => [
                       icon: faUndo,
                       onClick: resetForm,
                       className:
-                        "flex items-center justify-center h-7 w-14 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
+                        "flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
                     },
                   ]}
                 />
@@ -529,7 +582,7 @@ const columns = useMemo(() => [
               <div ref={guideRef} className="relative">
                 <button
                   onClick={() => setOpenGuide((v) => !v)}
-                  className="bg-blue-600 text-white h-7 w-14 sm:w-auto sm:h-8 sm:px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
+                  className="bg-blue-600 text-white h-7 w-16 sm:w-auto sm:h-8 sm:px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
                 >
                   <FontAwesomeIcon icon={faInfoCircle} className="text-[12px]" />
                   <span className="sm:inline ml-1 text-[11px] font-medium">Info</span>
@@ -565,12 +618,13 @@ const columns = useMemo(() => [
       {activeTab === "coa" && (
         <>
           <div className="mt-40 sm:mt-24 flex flex-col lg:flex-row lg:items-stretch gap-2">
-            
+           
             {/* LEFT DIV: Main Form Fields (Takes 75% of width on large screens) */}
             <div className="flex-1 bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-100 dark:border-gray-700 shadow-lg grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-              
+             
               {/* Sub-Column 1 (Internal Grid) */}
               <div className="space-y-6">
+                
                 <div className="grid grid-cols-2 gap-3">
                   <FieldRenderer
                     label="Account Code"
@@ -713,6 +767,7 @@ const columns = useMemo(() => [
               isLoading={isListLoading}
               onRowDoubleClick={handleEdit}
               itemsPerPage={200}
+              onMobileRowOpen={openMobileActionSheet}
             />
           </div>
         </>
@@ -741,9 +796,66 @@ const columns = useMemo(() => [
           </div>
         )}
 
+        
+{isMobileActionSheetMounted && (
+  <div className="fixed inset-0 z-[120] md:hidden">
+    <div
+      className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${
+        isMobileActionSheetOpen ? "opacity-100" : "opacity-0"
+      }`}
+      onClick={closeMobileActionSheet}
+    />
+
+    <div
+      className={`absolute bottom-0 left-0 right-0 rounded-t-2xl bg-white shadow-2xl p-4 transform transition-transform duration-300 ease-out ${
+        isMobileActionSheetOpen ? "translate-y-0" : "translate-y-full"
+      }`}
+    >
+      <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4" />
+
+      <div className="mb-3">
+        <h2 className="text-sm font-bold text-gray-800">Account Actions</h2>
+        <p className="text-xs text-gray-500">
+          {selectedMobileRow?.acctCode} {selectedMobileRow?.acctName ? `- ${selectedMobileRow.acctName}` : ""}
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <button
+          onClick={() => handleEdit(selectedMobileRow)}
+          className="w-full flex items-center justify-center gap-2 rounded-lg bg-blue-50 text-blue-600 py-3 text-sm font-medium hover:bg-blue-600 hover:text-white transition-colors"
+        >
+          <FontAwesomeIcon icon={faEdit} />
+          Edit
+        </button>
+
+        <button
+          onClick={() => {
+            handleDelete(selectedMobileRow);
+            closeMobileActionSheet();
+          }}
+          className="w-full flex items-center justify-center gap-2 rounded-lg bg-red-50 text-red-600 py-3 text-sm font-medium hover:bg-red-600 hover:text-white transition-colors"
+        >
+          <FontAwesomeIcon icon={faTrashAlt} />
+          Delete
+        </button>
+
+        <button
+          onClick={closeMobileActionSheet}
+          className="w-full rounded-lg bg-gray-100 text-gray-700 py-3 text-sm font-medium"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
 
     </div>
+    
   );
+  
 };
 
 export default COAMast;

@@ -52,7 +52,8 @@ const SearchGlobalReferenceTable = forwardRef(
       onStateChange,
       totalExemptions = ["rate", "percent", "ratio", "id", "code"],
       isLoading = false,
-      tableSize = "Full"
+      tableSize = "Full",
+      onMobileRowOpen,
     },
     ref,
   ) => {
@@ -914,7 +915,11 @@ const getColWidth = (col) => {
 
 
     const handleRowOpen = (row) => {
-      onRowDoubleClick?.(row);
+      if (isMobile) {
+        onMobileRowOpen?.(row);
+      } else {
+        onRowDoubleClick?.(row);
+      }
     };
 
     const filterInputClass =
@@ -929,7 +934,7 @@ const renderMobileCard = (row, idx) => {
     return (
       <div
         key={`g-${uniqueId}`}
-        className="rounded-lg border bg-gray-50 p-3 cursor-pointer"
+        className="rounded-lg border bg-gray-100 p-4 cursor-pointer"
         onClick={() => toggleGroup(row)}
       >
         <div className="flex items-center">
@@ -958,13 +963,20 @@ const renderMobileCard = (row, idx) => {
       className="rounded-lg border bg-white shadow-sm p-3 cursor-pointer active:scale-[0.99] transition"
       onClick={() => handleRowOpen(row)}
     >
-      <div className="space-y-2">
+      <div className="space-y-1">
         {firstCols.map((col) => (
-          <div key={col.key} className="flex items-start justify-between gap-3">
-            <span className="text-[11px] font-semibold text-gray-600 min-w-[110px]">
-              {col.label}
-            </span>
-            <div className="text-[11px] text-gray-800 text-right break-words flex-1">
+          <div
+              key={col.key}
+              className={`flex items-start justify-between gap-1 ${
+                col.key === "__actions" ? "flex-col items-stretch mb-2" : ""
+              }`}
+            >
+            <span
+              className={`text-[10px] font-semibold text-gray-600 ${
+                col.key === "__actions" ? "min-w-0 mb-1" : "min-w-[110px]"
+              }`}
+            >{col.label}</span>
+            <div className="text-[10px] text-gray-800 text-left break-words flex-1">
               {typeof col.render === "function"
                 ? col.render(row)
                 : formatValue(row[col.key], col)}
@@ -973,13 +985,17 @@ const renderMobileCard = (row, idx) => {
         ))}
 
         {otherCols.length > 0 && (
-          <div className="pt-2 border-t border-gray-100 space-y-2">
+          <div className="pt-2 border-t border-gray-100 space-y-1">
             {otherCols.map((col) => (
-              <div key={col.key} className="flex items-start justify-between gap-3">
-                <span className="text-[11px] font-semibold text-gray-600 min-w-[110px]">
+              <div key={col.key} className="flex items-start justify-between gap-1">
+                <span className="text-[10px] font-semibold text-gray-600 min-w-[110px]">
                   {col.label}
                 </span>
-                <div className="text-[11px] text-gray-800 text-right break-words flex-1">
+                  <div
+                    className={`text-[10px] text-gray-800 text-left break-words ${
+                      col.key === "__actions" ? "w-full" : "flex-1"
+                    }`}
+                  >
                   {typeof col.render === "function"
                     ? col.render(row)
                     : formatValue(row[col.key], col)}

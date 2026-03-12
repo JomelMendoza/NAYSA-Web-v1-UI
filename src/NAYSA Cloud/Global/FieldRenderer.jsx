@@ -44,10 +44,10 @@ const FieldRenderer = ({
 
   // ✅ SHARED CLASSES: Conditional styling based on isEnabled (or audit bypass)
   const sharedClasses = `
-    peer w-full h-10
+    peer w-full h-8 sm:h-8
     global-ref-textbox-ui 
-    !px-4 
-    !text-xs font-normal
+    !px-2 
+    !font-normal
     rounded-lg
     ${isEnabled ? "global-ref-textbox-enabled" : "global-ref-textbox-disabled"}
     ${readOnly || isAudit ? "cursor-default" : ""}
@@ -99,20 +99,21 @@ const FieldRenderer = ({
             value={value || ""}
             readOnly
             placeholder={placeholder}
-            className={`${sharedClasses} cursor-pointer pr-12 !rounded-r-none`}
+            className={`${sharedClasses} cursor-pointer pr-12 !important`}
             onClick={() => !disabled && !isAudit && onLookup?.()}
           />
           <button
             type="button"
             onClick={() => !disabled && onLookup?.()}
             disabled={disabled || isAudit}
+            title="Search"
             className={`
-        absolute right-0 top-0 h-10 w-10 flex items-center justify-center
-        rounded-r-sm border border-l-0  transition-colors
+              absolute right-0 top-0 h-8 sm:h-8 w-10 flex items-center justify-center
+              rounded-r-lg border border-l-0  transition-colors
         ${
           !disabled && !isAudit
-            ? "bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-200 hover:text-blue transition-colors"
-            : "bg-gray-100 text-gray-400 border-gray-300"
+            ? "bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-colors"
+            : "bg-gray-100 text-gray-400"
         }
       `}
           >
