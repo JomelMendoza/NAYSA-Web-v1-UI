@@ -512,3 +512,32 @@ export const useTopPayTermRow = async (paytermCode) => {
 };
 
 
+
+
+export async function useTopDocDropDownAll() {
+  try {
+    const response = await postRequest("getHSDropdownAll", {}); 
+    
+    if (!response || !response.success || !response.data || !Array.isArray(response.data)) {
+      return [];
+    }
+
+    // This version joins the first column of every row, 
+    // even if the column name isn't exactly "result"
+    const fullJsonString = response.data
+      .map(row => Object.values(row)[0]) 
+      .join("");
+
+    if (!fullJsonString) return [];
+
+    try {
+      const parsedData = JSON.parse(fullJsonString);
+      return Array.isArray(parsedData) ? parsedData : [];
+    } catch (parseError) {
+      console.error("Parse Error: Invalid JSON string");
+      return [];
+    }
+  } catch (error) {
+    return [];
+  }
+}

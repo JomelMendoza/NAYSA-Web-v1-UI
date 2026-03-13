@@ -1,4 +1,6 @@
-import COAMast from "../Master Data/COAMast";
+import BankMast from "../Master Data/BankMast";
+import COAMast from "../Master Data/ChartofAccounts/COAMast";
+import BillCodeRef from "../Reference File/BillCodeRef";
 import CutoffRef from "../Reference File/CutoffRef";
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 
@@ -23,6 +25,8 @@ export const reftables = {
     Currency: "Currency Codes",
     COAMast: "Chart of Accounts",
     UserUpdate: "Update User",
+    BankMast: "Bank Master Data",
+    BillCode: "Bill Codes",
 
     // Accounts Payable Module
     APV: "Accounts Payable Voucher Transaction",
@@ -86,6 +90,7 @@ export const reftables = {
   };
 
 
+<<<<<<< HEAD
 
 
 
@@ -103,6 +108,8 @@ export const reftables = {
 
 
 
+=======
+>>>>>>> d15a2d968d9eeb894dfd79bbb993444e4a8a0121
   // utils/accountUtils.js (or useAccountActions.js)
 
  export const useGlobalDuplicateRefTable = async (tblCode, payload, fieldcaption) => {

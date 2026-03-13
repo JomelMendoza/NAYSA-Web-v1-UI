@@ -1,11 +1,21 @@
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
     faTimes, faSort, faSortUp, faSortDown, 
-    faSpinner, faSearch, faFilter, faUser,
+    faSpinner, faSearch, faFilter, faUser, faSyncAlt, faEraser
 } from '@fortawesome/free-solid-svg-icons';
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
+
+// Debounce hook to prevent hammering the Sproc on every keystroke
+function useDebounce(value, delay) {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+    useEffect(() => {
+        const handler = setTimeout(() => setDebouncedValue(value), delay);
+        return () => clearTimeout(handler);
+    }, [value, delay]);
+    return debouncedValue;
+}
 
 const PayeeMastLookupModal = ({ isOpen, onClose, customParam }) => {
     const columnConfig = [
@@ -18,177 +28,178 @@ const PayeeMastLookupModal = ({ isOpen, onClose, customParam }) => {
         { key: 'addr',     label: 'Address',    width: 'auto'  }
     ];
 
-    const [payees, setPayees] = useState([]);
-    const [filtered, setFiltered] = useState([]);
+    // Search and UI State
     const [searchTerm, setSearchTerm] = useState('');
     const [searchMode, setSearchMode] = useState('part'); 
-    const [filters, setFilters] = useState(
-        columnConfig.reduce((acc, col) => ({ ...acc, [col.key]: '' }), {})
-    );
-    const [loading, setLoading] = useState(false);
+    const [filters, setFilters] = useState(columnConfig.reduce((acc, col) => ({ ...acc, [col.key]: '' }), {}));
     const [sortConfig, setSortConfig] = useState({ key: '', direction: 'asc' });
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 50;
 
+    const debouncedSearch = useDebounce(searchTerm, 500);
 
-    const fetchData = useCallback(async () => {
-        setLoading(true);
-        try {
-            const json_values = {
-                search: searchTerm.trim() || null,
-                filter: customParam || "ActiveAll",
-                searchMode: searchMode 
+    // 1. Data Fetching with Auto-Sync
+    const { 
+        data: payees = [], 
+        isLoading, 
+        isFetching, 
+        refetch 
+    } = useQuery({
+        // Query triggers whenever search text or mode changes
+        queryKey: ['lookupVendMast', debouncedSearch, searchMode, customParam],
+        queryFn: async () => {
+            const payload = { 
+                json_data: {
+                    search: debouncedSearch.trim() || null,
+                    filter: customParam || "ActiveAll",
+                    searchMode: searchMode 
+                } 
             };
-            const payload = { json_data: json_values };
             const { data: result } = await apiClient.get("/lookupVendMast", {
                 params: { json_data: JSON.stringify(payload) }
             });
 
-            const payeeData = Array.isArray(result?.data) && result.data[0]?.result
-                ? JSON.parse(result.data[0].result)
-                : [];
+            const rawData = result?.data?.[0]?.result;
+            return rawData ? JSON.parse(rawData) : [];
+        },
+        enabled: isOpen,
+        staleTime: 1000 * 60, // 1 minute cache
+        refetchInterval: 1000 * 30, // 🔄 AUTO-SYNC: Poll every 30s
+        placeholderData: keepPreviousData, 
+    });
 
-            setPayees(payeeData);
-            setFiltered(payeeData);
-            setCurrentPage(1); 
-        } catch (err) {
-            console.error("Failed to fetch payees:", err);
-        } finally {
-            setLoading(false);
-        }
-    }, [searchTerm, customParam, searchMode]);
-
-    useEffect(() => {
-        if (isOpen) fetchData();
-    }, [isOpen]);
-
-    useEffect(() => {
-        let currentFiltered = [...payees];
-        currentFiltered = currentFiltered.filter(item =>
+    // 2. Client-Side Filtering (for the sub-filters in the table headers)
+    const filteredAndSorted = useMemo(() => {
+        let result = [...payees].filter(item =>
             columnConfig.every(col => 
                 (item[col.key] || '').toLowerCase().includes((filters[col.key] || '').toLowerCase())
             )
         );
 
         if (sortConfig.key) {
-            currentFiltered.sort((a, b) => {
-                const aValue = a[sortConfig.key] || '';
-                const bValue = b[sortConfig.key] || '';
-                if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
-                if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
-                return 0;
+            result.sort((a, b) => {
+                const aVal = String(a[sortConfig.key] || '');
+                const bVal = String(b[sortConfig.key] || '');
+                return sortConfig.direction === 'asc' 
+                    ? aVal.localeCompare(bVal, undefined, { numeric: true })
+                    : bVal.localeCompare(aVal, undefined, { numeric: true });
             });
         }
-        setFiltered(currentFiltered);
-    }, [filters, payees, sortConfig]);
+        return result;
+    }, [payees, filters, sortConfig]);
+
+    // Reset page on search
+    useEffect(() => { setCurrentPage(1); }, [debouncedSearch, filters]);
 
     if (!isOpen) return null;
 
-    const paginatedData = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-    const totalItems = filtered.length;
-    const startItem = totalItems > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
-    const endItem = Math.min(currentPage * itemsPerPage, totalItems);
+    const paginatedData = filteredAndSorted.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    const totalItems = filteredAndSorted.length;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-7xl max-h-[90vh] flex flex-col relative overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-7xl max-h-[90vh] flex flex-col relative overflow-hidden border border-slate-200">
                 
-                <button onClick={() => onClose(null)} className="absolute top-3 right-3 text-blue-500 hover:text-blue-700 p-1 rounded-full hover:bg-blue-100 z-20">
-                    <FontAwesomeIcon icon={faTimes} size="lg" />
-                </button>
+                {/* Header */}
+                <div className="flex items-center justify-between p-3 border-b bg-slate-50">
+                    <div className="flex items-center gap-3">
+                        <div className="relative">
+                            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-tight">Select Payee</h2>
+                            {isFetching && (
+                                <span className="absolute -top-1 -right-4 flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => refetch()} className="p-2 text-slate-400 hover:text-blue-600 transition-colors">
+                            <FontAwesomeIcon icon={faSyncAlt} spin={isFetching} size="sm" />
+                        </button>
+                        <button onClick={() => onClose(null)} className="p-2 text-slate-400 hover:text-red-600 transition-colors">
+                            <FontAwesomeIcon icon={faTimes} size="lg" />
+                        </button>
+                    </div>
+                </div>
 
-                <h2 className="text-sm font-semibold text-blue-800 p-3 border-b border-gray-100">Select Payee</h2>
-
-                <div className="p-3 bg-gray-50 border-b border-gray-100 flex flex-wrap gap-4 items-center">
-                    {/* Search Input with Clear Button */}
+                {/* Search Bar & Mode Toggle */}
+                <div className="p-3 bg-white border-b flex flex-wrap gap-4 items-center">
                     <div className="relative flex-grow max-w-md">
-                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-                            <FontAwesomeIcon icon={faUser} />
+                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                            <FontAwesomeIcon icon={faSearch} />
                         </span>
                         <input
                             type="text"
-                            placeholder="Search Payee Name..."
-                            className="block w-full pl-10 pr-10 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 outline-none transition-all"
+                            placeholder="Type name to search database..."
+                            className="block w-full pl-10 pr-10 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && fetchData()}
                         />
                         {searchTerm && (
-                            <button 
-                                onClick={() => setSearchTerm('')}
-                                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-red-500 transition-colors"
-                            >
-                                <FontAwesomeIcon icon={faTimes} size="sm" />
+                            <button onClick={() => setSearchTerm('')} className="absolute inset-y-0 right-0 pr-3 text-slate-300 hover:text-red-500">
+                                <FontAwesomeIcon icon={faEraser} size="sm" />
                             </button>
                         )}
                     </div>
 
-                    <div className="flex items-center gap-3 px-3 border-l border-gray-300">
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                            <input type="radio" name="sm" value="start" checked={searchMode === 'start'} onChange={(e) => setSearchMode(e.target.value)} className="accent-blue-600" />
-                            <span className="text-xs text-gray-700">Starts with</span>
+                    <div className="flex items-center gap-4 px-4 border-l border-slate-200">
+                        <label className="flex items-center gap-2 cursor-pointer group">
+                            <input type="radio" name="sm" value="start" checked={searchMode === 'start'} onChange={(e) => setSearchMode(e.target.value)} className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" />
+                            <span className="text-xs font-medium text-slate-600 group-hover:text-blue-600">Starts with</span>
                         </label>
-                        <label className="flex items-center gap-1.5 cursor-pointer">
-                            <input type="radio" name="sm" value="part" checked={searchMode === 'part'} onChange={(e) => setSearchMode(e.target.value)} className="accent-blue-600" />
-                            <span className="text-xs text-gray-700">Contains</span>
+                        <label className="flex items-center gap-2 cursor-pointer group">
+                            <input type="radio" name="sm" value="part" checked={searchMode === 'part'} onChange={(e) => setSearchMode(e.target.value)} className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" />
+                            <span className="text-xs font-medium text-slate-600 group-hover:text-blue-600">Contains</span>
                         </label>
                     </div>
 
-                    <div className="flex gap-2">
-                        <button onClick={() => fetchData()} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 flex items-center gap-2 shadow-sm transition-colors">
-                            <FontAwesomeIcon icon={faFilter} size="sm" /> Load Records
-                        </button>
-                        
-                        
-                    </div>
+                    {isFetching && <span className="text-[10px] text-blue-500 font-bold animate-pulse uppercase">Syncing...</span>}
                 </div>
 
-                {/* Table and Pagination logic remains the same... */}
-                <div className="flex-grow overflow-hidden flex flex-col">
-                    {loading ? (
-                        <div className="flex items-center justify-center h-64 text-blue-500">
-                            <FontAwesomeIcon icon={faSpinner} spin size="2x" className="mr-3" />
-                            <span>Fetching data...</span>
+                {/* Table Section */}
+                <div className="flex-grow overflow-hidden flex flex-col bg-white">
+                    {isLoading && payees.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-64 text-slate-400">
+                            <FontAwesomeIcon icon={faSpinner} spin size="2x" className="mb-4 text-blue-500" />
+                            <p className="text-sm font-medium">Connecting to server...</p>
                         </div>
                     ) : (
-                        <div className="overflow-y-auto custom-scrollbar flex-grow">
-                            <table className="w-full border-collapse">
-                                <thead className="bg-gray-100 sticky top-0 z-10 shadow-sm text-[11px] font-bold text-blue-900">
+                        <div className="overflow-auto custom-scrollbar flex-grow">
+                            <table className="w-full border-separate border-spacing-0">
+                                <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                                     <tr>
                                         {columnConfig.map(col => (
-                                            <th key={col.key} style={{ width: col.width, minWidth: col.width }} className="px-4 py-2 text-left cursor-pointer hover:bg-blue-100 border-b border-gray-200" onClick={() => handleSort(col.key)}>
-                                                <div className="flex items-center justify-between">
-                                                    {col.label} {sortConfig.key === col.key ? (sortConfig.direction === 'asc' ? <FontAwesomeIcon icon={faSortUp} className="text-blue-500"/> : <FontAwesomeIcon icon={faSortDown} className="text-blue-500"/>) : <FontAwesomeIcon icon={faSort} className="text-gray-400" />}
+                                            <th key={col.key} style={{ width: col.width, minWidth: col.width }} className="px-4 py-3 text-left border-b border-slate-200 group">
+                                                <div 
+                                                    className="flex items-center justify-between cursor-pointer mb-2" 
+                                                    onClick={() => setSortConfig({ key: col.key, direction: sortConfig.key === col.key && sortConfig.direction === 'asc' ? 'desc' : 'asc' })}
+                                                >
+                                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider group-hover:text-blue-600 transition-colors">{col.label}</span>
+                                                    <FontAwesomeIcon icon={sortConfig.key === col.key ? (sortConfig.direction === 'asc' ? faSortUp : faSortDown) : faSort} className={`text-[10px] ${sortConfig.key === col.key ? 'text-blue-500' : 'text-slate-300'}`} />
                                                 </div>
-                                            </th>
-                                        ))}
-                                        <th className="px-4 py-2 text-left w-[80px] border-b border-gray-200">Action</th>
-                                    </tr>
-                                    <tr className="bg-gray-50">
-                                        {columnConfig.map(col => (
-                                            <th key={col.key} className="px-3 py-1 border-b border-gray-200">
                                                 <input 
                                                     type="text" 
                                                     value={filters[col.key]} 
                                                     onChange={(e) => setFilters({ ...filters, [col.key]: e.target.value })} 
-                                                    placeholder={`Filter...`} 
-                                                    className="block w-full px-2 py-1 text-[10px] border border-gray-300 rounded-md focus:border-blue-400 outline-none" 
+                                                    placeholder="Filter list..." 
+                                                    className="block w-full px-2 py-1 text-[10px] border border-slate-200 rounded bg-white focus:border-blue-400 outline-none font-normal" 
                                                 />
                                             </th>
                                         ))}
-                                        <th className="px-3 py-1 border-b border-gray-200"></th>
+                                        <th className="px-4 py-3 border-b border-slate-200 w-[80px]"></th>
                                     </tr>
                                 </thead>
-                                <tbody className="bg-white divide-y divide-gray-100 text-[11px]">
+                                <tbody className="divide-y divide-slate-100">
                                     {paginatedData.map((payee, index) => (
-                                        <tr key={index} className="hover:bg-blue-50 transition-colors cursor-pointer" onClick={() => onClose(payee)}>
+                                        <tr key={index} className="hover:bg-blue-50/50 transition-colors cursor-pointer group" onClick={() => onClose(payee)}>
                                             {columnConfig.map(col => (
-                                                <td key={col.key} className="px-4 py-2 break-words whitespace-normal align-top" style={{ width: col.width }}>
-                                                    {payee[col.key]}
+                                                <td key={col.key} className="px-4 py-3 text-xs text-slate-600 whitespace-normal align-top leading-relaxed">
+                                                    {col.key === 'vendCode' ? <span className="font-bold text-blue-700">{payee[col.key]}</span> : payee[col.key]}
                                                 </td>
                                             ))}
-                                            <td className="px-4 py-2 align-top">
-                                                <button className="px-3 py-1 text-white bg-blue-600 rounded hover:bg-blue-700 text-[10px]">Apply</button>
+                                            <td className="px-4 py-3 align-top text-right">
+                                                <button className="px-3 py-1 bg-slate-100 text-slate-600 group-hover:bg-blue-600 group-hover:text-white rounded text-[10px] font-bold uppercase transition-all">Apply</button>
                                             </td>
                                         </tr>
                                     ))}
@@ -198,14 +209,30 @@ const PayeeMastLookupModal = ({ isOpen, onClose, customParam }) => {
                     )}
                 </div>
 
-                {/* Footer / Pagination */}
-                <div className="p-3 border-t bg-gray-50 flex justify-between items-center text-xs text-gray-600">
-                    <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1 bg-blue-100 rounded disabled:opacity-50 hover:bg-blue-200 transition-colors">Previous</button>
-                    <div>Showing {startItem}-{endItem} of {totalItems}</div>
-                    <button onClick={() => setCurrentPage(p => p + 1)} disabled={filtered.length <= currentPage * itemsPerPage} className="px-3 py-1 bg-blue-100 rounded disabled:opacity-50 hover:bg-blue-200 transition-colors">Next</button>
+                {/* Pagination Footer */}
+                <div className="p-3 border-t bg-slate-50 flex justify-between items-center text-[11px] font-bold text-slate-500">
+                    <div className="uppercase tracking-widest">
+                        Total Found: {totalItems}
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <button 
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                            disabled={currentPage === 1} 
+                            className="px-4 py-1.5 bg-white border border-slate-200 rounded shadow-sm disabled:opacity-30 hover:bg-slate-50 transition-all uppercase"
+                        >
+                            Prev
+                        </button>
+                        <span className="text-slate-700 uppercase">Page {currentPage} of {Math.ceil(totalItems / itemsPerPage) || 1}</span>
+                        <button 
+                            onClick={() => setCurrentPage(p => p + 1)} 
+                            disabled={totalItems <= currentPage * itemsPerPage} 
+                            className="px-4 py-1.5 bg-white border border-slate-200 rounded shadow-sm disabled:opacity-30 hover:bg-slate-50 transition-all uppercase"
+                        >
+                            Next
+                        </button>
+                    </div>
                 </div>
             </div>
-            {/* Styles remain same as your original */}
         </div>
     );
 };

@@ -1,6 +1,6 @@
 import { useState, useEffect,useRef,useCallback } from "react";
 import Swal from 'sweetalert2';
-import { useNavigate } from "react-router-dom";
+import { useNavigate,useLocation  } from "react-router-dom";
 
 // UI
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -75,6 +75,8 @@ import {
   useUpdateRowEditEntries,
   useFetchTranData,
   useHandleCancel,
+  useFieldLenghtCheck,
+  useGetFieldLength,
 } from '@/NAYSA Cloud/Global/procedure';
 
 
@@ -90,22 +92,41 @@ import {
 } from '@/NAYSA Cloud/Global/behavior';
 
 
+
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
+
+
+
 // Header
 import Header from '@/NAYSA Cloud/Components/Header';
 import { faAdd } from "@fortawesome/free-solid-svg-icons/faAdd";
 
 
 const ARCM = () => {
-   const loadedFromUrlRef = useRef(false);
-   const navigate = useNavigate();
-   const [topTab, setTopTab] = useState("details"); // "details" | "history"
-   const { user } = useAuth();
-   const { resetFlag } = useReset();
-   const [state, setState] = useState({
+    // View Document Const
+  const loadedFromUrlRef = useRef(false);
+  const navigate = useNavigate();
+  const location = useLocation(); 
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded } = useAuth();
+  const [isViewDocument, setIsViewDocument] = useState(false);
+  useEffect(() => {
+    const p = new URLSearchParams(location.search);
+    if (p.get("viewDocument") === "true") {
+      setIsViewDocument(true);
+    }
+    }, []); 
+  const isViewDocumentUrl = isViewDocument;
+
+
+
+  const [topTab, setTopTab] = useState("details"); // "details" | "history"
+  const { user } = useAuth();
+  const { resetFlag } = useReset();
+  const [state, setState] = useState({
 
     // HS Option
     glCurrMode:"M",
-    glCurrDefault:"PHP",
+    glCurrDefault:companyInfo?.currCode||"",
     withCurr2:false,
     withCurr3:false,
     glCurrGlobal1:"",
@@ -138,8 +159,8 @@ const ARCM = () => {
     isFetchDisabled: false,
 
 
-    branchCode: "HO",
-    branchName: "Head Office",
+    branchCode: currentUserRow?.branchCode||"",
+    branchName: currentUserRow?.branchName||"",
     
     // Vendor information
     custCode: "",
@@ -149,10 +170,10 @@ const ARCM = () => {
 
     
     // Currency information
-    currCode: "",
-    currName: "",
-    currRate: "",
-    defaultCurrRate:"1.000000",
+    currCode: companyInfo?.currCode||"",
+    currName: companyInfo?.currName||"",
+    currRate: formatNumber(companyInfo?.currRate||1,6),
+    defaultCurrRate:formatNumber(companyInfo?.currRate||1,6),
 
 
     //Other Header Info
@@ -171,7 +192,7 @@ const ARCM = () => {
     remarks: "",
 
     selectedARCMType : "ARCM01",
-    userCode: user.USER_CODE, 
+    userCode: currentUserRow?.userCode||"", 
 
 
     //Detail 1-2
@@ -271,6 +292,7 @@ const ARCM = () => {
 
 
   // Transaction details
+  tblFieldArray,
   detailRows,
   detailRowsGL,
   globalLookupRow,
@@ -411,11 +433,15 @@ useEffect(() => {
 
 
 
-  useEffect(() => {
-    handleReset();
-    loadCompanyData(); 
-  }, []);
+const isInitialMount = useRef(true);
 
+useEffect(() => {
+  if (isInitialMount.current) {
+    handleReset();
+    loadCompanyData();
+    isInitialMount.current = false;
+  }
+}, []);
 
 
   
@@ -431,19 +457,6 @@ useEffect(() => {
   
 
 
-  const LoadingSpinner = () => (
-    <div className="global-tran-spinner-main-div-ui">
-      <div className="global-tran-spinner-sub-div-ui">
-        <FontAwesomeIcon icon={faSpinner} spin size="2x" className="text-blue-500 mb-2" />
-        <p>Please wait...</p>
-      </div>
-    </div>
-  );
-
-
-  
-
-
   const updateTotalsDisplay = (siAmt, applied, vat, atc) => {
     setTotals({
           totalSIAmount: formatNumber(siAmt),
@@ -454,13 +467,32 @@ useEffect(() => {
   };
 
 
+  useEffect(() => {
+  if (!refsLoaded) return;
+  const arcmType = getAllDropDown("ARCMTRAN_TYPE", docType);
+  if (arcmType.length > 0) {
+    updateState({
+      arcmTypes: arcmType,
+      selectedARMType: "ARCM01",
+    });
+  }
+}, [docType, refsLoaded]);
+
+
+
+
+
 
   const handleReset = () => { 
       updateState({
 
-      branchCode: "HO",
-      branchName: "Head Office",
+      branchCode: currentUserRow?.branchCode||"",
+      branchName: currentUserRow?.branchName||"",
+      userCode:currentUserRow?.userCode||"",
       documentDate:useGetCurrentDay(),
+      currCode:companyInfo?.currCode||"",
+      currName:companyInfo?.currName||"",
+      currRate:formatNumber(companyInfo?.currRate||1,6) ,
       selectedARCMType : "ARCM01",
       noReprints:"0",
 
@@ -503,16 +535,8 @@ useEffect(() => {
     updateState({isLoading:true})
 
     try {
-      // 🔹 1. Run these in parallel since they don’t depend on each other
-      const [ arcmType] = await Promise.all([
-        useTopDocDropDown(docType, "ARCMTRAN_TYPE"),
-      ]);
-      if (arcmType) {
-        updateState({ arcmTypes: arcmType, selectedARMType: "ARCM01" });
-      }
      
-
-
+     
 
       // 🔹 2. Document row (independent)
       const docRow = await useTopDocControlRow(docType);
@@ -563,6 +587,16 @@ useEffect(() => {
           });
         }
       }
+
+
+     const tbls = 'arcm_hd,arcm_dt1,arcm_dt2'
+     const hdtblcol_result = await useFieldLenghtCheck(tbls);
+     if (hdtblcol_result){
+       updateState({tblFieldArray :hdtblcol_result })
+     }
+      
+
+
     } catch (err) {
       console.error("Error fetching data:", err);
     }
@@ -595,7 +629,7 @@ const loadCurrencyMode = (
 
 
 
-const fetchTranData = async (documentNo, branchCode) => {
+const fetchTranData = async (documentNo, branchCode,direction='') => {
   const resetState = () => {
     updateState({documentNo:'', documentID: '', isDocNoDisabled: false, isFetchDisabled: false });
     updateTotals([]);
@@ -604,7 +638,7 @@ const fetchTranData = async (documentNo, branchCode) => {
   updateState({ isLoading: true });
 
   try {
-    const data = await useFetchTranData(documentNo, branchCode,docType,"arcmNo");
+    const data = await useFetchTranData(documentNo, branchCode,docType,"arcmNo",direction);
 
 
     if (!data?.arcmId) {
@@ -643,6 +677,7 @@ const fetchTranData = async (documentNo, branchCode) => {
       documentID: data.arcmId,
       documentNo: data.arcmNo,
       branchCode: data.branchCode,
+      branchName:data.branchName,
       documentDate: useFormatToDate(data.arcmDate),
       selectedARCMType: data.arcmtranType,
       custCode: data.custCode,
@@ -1059,32 +1094,36 @@ if (selectedARCMType !== "ARCM07" || !detailRows?.length) {
 
 
   
-  //  ** View Document and Transaction History Retrieval ***
-   const cleanUrl = useCallback(() => {
-      navigate(location.pathname, { replace: true });
-    }, [navigate, location.pathname]);
-  
-  
-    const handleHistoryRowPick = useCallback((row) => {
-      const docNo = row?.docNo;
-      const branchCode = row?.branchCode;
-      if (!docNo || !branchCode) return;
-      fetchTranData(docNo, branchCode);
-      setTopTab("details");
-    });
-  
-  
-    useEffect(() => {
-      const params = new URLSearchParams(location.search);
-      const docNo = params.get("arcmNo");         
-      const branchCode = params.get("branchCode");    
-      
-      if (!loadedFromUrlRef.current && docNo && branchCode) {
-        loadedFromUrlRef.current = true;
-        handleHistoryRowPick({ docNo, branchCode });
-        cleanUrl();
-      }
-    }, [location.search, handleHistoryRowPick, cleanUrl]);
+ 
+//  ** View Document and Transaction History Retrieval ***
+const cleanUrl = useCallback(() => {
+  window.history.replaceState({}, "", window.location.origin);
+}, []);
+
+const handleHistoryRowPick = useCallback(
+  async (row) => {
+    const docNo = row?.docNo;
+    const branchCode = row?.branchCode;
+    if (!docNo || !branchCode) return;
+
+    await fetchTranData(docNo, branchCode); 
+    setTopTab("details");
+    cleanUrl(); // 
+  },
+  [fetchTranData, cleanUrl]
+);
+
+
+useEffect(() => {
+  const params = new URLSearchParams(location.search);
+  const docNo = params.get("arcmNo");
+  const branchCode = params.get("branchCode");
+
+  if (!loadedFromUrlRef.current && docNo && branchCode) {
+    loadedFromUrlRef.current = true;
+    handleHistoryRowPick({ docNo, branchCode });
+  }
+}, [location.search, handleHistoryRowPick]);
   
 
 
@@ -1290,7 +1329,7 @@ const handleFieldBehavior = (option) => {
  case "disableOnSaved" :
    return (
         isFormDisabled ||
-        (selectedARCMType !== "ARCM07" && state.documentNo !== "" )
+        (selectedARCMType !== "ARCM07" && state.documentID !== "" )
       );
 
 
@@ -1809,6 +1848,7 @@ const handleCloseBranchModal = (selectedBranch) => {
             activeTopTab={topTab} 
             showActions={topTab === "details"} 
             showBIRForm={false}      
+            isViewDocument={isViewDocument}  
             onDetails={() => setTopTab("details")}
             onHistory={() => setTopTab("history")}
             disableRouteNavigation={true}         
@@ -1819,44 +1859,40 @@ const handleCloseBranchModal = (selectedBranch) => {
       </div>
 
 
-  <div className={topTab === "details" ? "" : "hidden"}>
+          <div className={topTab === "details" ? "" : "hidden"}>
+
 
           {/* Page title and subheading */} 
-
-          {/* Header Section */}
-          <div className="global-tran-header-ui">
-
-            <div className="global-tran-headertext-div-ui">
+          <div className={`global-tran-header-ui ${isViewDocument ? "max-md:!mt-12 max-md:!pt-2 max-md:!pb-2" : ""}`}>
+            <div className={`global-tran-headertext-div-ui ${isViewDocument ? "max-md:!mb-1" : ""}`}>
               <h1 className="global-tran-headertext-ui">{documentTitle}</h1>
             </div>
-
-            <div className="global-tran-headerstat-div-ui">
+            <div className={`global-tran-headerstat-div-ui ${isViewDocument ? "max-md:!mt-0" : ""}`}>
               <div>
                 <p className="global-tran-headerstat-text-ui">Transaction Status</p>
                 <h1 className={`global-tran-stat-text-ui ${statusColor}`}>{displayStatus}</h1>
               </div>
             </div>
-
           </div>
 
-
-    {/* Form Layout with Tabs */}
-    <div className="global-tran-header-div-ui">
-
-        {/* Tab Navigation */}
-        <div className="global-tran-header-tab-div-ui">
-            <button
+          {/* Form Layout with Tabs */}
+          <div className={`global-tran-header-div-ui ${isViewDocument ? "max-md:!mt-10 max-md:!pt-0 max-md:!pb-0" : ""}`}>
+            {/* Tab Navigation */}
+            <div className={`global-tran-header-tab-div-ui ${isViewDocument ? "max-md:!mt-0 max-md:!pt-0 max-md:!pb-4 max-md:!mb-4 max-md:!justify-start max-md:!text-left" : ""}`}>
+              <button
                 className={`global-tran-tab-padding-ui ${
-                    activeTab === 'basic'
-                    ? 'global-tran-tab-text_active-ui'
-                    : 'global-tran-tab-text_inactive-ui'
+                  activeTab === "basic"
+                    ? "global-tran-tab-text_active-ui"
+                    : "global-tran-tab-text_inactive-ui"
                 }`}
-                onClick={() => setActiveTab('basic')}
-            >
+                onClick={() => setActiveTab("basic")}
+              >
                 Basic Information
-            </button>
-            {/* Provision for Other Tabs */}
-        </div>
+              </button>
+              {/* Provision for Other Tabs */}
+            </div>
+
+            
 
         {/* SVI Header Form Section - Main Grid Container */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 rounded-lg relative items-stretch" id="svi_hd">
@@ -2004,7 +2040,7 @@ const handleCloseBranchModal = (selectedBranch) => {
 
                     {/* Customer Name Display - Make this wider */}
                     <div className="relative w-full md:w-6/6 lg:w-4/4"> {/* Added width classes here */}
-                        <input type="text" id="custName" placeholder=" " value={custName} className="peer global-tran-textbox-ui"/>
+                        <input type="text" id="custName" placeholder=" " value={custName} className="peer global-tran-textbox-ui" readOnly/>
                         <label htmlFor="custName"className="global-tran-floating-label">
                             <span className="global-tran-asterisk-ui"> * </span>Customer Name
                         </label>
@@ -2032,6 +2068,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                               <input type="text" 
                                 id="currName" 
                                 value={currName}  
+                                readOnly
                                 className="peer global-tran-textbox-ui"/>
 
                             <label htmlFor="currCode" className="global-tran-floating-label">Currency</label>
@@ -2092,6 +2129,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                             className="peer global-tran-textbox-remarks-ui pt-2"
                             value={remarks}
                             onChange={(e) => updateState({ remarks: e.target.value })}
+                            maxLength={useGetFieldLength(tblFieldArray, "remarks")} 
                             disabled={isFormDisabled} 
                         />
                         <label
@@ -2118,6 +2156,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                               placeholder=" " 
                               onChange={(e) => updateState({ refDocNo1: e.target.value })} 
                               className="peer global-tran-textbox-ui " 
+                              maxLength={useGetFieldLength(tblFieldArray, "refarcm_no1")} 
                               disabled={isFormDisabled} />
                         <label htmlFor="refDocNo1" className="global-tran-floating-label">Ref Doc No. 1</label>
                     </div>
@@ -2129,6 +2168,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                               placeholder=" " 
                               onChange={(e) => updateState({ refDocNo2: e.target.value })}  
                               className="peer global-tran-textbox-ui" 
+                              maxLength={useGetFieldLength(tblFieldArray, "refarcm_no2")} 
                               disabled={isFormDisabled} />
                         <label htmlFor="refDocNo2" className="global-tran-floating-label">Ref Doc No. 2</label>
                     </div>     
@@ -2369,9 +2409,10 @@ const handleCloseBranchModal = (selectedBranch) => {
                 <td className="global-tran-td-ui">
                     <input
                       type="text"
+                      readOnly
                       className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
-                        value={formatNumber(parseFormattedNumber(row.atcAmount)) || formatNumber(parseFormattedNumber(row.atcAmount)) || ""}
-                      onChange={(e) => handleDetailChange(index, 'ewtAmount', e.target.value)}
+                      value={formatNumber(parseFormattedNumber(row.atcAmount)) || formatNumber(parseFormattedNumber(row.atcAmount)) || ""}
+                      onChange={(e) => handleDetailChange(index, 'atcAmount', e.target.value)}
                     />
                 </td>
         
@@ -3105,7 +3146,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                       className="w-[100px] global-tran-td-inputclass-ui"
                       value={row.slRefNo || ""}
                       readOnly={handleFieldBehavior("reversalInvoice")}
-                      maxLength={25}
+                      maxLength={useGetFieldLength(tblFieldArray, "slref_no")} 
                       onChange={(e) => handleDetailChangeGL(index, 'slRefNo', e.target.value)}
                     />
                   </td>
@@ -3124,6 +3165,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                       type="text"
                       className="w-[100px] global-tran-td-inputclass-ui"
                       value={row.remarks ||  ""}
+                      maxLength={useGetFieldLength(tblFieldArray, "remarks")} 
                       readOnly={handleFieldBehavior("reversalInvoice")}
                       onChange={(e) => handleDetailChangeGL(index, 'remarks', e.target.value)}
                     />
@@ -3374,6 +3416,9 @@ const handleCloseBranchModal = (selectedBranch) => {
           onClose={() => updateState({ showAllTranDocNo: false })}
         />
       )} 
+
+      
+       
      
 
 
@@ -3382,27 +3427,28 @@ const handleCloseBranchModal = (selectedBranch) => {
   </div>
 
 
-  <div className={topTab === "history" ? "" : "hidden"}>
-      <AllTranHistory
-        showHeader={false}
-        endpoint="/getARCMHistory"
-        cacheKey={`ARCM:${state.branchCode || ""}:${state.docNo || ""}`}  // ✅ per-transaction
-        activeTabKey="ARCM_Summary"
-        branchCode={state.branchCode}
-        startDate={state.fromDate}
-        endDate={state.toDate}
-        status={(() => {
-            const s = (state.status || "").toUpperCase();
-            if (s === "FINALIZED") return "F";
-            if (s === "CANCELLED") return "X";
-            if (s === "CLOSED")    return "C";
-            if (s === "OPEN")      return "";
-            return "All";
-          })()}
-          onRowDoubleClick={handleHistoryRowPick}
-          historyExportName={`${documentTitle} History`} 
-    />
-  </div>
+ <div className={topTab === "history" ? "" : "hidden"}>
+  <AllTranHistory
+    showHeader={false}
+    isActive={topTab === "history"}
+    endpoint="/getARCMHistory"
+    cacheKey={`ARCM:${state.branchCode || ""}:${state.fromDate || ""}:${state.toDate || ""}`}
+    activeTabKey="ARCM_Summary"
+    branchCode={state.branchCode}
+    startDate={state.fromDate}
+    endDate={state.toDate}
+    status={(() => {
+      const s = (state.status || "").toUpperCase();
+      if (s === "FINALIZED") return "F";
+      if (s === "CANCELLED") return "X";
+      if (s === "CLOSED") return "C";
+      if (s === "OPEN") return "";
+      return "All";
+    })()}
+    onRowDoubleClick={handleHistoryRowPick}
+    historyExportName={`${documentTitle} History`}
+  />
+</div>
 
 
 </div>

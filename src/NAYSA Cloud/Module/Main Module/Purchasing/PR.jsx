@@ -72,6 +72,8 @@ import {
   useSwalHandleOpenSpecsModal
 } from "@/NAYSA Cloud/Global/behavior";
 
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
+
 // Header
 import Header from "@/NAYSA Cloud/Components/Header";
 
@@ -80,7 +82,7 @@ import Header from "@/NAYSA Cloud/Components/Header";
   const navigate = useNavigate();
   const location = useLocation(); 
   const [isViewDocument, setIsViewDocument] = useState(false);
-  const { companyInfo, currentUserRow } = useAuth();
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded } = useAuth();
   const decQty = companyInfo?.itemDecqtyPur ?? 2;
 
 
@@ -135,8 +137,8 @@ import Header from "@/NAYSA Cloud/Components/Header";
     isFetchDisabled: true,
     showAllTranDocNo:false,
     itemSingleSelect:false,
-    branchCode: currentUserRow.branchCode,
-    branchName: currentUserRow.BranchName,
+    branchCode: currentUserRow?.branchCode||"",
+    branchName: currentUserRow?.BranchName||"",
     reqRcCode: "",
     reqRcName: "",
     currCode: "",
@@ -167,7 +169,7 @@ import Header from "@/NAYSA Cloud/Components/Header";
     billtermName: "",
     noReprints: "0",
     prCancelled: "",
-    userCode:currentUserRow.userCode,
+    userCode:currentUserRow?.userCode||"",
 
     // Detail lines (PR dt1)
     detailRows: [],
@@ -312,9 +314,19 @@ import Header from "@/NAYSA Cloud/Components/Header";
     updateState({ isDocNoDisabled: !!state.documentID });
   }, [state.documentID]);
 
-  useEffect(() => {
+  
+
+const isInitialMount = useRef(true);
+
+useEffect(() => {
+  if (isInitialMount.current) {
     handleReset();
-  }, []);
+    loadCompanyData();
+    isInitialMount.current = false;
+  }
+}, []);
+
+
 
   useEffect(() => {
     if (glCurrMode && glCurrDefault && currCode) {
@@ -322,22 +334,36 @@ import Header from "@/NAYSA Cloud/Components/Header";
     }
   }, [glCurrMode, glCurrDefault, currCode]);
 
-  const LoadingSpinner = () => (
-    <div className="global-tran-spinner-main-div-ui">
-      <div className="global-tran-spinner-sub-div-ui">
-        <FontAwesomeIcon
-          icon={faSpinner}
-          spin
-          size="2x"
-          className="text-blue-500 mb-2"
-        />
-        <p>Please wait...</p>
-      </div>
-    </div>
-  );
 
 
   
+  useEffect(() => {
+  if (!refsLoaded) return;
+
+  // 1. Fetch PR dropdown data synchronously
+  const prTranDrop = getAllDropDown("PRTRAN_TYPE", docType);
+  const prTypeDrop = getAllDropDown("PR_TYPE", docType);
+
+  // 2. Prepare a single update object
+  const updates = {};
+
+  if (prTranDrop.length > 0) {
+    updates.prTranTypes = prTranDrop;
+    updates.selectedPrTranType = prTranDrop[0]?.DROPDOWN_CODE ?? "";
+  }
+
+  if (prTypeDrop.length > 0) {
+    updates.prTypes = prTypeDrop;
+    updates.selectedPrType = prTypeDrop[0]?.DROPDOWN_CODE ?? "";
+  }
+
+  // 3. Batch update the state
+  if (Object.keys(updates).length > 0) {
+    updateState(updates);
+  }
+}, [docType, refsLoaded]);
+
+
   // ==========================
   // INITIAL LOAD / RESET
   // ==========================
@@ -350,9 +376,9 @@ import Header from "@/NAYSA Cloud/Components/Header";
     const today = new Date().toISOString().split("T")[0];
 
     updateState({
-      branchCode: currentUserRow.branchCode,
-      branchName: currentUserRow.branchName,
-      userCode:currentUserRow.userCode,
+      branchCode: currentUserRow?.branchCode||"",
+      branchName: currentUserRow?.branchName||"",
+      userCode:currentUserRow?.userCode||"",
       headerDateNeeded:useGetCurrentDay(),
       documentDate:useGetCurrentDay(),
       documentStatus:"O",
@@ -392,24 +418,7 @@ import Header from "@/NAYSA Cloud/Components/Header";
   const loadCompanyData = async () => {
     updateState({ isLoading: true });
     try {
-      const [prTranDrop, prTypeDrop] = await Promise.all([
-        useTopDocDropDown(docType, "PRTRAN_TYPE"),
-        useTopDocDropDown(docType, "PR_TYPE"),
-      ]);
-
-      if (prTranDrop) {
-        updateState({
-          prTranTypes: prTranDrop,
-          selectedPrTranType: prTranDrop[0]?.DROPDOWN_CODE ?? "",
-        });
-      }
-      if (prTypeDrop) {
-        updateState({
-          prTypes: prTypeDrop,
-          selectedPrType: prTypeDrop[0]?.DROPDOWN_CODE ?? "",
-        });
-      }
-
+     
       const hsOption = await useTopHSOption();
       if (hsOption) {
         updateState({
@@ -534,6 +543,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       documentID: data.prId,
       documentNo: data.prNo,
       branchCode: data.branchCode,
+      BranchName:data.branchName,
       documentDate: useFormatToDate(data.prDate),
       headerDateNeeded:useFormatToDate(data.dateNeeded),
       rcCode: data.rcCode,
@@ -1515,39 +1525,41 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
       </div>
 
       <div className={topTab === "details" ? "" : "hidden"}>
-        {/* Header Section */}
-        <div className="global-tran-header-ui">
-          <div className="global-tran-headertext-div-ui">
-            <h1 className="global-tran-headertext-ui">{documentTitle}</h1>
-          </div>
 
-          <div className="global-tran-headerstat-div-ui">
-            <div>
-              <p className="global-tran-headerstat-text-ui">
-                Transaction Status
-              </p>
-              <h1 className={`global-tran-stat-text-ui ${statusColor}`}>
-                {displayStatus}
-              </h1>
-            </div>
+
+
+      {/* Page title and subheading */} 
+      <div className={`global-tran-header-ui ${isViewDocument ? "max-md:!mt-12 max-md:!pt-2 max-md:!pb-2" : ""}`}>
+        <div className={`global-tran-headertext-div-ui ${isViewDocument ? "max-md:!mb-1" : ""}`}>
+          <h1 className="global-tran-headertext-ui">{documentTitle}</h1>
+        </div>
+        <div className={`global-tran-headerstat-div-ui ${isViewDocument ? "max-md:!mt-0" : ""}`}>
+          <div>
+            <p className="global-tran-headerstat-text-ui">Transaction Status</p>
+            <h1 className={`global-tran-stat-text-ui ${statusColor}`}>{displayStatus}</h1>
           </div>
         </div>
+      </div>
 
-        {/* Form Layout with Tabs */}
-        <div className="global-tran-header-div-ui">
-          {/* Tab Navigation */}
-          <div className="global-tran-header-tab-div-ui">
-            <button
-              className={`global-tran-tab-padding-ui ${
-                activeTab === "basic"
-                  ? "global-tran-tab-text_active-ui"
-                  : "global-tran-tab-text_inactive-ui"
-              }`}
-              onClick={() => updateState({ activeTab: "basic" })}
-            >
-              Basic Information
-            </button>
-          </div>
+      {/* Form Layout with Tabs */}
+      <div className={`global-tran-header-div-ui ${isViewDocument ? "max-md:!mt-10 max-md:!pt-0 max-md:!pb-0" : ""}`}>
+        {/* Tab Navigation */}
+        <div className={`global-tran-header-tab-div-ui ${isViewDocument ? "max-md:!mt-0 max-md:!pt-0 max-md:!pb-4 max-md:!mb-4 max-md:!justify-start max-md:!text-left" : ""}`}>
+          <button
+            className={`global-tran-tab-padding-ui ${
+              activeTab === "basic"
+                ? "global-tran-tab-text_active-ui"
+                : "global-tran-tab-text_inactive-ui"
+            }`}
+            onClick={() => setActiveTab("basic")}
+          >
+            Basic Information
+          </button>
+          {/* Provision for Other Tabs */}
+        </div>
+
+
+        
 
           {/* PR Header Form Section */}
           <div
@@ -2330,27 +2342,28 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
 
 
       {/* HISTORY TAB */}
-      <div className={topTab === "history" ? "" : "hidden"}>
-        <AllTranHistory
-        showHeader={false}
-        endpoint="/getPRHistory"
-        cacheKey={`PR:${state.branchCode || ""}:${state.docNo || ""}`}  // ✅ per-transaction
-        activeTabKey="PR_Summary"
-        branchCode={state.branchCode}
-        startDate={state.fromDate}
-        endDate={state.toDate}
-          status={(() => {
-            const s = (state.status || "").toUpperCase();
-            if (s === "FINALIZED") return "F";
-            if (s === "CANCELLED") return "X";
-            if (s === "CLOSED")    return "C";
-            if (s === "OPEN")      return "";
-            return "All";
-          })()}
-          onRowDoubleClick={handleHistoryRowPick}
-          historyExportName={`${documentTitle} History`} 
-    />
-      </div>
+     <div className={topTab === "history" ? "" : "hidden"}>
+       <AllTranHistory
+         showHeader={false}
+         isActive={topTab === "history"}
+         endpoint="/getPRHistory"
+         cacheKey={`PR:${state.branchCode || ""}:${state.fromDate || ""}:${state.toDate || ""}`}
+         activeTabKey="PR_Summary"
+         branchCode={state.branchCode}
+         startDate={state.fromDate}
+         endDate={state.toDate}
+         status={(() => {
+           const s = (state.status || "").toUpperCase();
+           if (s === "FINALIZED") return "F";
+           if (s === "CANCELLED") return "X";
+           if (s === "CLOSED") return "C";
+           if (s === "OPEN") return "";
+           return "All";
+         })()}
+         onRowDoubleClick={handleHistoryRowPick}
+         historyExportName={`${documentTitle} History`}
+       />
+     </div>
 
 
 

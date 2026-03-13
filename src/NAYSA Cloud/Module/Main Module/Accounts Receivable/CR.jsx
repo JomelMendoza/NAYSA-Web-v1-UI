@@ -106,7 +106,7 @@ const CR = () => {
     const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation(); 
-  const { companyInfo, currentUserRow } = useAuth();
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded } = useAuth();
   const [isViewDocument, setIsViewDocument] = useState(false);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
@@ -126,7 +126,7 @@ const CR = () => {
 
     // HS Option
     glCurrMode:"M",
-    glCurrDefault:companyInfo.currCode,
+    glCurrDefault:companyInfo?.currCode||"",
     withCurr2:false,
     withCurr3:false,
     glCurrGlobal1:"",
@@ -160,8 +160,8 @@ const CR = () => {
 
 
 
-    branchCode: currentUserRow.branchCode,
-    branchName: currentUserRow.branchName,
+    branchCode: currentUserRow?.branchCode||"",
+    branchName: currentUserRow?.branchName||"",
     
     // Vendor information
     custCode: "",
@@ -171,10 +171,10 @@ const CR = () => {
 
     
     // Currency information
-    currCode: companyInfo.currCode,
-    currName: companyInfo.currName,
-    currRate: formatNumber(companyInfo.currRate,6),
-    defaultCurrRate:formatNumber(companyInfo.currRate,6),
+    currCode: companyInfo?.currCode||"",
+    currName: companyInfo?.currName||"",
+    currRate: formatNumber(companyInfo?.currRate||1,6),
+    defaultCurrRate:formatNumber(companyInfo?.currRate||1,6),
 
 
     //Other Header Info
@@ -198,7 +198,7 @@ const CR = () => {
     selectedPayType : "CR01",
     selectedCheckType:"CR21",
 
-    userCode: currentUserRow.userCode, 
+    userCode: currentUserRow?.userCode||"", 
 
     //Detail 1-2
     detailRows  :[],
@@ -467,10 +467,16 @@ useEffect(() => {
 
 
 
-  useEffect(() => {
+
+const isInitialMount = useRef(true);
+
+useEffect(() => {
+  if (isInitialMount.current) {
     handleReset();
-    loadCompanyData(); 
-  }, []);
+    loadCompanyData();
+    isInitialMount.current = false;
+  }
+}, []);
 
 
   
@@ -503,22 +509,58 @@ useEffect(() => {
 
 
 
+  
+  useEffect(() => {
+  if (!refsLoaded) return;
+
+    // 1. Fetch data synchronously using the dropdown utility
+    const crTran = getAllDropDown("CRTRAN_TYPE", docType);
+    const crType = getAllDropDown("CR_TYPE", docType);
+    const crCheck = getAllDropDown("CRCHECK_TYPE", docType);
+
+    // 2. Build a single update object to avoid multiple re-renders
+    const updates = {};
+
+    if (crTran.length > 0) {
+      updates.crTypes = crTran;
+      updates.selectedCRType = "CR11";
+    }
+
+    if (crType.length > 0) {
+      updates.paymentTypes = crType;
+      updates.selectedPayType = "CR01";
+    }
+
+    if (crCheck.length > 0) {
+      updates.checkTypes = crCheck;
+      updates.selectedCheckType = "CR21";
+    }
+
+    // 3. Batch the update if any data was found
+    if (Object.keys(updates).length > 0) {
+      updateState(updates);
+    }
+  }, [docType, refsLoaded]);
+
+
   const handleReset = () => { 
       updateState({
 
-      branchCode: currentUserRow.branchCode,
-      branchName: currentUserRow.branchName,
-      userCode:currentUserRow.userCode,
+      branchCode: currentUserRow?.branchCode||"",
+      branchName: currentUserRow?.branchName||"",
+      userCode:currentUserRow?.userCode ||"",
       documentDate:useGetCurrentDay(),
-      currCode:companyInfo.currCode,
-      currName:companyInfo.currName,
-      currRate:formatNumber(companyInfo.currRate,6) ,
+      currCode:companyInfo?.currCode||"",
+      currName:companyInfo?.currName||"",
+      currRate:formatNumber(companyInfo?.currRate||1,6) ,
       noReprints:"0",
       
       refDocNo1: "",
       refDocNo2:"",
       checkDate:null,
       remarks:"",
+      checkNo:"",
+      bank:"",
 
       custName:"",
       custCode:"",
@@ -553,24 +595,7 @@ useEffect(() => {
     updateState({isLoading:true})
 
     try {
-      // 🔹 1. Run these in parallel since they don’t depend on each other
-      const [crTran, crType, crCheck] = await Promise.all([
-        useTopDocDropDown(docType, "CRTRAN_TYPE"),
-        useTopDocDropDown(docType, "CR_TYPE"),
-        useTopDocDropDown(docType, "CRCHECK_TYPE"),
-      ]);
-
-      if (crTran) {
-        updateState({ crTypes: crTran, selectedCRType: "CR11" });
-      }
-      if (crType) {
-        updateState({ paymentTypes: crType, selectedPayType: "CR01" });
-      }
-      if (crCheck) {
-        updateState({ checkTypes: crCheck, selectedCheckType: "CR21" });
-      }
-
-
+    
 
       // 🔹 2. Document row (independent)
       const docRow = await useTopDocControlRow(docType);
@@ -718,12 +743,14 @@ const fetchTranData = async (documentNo, branchCode,direction="") => {
       documentID: data.crId,
       documentNo: data.crNo,
       branchCode: data.branchCode,
+      branchName: data.branchName,
       documentDate: useFormatToDate(data.crDate),
       selectedCRType: data.crtranType,
       selectedPayType:data.paymentType,
       selectedCheckType:data.ckType,
-      depAcctName:"",
-      depAcctNo:"",
+      depBankCode:data.depBankCode,
+      depAcctName:data.depAcctName,
+      depAcctNo:data.depAcctNo,
       chainCode: data.chainCode,
       chainName: data.chainName,
       custCode: data.custCode,
@@ -1945,44 +1972,43 @@ const handleCloseBranchModal = (selectedBranch) => {
         />
       </div>
 
-  <div className={topTab === "details" ? "" : "hidden"}>
-
-          {/* Page title and subheading */} 
-
-          {/* Header Section */}
-          <div className="global-tran-header-ui">
-
-            <div className="global-tran-headertext-div-ui">
-              <h1 className="global-tran-headertext-ui">{documentTitle}</h1>
-            </div>
-
-            <div className="global-tran-headerstat-div-ui">
-              <div>
-                <p className="global-tran-headerstat-text-ui">Transaction Status</p>
-                <h1 className={`global-tran-stat-text-ui ${statusColor}`}>{displayStatus}</h1>
-              </div>
-            </div>
-
-          </div>
 
 
-    {/* Form Layout with Tabs */}
-    <div className="global-tran-header-div-ui">
+      <div className={topTab === "details" ? "" : "hidden"}>
 
-        {/* Tab Navigation */}
-        <div className="global-tran-header-tab-div-ui">
-            <button
-                className={`global-tran-tab-padding-ui ${
-                    activeTab === 'basic'
-                    ? 'global-tran-tab-text_active-ui'
-                    : 'global-tran-tab-text_inactive-ui'
-                }`}
-                onClick={() => setActiveTab('basic')}
-            >
-                Basic Information
-            </button>
-            {/* Provision for Other Tabs */}
+
+      {/* Page title and subheading */} 
+      <div className={`global-tran-header-ui ${isViewDocument ? "max-md:!mt-12 max-md:!pt-2 max-md:!pb-2" : ""}`}>
+        <div className={`global-tran-headertext-div-ui ${isViewDocument ? "max-md:!mb-1" : ""}`}>
+          <h1 className="global-tran-headertext-ui">{documentTitle}</h1>
         </div>
+        <div className={`global-tran-headerstat-div-ui ${isViewDocument ? "max-md:!mt-0" : ""}`}>
+          <div>
+            <p className="global-tran-headerstat-text-ui">Transaction Status</p>
+            <h1 className={`global-tran-stat-text-ui ${statusColor}`}>{displayStatus}</h1>
+          </div>
+        </div>
+      </div>
+
+      {/* Form Layout with Tabs */}
+      <div className={`global-tran-header-div-ui ${isViewDocument ? "max-md:!mt-10 max-md:!pt-0 max-md:!pb-0" : ""}`}>
+        {/* Tab Navigation */}
+        <div className={`global-tran-header-tab-div-ui ${isViewDocument ? "max-md:!mt-0 max-md:!pt-0 max-md:!pb-4 max-md:!mb-4 max-md:!justify-start max-md:!text-left" : ""}`}>
+          <button
+            className={`global-tran-tab-padding-ui ${
+              activeTab === "basic"
+                ? "global-tran-tab-text_active-ui"
+                : "global-tran-tab-text_inactive-ui"
+            }`}
+            onClick={() => setActiveTab("basic")}
+          >
+            Basic Information
+          </button>
+          {/* Provision for Other Tabs */}
+        </div>
+
+
+
 
         {/* SVI Header Form Section - Main Grid Container */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 rounded-lg relative items-stretch" id="svi_hd">
@@ -3204,6 +3230,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                             type="text"
                             className="w-[300px] global-tran-td-inputclass-ui"
                             value={row.particular || ""}
+                            readOnly
                             onChange={(e) => handleDetailChange(index, 'particular', e.target.value)}
                           />
                     </td>
@@ -3281,6 +3308,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                       type="text"
                       className="w-[200px] global-tran-td-inputclass-ui"
                       value={row.atcName || ""}
+                      readOnly
                       onChange={(e) => handleDetailChange(index, 'atcName', e.target.value)}
                     />
                   </td>
@@ -3757,26 +3785,27 @@ const handleCloseBranchModal = (selectedBranch) => {
 
 
   <div className={topTab === "history" ? "" : "hidden"}>
-      <AllTranHistory
-        showHeader={false}
-        endpoint="/getCRHistory"
-        cacheKey={`CR:${state.branchCode || ""}:${state.docNo || ""}`}  // ✅ per-transaction
-        activeTabKey="CR_Summary"
-        branchCode={state.branchCode}
-        startDate={state.fromDate}
-        endDate={state.toDate}
-        status={(() => {
-            const s = (state.status || "").toUpperCase();
-            if (s === "FINALIZED") return "F";
-            if (s === "CANCELLED") return "X";
-            if (s === "CLOSED")    return "C";
-            if (s === "OPEN")      return "";
-            return "All";
-          })()}
-          onRowDoubleClick={handleHistoryRowPick}
-          historyExportName={`${documentTitle} History`} 
-    />
-  </div>
+  <AllTranHistory
+    showHeader={false}
+    isActive={topTab === "history"}
+    endpoint="/getCRHistory"
+    cacheKey={`CR:${state.branchCode || ""}:${state.fromDate || ""}:${state.toDate || ""}`}
+    activeTabKey="CR_Summary"
+    branchCode={state.branchCode}
+    startDate={state.fromDate}
+    endDate={state.toDate}
+    status={(() => {
+      const s = (state.status || "").toUpperCase();
+      if (s === "FINALIZED") return "F";
+      if (s === "CANCELLED") return "X";
+      if (s === "CLOSED") return "C";
+      if (s === "OPEN") return "";
+      return "All";
+    })()}
+    onRowDoubleClick={handleHistoryRowPick}
+    historyExportName={`${documentTitle} History`}
+  />
+</div>
 
 
 </div>

@@ -91,7 +91,7 @@ const JO = () => {
     const navigate = useNavigate();
     const location = useLocation(); 
     const [isViewDocument, setIsViewDocument] = useState(false);
-    const { companyInfo, currentUserRow } = useAuth();
+    const { companyInfo, currentUserRow,getAllDropDown,refsLoaded } = useAuth();
     const decUPrice = companyInfo?.pur_decuprice ?? 2;
   
   
@@ -142,8 +142,8 @@ const JO = () => {
     isResetDisabled: false,
     isFetchDisabled: true,
 
-    branchCode: currentUserRow.branchCode,
-    branchName: currentUserRow.BranchName,
+    branchCode: currentUserRow?.branchCode||"",
+    branchName: currentUserRow?.BranchName||"",
     currCode: "",
     currName: "",
     attention: "",
@@ -154,9 +154,9 @@ const JO = () => {
     paytermName: "",
 
     // Currency information (not used by sproc_PHP_PR but kept for UI consistency)
-    currCode:companyInfo.currCode,
-    currName:companyInfo.currName,
-    currRate:formatNumber(companyInfo.currRate,6) ,
+    currCode:companyInfo?.currCode||"",
+    currName:companyInfo?.currName||"",
+    currRate:formatNumber(companyInfo?.currRate||1,6) ,
     defaultCurrRate: "1.000000",
 
     tblFieldArray :[],
@@ -385,10 +385,16 @@ const JO = () => {
 
 
 
-  useEffect(() => {
-    loadCompanyData();
+
+const isInitialMount = useRef(true);
+
+useEffect(() => {
+  if (isInitialMount.current) {
     handleReset();
-  }, []);
+    loadCompanyData();
+    isInitialMount.current = false;
+  }
+}, []);
 
 
   useEffect(() => {
@@ -410,12 +416,12 @@ const JO = () => {
    
 
     updateState({
-      branchCode: currentUserRow.branchCode,
-      branchName: currentUserRow.branchName,
-      userCode:currentUserRow.userCode,
-      currCode:companyInfo.currCode,
-      currName:companyInfo.currName,
-      currRate:formatNumber(companyInfo.currRate,6) ,
+      branchCode: currentUserRow?.branchCode||"",
+      branchName: currentUserRow?.branchName||"",
+      userCode:currentUserRow?.userCode||"",
+      currCode:companyInfo?.currCode||"",
+      currName:companyInfo?.currName||"",
+      currRate:formatNumber(companyInfo?.currRate||1,6) ,
       documentDate:useGetCurrentDay(),
       prNo: "", 
       rcCode: "",
@@ -659,6 +665,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       documentID: data.joId,
       documentNo: data.joNo,
       branchCode: data.branchCode,
+      branchName:data.branchName,
       documentDate: useFormatToDate(data.joDate),
       rcCode: data.rcCode,
       rcName: data.rcName,
@@ -1422,39 +1429,38 @@ const handleClosePRLookup = async (selection) => {
       </div>
 
       <div className={topTab === "details" ? "" : "hidden"}>
-        {/* Header Section */}
-        <div className="global-tran-header-ui">
-          <div className="global-tran-headertext-div-ui">
-            <h1 className="global-tran-headertext-ui">{documentTitle}</h1>
-          </div>
 
-          <div className="global-tran-headerstat-div-ui">
-            <div>
-              <p className="global-tran-headerstat-text-ui">
-                Transaction Status
-              </p>
-              <h1 className={`global-tran-stat-text-ui ${statusColor}`}>
-                {displayStatus}
-              </h1>
-            </div>
+
+
+      {/* Page title and subheading */} 
+      <div className={`global-tran-header-ui ${isViewDocument ? "max-md:!mt-12 max-md:!pt-2 max-md:!pb-2" : ""}`}>
+        <div className={`global-tran-headertext-div-ui ${isViewDocument ? "max-md:!mb-1" : ""}`}>
+          <h1 className="global-tran-headertext-ui">{documentTitle}</h1>
+        </div>
+        <div className={`global-tran-headerstat-div-ui ${isViewDocument ? "max-md:!mt-0" : ""}`}>
+          <div>
+            <p className="global-tran-headerstat-text-ui">Transaction Status</p>
+            <h1 className={`global-tran-stat-text-ui ${statusColor}`}>{displayStatus}</h1>
           </div>
         </div>
+      </div>
 
-        {/* Form Layout with Tabs */}
-        <div className="global-tran-header-div-ui">
-          {/* Tab Navigation */}
-          <div className="global-tran-header-tab-div-ui">
-            <button
-              className={`global-tran-tab-padding-ui ${
-                activeTab === "basic"
-                  ? "global-tran-tab-text_active-ui"
-                  : "global-tran-tab-text_inactive-ui"
-              }`}
-              onClick={() => updateState({ activeTab: "basic" })}
-            >
-              Basic Information
-            </button>
-          </div>
+      {/* Form Layout with Tabs */}
+      <div className={`global-tran-header-div-ui ${isViewDocument ? "max-md:!mt-10 max-md:!pt-0 max-md:!pb-0" : ""}`}>
+        {/* Tab Navigation */}
+        <div className={`global-tran-header-tab-div-ui ${isViewDocument ? "max-md:!mt-0 max-md:!pt-0 max-md:!pb-4 max-md:!mb-4 max-md:!justify-start max-md:!text-left" : ""}`}>
+          <button
+            className={`global-tran-tab-padding-ui ${
+              activeTab === "basic"
+                ? "global-tran-tab-text_active-ui"
+                : "global-tran-tab-text_inactive-ui"
+            }`}
+            onClick={() => setActiveTab("basic")}
+          >
+            Basic Information
+          </button>
+          {/* Provision for Other Tabs */}
+        </div>
 
           {/* PR Header Form Section */}
           <div
@@ -2369,26 +2375,28 @@ const handleClosePRLookup = async (selection) => {
       </div>
 
         {/* HISTORY TAB */}
-      <div className={topTab === "history" ? "" : "hidden"}>
-        <AllTranHistory
-        showHeader={false}
-        endpoint="/getJOHistory"
-        cacheKey={`JO:${state.branchCode || ""}:${state.docNo || ""}`}  // ✅ per-transaction
-        activeTabKey="JO_Summary"
-        branchCode={state.branchCode}
-        startDate={state.fromDate}
-        endDate={state.toDate}
-          status={(() => {
-            const s = (state.status || "").toUpperCase();
-            if (s === "CANCELLED") return "X";
-            if (s === "CLOSED")    return "C";
-            if (s === "OPEN")      return "";
-            return "All";
-          })()}
-          onRowDoubleClick={handleHistoryRowPick}
-          historyExportName={`${documentTitle} History`} 
-    />
-      </div>
+     <div className={topTab === "history" ? "" : "hidden"}>
+  <AllTranHistory
+    showHeader={false}
+    isActive={topTab === "history"}
+    endpoint="/getJOHistory"
+    cacheKey={`JO:${state.branchCode || ""}:${state.fromDate || ""}:${state.toDate || ""}`}
+    activeTabKey="JO_Summary"
+    branchCode={state.branchCode}
+    startDate={state.fromDate}
+    endDate={state.toDate}
+    status={(() => {
+      const s = (state.status || "").toUpperCase();
+      if (s === "FINALIZED") return "F";
+      if (s === "CANCELLED") return "X";
+      if (s === "CLOSED") return "C";
+      if (s === "OPEN") return "";
+      return "All";
+    })()}
+    onRowDoubleClick={handleHistoryRowPick}
+    historyExportName={`${documentTitle} History`}
+  />
+</div>
 
 
 
@@ -2506,7 +2514,7 @@ const handleClosePRLookup = async (selection) => {
     <GlobalCombinedLookup
         isOpen={showOpenPRModal}
         title="Open Purchase Requisition"
-        summarySelectionMode="multiple" 
+        summarySelectionMode="single" 
         detailSelectionMode="multiple"
         summaryColumns={openPRJO_Col_Summary} 
         detailColumns={openPRJO_Col_Detail}

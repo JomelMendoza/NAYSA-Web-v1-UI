@@ -48,7 +48,6 @@ import {
   useTopCurrencyRow,
   useTopHSOption,
   useTopDocControlRow,
-  useTopDocDropDown,
   useTopVatAmount,
   useTopATCAmount,
   useTopBillCodeRow,
@@ -101,7 +100,7 @@ const SOA = () => {
    const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation(); 
-  const { companyInfo, currentUserRow } = useAuth();
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded } = useAuth();
   const [isViewDocument, setIsViewDocument] = useState(false);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
@@ -120,7 +119,7 @@ const SOA = () => {
 
     // HS Option
     glCurrMode:"M",
-    glCurrDefault:companyInfo.currCode,
+    glCurrDefault:companyInfo?.currCode||"",
     withCurr2:false,
     withCurr3:false,
     glCurrGlobal1:"",
@@ -154,8 +153,8 @@ const SOA = () => {
 
 
 
-    branchCode: currentUserRow.branchCode,
-    branchName: currentUserRow.branchName,
+    branchCode: currentUserRow?.branchCode||"",
+    branchName: currentUserRow?.branchName||"",
     
     // Vendor information
     custCode: "",
@@ -163,10 +162,10 @@ const SOA = () => {
     attention: "",
     
     // Currency information
-    currCode: companyInfo.currCode,
-    currName: companyInfo.currName,
-    currRate: formatNumber(companyInfo.currRate,6),
-    defaultCurrRate:formatNumber(companyInfo.currRate,6),
+    currCode: companyInfo?.currCode||"",
+    currName: companyInfo?.currName||"",
+    currRate: formatNumber(companyInfo?.currRate||1,6),
+    defaultCurrRate:formatNumber(companyInfo?.currRate||1,6),
 
 
 
@@ -181,7 +180,7 @@ const SOA = () => {
     billtermCode: "",
     billtermName: "",
     selectedSOAType : "REG",
-    userCode: currentUserRow.userCode, 
+    userCode: currentUserRow?.userCode||"", 
 
     //Detail 1-2
     detailRows  :[],
@@ -454,10 +453,14 @@ useEffect(() => {
   
 
 
-  useEffect(() => {
-    loadCompanyData();
+const isInitialMount = useRef(true);
+useEffect(() => {
+  if (isInitialMount.current) {
     handleReset();
-  }, []);
+    loadCompanyData();
+    isInitialMount.current = false;
+  }
+}, []);
 
 
   useEffect(() => {
@@ -470,18 +473,30 @@ useEffect(() => {
 
 
   
+  useEffect(() => {
+      if (!refsLoaded) return; 
+      const filteredTypes = getAllDropDown("SOATRAN_TYPE", docType); 
+      if (filteredTypes.length > 0) {
+        updateState({
+          soaTypes: filteredTypes,
+          selectedSOAType: "REG",
+        });
+      }
+  }, [docType, refsLoaded]);
   
+  
+
   const handleReset = () => {
 
       updateState({
 
-      branchCode: currentUserRow.branchCode,
-      branchName: currentUserRow.branchName,
-      userCode:currentUserRow.userCode,
+      branchCode: currentUserRow?.branchCode||"",
+      branchName: currentUserRow?.branchName||"",
+      userCode:currentUserRow?.userCode||"",
       documentDate:useGetCurrentDay(),
-      currCode:companyInfo.currCode,
-      currName:companyInfo.currName,
-      currRate:formatNumber(companyInfo.currRate,6) ,
+      currCode:companyInfo?.currCode||"",
+      currName:companyInfo?.currName||"",
+      currRate:formatNumber(companyInfo?.currRate||1,6) ,
 
       refDocNo1: "",
       refDocNo2:"",
@@ -519,15 +534,7 @@ useEffect(() => {
     updateState({isLoading:true})
 
     try {
-      // 🔹 1. Run these in parallel since they don’t depend on each other      
-      const data = await useTopDocDropDown(docType,"SOATRAN_TYPE");
-      if(data){
-        updateState({
-         soaTypes: data,
-         selectedSOAType: "REG",
-          });
-        };   
-
+     
       // 🔹 2. Document row (independent)
       const docRow = await useTopDocControlRow(docType);
       if (docRow) {
@@ -651,6 +658,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       documentID: data.soaId,
       documentNo: data.soaNo,
       branchCode: data.branchCode,
+      branchName:data.branchName,
       documentDate: useFormatToDate(data.soaDate), 
       selectedSOAType: data.soatranType,
       custCode: data.custCode,
@@ -1735,46 +1743,36 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
 
   <div className={topTab === "details" ? "" : "hidden"}>
 
-          {/* Page title and subheading */} 
-
-          {/* Header Section */}
-          <div className="global-tran-header-ui">
-
-            <div className="global-tran-headertext-div-ui">
-              <h1 className="global-tran-headertext-ui">{documentTitle}</h1>
-            </div>
-
-            <div className="global-tran-headerstat-div-ui">
-              <div>
-                <p className="global-tran-headerstat-text-ui">Transaction Status</p>
-                <h1 className={`global-tran-stat-text-ui ${statusColor}`}>{displayStatus}</h1>
-              </div>
-            </div>
-
+      {/* Page title and subheading */} 
+        <div className={`global-tran-header-ui ${isViewDocument ? "max-md:!mt-12 max-md:!pt-2 max-md:!pb-2" : ""}`}>
+          <div className={`global-tran-headertext-div-ui ${isViewDocument ? "max-md:!mb-1" : ""}`}>
+            <h1 className="global-tran-headertext-ui">{documentTitle}</h1>
           </div>
+          <div className={`global-tran-headerstat-div-ui ${isViewDocument ? "max-md:!mt-0" : ""}`}>
+            <div>
+              <p className="global-tran-headerstat-text-ui">Transaction Status</p>
+              <h1 className={`global-tran-stat-text-ui ${statusColor}`}>{displayStatus}</h1>
+            </div>
+          </div>
+        </div>
 
-          
-
-
-
-
-    {/* Form Layout with Tabs */}
-    <div className="global-tran-header-div-ui">
-
-        {/* Tab Navigation */}
-        <div className="global-tran-header-tab-div-ui">
+        {/* Form Layout with Tabs */}
+        <div className={`global-tran-header-div-ui ${isViewDocument ? "max-md:!mt-10 max-md:!pt-0 max-md:!pb-0" : ""}`}>
+          {/* Tab Navigation */}
+          <div className={`global-tran-header-tab-div-ui ${isViewDocument ? "max-md:!mt-0 max-md:!pt-0 max-md:!pb-4 max-md:!mb-4 max-md:!justify-start max-md:!text-left" : ""}`}>
             <button
-                className={`global-tran-tab-padding-ui ${
-                    activeTab === 'basic'
-                    ? 'global-tran-tab-text_active-ui'
-                    : 'global-tran-tab-text_inactive-ui'
-                }`}
-                onClick={() => setActiveTab('basic')}
+              className={`global-tran-tab-padding-ui ${
+                activeTab === "basic"
+                  ? "global-tran-tab-text_active-ui"
+                  : "global-tran-tab-text_inactive-ui"
+              }`}
+              onClick={() => setActiveTab("basic")}
             >
-                Basic Information
+              Basic Information
             </button>
             {/* Provision for Other Tabs */}
-        </div>
+          </div>
+                
 
         {/* SOA Header Form Section - Main Grid Container */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 rounded-lg relative" id="soa_hd">
@@ -3437,25 +3435,26 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
   </div>
 
 
-  <div className={topTab === "history" ? "" : "hidden"}>
-      <AllTranHistory
-        showHeader={false}
-        endpoint="/getSOAHistory"
-        cacheKey={`SOA:${state.branchCode || ""}:${state.docNo || ""}`}  // ✅ per-transaction
-        activeTabKey="SOA_Summary"
-        branchCode={state.branchCode}
-        startDate={state.fromDate}
-        endDate={state.toDate}
-        status={(() => {
-            const s = (state.status || "").toUpperCase();
-            if (s === "FINALIZED") return "F";
-            if (s === "CANCELLED") return "X";
-            if (s === "CLOSED")    return "C";
-            if (s === "OPEN")      return "";
-            return "All";
-          })()}
-          onRowDoubleClick={handleHistoryRowPick}
-          historyExportName={`${documentTitle} History`} 
+   <div className={topTab === "history" ? "" : "hidden"}>
+    <AllTranHistory
+      showHeader={false}
+      isActive={topTab === "history"}
+      endpoint="/getSOAHistory"
+      cacheKey={`SOA:${state.branchCode || ""}:${state.fromDate || ""}:${state.toDate || ""}`}
+      activeTabKey="SOA_Summary"
+      branchCode={state.branchCode}
+      startDate={state.fromDate}
+      endDate={state.toDate}
+      status={(() => {
+        const s = (state.status || "").toUpperCase();
+        if (s === "FINALIZED") return "F";
+        if (s === "CANCELLED") return "X";
+        if (s === "CLOSED") return "C";
+        if (s === "OPEN") return "";
+        return "All";
+      })()}
+      onRowDoubleClick={handleHistoryRowPick}
+      historyExportName={`${documentTitle} History`}
     />
   </div>
 

@@ -18,11 +18,7 @@ import SLMastLookupModal from "../../../Lookup/SearchSLMast.jsx";
 import CancelTranModal from "../../../Lookup/SearchCancelRef.jsx";
 import AttachDocumentModal from "../../../Lookup/SearchAttachment.jsx";
 import DocumentSignatories from "../../../Lookup/SearchSignatory.jsx";
-<<<<<<< HEAD
-import PostSVI from "../Accounts Receivable/PostSVI.jsx";
-=======
 import PostMSRTV from "../Inventory/PostMSRTV.jsx";
->>>>>>> 18bff9997f8f33e4b8080cb15e997b7577d2625e
 import AllTranHistory from "../../../Lookup/SearchGlobalTranHistory.jsx";
 import AllTranDocNo from "../../../Lookup/SearchDocNo.jsx";
 import GlobalLookupModalv1 from "../../../Lookup/SearchGlobalLookupv1.jsx";
@@ -484,13 +480,10 @@ useEffect(() => {
       refDocNo2:"", 
       vendCode: "",
       vendName:"", 
-<<<<<<< HEAD
-=======
       whCode: "",
       WHcode: "",
       whName: "",
       WHname: "",
->>>>>>> 18bff9997f8f33e4b8080cb15e997b7577d2625e
       locCode: "",
       locName: "",
       remarks:"",
@@ -660,13 +653,10 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       refDocNo2: data.refDocNo2,   
       WHcode: data.whCode,
       locCode: data.locCode, 
-<<<<<<< HEAD
-=======
       
       WHname: data.whName,
       locName: data.locName, 
 
->>>>>>> 18bff9997f8f33e4b8080cb15e997b7577d2625e
       remarks: data.remarks,
       detailRows: retrievedDetailRows,
       detailRowsGL: formattedGLRows,
@@ -2212,11 +2202,7 @@ return (
               }`}
               // onClick={() => setGLActiveTab('invoice')}
             >
-<<<<<<< HEAD
-              Invoice Details
-=======
               Item Details
->>>>>>> 18bff9997f8f33e4b8080cb15e997b7577d2625e
             </button>
           </div>
         </div>
@@ -3400,11 +3386,7 @@ return (
 
 
     {showPostingModal && (
-<<<<<<< HEAD
-      <PostSVI
-=======
       <PostMSRTV
->>>>>>> 18bff9997f8f33e4b8080cb15e997b7577d2625e
         isOpen={showPostingModal}
         userCode={userCode}
         docType={docType}
