@@ -178,40 +178,238 @@ export const useSwalshowSave = (onConfirm, onPrint) => {
 
 
 
-// Add these missing SweetAlert utility functions
-export const useSwalErrorAlert = (title = "Error!", message = "Something went wrong.") => {
+// // Add these missing SweetAlert utility functions
+// export const useSwalErrorAlert = (title = "Error!", message = "Something went wrong.") => {
+//   return Swal.fire({
+//     icon: "error",
+//     title,
+//     text: message,
+//     timer: 3000, // Time in milliseconds
+//     timerProgressBar: true, // Optional: Shows a visual countdown bar
+//     customClass: {
+//       popup: "rounded-xl shadow-2xl",
+//     },
+//     // Optional: ensures the timer stops if the user hovers over the alert
+//     didOpen: (toast) => {
+//       toast.onmouseenter = Swal.stopTimer;
+//       toast.onmouseleave = Swal.resumeTimer;
+//     }
+//   });
+// };
+
+// export const useSwalErrorAlert = (title = "Error!", message = "Something went wrong.") => {
+  
+//   const formattedMessage = message.replace(/^(.+)/, '<strong style="display: block; font-size: 14px; color: #1f2937; margin-bottom: [-10px];">$1</strong>');
+//   const BreakMsg = formattedMessage.replace(/\n/g, "<br/>");
+
+//   return Swal.fire({
+//     icon: "error",
+//     // title: title, // Use the actual title field for the bold line
+//     html: `
+//       <div style="text-align: left; font-size: 13px; line-height: 1.5; color: #3d444d; margin-top: 4px;">
+//         ${BreakMsg}
+//       </div>
+//     `,
+//     width: '280px', 
+//     padding: '0.25rem', 
+//     showConfirmButton: true,
+//     confirmButtonColor: '#ef4444',
+//     confirmButtonText: 'OK',
+//     timer: 7000,
+//     timerProgressBar: true,
+//     customClass: {
+//       popup: "rounded-xl shadow-xl border border-gray-50",
+//       title: "text-sm font-bold m-0 p-0 mt-[-10px] text-gray-800", 
+//       confirmButton: "px-4 py-1.5 rounded-md font-medium text-xs",
+//       actions: "mt-2 mb-2" 
+//     },
+//     didOpen: (toast) => {
+//       const icon = Swal.getIcon();
+//       if (icon) {
+//         icon.style.transform = 'scale(0.55)'; // Slightly smaller icon
+//         icon.style.marginBottom = '-20px';   // Pulls title closer to icon
+//         icon.style.marginTop = '2px';      // Reduces top white space
+//       }
+//       toast.onmouseenter = Swal.stopTimer;
+//       toast.onmouseleave = Swal.resumeTimer;
+//     }
+//   });
+// };
+
+
+
+export const useSwalErrorAlert = (
+  title = "Error!",
+  message = "Something went wrong."
+) => {
+  const formattedMessage = String(message).replace(
+    /^(.+)/,
+    `<div style="font-weight:700; font-size:clamp(10px, 1.2vw, 14px); color:#111827; margin-bottom: -10px;">$1</div>`
+  );
+
+  const breakMsg = formattedMessage.replace(/\n/g, "<br/>");
+
   return Swal.fire({
+    toast: true,
+    position: "top-end",
     icon: "error",
-    title,
-    text: message,
-    timer: 3000, // Time in milliseconds
-    timerProgressBar: true, // Optional: Shows a visual countdown bar
+
+    html: `
+      <div style="text-align:left; font-size:clamp(10px, 1.2vw, 14px); line-height:1.45; color:#374151;">
+        ${breakMsg}
+      </div>
+    `,
+
+    showConfirmButton: false,
+    showCloseButton: true,
+    timer: 3000,
+    timerProgressBar: true,
+
+    width: 400,
+    padding: "12px 14px",
+
+    // ✅ avoid focus “jump”
+    // focusConfirm: false,
+    // focusCancel: false,
+    // returnFocus: false,
+
+    // ✅ smooth entrance (no shake / no zoom)
+    showClass: {popup: "swal2-show toast-smooth-in",},
+    hideClass: {popup: "swal2-hide toast-smooth-out",},
+
     customClass: {
-      popup: "rounded-xl shadow-2xl",
+      // ✅ translucent + glass
+      popup: "toast-glass rounded-xl shadow-lg border border-white/20",
+      htmlContainer: "m-0 p-0",
+      closeButton: "text-gray-700/70 hover:text-gray-900",
+      timerProgressBar: "rounded-b-xl",
     },
-    // Optional: ensures the timer stops if the user hovers over the alert
+
     didOpen: (toast) => {
+      const icon = Swal.getIcon();
+      if (icon) {
+        icon.style.transform = "scale(0.9)";
+        icon.style.margin = "0 0px 0 0";
+      }
       toast.onmouseenter = Swal.stopTimer;
       toast.onmouseleave = Swal.resumeTimer;
-    }
+    },
   });
 };
 
-export const useSwalSuccessAlert = (title = "Success!", message = "Operation completed successfully!") => {
+
+export const useSwalErrorAlertAPI = (
+  title = "Error!",
+  message = "Something went wrong."
+) => {
+
   return Swal.fire({
-    icon: "success",
-    title,
-    text: message,
+    toast: true,
+    position: "top-end",
+    icon: "error",
+    title: title,
+    html: `
+      <div style="text-align:left; font-size:clamp(10px, 1.2vw, 14px); line-height:1.45; color:#374151; margin-bottom: -10px;">
+        ${message}
+      </div>
+    `,
+
+    showConfirmButton: false,
+    showCloseButton: true,
     timer: 3000,
     timerProgressBar: true,
-    showConfirmButton: false, // Often used with timers to make it feel like a "toast"
+
+    width: 400,
+    padding: "12px 14px",
+
+    // ✅ smooth entrance (no shake / no zoom)
+    showClass: {popup: "swal2-show toast-smooth-in",},
+    hideClass: {popup: "swal2-hide toast-smooth-out",},
+
     customClass: {
-      popup: "rounded-xl shadow-2xl",
+      // ✅ translucent + glass
+      popup: "toast-glass rounded-xl shadow-lg border border-white/20",
+      htmlContainer: "m-0 p-0",
+      closeButton: "text-gray-700/70 hover:text-gray-900",
+      timerProgressBar: "rounded-b-xl",
+      title: "margin-bottom: -10px",
     },
+
     didOpen: (toast) => {
+      const icon = Swal.getIcon();
+      if (icon) {
+        icon.style.transform = "scale(0.9)";
+        icon.style.margin = "0 0px 0 0";
+      }
       toast.onmouseenter = Swal.stopTimer;
       toast.onmouseleave = Swal.resumeTimer;
-    }
+    },
+  });
+};
+
+
+
+
+// export const useSwalSuccessAlert = (title = "Success!", message = "Operation completed successfully!") => {
+//   return Swal.fire({
+//     icon: "success",
+//     title,
+//     text: message,
+//     timer: 3000,
+//     timerProgressBar: true,
+//     showConfirmButton: false, // Often used with timers to make it feel like a "toast"
+//     customClass: {
+//       popup: "rounded-xl shadow-2xl",
+//     },
+//     didOpen: (toast) => {
+//       toast.onmouseenter = Swal.stopTimer;
+//       toast.onmouseleave = Swal.resumeTimer;
+//     }
+//   });
+// };
+
+export const useSwalSuccessAlert = (
+  title = "Success!",
+  message = "Details has been saved!"
+) => {
+  return Swal.fire({
+    toast: true,                 // ✅ toast mode
+    position: "top-end",         // ✅ upper right
+    icon: "success",
+    title: title,
+    html: message
+      ? `<div style="text-align:left; font-size:clamp(12px, 1.2vw, 14px); line-height:1.45; color:#374151;">${message}</div>`
+      : "",
+
+    showConfirmButton: false,
+    showCloseButton: true,
+    timer: 2200,
+    timerProgressBar: true,
+
+    width: 400,
+    padding: "12px 14px",
+
+    // ✅ smooth (no shake)
+    showClass: { popup: "swal2-show toast-smooth-in" },
+    hideClass: { popup: "swal2-hide toast-smooth-out" },
+
+    customClass: {
+      popup: "toast-glass rounded-xl shadow-lg border border-white/20",
+      title: "text-sm font-semibold m-0 p-0 text-gray-900",
+      htmlContainer: "m-0 p-0",
+      closeButton: "text-gray-700/70 hover:text-gray-900",
+      timerProgressBar: "rounded-b-xl",
+    },
+
+    didOpen: (toast) => {
+      const icon = Swal.getIcon();
+      if (icon) {
+        icon.style.transform = "scale(0.9)";
+        icon.style.margin = "0 8px 0 0";
+      }
+      toast.onmouseenter = Swal.stopTimer;
+      toast.onmouseleave = Swal.resumeTimer;
+    },
   });
 };
 
@@ -257,17 +455,60 @@ export const useSwalInfoAlert = (title = "No data", message = "There is no data 
 };
 
 
-export const useSwalDeleteConfirm = async (title = "Delete this item?", text = "", confirmText = "Yes, delete it") => {
+// export const useSwalDeleteConfirm = async (title = "Delete this item?", text = "", confirmText = "Yes, delete it") => {
+//   return await Swal.fire({
+//     title,
+//     text,
+//     icon: "warning",
+//     showCancelButton: true,
+//     confirmButtonColor: "#dc2626",
+//     confirmButtonText: confirmText,
+//     customClass: {
+//       popup: "rounded-xl shadow-2xl",
+//     },
+//   });
+// };
+
+export const useSwalDeleteConfirm = async (
+  title = "Delete this item?",
+  text = "",
+  confirmText = "Confirm"
+) => {
   return await Swal.fire({
-    title,
-    text,
+    title: title,
+    text: text,
     icon: "warning",
     showCancelButton: true,
     confirmButtonColor: "#dc2626",
+    cancelButtonColor: "#6b7280",
     confirmButtonText: confirmText,
+    cancelButtonText: "Cancel",
+    
+    // --- Responsive Sizing ---
+    width: "clamp(320px, 90vw, 300px)", // Small on mobile, capped on desktop
+    padding: "1rem",
+    
     customClass: {
-      popup: "rounded-xl shadow-2xl",
+      popup: "toast-glass rounded-xl shadow-2xl border border-white/20",
+      title: "text-lg font-bold text-gray-800 m-0 pt-2",
+      htmlContainer: "text-xs text-gray-600 m-0 pt-1",
+      confirmButton: "text-xs py-2 px-4 rounded-lg shadow-sm",
+      cancelButton: "text-xs py-2 px-4 rounded-lg",
+      actions: "gap-2 mt-4 mb-2" // Adds spacing between buttons and from the text
     },
+
+    // --- Modern Transitions ---
+    showClass: { popup: "swal2-show toast-smooth-in" },
+    hideClass: { popup: "swal2-hide toast-smooth-out" },
+
+    didOpen: (popup) => {
+      // Scale down the warning icon to keep the popup compact
+      const icon = Swal.getIcon();
+      if (icon) {
+        icon.style.transform = "scale(0.75)";
+        icon.style.marginBottom = "-10px";
+      }
+    }
   });
 };
 
@@ -282,12 +523,60 @@ export const useSwalDeleteSuccess = () => {
   });
 };
 
-export const useSwalDeleteRecord = () => {
+// export const useSwalDeleteRecord = () => {
+//   return Swal.fire({
+//     title: "Record Deleted.",
+//     icon: "success",
+//     customClass: {
+//       popup: "rounded-xl shadow-2xl",
+//     },
+//   });
+// };
+
+export const useSwalDeleteRecord = (
+  title = "Deleted!",
+  message = "Record has been successfully removed."
+) => {
   return Swal.fire({
-    title: "Record Deleted.",
+    toast: true,
+    position: "top-end",
     icon: "success",
+    title: title,
+    html: `
+      <div style="text-align:left; font-size:clamp(10px, 1.2vw, 14px); line-height:1.45; color:#374151; margin-bottom: -10px;">
+        ${message}
+      </div>
+    `,
+
+    showConfirmButton: false,
+    showCloseButton: true,
+    timer: 3000, // Slightly shorter than error for successful actions
+    timerProgressBar: true,
+
+    width: 400,
+    padding: "12px 14px",
+
+    // ✅ Match your smooth entrance/exit classes
+    showClass: { popup: "swal2-show toast-smooth-in" },
+    hideClass: { popup: "swal2-hide toast-smooth-out" },
+
     customClass: {
-      popup: "rounded-xl shadow-2xl",
+      // ✅ Same translucent + glass styling
+      popup: "toast-glass rounded-xl shadow-lg border border-white/20",
+      htmlContainer: "m-0 p-0",
+      closeButton: "text-gray-700/70 hover:text-gray-900",
+      timerProgressBar: "rounded-b-xl bg-green-500", // Using green for success
+      title: "margin-bottom: -10px",
+    },
+
+    didOpen: (toast) => {
+      const icon = Swal.getIcon();
+      if (icon) {
+        icon.style.transform = "scale(0.9)";
+        icon.style.margin = "0 0px 0 0";
+      }
+      toast.onmouseenter = Swal.stopTimer;
+      toast.onmouseleave = Swal.resumeTimer;
     },
   });
 };
