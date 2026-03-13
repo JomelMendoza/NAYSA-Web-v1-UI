@@ -15,6 +15,7 @@ import { useTopDocDropDown } from "@/NAYSA Cloud/Global/top1RefTable";
 import { useSwalErrorAlert, useSwalSuccessAlert, useSwalErrorAlertAPI, useSwalDeleteConfirm, useSwalDeleteRecord } from "@/NAYSA Cloud/Global/behavior";
 import { useFieldLenghtCheck, useGetFieldLength,} from '@/NAYSA Cloud/Global/procedure';
 import { Plus, Trash2 } from "lucide-react";
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
 // UI Helpers
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer";
@@ -438,64 +439,10 @@ const columns = useMemo(() => [
 
   return (
     <div className="global-ref-main-div-ui">
-    {(isDropdownLoading || isListLoading || isSaving || isDeleting) && (
-      <div className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center px-4">
-        <div
-          className="
-            w-full max-w-xs sm:max-w-sm
-            rounded-3xl border border-white/20
-            bg-white/95 dark:bg-gray-900/95
-            shadow-[0_20px_60px_rgba(0,0,0,0.25)]
-            px-6 py-7 sm:px-8 sm:py-8
-            flex flex-col items-center text-center
-          "
-        >
-          {/* Spinner */}
-          <div className="relative mb-5">
-            <div className="w-16 h-16 rounded-full border-4 border-blue-100 dark:border-gray-700" />
-            <div className="absolute inset-0 w-16 h-16 rounded-full border-4 border-blue-600 border-t-transparent animate-spin" />
-            <div className="absolute inset-[10px] rounded-full bg-blue-50 dark:bg-gray-800" />
-          </div>
-
-          {/* Main text */}
-          <div className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-100">
-            {isSaving
-              ? "Saving record"
-              : isDeleting
-              ? "Deleting record"
-              : "Loading. Please wait"}
-            <span className="inline-flex ml-1">
-              <span className="animate-bounce [animation-delay:-0.3s]">.</span>
-              <span className="animate-bounce [animation-delay:-0.15s]">.</span>
-              <span className="animate-bounce">.</span>
-            </span>
-          </div>
-
-          {/* Sub text */}
-          {/* <div className="mt-2 text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-            {isSaving
-              ? "Please wait while your changes are being saved."
-              : isDeleting
-              ? "Please wait while the selected record is being removed."
-              : "Please wait . . ."}
-          </div> */}
-
-          {/* Progress bar effect */}
-          <div className="mt-5 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-            <div className="h-full w-1/2 rounded-full bg-blue-600 animate-[loadingBar_1.2s_ease-in-out_infinite]" />
-          </div>
-        </div>
-
-        <style>
-          {`
-            @keyframes loadingBar {
-              0% { transform: translateX(-100%); }
-              100% { transform: translateX(300%); }
-            }
-          `}
-        </style>
-      </div>
-    )}
+      
+          {/* {(isDropdownLoading || isListLoading || isDeleting) && <LoadingSpinner />} */}
+    {(isDropdownLoading || isListLoading || isSaving || isDeleting) && <LoadingSpinner />}
+    
 
       {/* Lookup Modals */}
       <SearchCOAClassRef isOpen={modals.coaClass} onClose={(v) => { toggleModal("coaClass", false); if(v) updateForm({ classCode: v.classCode, className: v.className }) }} />
