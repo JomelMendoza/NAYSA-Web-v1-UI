@@ -52,6 +52,8 @@ const SearchGlobalReferenceTable = forwardRef(
       onStateChange,
       totalExemptions = ["rate", "percent", "ratio", "id", "code"],
       isLoading = false,
+      tableSize = "Full",
+      onMobileRowOpen,
     },
     ref,
   ) => {
@@ -62,6 +64,19 @@ const SearchGlobalReferenceTable = forwardRef(
     const [isMobile, setIsMobile] = useState(false);
     const [forceTableView, setForceTableView] = useState(false);
     const useCardView = isMobile && !forceTableView;
+    const [isMobileView, setIsMobileView] = useState(false);
+    const [autoFillGrid, setAutoFillGrid] = useState(
+      () => Boolean(initialState?.autoFillGrid ?? false),
+    );
+
+
+    useEffect(() => {
+      const checkSmall = () => setIsMobileView(window.innerWidth < 640); // Tailwind sm
+      checkSmall();
+
+      window.addEventListener("resize", checkSmall);
+      return () => window.removeEventListener("resize", checkSmall);
+    }, []);
 
     useEffect(() => {
       const mq = window.matchMedia("(max-width: 768px)");
@@ -73,6 +88,7 @@ const SearchGlobalReferenceTable = forwardRef(
 
     const [filters, setFilters] = useState(() => initialState?.filters || {});
     const [globalSearch, setGlobalSearch] = useState(() => initialState?.globalSearch || "");
+
 
     const [sortConfig, setSortConfig] = useState(
       () => initialState?.sortConfig || { key: null, direction: null },
@@ -131,6 +147,7 @@ const SearchGlobalReferenceTable = forwardRef(
         userHiddenCols,
         itemsPerPage: rowsPerPage,
         globalSearch, // ✅ add
+        autoFillGrid,
       });
     }, [
       filters,
@@ -140,6 +157,7 @@ const SearchGlobalReferenceTable = forwardRef(
       userHiddenCols,
       rowsPerPage,
       globalSearch,   // ✅ add
+      autoFillGrid,
       onStateChange,
     ]);
 
@@ -147,7 +165,7 @@ const SearchGlobalReferenceTable = forwardRef(
     useEffect(() => {
       setExpandedGroups({});
       setCurrentPage(1);
-    }, [groupBy]);
+    }, [isMobile, groupBy]);
 
     // clear grouping if data becomes empty
     useEffect(() => {
@@ -208,6 +226,35 @@ const SearchGlobalReferenceTable = forwardRef(
       }
     };
 
+    const extractTextFromNode = (node) => {
+      if (node === null || node === undefined || typeof node === "boolean") return "";
+      if (typeof node === "string" || typeof node === "number") return String(node);
+      if (Array.isArray(node)) {
+        return node
+          .map(extractTextFromNode)
+          .filter(Boolean)
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+      if (React.isValidElement(node)) {
+        return extractTextFromNode(node.props?.children);
+      }
+      return "";
+    };
+
+    const getCellDisplayText = (row, col) => {
+      if (!col) return "";
+
+      if (typeof col.render === "function") {
+        const rendered = col.render(row);
+        const extracted = extractTextFromNode(rendered);
+        if (extracted) return extracted;
+      }
+
+      return formatValue(row?.[col.key], col);
+    };
+
     // --- Columns processing ---
     const orderedCols = useMemo(() => {
       if (columnOrder.length === 0) return columns;
@@ -215,13 +262,15 @@ const SearchGlobalReferenceTable = forwardRef(
     }, [columns, columnOrder]);
 
     const baseVisibleColumns = useMemo(() => orderedCols.filter((c) => !c.hidden), [orderedCols]);
+    const effectiveGroupBy = isMobile ? [] : groupBy;
+    const isGroupedView = effectiveGroupBy.length > 0;
 
     const visibleCols = useMemo(
       () =>
         baseVisibleColumns.filter(
-          (c) => !userHiddenCols.includes(c.key) && !groupBy.includes(c.key),
+          (c) => !userHiddenCols.includes(c.key) && !effectiveGroupBy.includes(c.key),
         ),
-      [baseVisibleColumns, userHiddenCols, groupBy],
+      [baseVisibleColumns, userHiddenCols, effectiveGroupBy],
     );
 
     // ✅ treat "__actions" / Actions column as non-exportable
@@ -335,39 +384,66 @@ const SearchGlobalReferenceTable = forwardRef(
         return cleanRow;
       });
     }, [data, filters, globalSearch, visibleCols, sortConfig, columns]);
+const autoColWidths = useMemo(() => {
+  const MIN = 60;
+  const MAX = 400;
+  const SAMPLE = 80;
 
-    const autoColWidths = useMemo(() => {
-      const MIN = 90;
-      const MAX = 260;
-      const SAMPLE = 80;
+  const sampleRows = (Array.isArray(filteredData) ? filteredData : []).slice(0, SAMPLE);
+  const out = {};
 
-      const sampleRows = (Array.isArray(filteredData) ? filteredData : []).slice(0, SAMPLE);
-      const out = {};
+  visibleCols.forEach((col) => {
+    let w = estimatePx(col.label || "");
 
-      visibleCols.forEach((col) => {
-        let w = estimatePx(col.label);
+    for (const r of sampleRows) {
+      let str = "";
 
-        for (const r of sampleRows) {
-          const val =
-            typeof col.render === "function" ? col.render(r) : formatValue(r?.[col.key], col);
+      if (col.autoWidthValue) {
+        str = String(col.autoWidthValue(r) ?? "");
+      } else if (typeof col.render === "function") {
+        str = String(r?.[col.key] ?? "");
+      } else {
+        str = String(formatValue(r?.[col.key], col) ?? "");
+      }
 
-          const str =
-            typeof val === "string" || typeof val === "number"
-              ? String(val)
-              : String(r?.[col.key] ?? "");
+      w = Math.max(w, estimatePx(str));
+    }
 
-          w = Math.max(w, estimatePx(str));
-        }
+    const colBase = Number(col.width);
+    if (Number.isFinite(colBase)) w = Math.max(w, colBase);
 
-        const colBase = Number(col.width);
-        if (Number.isFinite(colBase)) w = Math.max(w, colBase);
+    out[col.key] = clamp(w, MIN, MAX);
+  });
 
-        out[col.key] = clamp(w, MIN, MAX);
-      });
+  return out;
+}, [visibleCols, filteredData]);
 
-      return out;
-    }, [visibleCols, filteredData]);
 
+
+    const [manualResizedCols, setManualResizedCols] = useState({});
+
+const getColWidth = (col) => {
+  const manualWidth = colWidths[col.key];
+  const isManual = manualResizedCols[col.key];
+  const autoWidth = autoColWidths[col.key];
+  const defaultWidth = col.width || 140;
+
+  if (isManual && manualWidth) return manualWidth;
+  return autoWidth || defaultWidth;
+};
+
+
+    const getStickyLeftOffset = (index) => {
+      if (index <= 0) return 0;
+
+      let offset = 0;
+      for (let i = 0; i < index; i++) {
+        const prevCol = visibleCols[i];
+        offset += prevCol ? getColWidth(prevCol) : 140;
+      }
+      return offset;
+    };
+    
     const shouldSumColumn = (col) => {
       const noTotalKeys = ["unitcost", "currrate", "unitprice", "runbal"];
       if (!col) return false;
@@ -394,10 +470,10 @@ const SearchGlobalReferenceTable = forwardRef(
     };
 
     // --- Grouping ---
-    const groupData = (rows, level = 0) => {
-      if (level >= groupBy.length) return rows.map((r) => ({ ...r }));
+    const groupData = (rows, level = 0, activeGroupBy = []) => {
+      if (level >= activeGroupBy.length) return rows.map((r) => ({ ...r }));
 
-      const groupKey = groupBy[level];
+      const groupKey = activeGroupBy[level];
       const groups = {};
       rows.forEach((row) => {
         const val = String(row[groupKey] ?? "(Blank)");
@@ -414,7 +490,7 @@ const SearchGlobalReferenceTable = forwardRef(
             key: groupKey,
             value: key,
             level,
-            children: groupData(groups[key], level + 1),
+            children: groupData(groups[key], level + 1, activeGroupBy),
             count: groups[key].length,
             aggregates: calculateAggregates(groups[key]),
           });
@@ -455,15 +531,15 @@ const SearchGlobalReferenceTable = forwardRef(
       return out;
     };
 
-    const processRenderList = (nodes) => {
+    const processRenderList = (nodes, activeGroupBy = []) => {
       let list = [];
       nodes.forEach((node) => {
         if (node.isGroup) {
           list.push(node);
           const uniqueId = `${node.key}-${node.value}-${node.level}`;
           if (expandedGroups[uniqueId]) {
-            if (node.level === groupBy.length - 1) list = list.concat(node.children);
-            else list = list.concat(processRenderList(node.children));
+            if (node.level === activeGroupBy.length - 1) list = list.concat(node.children);
+            else list = list.concat(processRenderList(node.children, activeGroupBy));
           }
         } else {
           list.push(node);
@@ -473,19 +549,19 @@ const SearchGlobalReferenceTable = forwardRef(
     };
 
     const groupedStructure = useMemo(() => {
-      if (groupBy.length === 0) return filteredData;
-      return groupData(filteredData);
-    }, [filteredData, groupBy]);
+      if (effectiveGroupBy.length === 0) return filteredData;
+      return groupData(filteredData, 0, effectiveGroupBy);
+    }, [filteredData, effectiveGroupBy]);
 
     const fullRenderRows = useMemo(() => {
-      if (groupBy.length === 0) return filteredData;
+      if (effectiveGroupBy.length === 0) return filteredData;
 
       const expandAll = (nodes) => {
         let list = [];
         nodes.forEach((node) => {
           if (node.isGroup) {
             list.push(node);
-            if (node.level === groupBy.length - 1) list = list.concat(node.children);
+            if (node.level === effectiveGroupBy.length - 1) list = list.concat(node.children);
             else list = list.concat(expandAll(node.children));
           } else {
             list.push(node);
@@ -495,30 +571,57 @@ const SearchGlobalReferenceTable = forwardRef(
       };
 
       return expandAll(groupedStructure);
-    }, [filteredData, groupedStructure, groupBy]);
+    }, [filteredData, groupedStructure, effectiveGroupBy]);
 
     // --- Pagination ---
-    const totalItems = groupBy.length > 0 ? groupedStructure.length : filteredData.length;
-    const totalPages = rowsPerPage > 0 ? Math.max(1, Math.ceil(totalItems / rowsPerPage)) : 1;
-    const safePage = Math.min(Math.max(1, currentPage), totalPages);
+    const effectiveRowsPerPage = isMobileView ? 0 : rowsPerPage;
+
+    const totalItems =
+      effectiveGroupBy.length > 0 ? groupedStructure.length : filteredData.length;
+
+    const totalPages =
+      effectiveRowsPerPage > 0
+        ? Math.max(1, Math.ceil(totalItems / effectiveRowsPerPage))
+        : 1;
+
+    const safePage = isMobileView
+      ? 1
+      : Math.min(Math.max(1, currentPage), totalPages);
 
     useEffect(() => {
+      if (isMobileView) {
+        if (currentPage !== 1) setCurrentPage(1);
+        return;
+      }
+
       if (currentPage > totalPages && totalPages > 0) setCurrentPage(totalPages);
       else if (currentPage < 1 && totalPages > 0) setCurrentPage(1);
-    }, [currentPage, totalPages]);
+    }, [currentPage, totalPages, isMobileView]);
 
     const displayRows = useMemo(() => {
-      const start = rowsPerPage > 0 ? (safePage - 1) * rowsPerPage : 0;
+      const start =
+        effectiveRowsPerPage > 0 ? (safePage - 1) * effectiveRowsPerPage : 0;
 
-      if (groupBy.length === 0) {
-        return rowsPerPage > 0 ? filteredData.slice(start, start + rowsPerPage) : filteredData;
+      if (effectiveGroupBy.length === 0) {
+        return effectiveRowsPerPage > 0
+          ? filteredData.slice(start, start + effectiveRowsPerPage)
+          : filteredData;
       }
 
       const pagedGroups =
-        rowsPerPage > 0 ? groupedStructure.slice(start, start + rowsPerPage) : groupedStructure;
+        effectiveRowsPerPage > 0
+          ? groupedStructure.slice(start, start + effectiveRowsPerPage)
+          : groupedStructure;
 
-      return processRenderList(pagedGroups);
-    }, [safePage, rowsPerPage, filteredData, groupedStructure, expandedGroups, groupBy]);
+      return processRenderList(pagedGroups, effectiveGroupBy);
+    }, [
+      safePage,
+      effectiveRowsPerPage,
+      filteredData,
+      groupedStructure,
+      expandedGroups,
+      effectiveGroupBy,
+    ]);
 
     const grandTotals = useMemo(() => ({}), []);
     const hasDataFiltered = Array.isArray(filteredData) && filteredData.length > 0;
@@ -547,10 +650,13 @@ const SearchGlobalReferenceTable = forwardRef(
     // --- Column resize ---
     const handleMouseMove = useCallback((e) => {
       if (!resizingRef.current) return;
+
       const { startX, startWidth, key } = resizingRef.current;
       const delta = e.clientX - startX;
       const newWidth = Math.max(60, startWidth + delta);
+
       setColWidths((prev) => ({ ...prev, [key]: newWidth }));
+      setManualResizedCols((prev) => ({ ...prev, [key]: true }));
     }, []);
 
     const handleMouseUp = useCallback(() => {
@@ -617,10 +723,19 @@ const SearchGlobalReferenceTable = forwardRef(
       });
       if (!fileName) return;
 
-      const exportData = groupBy.length > 0 ? buildExpandedExportRows(groupedStructure) : filteredData;
+      const exportData =
+        effectiveGroupBy.length > 0 ? buildExpandedExportRows(groupedStructure) : filteredData;
+
+      const normalizedExportData = exportData.map((row) => {
+        const out = {};
+        exportVisibleCols.forEach((col) => {
+          out[col.key] = row?.isGroup ? row[col.key] ?? "" : getCellDisplayText(row, col);
+        });
+        return out;
+      });
 
       await exportGenericQueryExcel(
-        exportData,
+        normalizedExportData,
         grandTotals,
         exportVisibleCols,
         [], // disable grouping in exporter
@@ -663,10 +778,22 @@ const SearchGlobalReferenceTable = forwardRef(
         .join(",");
 
       const csvLines = [headerRow];
-      filteredData.forEach((row) => {
+      const csvRows = effectiveGroupBy.length === 0 ? filteredData : fullRenderRows;
+
+      csvRows.forEach((row) => {
         const line = exportVisibleCols
-          .map((col) => {
-            const formatted = formatValue(row[col.key], col);
+          .map((col, idx) => {
+            let formatted = "";
+
+            if (row?.isGroup) {
+              formatted =
+                idx === 0
+                  ? `${columns.find((c) => c.key === row.key)?.label}: ${row.value} (${row.count})`
+                  : "";
+            } else {
+              formatted = getCellDisplayText(row, col);
+            }
+
             const noCommas = String(formatted ?? "").replace(/,/g, "");
             const escaped = noCommas.replace(/"/g, '""');
             return `"${escaped}"`;
@@ -758,6 +885,7 @@ const SearchGlobalReferenceTable = forwardRef(
         userHiddenCols,
         itemsPerPage: rowsPerPage,
         globalSearch, // ✅ add
+        autoFillGrid,
       }),
       scrollRef,
       clearAllState: () => {
@@ -767,6 +895,7 @@ const SearchGlobalReferenceTable = forwardRef(
         setUserHiddenCols([]);
         setRowsPerPage(Number(itemsPerPage) || 50);
         setGlobalSearch(""); // ✅ add
+        setAutoFillGrid(Boolean(initialState?.autoFillGrid ?? false));
       },
       resetFilters: () => setFilters({}),
       clearSort: () => setSortConfig({ key: null, direction: null }),
@@ -784,49 +913,101 @@ const SearchGlobalReferenceTable = forwardRef(
       else setUserHiddenCols([]);
     };
 
-    const canRemoveSingleGroup = groupBy.length <= 1;
+
+    const handleRowOpen = (row) => {
+      if (isMobile) {
+        onMobileRowOpen?.(row);
+      } else {
+        onRowDoubleClick?.(row);
+      }
+    };
 
     const filterInputClass =
-      "w-full min-w-0 px-2 py-1.5 text-[11px] rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-300";
+      "w-full min-w-0 px-2 py-1 text-[11px] rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-300";
 
     // ✅ Mobile Card renderer
-    const renderMobileCard = (row, idx) => {
-      const primaryCol = visibleCols?.[0];
+const renderMobileCard = (row, idx) => {
+  if (row?.isGroup) {
+    const uniqueId = `${row.key}-${row.value}-${row.level}`;
+    const isExpanded = expandedGroups[uniqueId];
 
-      const title =
-        primaryCol
-          ? typeof primaryCol.render === "function"
-            ? primaryCol.render(row)
-            : formatValue(row?.[primaryCol.key], primaryCol)
-          : `Row ${idx + 1}`;
+    return (
+      <div
+        key={`g-${uniqueId}`}
+        className="rounded-lg border bg-gray-100 p-4 cursor-pointer"
+        onClick={() => toggleGroup(row)}
+      >
+        <div className="flex items-center">
+          <FontAwesomeIcon
+            icon={isExpanded ? faChevronDown : faChevronRight}
+            className="mr-2 text-gray-500"
+          />
+          <span className="mr-2 text-gray-600">
+            {columns.find((c) => c.key === row.key)?.label}:
+          </span>
+          <span className="mr-2 font-bold">{row.value}</span>
+          <span className="bg-blue-200 text-blue-800 text-[10px] px-2 rounded-full">
+            {row.count}
+          </span>
+        </div>
+      </div>
+    );
+  }
 
-      return (
-        <div
-          key={row.__idx ?? idx}
-          className="border rounded-xl bg-white shadow-sm p-3 space-y-2 active:scale-[0.99] transition"
-          onDoubleClick={() => onRowDoubleClick?.(row)}
-        >
-          <div className="text-sm font-semibold text-gray-900 truncate">{title}</div>
+  const firstCols = visibleCols.slice(0, 4);
+  const otherCols = visibleCols.slice(4);
 
-          <div className="grid grid-cols-1 gap-1">
-            {visibleCols.slice(1).map((col) => (
-              <div key={col.key} className="flex items-start justify-between gap-3">
-                <div className="text-[11px] text-gray-500 w-32 shrink-0">{col.label}</div>
-                <div className="text-[11px] text-gray-800 text-right break-words">
+  return (
+    <div
+      key={row.__idx ?? idx}
+      className="rounded-lg border bg-white shadow-sm p-3 cursor-pointer active:scale-[0.99] transition"
+      onClick={() => handleRowOpen(row)}
+    >
+      <div className="space-y-1">
+        {firstCols.map((col) => (
+          <div
+              key={col.key}
+              className={`flex items-start justify-between gap-1 ${
+                col.key === "__actions" ? "flex-col items-stretch mb-2" : ""
+              }`}
+            >
+            <span
+              className={`text-[10px] font-semibold text-gray-600 ${
+                col.key === "__actions" ? "min-w-0 mb-1" : "min-w-[110px]"
+              }`}
+            >{col.label}</span>
+            <div className="text-[10px] text-gray-800 text-left break-words flex-1">
+              {typeof col.render === "function"
+                ? col.render(row)
+                : formatValue(row[col.key], col)}
+            </div>
+          </div>
+        ))}
+
+        {otherCols.length > 0 && (
+          <div className="pt-2 border-t border-gray-100 space-y-1">
+            {otherCols.map((col) => (
+              <div key={col.key} className="flex items-start justify-between gap-1">
+                <span className="text-[10px] font-semibold text-gray-600 min-w-[110px]">
+                  {col.label}
+                </span>
+                  <div
+                    className={`text-[10px] text-gray-800 text-left break-words ${
+                      col.key === "__actions" ? "w-full" : "flex-1"
+                    }`}
+                  >
                   {typeof col.render === "function"
                     ? col.render(row)
-                    : formatValue(row?.[col.key], col)}
+                    : formatValue(row[col.key], col)}
                 </div>
               </div>
             ))}
           </div>
-
-          <div className="text-[10px] text-gray-400 pt-1 border-t">
-            Double-tap / double-click to open
-          </div>
-        </div>
-      );
-    };
+        )}
+      </div>
+    </div>
+  );
+};
 
     return (
       <div
@@ -838,60 +1019,58 @@ const SearchGlobalReferenceTable = forwardRef(
         {/* TOP BAR */}
         {hasDataFiltered && (
           <div
-            className="p-2 bg-gray-50 border border-gray-200 rounded-md mb-2
-                       flex flex-col md:flex-row md:items-center md:justify-between gap-2"
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => handleColDrop(e, null, true)}
+            className="
+              p-2 rounded-md
+              flex flex-col md:flex-row md:items-center md:justify-between gap-2
+            "
+            onDragOver={(e) => {
+              if (!isMobile) e.preventDefault();
+            }}
+            onDrop={(e) => {
+              if (!isMobile) handleColDrop(e, null, true);
+            }}
           >
-            <div className="flex-1 flex flex-wrap gap-2 items-center">
-              <div className="text-xs font-bold text-gray-600 flex items-center">
-                <FontAwesomeIcon icon={faLayerGroup} className="mr-2" />
-                Group By:
-              </div>
+            {!isMobile && (
+              <div className="flex-1 flex flex-wrap gap-2 items-center min-w-0">
+                <div className="text-xs font-bold text-gray-600 flex items-center">
+                  <FontAwesomeIcon icon={faLayerGroup} className="mr-2" />
+                  Group By:
+                </div>
 
-              {groupBy.length === 0 && (
-                <div className="text-sm text-gray-400 italic border border-dashed border-gray-300 rounded px-3 py-1">
+                {groupBy.length === 0 && (
+                  <div
+                  className={`text-gray-400 italic border border-dashed border-gray-300 rounded py-1
+                    ${tableSize === "Half"
+                      ? "text-[8px] sm:text-[9px] px-4"
+                      : "text-[10px] sm:text-xs px-20"
+                    }`}
+                >
                   Drag Header Here...
                 </div>
-              )}
+                )}
 
-              {groupBy.map((gKey) => (
-                <div
-                  key={gKey}
-                  className="flex items-center bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded border border-blue-200"
-                >
-                  <span>{columns.find((c) => c.key === gKey)?.label}</span>
+                {groupBy.map((gKey) => (
+                  <div
+                    key={gKey}
+                    className="flex items-center bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded border border-blue-200 max-w-full"
+                  >
+                    <span className="truncate">{columns.find((c) => c.key === gKey)?.label}</span>
 
-                  {canRemoveSingleGroup && (
                     <button
                       type="button"
                       onClick={() => setGroupBy((p) => p.filter((k) => k !== gKey))}
-                      className="ml-2 text-blue-600 hover:text-red-600"
+                      className="ml-2 text-blue-600 hover:text-red-600 shrink-0"
                       title="Remove group"
                     >
                       <FontAwesomeIcon icon={faTimes} />
                     </button>
-                  )}
-                </div>
-              ))}
+                  </div>
+                ))}
+              </div>
+            )}
 
-              {/* Mobile view toggle */}
-              {isMobile && (
-                <div className="ml-auto flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="px-3 py-2 h-9 text-xs font-medium bg-white border rounded-md hover:bg-gray-100 active:scale-[0.98] transition"
-                    onClick={() => setForceTableView((p) => !p)}
-                    title="Toggle Card/Table View"
-                  >
-                    {useCardView ? "Table View" : "Card View"}
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2 flex-wrap justify-end">
-              {groupBy.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap justify-end w-full md:w-auto">
+              {!isMobile && groupBy.length > 0 && (
                 <>
                   <button
                     type="button"
@@ -923,8 +1102,7 @@ const SearchGlobalReferenceTable = forwardRef(
                 </>
               )}
 
-
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full md:w-auto">
                 <input
                   type="text"
                   value={globalSearch}
@@ -933,9 +1111,12 @@ const SearchGlobalReferenceTable = forwardRef(
                     setCurrentPage(1);
                   }}
                   placeholder="Search all columns..."
-                  className="h-8 w-full md:w-64 px-3 text-xs rounded-md border border-gray-300
-                            focus:outline-none focus:ring-1 focus:ring-blue-300"
-                />
+                  className={`w-full rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-300
+                      ${tableSize === "Half"
+                        ? "h-7 md:w-44 px-2 text-[11px]"
+                        : "h-8 md:w-64 px-3 text-xs"
+                      }`}
+                  />
 
                 {globalSearch?.trim() && (
                   <button
@@ -952,13 +1133,49 @@ const SearchGlobalReferenceTable = forwardRef(
                 )}
               </div>
 
+              {!isMobile && (
+                <label
+                  className="inline-flex items-center cursor-pointer select-none"
+                  title={autoFillGrid ? "Disable auto fit" : "Enable auto fit"}
+                >
+                  <input
+                    type="checkbox"
+                    checked={autoFillGrid}
+                    onChange={() => setAutoFillGrid((p) => !p)}
+                    className="sr-only"
+                  />
+
+                  <div
+                    className={`relative w-20 h-8 rounded-full transition-colors duration-200 ${
+                      autoFillGrid ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-600" 
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-[2px] h-7 w-7 rounded-full bg-white shadow-md transition-all duration-200 ${
+                        autoFillGrid ? "left-[50px]" : "left-[2px]"
+                      }`}
+                    />
+
+                    <span
+                      className={`absolute inset-0 flex items-center text-[11px] font-medium pointer-events-none transition-all duration-200 ${
+                        autoFillGrid
+                          ? "justify-start pl-2 text-white"
+                          : "justify-end pr-2 text-gray-700"
+                      }`}
+                    >
+                      Auto Fit
+                    </span>
+                  </div>
+                </label>
+              )}
+
               {/* EXPORT */}
-              <div className="relative" data-sgrt-export>
+              <div className="relative flex-1 md:flex-none min-w-[110px]" data-sgrt-export>
                 <button
                   type="button"
                   onClick={() => hasDataFiltered && setShowExportMenu((p) => !p)}
                   disabled={!hasDataFiltered}
-                  className="px-3 py-2 h-8 text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 active:scale-[0.98] transition"
+                  className="w-full px-3 py-2 h-8 text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 active:scale-[0.98] transition"
                 >
                   <FontAwesomeIcon icon={faFileExport} className="mr-1" />
                   Export
@@ -1015,20 +1232,18 @@ const SearchGlobalReferenceTable = forwardRef(
               </div>
 
               {/* COLUMNS */}
-              <div className="relative" data-sgrt-cols>
+              <div className="relative flex-1 md:flex-none min-w-[110px]" data-sgrt-cols>
                 <button
                   type="button"
                   onClick={() => setShowColumnChooser((p) => !p)}
-                  className="px-3 py-2 h-8 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-[0.98] transition"
+                  className="w-full px-3 py-2 h-8 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-[0.98] transition"
                 >
                   <FontAwesomeIcon icon={faColumns} className="mr-1" />
                   Columns
                 </button>
 
                 {showColumnChooser && (
-                  <div
-                    className="absolute right-0 mt-1 bg-white border rounded shadow-lg p-2 max-h-64 overflow-auto z-50 min-w-[240px]"
-                  >
+                  <div className="absolute right-0 mt-1 bg-white border rounded shadow-lg p-2 max-h-64 overflow-auto z-50 min-w-[240px]">
                     <div className="flex items-center justify-between text-[11px] font-semibold mb-1 border-b pb-1">
                       <span>Show / Hide Columns</span>
                       <label className="flex items-center gap-1 text-[11px]">
@@ -1054,7 +1269,9 @@ const SearchGlobalReferenceTable = forwardRef(
                           onChange={(e) => {
                             const checked = e.target.checked;
                             setUserHiddenCols((prev) =>
-                              checked ? prev.filter((k) => k !== col.key) : [...prev, col.key],
+                              checked
+                                ? prev.filter((k) => k !== col.key)
+                                : [...prev, col.key],
                             );
                           }}
                         />
@@ -1073,64 +1290,58 @@ const SearchGlobalReferenceTable = forwardRef(
           {isLoadingColumns ? (
             <TableLoader />
           ) : useCardView ? (
-            <div className="flex-1 overflow-auto space-y-3 p-2">
-              {displayRows.map((row, idx) => {
-                if (groupBy.length > 0 && row.isGroup) {
-                  const uniqueId = `${row.key}-${row.value}-${row.level}`;
-                  const isExpanded = expandedGroups[uniqueId];
-                  return (
-                    <button
-                      key={`g-${uniqueId}`}
-                      type="button"
-                      className="w-full text-left border rounded-xl p-3 bg-gray-50 active:scale-[0.99] transition"
-                      onClick={() => toggleGroup(row)}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-sm font-semibold text-blue-900">
-                          {columns.find((c) => c.key === row.key)?.label}: {row.value}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {isExpanded ? "Hide" : "Show"} ({row.count})
-                        </div>
-                      </div>
-                    </button>
-                  );
-                }
-
-                return renderMobileCard(row, idx);
-              })}
+            <div className="flex-1 overflow-auto space-y-2 p-2">
+              {displayRows.map((row, idx) => renderMobileCard(row, idx))}
             </div>
           ) : (
             <div
               ref={scrollRef}
-              className="flex-1 overflow-auto border border-gray-200 rounded-sm relative custom-scrollbar"
+              className={`flex-1 border border-gray-200 rounded-sm relative custom-scrollbar ${
+                autoFillGrid ? "overflow-y-auto overflow-x-hidden" : "overflow-auto"
+              }`}
             >
               <div className="text-[10px] text-gray-400 px-2 py-1 md:hidden">
                 Tip: swipe left/right to see more columns
               </div>
 
-              <table className="global-tran-table-div-ui border-collapse table-auto min-w-max w-max">
+              <table
+                className={`global-tran-table-div-ui border-collapse ${
+                  autoFillGrid ? "table-fixed w-full min-w-full" : "table-auto min-w-max w-max"
+                }`}
+              >
                 <thead className="global-tran-thead-div-ui text-[11px] sticky top-0 z-30 bg-white">
                   <tr>
                     {visibleCols.map((col, index) => {
-                      const isFirstTwo = index < 2;
-                      // Calculate the 'left' offset for the second sticky column
-                      const leftOffset = index === 0 ? 0 : (colWidths[visibleCols[0].key] || autoColWidths[visibleCols[0].key] || 140);
-                      
+                      const isStickyLeft = index < 3;
+                      const leftOffset = getStickyLeftOffset(index);
+                      const colWidth = getColWidth(col);
+                      const isManual = manualResizedCols[col.key];
+
                       return (
                         <th
                           key={col.key}
-                          className={`global-tran-th-ui bg-blue-100 cursor-pointer select-none relative ${isFirstTwo ? "sticky z-40" : ""}`}
-                          draggable={!groupBy.includes(col.key)}
-                          onDragStart={(e) => handleColDragStart(e, col.key)}
-                          onDragOver={(e) => e.preventDefault()}
-                          onDrop={(e) => handleColDrop(e, col.key)}
+                          className={`global-tran-th-ui bg-blue-100 cursor-pointer select-none relative ${
+                            isStickyLeft ? "sticky z-40" : ""
+                          }`}
+                          draggable={!isMobile && !groupBy.includes(col.key)}
+                          onDragStart={(e) => !isMobile && handleColDragStart(e, col.key)}
+                          onDragOver={(e) => {
+                            if (!isMobile) e.preventDefault();
+                          }}
+                          onDrop={(e) => {
+                            if (!isMobile) handleColDrop(e, col.key);
+                          }}
                           onClick={() => handleSort(col.key, col.sortable)}
-                          title="Click to sort • Drag to reorder"
+                          title={!isMobile ? "Click to sort • Drag to reorder/group" : "Click to sort"}
                           style={{
-                            width: colWidths[col.key] || autoColWidths[col.key] || 140,
-                            minWidth: 90,
-                            left: isFirstTwo ? leftOffset : undefined,
+                            ...(autoFillGrid && !isManual
+                              ? {}
+                              : {
+                                  width: `${colWidth}px`,
+                                  minWidth: `${colWidth}px`,
+                                  maxWidth: `${colWidth}px`,
+                                }),
+                            left: isStickyLeft ? `${leftOffset}px` : undefined,
                           }}
                         >
                           <div className="flex items-center justify-between gap-2 min-w-0">
@@ -1144,11 +1355,10 @@ const SearchGlobalReferenceTable = forwardRef(
                             )}
                           </div>
 
-                          {/* resize handle */}
                           <div
                             className="absolute top-0 right-0 h-full w-2 cursor-col-resize select-none z-50"
                             onMouseDown={(e) => {
-                              e.stopPropagation(); // Prevent sort on resize
+                              e.stopPropagation();
                               startResizing(e, col.key);
                             }}
                           />
@@ -1160,14 +1370,27 @@ const SearchGlobalReferenceTable = forwardRef(
                   {showFilters && hasDataFiltered && (
                     <tr className="sticky top-[34px] z-20 bg-white">
                       {visibleCols.map((col, index) => {
-                        const isFirstTwo = index < 2;
-                        const leftOffset = index === 0 ? 0 : (colWidths[visibleCols[0].key] || autoColWidths[visibleCols[0].key] || 140);
+                        const isStickyLeft = index < 3;
+                        const leftOffset = getStickyLeftOffset(index);
+                        const colWidth = getColWidth(col);
+                        const isManual = manualResizedCols[col.key];
 
                         return (
-                          <th 
-                            key={`f-${col.key}`} 
-                            className={`global-tran-th-ui px-2 py-1 bg-white ${isFirstTwo ? "sticky z-30" : ""}`}
-                            style={{ left: isFirstTwo ? leftOffset : undefined }}
+                          <th
+                            key={`f-${col.key}`}
+                            className={`global-tran-th-ui px-1 py-1 bg-white ${
+                              isStickyLeft ? "sticky z-30" : ""
+                            }`}
+                            style={{
+                              ...(autoFillGrid && !isManual
+                                ? {}
+                                : {
+                                    width: `${colWidth}px`,
+                                    minWidth: `${colWidth}px`,
+                                    maxWidth: `${colWidth}px`,
+                                  }),
+                              left: isStickyLeft ? `${leftOffset}px` : undefined,
+                            }}
                           >
                             <input
                               className={filterInputClass}
@@ -1197,9 +1420,7 @@ const SearchGlobalReferenceTable = forwardRef(
                     </tr>
                   ) : (
                     displayRows.map((row, idx) => {
-                      const isGrouped = groupBy.length > 0;
-
-                      if (isGrouped && row.isGroup) {
+                      if (isGroupedView && row.isGroup) {
                         const uniqueId = `${row.key}-${row.value}-${row.level}`;
                         const isExpanded = expandedGroups[uniqueId];
                         return (
@@ -1210,7 +1431,7 @@ const SearchGlobalReferenceTable = forwardRef(
                           >
                             <td
                               colSpan={visibleCols.length + (hasActionCol ? 1 : 0)}
-                              className="global-tran-td-ui font-semibold text-blue-900 sticky left-0"
+                              className="global-tran-td-ui font-semibold text-blue-900"
                             >
                               <div
                                 className="flex items-center"
@@ -1235,21 +1456,30 @@ const SearchGlobalReferenceTable = forwardRef(
 
                       return (
                         <tr
-                          key={row.__idx ?? idx}
-                          className="global-tran-tr-ui hover:bg-gray-50"
-                          onDoubleClick={() => onRowDoubleClick?.(row)}
+                            key={row.__idx ?? idx}
+                            className="global-tran-tr-ui hover:bg-gray-50 cursor-pointer"
+                            onClick={() => {
+                              if (isMobile) handleRowOpen(row);
+                            }}
+                            onDoubleClick={() => {
+                              if (!isMobile) handleRowOpen(row);
+                            }}
                         >
-                          {visibleCols.map((col, index) => {
-                            const isFirstTwo = index < 2;
-                            const leftOffset = index === 0 ? 0 : (colWidths[visibleCols[0].key] || autoColWidths[visibleCols[0].key] || 140);
-
+                          {visibleCols.map((col, index) => {                           
+                            const isStickyLeft = index < 3;
+                            const leftOffset = getStickyLeftOffset(index);                            
                             return (
                               <td
                                 key={col.key}
-                                className={`global-tran-td-ui align-center bg-white ${isFirstTwo ? "sticky z-10" : ""}`}
+                                className={`global-tran-td-ui align-center bg-white ${
+                                  isStickyLeft
+                                    ? "sticky z-10 shadow-[-1px_0_0_0_rgba(229,231,235,1)]"
+                                    : ""
+                                }`}
                                 style={{
-                                  width: colWidths[col.key] || autoColWidths[col.key] || 140,
-                                  left: isFirstTwo ? leftOffset : undefined,
+                                  width: getColWidth(col),
+                                  minWidth: autoFillGrid ? 120 : 90,
+                                  left: isStickyLeft ? leftOffset : undefined,
                                 }}
                               >
                                 <div className="w-full">
@@ -1270,58 +1500,114 @@ const SearchGlobalReferenceTable = forwardRef(
           )}
         </div>
 
-        {/* PAGINATION FOOTER */}
-        {hasDataFiltered && (
-          <div
-            className="px-3 py-2 border-t bg-white text-xs shrink-0
-                       flex flex-col md:flex-row md:items-center md:justify-between gap-2"
-          >
-            <div>
-              Showing <b>{rowsPerPage > 0 ? (safePage - 1) * rowsPerPage + 1 : 1}</b>–
-              <b>{rowsPerPage > 0 ? Math.min(safePage * rowsPerPage, totalItems) : totalItems}</b>{" "}
-              of <b>{totalItems}</b>
-            </div>
 
-            <div className="flex items-center gap-3 flex-wrap justify-end">
-              <div>Rows per page</div>
+{/* PAGINATION FOOTER */}
+{hasDataFiltered && !isMobileView && (
+  <div
+    className="
+      border-t bg-white shrink-0
+      px-3 py-2 sm:px-2
+      flex flex-col gap-3
+      lg:flex-row lg:items-center lg:justify-between
+    "
+  >
+    <div className="text-[11px] sm:text-xs text-gray-600 text-center lg:text-left">
+      Showing{" "}
+      <span className="font-semibold text-gray-900">
+        {effectiveRowsPerPage > 0 ? (safePage - 1) * effectiveRowsPerPage + 1 : 1}
+      </span>
+      –
+      <span className="font-semibold text-gray-900">
+        {effectiveRowsPerPage > 0
+          ? Math.min(safePage * effectiveRowsPerPage, totalItems)
+          : totalItems}
+      </span>{" "}
+      of <span className="font-semibold text-gray-900">{totalItems}</span>
+    </div>
 
-              <select
-                className="global-tran-textbox-ui global-tran-textbox-enabled w-20 h-9"
-                value={rowsPerPage}
-                onChange={(e) => {
-                  setRowsPerPage(Number(e.target.value));
-                  setCurrentPage(1);
-                }}
-              >
-                {[10, 20, 50, 100].map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
+    <div
+      className="
+        flex flex-col sm:flex-row sm:flex-wrap
+        items-stretch sm:items-center
+        justify-center lg:justify-end
+        gap-2 sm:gap-2
+        w-full lg:w-auto
+      "
+    >
+      <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
+        <span className="text-[11px] sm:text-xs text-gray-600 whitespace-nowrap">
+          Rows per page
+        </span>
 
-              <button
-                className="global-tran-btn-ui px-3 py-2 h-9 active:scale-[0.98] transition"
-                disabled={safePage <= 1}
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              >
-                Prev
-              </button>
+        <select
+          className="
+            global-tran-textbox-ui global-tran-textbox-enabled
+            h-8 min-w-[70px] w-20
+            rounded-md sm:text-xs
+          "
+          value={rowsPerPage}
+          onChange={(e) => {
+            setRowsPerPage(Number(e.target.value));
+            setCurrentPage(1);
+          }}
+        >
+          {[10, 20, 50, 100, 200, 500, 1000].map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+      </div>
 
-              <div>
-                Page <b>{safePage}</b> / <b>{totalPages}</b>
-              </div>
+      <div
+        className="
+          flex items-center justify-between sm:justify-end
+          gap-2 sm:gap-3
+          w-full sm:w-auto
+        "
+      >
+        <button
+          className="
+            global-tran-btn-ui
+            h-8 px-3 sm:px-4
+            min-w-[80px]
+            rounded-md
+            hover:bg-blue-100 hover:text-blue-800
+            text-xs sm:text-sm
+            active:scale-[0.98] transition
+            disabled:opacity-50 disabled:cursor-not-allowed
+          "
+          disabled={safePage <= 1}
+          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+        >
+          Prev
+        </button>
 
-              <button
-                className="global-tran-btn-ui px-3 py-2 h-9 active:scale-[0.98] transition"
-                disabled={safePage >= totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        )}
+        <div className="text-[11px] sm:text-xs text-gray-700 whitespace-nowrap">
+          Page <span className="font-semibold">{safePage}</span> /{" "}
+          <span className="font-semibold">{totalPages}</span>
+        </div>
+
+        <button
+          className="
+            global-tran-btn-ui
+            h-8 px-3 sm:px-4
+            min-w-[80px]
+            rounded-md
+            hover:bg-blue-100 hover:text-blue-800
+            text-xs sm:text-sm
+            active:scale-[0.98] transition
+            disabled:opacity-50 disabled:cursor-not-allowed
+          "
+          disabled={safePage >= totalPages}
+          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
         {/* HIDDEN EXPORT TABLE (PDF/IMAGE) */}
         {hasDataFiltered && (
@@ -1354,8 +1640,8 @@ const SearchGlobalReferenceTable = forwardRef(
               </thead>
 
               <tbody>
-                {(groupBy.length === 0 ? filteredData : fullRenderRows).map((row, idx) => {
-                  if (groupBy.length > 0 && row.isGroup) {
+                {(effectiveGroupBy.length === 0 ? filteredData : fullRenderRows).map((row, idx) => {
+                  if (effectiveGroupBy.length > 0 && row.isGroup) {
                     return (
                       <tr key={`exp-g-${row.key}-${row.value}-${row.level}-${idx}`}>
                         <td
@@ -1376,7 +1662,7 @@ const SearchGlobalReferenceTable = forwardRef(
                           className="border px-2 py-1 align-bottom"
                           style={{ maxWidth: 150, whiteSpace: "normal", wordBreak: "break-word" }}
                         >
-                          {formatValue(row[col.key], col)}
+                          {getCellDisplayText(row, col)}
                         </td>
                       ))}
                     </tr>

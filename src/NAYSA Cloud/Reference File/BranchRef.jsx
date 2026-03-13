@@ -57,12 +57,7 @@ const INITIAL_FORM = {
   tblFieldArray :[],
 };
 
-const INITIAL_REG = {
-  registeredBy: "",
-  registeredDate: "",
-  lastUpdatedBy: "",
-  lastUpdatedDate: "",
-};
+const INITIAL_REG = { registeredBy: "", registeredDate: "", lastUpdatedBy: "", lastUpdatedDate: "" };
 
 const BranchRef = () => {
   const queryClient = useQueryClient();
@@ -155,19 +150,6 @@ const { mutate: saveBranch, isLoading: isSaving } = useMutation({
 
 
   // --- MUTATION: DELETE ---
-  // const { mutate: deleteBranch, isLoading: isDeleting } = useMutation({
-  //   mutationFn: async (payload) => await apiClient.post("/deleteBranch", payload),
-  //   onSuccess: (response) => {
-  //     const sqlRow = response?.data?.data?.[0];
-  //     if (sqlRow?.errorcount > 0) return useSwalErrorAlert("Error", sqlRow.errormsg);
-
-  //     queryClient.invalidateQueries(["branchList"]);
-  //     useSwalDeleteRecord("Deleted!", "Branch has been removed from the system.");
-  //     resetForm();
-  //   },
-  //   onError: (error) => useSwalErrorAlertAPI("Delete Error", error?.message || error),
-  // });
-
   const { mutate: deleteBranch, isLoading: isDeleting } = useMutation({
   mutationFn: async (payload) => await apiClient.post("/deleteBranch", payload),
   onSuccess: (response) => {
@@ -210,12 +192,13 @@ const { mutate: saveBranch, isLoading: isSaving } = useMutation({
     });
 
     setRegistrationInfo({
-      registeredBy: row.registeredBy ?? "",
-      registeredDate: row.registeredDate ?? "",
-      lastUpdatedBy: row.lastUpdatedBy ?? "",
-      lastUpdatedDate: row.lastUpdatedDate ?? "",
+      registeredBy: row.registeredBy,
+      registeredDate: row.registeredDate,
+      lastUpdatedBy: row.lastUpdatedBy,
+      lastUpdatedDate: row.lastUpdatedDate
     });
 
+    console.log("Edit Row:", row);
     setIsEditing(true);
   };
 
@@ -408,8 +391,8 @@ const handleCheckDuplicate = async (code) => {
       )}
 
       {/* HEADER (same UI pattern as COAMast, no Tabs) */}
-      <div className="global-ref-header-ui">
-        <div className="w-full flex flex-col gap-3 md:grid md:grid-cols-3 md:items-center md:gap-0">
+      <div className="global-ref-header-ui mb-2">
+        <div className="w-full flex flex-col gap-1 md:grid md:grid-cols-3 md:items-center md:gap-0">
 
           {/* Left: Title */}
           <div className="w-full md:w-auto flex md:justify-start">
@@ -434,7 +417,7 @@ const handleCheckDuplicate = async (code) => {
                       icon: faPlus,
                       onClick: startAdd,
                       className:
-                        "flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
+                        "flex items-center justify-center h-7 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
                     },
                     {
                       key: "save",
@@ -442,7 +425,7 @@ const handleCheckDuplicate = async (code) => {
                       icon: faSave,
                       onClick: handleSave,
                       disabled: !isEditing || isSaving,
-                      className: `flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md transition-all
+                      className: `flex items-center justify-center h-7 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md transition-all
                         ${!isEditing || isSaving
                           ? "bg-blue-500 opacity-50 cursor-not-allowed text-white"
                           : "bg-blue-600 text-white hover:bg-blue-700"
@@ -454,7 +437,7 @@ const handleCheckDuplicate = async (code) => {
                       icon: faUndo,
                       onClick: resetForm,
                       className:
-                        "flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
+                        "flex items-center justify-center h-7 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
                     },
                   ]}
                 />
@@ -464,7 +447,7 @@ const handleCheckDuplicate = async (code) => {
               <div ref={guideRef} className="relative">
                 <button
                   onClick={() => setOpenGuide((v) => !v)}
-                  className="bg-blue-600 text-white h-8 w-8 sm:w-auto sm:h-8 sm:px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
+                  className="bg-blue-600 text-white h-7 w-8 sm:w-auto sm:h-8 sm:px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
                 >
                   <FontAwesomeIcon icon={faInfoCircle} className="text-[12px]" />
                   <span className="hidden sm:inline ml-1 text-[11px] font-medium">Info</span>
@@ -505,12 +488,12 @@ const handleCheckDuplicate = async (code) => {
       </div>
 
         {/* MAIN CONTENT */}
-        <div className="mt-24 flex flex-col lg:flex-row lg:items-stretch gap-2">
+        <div className="mt-24 sm:mt-24 flex flex-col lg:flex-row lg:items-stretch gap-2">
         
         {/* LEFT: Form */}
         <div className="flex-1 bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-100 dark:border-gray-700 shadow-lg grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
           {/* Column 1 */}
-          <div className="space-y-6">
+          <div className="space-y-4">
             <FieldRenderer
               label="Branch Code"
               required
@@ -562,7 +545,7 @@ const handleCheckDuplicate = async (code) => {
           </div>
 
           {/* Column 2 */}
-          <div className="space-y-6">
+          <div className="space-y-4">
             <FieldRenderer
               label="TIN"
               required
