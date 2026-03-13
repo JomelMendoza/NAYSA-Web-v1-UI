@@ -374,6 +374,7 @@ const generateMutation = useMutation({
         ? response.data.data
         : [];
 
+
       const selectedReportName = ui.selected.name || meta.reportName || "BIR_Report";
       const reportTypeUpper = String(filters.reportType || "").toUpperCase();
 

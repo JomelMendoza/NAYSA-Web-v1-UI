@@ -1743,46 +1743,36 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
 
   <div className={topTab === "details" ? "" : "hidden"}>
 
-          {/* Page title and subheading */} 
-
-          {/* Header Section */}
-          <div className="global-tran-header-ui">
-
-            <div className="global-tran-headertext-div-ui">
-              <h1 className="global-tran-headertext-ui">{documentTitle}</h1>
-            </div>
-
-            <div className="global-tran-headerstat-div-ui">
-              <div>
-                <p className="global-tran-headerstat-text-ui">Transaction Status</p>
-                <h1 className={`global-tran-stat-text-ui ${statusColor}`}>{displayStatus}</h1>
-              </div>
-            </div>
-
+      {/* Page title and subheading */} 
+        <div className={`global-tran-header-ui ${isViewDocument ? "max-md:!mt-12 max-md:!pt-2 max-md:!pb-2" : ""}`}>
+          <div className={`global-tran-headertext-div-ui ${isViewDocument ? "max-md:!mb-1" : ""}`}>
+            <h1 className="global-tran-headertext-ui">{documentTitle}</h1>
           </div>
+          <div className={`global-tran-headerstat-div-ui ${isViewDocument ? "max-md:!mt-0" : ""}`}>
+            <div>
+              <p className="global-tran-headerstat-text-ui">Transaction Status</p>
+              <h1 className={`global-tran-stat-text-ui ${statusColor}`}>{displayStatus}</h1>
+            </div>
+          </div>
+        </div>
 
-          
-
-
-
-
-    {/* Form Layout with Tabs */}
-    <div className="global-tran-header-div-ui">
-
-        {/* Tab Navigation */}
-        <div className="global-tran-header-tab-div-ui">
+        {/* Form Layout with Tabs */}
+        <div className={`global-tran-header-div-ui ${isViewDocument ? "max-md:!mt-10 max-md:!pt-0 max-md:!pb-0" : ""}`}>
+          {/* Tab Navigation */}
+          <div className={`global-tran-header-tab-div-ui ${isViewDocument ? "max-md:!mt-0 max-md:!pt-0 max-md:!pb-4 max-md:!mb-4 max-md:!justify-start max-md:!text-left" : ""}`}>
             <button
-                className={`global-tran-tab-padding-ui ${
-                    activeTab === 'basic'
-                    ? 'global-tran-tab-text_active-ui'
-                    : 'global-tran-tab-text_inactive-ui'
-                }`}
-                onClick={() => setActiveTab('basic')}
+              className={`global-tran-tab-padding-ui ${
+                activeTab === "basic"
+                  ? "global-tran-tab-text_active-ui"
+                  : "global-tran-tab-text_inactive-ui"
+              }`}
+              onClick={() => setActiveTab("basic")}
             >
-                Basic Information
+              Basic Information
             </button>
             {/* Provision for Other Tabs */}
-        </div>
+          </div>
+                
 
         {/* SOA Header Form Section - Main Grid Container */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 rounded-lg relative" id="soa_hd">

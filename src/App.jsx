@@ -1,4 +1,5 @@
 
+
 // import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 // import { 
 //   BrowserRouter as Router, 
@@ -32,7 +33,6 @@
 //   const queryParams = new URLSearchParams(location.search);
 //   const isViewMode = queryParams.get("viewDocument") === "true";
 
-//   // Resolve which component should show based on URL or Params
 //   const matchingComponentKey = useMemo(() => {
 //     if (paramKey && pageRegistry[paramKey]) return paramKey;
     
@@ -47,7 +47,6 @@
 
 //   const Component = matchingComponentKey ? pageRegistry[matchingComponentKey] : null;
 
-//   // 1. Show spinner while metadata is loading from DB
 //   if (loadingMenu && !Component) {
 //     return (
 //       <div className="flex flex-col items-center justify-center min-h-[60vh]">
@@ -57,14 +56,14 @@
 //     );
 //   }
 
-//   // 2. Security Check: Only allow if component exists AND user has it in their routeRows
 //   const isAuthorized = routeRows.some(r => r.componentKey === matchingComponentKey);
 
+//   // If the path isn't in the database routes, this logic redirects to "/"
+//   // This is why we must define /change-password OUTSIDE of this logic.
 //   if (!Component || (!isAuthorized && !isViewMode)) {
 //     return <Navigate to="/" replace />;
 //   }
 
-//   // 3. Render with a STABLE key to prevent double-reloads on query string changes
 //   return (
 //     <ErrorBoundary>
 //       <Component key={matchingComponentKey} />
@@ -118,7 +117,6 @@
 //     window.location.href = "/"; 
 //   }, [logout, resetAppData]);
 
-//   // Unified Menu/Route Loader
 //   useEffect(() => {
 //     let alive = true;
 //     const tenant = getTenant();
@@ -158,16 +156,19 @@
 
 //   if (loading) return <div className="fixed inset-0 flex items-center justify-center bg-white z-[9999]"><LoadingSpinner /></div>;
 
+//   /* --- 1. UNAUTHENTICATED ROUTES --- */
 //   if (!user) {
 //     return (
 //       <Routes>
 //         <Route path="/register" element={<Register />} />
+//         {/* Explicitly defined here so clicking the link doesn't default to Login */}
 //         <Route path="/change-password" element={<ChangePassword />} />
 //         <Route path="*" element={<Login onSwitchToRegister={() => navigate("/register")} />} />
 //       </Routes>
 //     );
 //   }
 
+//   /* --- 2. AUTHENTICATED ROUTES --- */
 //   return (
 //     <div className="relative min-h-screen flex flex-col bg-gray-50 dark:bg-black font-roboto">
 //       <div className="sticky top-0 z-40">
@@ -188,12 +189,10 @@
 //       <div className="flex-1 p-4 overflow-y-auto">
 //         <Routes>
 //           <Route path="/" element={<Dashboard1 user={user} />} />
+          
+//           {/* CRITICAL FIX: Defined here ABOVE the '*' catch-all. 
+//               This bypasses UniversalRegistryRoute for this specific page. */}
 //           <Route path="/change-password" element={<ChangePassword />} />
-
-//           {/* CONSOLIDATED ROUTING: 
-//               We removed the manual .map() of routeRows here.
-//               All dynamic paths (/svi, /ap, etc.) are now handled by the '*' catch-all.
-//           */}
 
 //           <Route 
 //             path="/page/:componentKey" 
@@ -226,6 +225,9 @@
 // );
 
 // export default App;
+
+
+
 
 
 
@@ -455,10 +457,6 @@ const App = () => (
 );
 
 export default App;
-
-
-
-
 
 
 

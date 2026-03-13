@@ -2542,18 +2542,6 @@ const parseNumber = (v) => {
 const isNumericColumn = (col) =>
   col?.renderType === "number" || col?.renderType === "currency";
 
-const toProperCaseLabel = (value) => {
-  const cleaned = String(value ?? "")
-    .replace(/_/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (!cleaned) return "";
-
-  return cleaned
-    .toLowerCase()
-    .replace(/\b\w/g, (ch) => ch.toUpperCase());
-};
 
 /* ============================== Component =============================== */
 const AllTranHistory = (props) => {
@@ -4013,7 +4001,7 @@ const AllTranHistory = (props) => {
     (row, idx) => {
       const rowClass = getRowClassByStatus(row);
       const headerCol = primaryCardCol;
-      const headerLabel = toProperCaseLabel(headerCol?.label || headerCol?.key || "Record");
+      const headerLabel = (headerCol?.label || headerCol?.key || "Record");
       const headerValue = headerCol ? formatCellValue(row?.[headerCol.key], headerCol) : `Record ${idx + 1}`;
 
       return (
@@ -4057,7 +4045,7 @@ const AllTranHistory = (props) => {
                   className="grid grid-cols-[110px_1fr] gap-x-2 py-[2px] text-[11px] leading-tight"
                 >
                   <div className="font-semibold text-gray-500">
-                    {toProperCaseLabel(col.label || col.key)}
+                    {(col.label || col.key)}
                   </div>
                   <div
                     className={`min-w-0 break-words ${
@@ -4094,7 +4082,7 @@ const AllTranHistory = (props) => {
               className="text-[11px] text-gray-500"
             />
             <span className="text-[11px] font-semibold text-gray-600">
-              {toProperCaseLabel(baseColumns.find((c) => c.key === row.key)?.label || row.key)}:
+              {(baseColumns.find((c) => c.key === row.key)?.label || row.key)}:
             </span>
             <span className="text-[11px] font-bold text-blue-900">{row.value}</span>
             <span className="ml-auto rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
@@ -4117,7 +4105,7 @@ const AllTranHistory = (props) => {
           className="rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2"
         >
           <div className="text-[11px] font-bold text-yellow-800 leading-tight mb-1">
-            Sub Total for {toProperCaseLabel(row.groupLabel)}: {row.groupValue}
+            Sub Total for {(row.groupLabel)}: {row.groupValue}
           </div>
 
           <div className="space-y-0">
@@ -4132,7 +4120,7 @@ const AllTranHistory = (props) => {
                   className="grid grid-cols-[110px_1fr] gap-x-2 py-[2px] text-[11px] leading-tight"
                 >
                   <div className="font-semibold text-yellow-700">
-                    {toProperCaseLabel(col.label || col.key)}
+                    {(col.label || col.key)}
                   </div>
                   <div className={alignRight ? "text-right tabular-nums" : "text-left"}>
                     {formatted}
@@ -4170,7 +4158,7 @@ const AllTranHistory = (props) => {
                 className="grid grid-cols-[110px_1fr] gap-x-2 py-[2px] text-[11px] leading-tight"
               >
                 <div className="font-semibold text-blue-700">
-                  {toProperCaseLabel(col.label || col.key)}
+                  {(col.label || col.key)}
                 </div>
                 <div className={alignRight ? "text-right tabular-nums" : "text-left"}>
                   {formatted}

@@ -54,6 +54,9 @@ body {
             dark:bg-blue-900 dark:text-white;
   }
 
+
+  
+
   .global-tran-headertext-div-ui {
     @apply text-center sm:text-left;
   }
