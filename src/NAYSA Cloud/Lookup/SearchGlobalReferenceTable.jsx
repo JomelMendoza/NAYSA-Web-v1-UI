@@ -52,8 +52,12 @@ const SearchGlobalReferenceTable = forwardRef(
       onStateChange,
       totalExemptions = ["rate", "percent", "ratio", "id", "code"],
       isLoading = false,
+<<<<<<< HEAD
+      tableSize = "Full"
+=======
       tableSize = "Full",
       onMobileRowOpen,
+>>>>>>> d15a2d968d9eeb894dfd79bbb993444e4a8a0121
     },
     ref,
   ) => {
@@ -384,6 +388,40 @@ const SearchGlobalReferenceTable = forwardRef(
         return cleanRow;
       });
     }, [data, filters, globalSearch, visibleCols, sortConfig, columns]);
+<<<<<<< HEAD
+
+    const autoColWidths = useMemo(() => {
+      const MIN = 90;
+      const MAX = 260;
+      const SAMPLE = 80;
+
+      const sampleRows = (Array.isArray(filteredData) ? filteredData : []).slice(0, SAMPLE);
+      const out = {};
+
+      visibleCols.forEach((col) => {
+        let w = estimatePx(col.label);
+
+        for (const r of sampleRows) {
+          const val =
+            typeof col.render === "function" ? col.render(r) : formatValue(r?.[col.key], col);
+
+          const str =
+            typeof val === "string" || typeof val === "number"
+              ? String(val)
+              : String(r?.[col.key] ?? "");
+
+          w = Math.max(w, estimatePx(str));
+        }
+
+        const colBase = Number(col.width);
+        if (Number.isFinite(colBase)) w = Math.max(w, colBase);
+
+        out[col.key] = clamp(w, MIN, MAX);
+      });
+
+      return out;
+    }, [visibleCols, filteredData]);
+=======
 const autoColWidths = useMemo(() => {
   const MIN = 60;
   const MAX = 400;
@@ -417,11 +455,26 @@ const autoColWidths = useMemo(() => {
 
   return out;
 }, [visibleCols, filteredData]);
+>>>>>>> d15a2d968d9eeb894dfd79bbb993444e4a8a0121
 
 
 
     const [manualResizedCols, setManualResizedCols] = useState({});
 
+<<<<<<< HEAD
+    const getColWidth = (col) => {
+      const manualWidth = colWidths[col.key];
+      const isManual = manualResizedCols[col.key];
+      const autoWidth = autoColWidths[col.key];
+
+      if (autoFillGrid) {
+        if (isManual && manualWidth) return manualWidth;
+        return autoWidth || 140;
+      }
+
+      return manualWidth || autoWidth || 140;
+    };
+=======
 const getColWidth = (col) => {
   const manualWidth = colWidths[col.key];
   const isManual = manualResizedCols[col.key];
@@ -432,6 +485,7 @@ const getColWidth = (col) => {
   return autoWidth || defaultWidth;
 };
 
+>>>>>>> d15a2d968d9eeb894dfd79bbb993444e4a8a0121
 
     const getStickyLeftOffset = (index) => {
       if (index <= 0) return 0;
@@ -915,11 +969,15 @@ const getColWidth = (col) => {
 
 
     const handleRowOpen = (row) => {
+<<<<<<< HEAD
+      onRowDoubleClick?.(row);
+=======
       if (isMobile) {
         onMobileRowOpen?.(row);
       } else {
         onRowDoubleClick?.(row);
       }
+>>>>>>> d15a2d968d9eeb894dfd79bbb993444e4a8a0121
     };
 
     const filterInputClass =
@@ -934,7 +992,11 @@ const renderMobileCard = (row, idx) => {
     return (
       <div
         key={`g-${uniqueId}`}
+<<<<<<< HEAD
+        className="rounded-lg border bg-gray-50 p-3 cursor-pointer"
+=======
         className="rounded-lg border bg-gray-100 p-4 cursor-pointer"
+>>>>>>> d15a2d968d9eeb894dfd79bbb993444e4a8a0121
         onClick={() => toggleGroup(row)}
       >
         <div className="flex items-center">
@@ -963,6 +1025,15 @@ const renderMobileCard = (row, idx) => {
       className="rounded-lg border bg-white shadow-sm p-3 cursor-pointer active:scale-[0.99] transition"
       onClick={() => handleRowOpen(row)}
     >
+<<<<<<< HEAD
+      <div className="space-y-2">
+        {firstCols.map((col) => (
+          <div key={col.key} className="flex items-start justify-between gap-3">
+            <span className="text-[11px] font-semibold text-gray-600 min-w-[110px]">
+              {col.label}
+            </span>
+            <div className="text-[11px] text-gray-800 text-right break-words flex-1">
+=======
       <div className="space-y-1">
         {firstCols.map((col) => (
           <div
@@ -977,6 +1048,7 @@ const renderMobileCard = (row, idx) => {
               }`}
             >{col.label}</span>
             <div className="text-[10px] text-gray-800 text-left break-words flex-1">
+>>>>>>> d15a2d968d9eeb894dfd79bbb993444e4a8a0121
               {typeof col.render === "function"
                 ? col.render(row)
                 : formatValue(row[col.key], col)}
@@ -985,6 +1057,15 @@ const renderMobileCard = (row, idx) => {
         ))}
 
         {otherCols.length > 0 && (
+<<<<<<< HEAD
+          <div className="pt-2 border-t border-gray-100 space-y-2">
+            {otherCols.map((col) => (
+              <div key={col.key} className="flex items-start justify-between gap-3">
+                <span className="text-[11px] font-semibold text-gray-600 min-w-[110px]">
+                  {col.label}
+                </span>
+                <div className="text-[11px] text-gray-800 text-right break-words flex-1">
+=======
           <div className="pt-2 border-t border-gray-100 space-y-1">
             {otherCols.map((col) => (
               <div key={col.key} className="flex items-start justify-between gap-1">
@@ -996,6 +1077,7 @@ const renderMobileCard = (row, idx) => {
                       col.key === "__actions" ? "w-full" : "flex-1"
                     }`}
                   >
+>>>>>>> d15a2d968d9eeb894dfd79bbb993444e4a8a0121
                   {typeof col.render === "function"
                     ? col.render(row)
                     : formatValue(row[col.key], col)}

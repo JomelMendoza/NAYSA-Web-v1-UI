@@ -5,72 +5,76 @@ import {
   faTimes,
   faSpinner,
   faSyncAlt,
-  faCheck,
 } from "@fortawesome/free-solid-svg-icons";
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 
-const CurrLookupModal = ({ isOpen, onClose }) => {
-  const [filters, setFilters] = useState({ currCode: "", currName: "" });
+const SearchRcRef = ({ isOpen, onClose }) => {
+  const [filters, setFilters] = useState({
+    rcTypeCode: "",
+    rcTypeName: "",
+  });
 
-  // 1. Fetching with Polling (Auto-Refresh)
   const {
-    data: currency = [],
+    data: rcTypes = [],
     isLoading,
     isFetching,
     refetch,
   } = useQuery({
-    queryKey: ["lookupCurrencies"],
+    queryKey: ["lookupRCType"],
     queryFn: async () => {
-      const { data: result } = await apiClient.get("/lookupCurr", {
+      const { data: result } = await apiClient.get("/lookupRCType", {
         params: {
-          PARAMS: JSON.stringify({ search: "", page: 1, pageSize: 100 }),
+          PARAMS: "",
         },
       });
+
       const rawData = result?.data?.[0]?.result || "[]";
       return Array.isArray(rawData) ? rawData : JSON.parse(rawData);
     },
-    enabled: isOpen, // Only active when modal is open
-    staleTime: 1000 * 5, // Consider data "stale" after 5 seconds
-    refetchInterval: 1000 * 10, // 🔄 AUTO-REFRESH: Every 10 seconds
-    refetchIntervalInBackground: false, // Don't waste resources if tab is hidden
+    enabled: isOpen,
+    staleTime: 1000 * 5,
+    refetchInterval: 1000 * 10,
+    refetchIntervalInBackground: false,
   });
 
-  // 2. High-Performance Filtering
   const filtered = useMemo(() => {
-    return currency.filter(
+    return rcTypes.filter(
       (item) =>
-        (item.currCode || "")
+        (item.rcTypeCode || "")
           .toLowerCase()
-          .includes(filters.currCode.toLowerCase()) &&
-        (item.currName || "")
+          .includes(filters.rcTypeCode.toLowerCase()) &&
+        (item.rcTypeName || "")
           .toLowerCase()
-          .includes(filters.currName.toLowerCase()),
+          .includes(filters.rcTypeName.toLowerCase()),
     );
-  }, [filters, currency]);
+  }, [filters, rcTypes]);
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40  p-4 animate-fade-in">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4 animate-fade-in">
       <div className="bg-white rounded-xl shadow-2xl w-sm max-w-lg max-h-[70vh] flex flex-col relative overflow-hidden transform animate-scale-in border border-slate-200">
-        {/* Header */}
         <div className="flex items-center justify-between p-4 border-b bg-slate-100">
           <div className="flex items-center gap-3">
             <div className="relative">
               <h2 className="text-sm font-bold text-slate-800 uppercase tracking-tight">
-                Select Currency
+                Select RC Type
               </h2>
-              {/* Visual indicator for auto-refresh */}
               <div className="absolute -top-1 -right-4 flex h-2 w-2">
                 <span
-                  className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 ${isFetching ? "block" : "hidden"}`}
+                  className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 ${
+                    isFetching ? "block" : "hidden"
+                  }`}
                 ></span>
                 <span
-                  className={`relative inline-flex rounded-full h-2 w-2 bg-blue-500 ${isFetching ? "block" : "hidden"}`}
+                  className={`relative inline-flex rounded-full h-2 w-2 bg-blue-500 ${
+                    isFetching ? "block" : "hidden"
+                  }`}
                 ></span>
               </div>
             </div>
           </div>
+
           <div className="flex items-center gap-2">
             <button
               onClick={() => refetch()}
@@ -88,7 +92,6 @@ const CurrLookupModal = ({ isOpen, onClose }) => {
           </div>
         </div>
 
-        {/* Main Content */}
         <div className="flex-grow overflow-hidden flex flex-col">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center h-64 text-slate-400">
@@ -98,25 +101,24 @@ const CurrLookupModal = ({ isOpen, onClose }) => {
                 size="2x"
                 className="mb-4 text-blue-500"
               />
-              <p className="text-sm">Fetching latest currencies...</p>
+              <p className="text-sm">Fetching latest RC Types...</p>
             </div>
           ) : (
             <div className="overflow-auto custom-scrollbar">
               <table className="min-w-full divide-y divide-slate-200">
                 <thead className="bg-slate-200 sticky top-0 z-10 border-b border-slate-200">
                   <tr>
-                    {/* Column 1: Code */}
                     <th className="px-4 py-3 text-left">
                       <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
-                        Currency Code
+                        RC Type Code
                       </label>
                       <input
                         type="text"
-                        value={filters.currCode}
+                        value={filters.rcTypeCode}
                         onChange={(e) =>
                           setFilters((prev) => ({
                             ...prev,
-                            currCode: e.target.value,
+                            rcTypeCode: e.target.value,
                           }))
                         }
                         placeholder="Filter..."
@@ -124,18 +126,17 @@ const CurrLookupModal = ({ isOpen, onClose }) => {
                       />
                     </th>
 
-                    {/* Column 2: Name */}
                     <th className="px-4 py-3 text-left">
                       <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
-                        Description
+                        RC Type Name
                       </label>
                       <input
                         type="text"
-                        value={filters.currName}
+                        value={filters.rcTypeName}
                         onChange={(e) =>
                           setFilters((prev) => ({
                             ...prev,
-                            currName: e.target.value,
+                            rcTypeName: e.target.value,
                           }))
                         }
                         placeholder="Filter..."
@@ -143,39 +144,45 @@ const CurrLookupModal = ({ isOpen, onClose }) => {
                       />
                     </th>
 
-                    {/* Actions Column Placeholder */}
                     <th className="border-b border-slate-200 w-15"></th>
                   </tr>
                 </thead>
-                <tbody className=" divide-y divide-slate-100">
-                  {filtered.map((curr, index) => (
+
+                <tbody className="divide-y divide-slate-100">
+                  {filtered.map((item, index) => (
                     <tr
-                      key={index}
-                      onClick={() => onClose(curr)}
+                      key={`${item.rcTypeCode || "row"}-${index}`}
+                      onClick={() => onClose(item)}
                       className="group hover:bg-blue-50 cursor-pointer transition-colors"
                     >
                       <td className="px-4 py-2 text-xs font-bold text-slate-600">
-                        {curr.currCode}
+                        {item.rcTypeCode}
                       </td>
                       <td className="px-4 py-2 text-xs text-slate-600">
-                        {curr.currName}
+                        {item.rcTypeName}
                       </td>
                     </tr>
-<<<<<<< HEAD
                   ))}
-=======
-                  ))} 
->>>>>>> d15a2d968d9eeb894dfd79bbb993444e4a8a0121
+
+                  {!filtered.length && (
+                    <tr>
+                      <td
+                        colSpan={3}
+                        className="px-4 py-6 text-center text-xs text-slate-400"
+                      >
+                        No RC Type found.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
           )}
         </div>
 
-        {/* Footer / Status Bar */}
         <div className="p-2 px-4 border-t bg-slate-50 flex justify-between items-center">
           <span className="text-[12px] text-slate-500 font-medium">
-            {filtered.length} Currencies Available
+            {filtered.length} RC Types Available
           </span>
           <div className="flex items-center gap-2">
             {isFetching && (
@@ -228,4 +235,4 @@ const CurrLookupModal = ({ isOpen, onClose }) => {
   );
 };
 
-export default CurrLookupModal;
+export default SearchRcRef;
