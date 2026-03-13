@@ -452,6 +452,8 @@ const handleCodeKeyDown = useCallback(
             docType="CURR"
             isLoading={isLoading}
             onRowDoubleClick={(row) => handleEditAccount(row)}
+            tableSize="Half"
+            
           />
         </div>
       </div>
