@@ -360,24 +360,6 @@ const PayTermRef = forwardRef((props, ref) => {
   const tableColumns = useMemo(
     () => [
       {
-        key: "paytermCode",
-        label: "Code",
-        sortable: true,
-        width: 160,
-      },
-      {
-        key: "paytermName",
-        label: "Name",
-        sortable: true,
-        width: 380,
-      },
-      {
-        key: "daysDue",
-        label: "Due Days",
-        sortable: true,
-        width: 140,
-      },
-      {
         key: "__actions",
         label: "Actions",
         width: 140,
@@ -405,6 +387,24 @@ const PayTermRef = forwardRef((props, ref) => {
             </button>
           </div>
         ),
+      },
+      {
+        key: "paytermCode",
+        label: "Code",
+        sortable: true,
+        width: 160,
+      },
+      {
+        key: "paytermName",
+        label: "Name",
+        sortable: true,
+        width: 380,
+      },
+      {
+        key: "daysDue",
+        label: "Due Days",
+        sortable: true,
+        width: 140,
       },
     ],
     [handleEdit, handleDelete]

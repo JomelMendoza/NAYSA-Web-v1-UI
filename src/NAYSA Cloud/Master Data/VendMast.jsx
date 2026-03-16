@@ -136,6 +136,30 @@ const VendMast = () => {
     return useSwalValidationAlert({ icon: "error", title, message: msg });
   };
 
+  const checkDuplicateVendor = async (vendCode) => {
+    const payload = {
+      json_data: JSON.stringify({
+        json_data: { vendCode: String(vendCode || "").trim() },
+      }),
+    };
+
+    const res = await apiClient.post("/checkDuplicatePayee", payload);
+    const rows = res?.data?.data || [];
+    return Number(rows?.[0]?.result ?? 0) === 1;
+  };
+
+  const checkInUsedVendor = async (vendCode) => {
+    const payload = {
+      json_data: JSON.stringify({
+        json_data: { vendCode: String(vendCode || "").trim() },
+      }),
+    };
+
+    const res = await apiClient.post("/checkInUsedPayee", payload);
+    const rows = res?.data?.data || [];
+    return Number(rows?.[0]?.result ?? 0) === 1;
+  };
+
   const extractSprocError = (axiosResponse) => {
     const payload = axiosResponse?.data;
     const data = payload?.data;
@@ -356,6 +380,15 @@ const VendMast = () => {
       return;
     }
 
+    const isUsed = await checkInUsedVendor(code);
+    if (isUsed) {
+      await useSwalErrorAlert(
+        "Delete Not Allowed",
+        `Payee Code ${code} is already used in transaction(s).`
+      );
+      return;
+    }
+
     const confirm = await useSwalDeleteConfirm(
       "Delete Payee?",
       `This will permanently delete Payee Code ${code}. This action cannot be undone.`
@@ -364,9 +397,24 @@ const VendMast = () => {
 
     setIsLoading(true);
     try {
-      await apiClient.post("/deletePayee", {
+      const res = await apiClient.post("/deletePayee", {
         VEND_CODE: code,
+        USER_CODE: userCode,
       });
+
+      const rows = res?.data?.data || [];
+      const r0 = rows[0] || {};
+
+      const errorCount = Number(r0.errorcount ?? r0.errorCount ?? 0);
+      const errorMsg = String(r0.errormsg ?? r0.errorMsg ?? "");
+
+      if (errorCount > 0) {
+        await useSwalErrorAlert(
+          "Delete Not Allowed",
+          errorMsg || "Unable to delete payee."
+        );
+        return;
+      }
 
       await useSwalDeleteRecord("Payee");
 
@@ -378,7 +426,10 @@ const VendMast = () => {
       await loadMasterList();
     } catch (e) {
       console.error(e);
-      Swal.fire("Error", "Failed to delete payee.", "error");
+      await useSwalErrorAlert(
+        "Error",
+        e?.response?.data?.message || e?.message || "Failed to delete payee."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -534,7 +585,18 @@ const VendMast = () => {
         json_data: JSON.stringify(jsonData),
       };
 
-      console.log("upsert payload", payload);
+      const isAddMode = !selectedVendCode;
+
+      if (isAddMode) {
+        const isDuplicate = await checkDuplicateVendor(code);
+        if (isDuplicate) {
+          await useSwalErrorAlert(
+            "Duplicate Record",
+            `Payee Code ${code} already exists.`
+          );
+          return;
+        }
+      }
 
       const res = await apiClient.post("/upsertPayee", payload);
 
@@ -556,7 +618,7 @@ const VendMast = () => {
       setSelectedVendCode(code);
       pushRecent(code);
       setIsEditing(false);
-      await queryClient.invalidateQueries({ queryKey: ["payeeList"] });
+      await loadMasterList();
       await fetchVendorByCode(code);
     } catch (e) {
       console.error(e);
