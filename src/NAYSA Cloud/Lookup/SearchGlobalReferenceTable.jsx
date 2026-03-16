@@ -52,12 +52,8 @@ const SearchGlobalReferenceTable = forwardRef(
       onStateChange,
       totalExemptions = ["rate", "percent", "ratio", "id", "code"],
       isLoading = false,
-<<<<<<< HEAD
-      tableSize = "Full"
-=======
       tableSize = "Full",
       onMobileRowOpen,
->>>>>>> d15a2d968d9eeb894dfd79bbb993444e4a8a0121
     },
     ref,
   ) => {
@@ -388,40 +384,6 @@ const SearchGlobalReferenceTable = forwardRef(
         return cleanRow;
       });
     }, [data, filters, globalSearch, visibleCols, sortConfig, columns]);
-<<<<<<< HEAD
-
-    const autoColWidths = useMemo(() => {
-      const MIN = 90;
-      const MAX = 260;
-      const SAMPLE = 80;
-
-      const sampleRows = (Array.isArray(filteredData) ? filteredData : []).slice(0, SAMPLE);
-      const out = {};
-
-      visibleCols.forEach((col) => {
-        let w = estimatePx(col.label);
-
-        for (const r of sampleRows) {
-          const val =
-            typeof col.render === "function" ? col.render(r) : formatValue(r?.[col.key], col);
-
-          const str =
-            typeof val === "string" || typeof val === "number"
-              ? String(val)
-              : String(r?.[col.key] ?? "");
-
-          w = Math.max(w, estimatePx(str));
-        }
-
-        const colBase = Number(col.width);
-        if (Number.isFinite(colBase)) w = Math.max(w, colBase);
-
-        out[col.key] = clamp(w, MIN, MAX);
-      });
-
-      return out;
-    }, [visibleCols, filteredData]);
-=======
 const autoColWidths = useMemo(() => {
   const MIN = 60;
   const MAX = 400;
@@ -455,26 +417,11 @@ const autoColWidths = useMemo(() => {
 
   return out;
 }, [visibleCols, filteredData]);
->>>>>>> d15a2d968d9eeb894dfd79bbb993444e4a8a0121
 
 
 
     const [manualResizedCols, setManualResizedCols] = useState({});
 
-<<<<<<< HEAD
-    const getColWidth = (col) => {
-      const manualWidth = colWidths[col.key];
-      const isManual = manualResizedCols[col.key];
-      const autoWidth = autoColWidths[col.key];
-
-      if (autoFillGrid) {
-        if (isManual && manualWidth) return manualWidth;
-        return autoWidth || 140;
-      }
-
-      return manualWidth || autoWidth || 140;
-    };
-=======
 const getColWidth = (col) => {
   const manualWidth = colWidths[col.key];
   const isManual = manualResizedCols[col.key];
@@ -485,7 +432,6 @@ const getColWidth = (col) => {
   return autoWidth || defaultWidth;
 };
 
->>>>>>> d15a2d968d9eeb894dfd79bbb993444e4a8a0121
 
     const getStickyLeftOffset = (index) => {
       if (index <= 0) return 0;
@@ -969,15 +915,11 @@ const getColWidth = (col) => {
 
 
     const handleRowOpen = (row) => {
-<<<<<<< HEAD
-      onRowDoubleClick?.(row);
-=======
       if (isMobile) {
         onMobileRowOpen?.(row);
       } else {
         onRowDoubleClick?.(row);
       }
->>>>>>> d15a2d968d9eeb894dfd79bbb993444e4a8a0121
     };
 
     const filterInputClass =
@@ -992,11 +934,7 @@ const renderMobileCard = (row, idx) => {
     return (
       <div
         key={`g-${uniqueId}`}
-<<<<<<< HEAD
-        className="rounded-lg border bg-gray-50 p-3 cursor-pointer"
-=======
         className="rounded-lg border bg-gray-100 p-4 cursor-pointer"
->>>>>>> d15a2d968d9eeb894dfd79bbb993444e4a8a0121
         onClick={() => toggleGroup(row)}
       >
         <div className="flex items-center">
@@ -1025,15 +963,6 @@ const renderMobileCard = (row, idx) => {
       className="rounded-lg border bg-white shadow-sm p-3 cursor-pointer active:scale-[0.99] transition"
       onClick={() => handleRowOpen(row)}
     >
-<<<<<<< HEAD
-      <div className="space-y-2">
-        {firstCols.map((col) => (
-          <div key={col.key} className="flex items-start justify-between gap-3">
-            <span className="text-[11px] font-semibold text-gray-600 min-w-[110px]">
-              {col.label}
-            </span>
-            <div className="text-[11px] text-gray-800 text-right break-words flex-1">
-=======
       <div className="space-y-1">
         {firstCols.map((col) => (
           <div
@@ -1048,7 +977,6 @@ const renderMobileCard = (row, idx) => {
               }`}
             >{col.label}</span>
             <div className="text-[10px] text-gray-800 text-left break-words flex-1">
->>>>>>> d15a2d968d9eeb894dfd79bbb993444e4a8a0121
               {typeof col.render === "function"
                 ? col.render(row)
                 : formatValue(row[col.key], col)}
@@ -1057,15 +985,6 @@ const renderMobileCard = (row, idx) => {
         ))}
 
         {otherCols.length > 0 && (
-<<<<<<< HEAD
-          <div className="pt-2 border-t border-gray-100 space-y-2">
-            {otherCols.map((col) => (
-              <div key={col.key} className="flex items-start justify-between gap-3">
-                <span className="text-[11px] font-semibold text-gray-600 min-w-[110px]">
-                  {col.label}
-                </span>
-                <div className="text-[11px] text-gray-800 text-right break-words flex-1">
-=======
           <div className="pt-2 border-t border-gray-100 space-y-1">
             {otherCols.map((col) => (
               <div key={col.key} className="flex items-start justify-between gap-1">
@@ -1077,7 +996,6 @@ const renderMobileCard = (row, idx) => {
                       col.key === "__actions" ? "w-full" : "flex-1"
                     }`}
                   >
->>>>>>> d15a2d968d9eeb894dfd79bbb993444e4a8a0121
                   {typeof col.render === "function"
                     ? col.render(row)
                     : formatValue(row[col.key], col)}
@@ -1123,7 +1041,7 @@ const renderMobileCard = (row, idx) => {
                   <div
                   className={`text-gray-400 italic border border-dashed border-gray-300 rounded py-1
                     ${tableSize === "Half"
-                      ? "text-[8px] sm:text-[9px] px-4"
+                      ? "text-[8px] sm:text-[9px] w-18 px-4"
                       : "text-[10px] sm:text-xs px-20"
                     }`}
                 >
@@ -1195,7 +1113,7 @@ const renderMobileCard = (row, idx) => {
                   placeholder="Search all columns..."
                   className={`w-full rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-300
                       ${tableSize === "Half"
-                        ? "h-7 md:w-44 px-2 text-[11px]"
+                        ? "h-7 md:w-32 px-2 text-[11px]"
                         : "h-8 md:w-64 px-3 text-xs"
                       }`}
                   />
@@ -1217,7 +1135,12 @@ const renderMobileCard = (row, idx) => {
 
               {!isMobile && (
                 <label
-                  className="inline-flex items-center cursor-pointer select-none"
+                  // className="inline-flex items-center cursor-pointer select-none"
+                  className={`inline-flex items-center cursor-pointer select-none
+                      ${tableSize === "Half"
+                        ? "h-7"
+                        : "h-8"
+                      }`}
                   title={autoFillGrid ? "Disable auto fit" : "Enable auto fit"}
                 >
                   <input
@@ -1227,15 +1150,21 @@ const renderMobileCard = (row, idx) => {
                     className="sr-only"
                   />
 
-                  <div
-                    className={`relative w-20 h-8 rounded-full transition-colors duration-200 ${
+                  {/* <div
+                    className={`relative w-20 h-7 rounded-full transition-colors duration-200 ${
                       autoFillGrid ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-600" 
                     }`}
-                  >
+                  > */}
+<div
+  className={`relative rounded-full transition-colors duration-200 ${
+    autoFillGrid ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-600"
+  } ${tableSize === "Half" ? "w-20 h-7" : "w-20 h-8"}`}
+>
+                    
                     <span
-                      className={`absolute top-[2px] h-7 w-7 rounded-full bg-white shadow-md transition-all duration-200 ${
+                      className={`absolute top-[2px] rounded-full bg-white shadow-md transition-all duration-200 ${
                         autoFillGrid ? "left-[50px]" : "left-[2px]"
-                      }`}
+  } ${tableSize === "Half" ? "w-6 h-6" : "w-7 h-7"}`}
                     />
 
                     <span
@@ -1252,73 +1181,102 @@ const renderMobileCard = (row, idx) => {
               )}
 
               {/* EXPORT */}
-              <div className="relative flex-1 md:flex-none min-w-[110px]" data-sgrt-export>
+              <div className="relative flex-1 md:flex-none min-w-[80px]" data-sgrt-export>
                 <button
                   type="button"
                   onClick={() => hasDataFiltered && setShowExportMenu((p) => !p)}
                   disabled={!hasDataFiltered}
-                  className="w-full px-3 py-2 h-8 text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 active:scale-[0.98] transition"
+                  // className="w-full px-3 py-2 h-8 text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 active:scale-[0.98] transition"
+                  className={`w-full text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 active:scale-[0.98] transition
+                      ${tableSize === "Half"
+                        ? "h-7 md:w-38 px-3 py-1"
+                        : "h-8 md:w-[100px] px-3 py-2"
+                      }`}
                 >
                   <FontAwesomeIcon icon={faFileExport} className="mr-1" />
                   Export
                 </button>
 
                 {showExportMenu && (
-                  <div className="absolute right-0 mt-1 w-44 rounded-lg shadow-lg bg-white ring-1 ring-black/10 z-[60] overflow-hidden">
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        setShowExportMenu(false);
-                        await handleExportExcel();
-                      }}
-                      className="block w-full text-left px-4 py-2 text-sm hover:bg-blue-50"
-                    >
-                      <FontAwesomeIcon icon={faFileExcel} className="mr-2 text-green-600" />
-                      Excel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        setShowExportMenu(false);
-                        await handleExportCsv();
-                      }}
-                      className="block w-full text-left px-4 py-2 text-sm hover:bg-blue-50"
-                    >
-                      <FontAwesomeIcon icon={faFileCsv} className="mr-2 text-emerald-600" />
-                      CSV
-                    </button>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        setShowExportMenu(false);
-                        await handleExportPdf();
-                      }}
-                      className="block w-full text-left px-4 py-2 text-sm hover:bg-blue-50"
-                    >
-                      <FontAwesomeIcon icon={faFilePdf} className="mr-2 text-red-600" />
-                      PDF
-                    </button>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        setShowExportMenu(false);
-                        await handleExportImage();
-                      }}
-                      className="block w-full text-left px-4 py-2 text-sm hover:bg-blue-50"
-                    >
-                      <FontAwesomeIcon icon={faFileImage} className="mr-2 text-blue-600" />
-                      Image
-                    </button>
-                  </div>
+                  <div className="absolute right-0 mt-1 min-w-[80px] rounded-lg shadow-lg bg-white ring-1 ring-black/10 z-[60] overflow-hidden">
+  <button
+    type="button"
+    onClick={async () => {
+      setShowExportMenu(false);
+      await handleExportExcel();
+    }}
+    className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors
+      ${tableSize === "Half"
+        ? "h-7 text-xs px-2"
+        : "h-8 text-sm px-4"
+      }`}
+  >
+    <FontAwesomeIcon icon={faFileExcel} className={`mr-2 text-green-600 ${tableSize === "Half" ? "text-xs" : "text-sm"}`} />
+    Excel
+  </button>
+
+  <button
+    type="button"
+    onClick={async () => {
+      setShowExportMenu(false);
+      await handleExportCsv();
+    }}
+    className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors
+      ${tableSize === "Half"
+        ? "h-7 text-xs px-2"
+        : "h-8 text-sm px-4"
+      }`}
+  >
+    <FontAwesomeIcon icon={faFileCsv} className={`mr-2 text-emerald-600 ${tableSize === "Half" ? "text-xs" : "text-sm"}`} />
+    CSV
+  </button>
+
+  <button
+    type="button"
+    onClick={async () => {
+      setShowExportMenu(false);
+      await handleExportPdf();
+    }}
+    className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors
+      ${tableSize === "Half"
+        ? "h-7 text-xs px-2"
+        : "h-8 text-sm px-4"
+      }`}
+  >
+    <FontAwesomeIcon icon={faFilePdf} className={`mr-2 text-red-600 ${tableSize === "Half" ? "text-xs" : "text-sm"}`} />
+    PDF
+  </button>
+
+  <button
+    type="button"
+    onClick={async () => {
+      setShowExportMenu(false);
+      await handleExportImage();
+    }}
+    className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors
+      ${tableSize === "Half"
+        ? "h-7 text-xs px-2"
+        : "h-8 text-sm px-4"
+      }`}
+  >
+    <FontAwesomeIcon icon={faFileImage} className={`mr-2 text-blue-600 ${tableSize === "Half" ? "text-xs" : "text-sm"}`} />
+    Image
+  </button>
+</div>
                 )}
               </div>
 
               {/* COLUMNS */}
-              <div className="relative flex-1 md:flex-none min-w-[110px]" data-sgrt-cols>
+              <div className="relative flex-1 md:flex-none min-w-[80px]" data-sgrt-cols>
                 <button
                   type="button"
                   onClick={() => setShowColumnChooser((p) => !p)}
-                  className="w-full px-3 py-2 h-8 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-[0.98] transition"
+                  // className="w-full px-3 py-2 h-8 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-[0.98] transition"
+                  className={`w-full text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-[0.98] transition
+                    ${tableSize === "Half"
+                      ? "h-7 text-xs px-2 py-1"
+                      : "h-8 text-sm px-3 py-2"
+                    }`}
                 >
                   <FontAwesomeIcon icon={faColumns} className="mr-1" />
                   Columns

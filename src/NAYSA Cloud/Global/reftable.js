@@ -90,26 +90,6 @@ export const reftables = {
   };
 
 
-<<<<<<< HEAD
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-=======
->>>>>>> d15a2d968d9eeb894dfd79bbb993444e4a8a0121
   // utils/accountUtils.js (or useAccountActions.js)
 
  export const useGlobalDuplicateRefTable = async (tblCode, payload, fieldcaption) => {

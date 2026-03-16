@@ -325,24 +325,15 @@ body {
 
   .global-ref-header-ui {
     /* items-center centers children horizontally in flex-col (mobile) */
-<<<<<<< HEAD
-    @apply bg-gradient-to-r from-blue-200 to-blue-200 p-2 rounded-lg text-blue-900 shadow-lg fixed top-14 left-6 right-6 z-30 
-          flex flex-col items-center sm:flex-row sm:justify-between sm:items-center gap-4  
-=======
     @apply bg-gradient-to-r from-blue-100 to-blue-100 p-2 rounded-lg text-blue-900 shadow-lg fixed top-14 left-6 right-6 z-30 
           flex flex-col items-center sm:flex-row sm:justify-between sm:items-center gap-4
 
->>>>>>> d15a2d968d9eeb894dfd79bbb993444e4a8a0121
           dark:from-blue-900 dark:bg-blue-900 dark:text-white;
   }
 
   .global-ref-headertext-ui {
     /* ml-0 on mobile to avoid off-center shift, ml-2 restored on sm screens */
-<<<<<<< HEAD
-    @apply text-sm lg:text-2xl font-semibold ml-0 sm:ml-2 whitespace-nowrap text-center sm:text-left;
-=======
     @apply text-xs lg:text-2xl font-semibold ml-0 sm:ml-2 whitespace-nowrap text-center sm:text-left;
->>>>>>> d15a2d968d9eeb894dfd79bbb993444e4a8a0121
   }
 
     
@@ -466,21 +457,13 @@ body {
 
 .global-ref-textbox-enabled {
   @apply bg-white border border-gray-200 focus:border-blue-600 ;
-<<<<<<< HEAD
-  @apply text-[10px] sm:text-[12px] !important ;
-=======
   @apply text-[10px] sm:text-[12px] rounded-lg !important ;
->>>>>>> d15a2d968d9eeb894dfd79bbb993444e4a8a0121
   @apply dark:bg-gray-600 dark:text-white dark:peer-focus:text-white;
 }
 
 .global-ref-textbox-disabled {
   @apply bg-gray-100 !important; /* Force background */
-<<<<<<< HEAD
-  @apply border-gray-200 text-gray-800 cursor-not-allowed text-[10px] sm:text-[12px] !important ;
-=======
   @apply border-gray-200 text-gray-800 cursor-not-allowed text-[10px] sm:text-[12px] rounded-lg !important ;
->>>>>>> d15a2d968d9eeb894dfd79bbb993444e4a8a0121
   @apply dark:bg-gray-500 dark:text-gray-200;
   opacity: 1 !important; /* Overwrite default HTML/Tailwind opacity reductions */
 }
@@ -717,9 +700,6 @@ body {
 }
 
 .toast-title { font-weight:700; font-size:10px; color:#111827;}
-<<<<<<< HEAD
-@media (min-width: 768px) { .toast-title { font-size:14px; } } /* md */
-=======
 @media (min-width: 768px) { .toast-title { font-size:14px; } } /* md */
 
 .date-input-right {
@@ -737,4 +717,3 @@ body {
 .date-input-right::-webkit-date-and-time-value {
   text-align: left;
 }
->>>>>>> d15a2d968d9eeb894dfd79bbb993444e4a8a0121

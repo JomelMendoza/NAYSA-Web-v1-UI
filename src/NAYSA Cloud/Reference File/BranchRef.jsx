@@ -309,8 +309,34 @@ const handleCheckDuplicate = async (code) => {
   // --- TABLE COLUMNS (SearchGlobalReferenceTable style) ---
   const columns = useMemo(
     () => [
+{
+        key: "__actions",
+        label: "Actions",
+        render: (row) => (
+          <div className="flex gap-2 justify-center">
+            <button
+              onClick={() => handleEdit(row)}
+              className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-blue-50 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-colors text-xs"
+              title="Edit"
+            >
+              <FontAwesomeIcon icon={faEdit} />
+              <span className="md:hidden">Edit</span>
+            </button>
+
+            <button
+              onClick={() => handleDelete(row)}
+              className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-red-50 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors text-xs"
+              title="Delete"
+            >
+              <FontAwesomeIcon icon={faTrashAlt} />
+              <span className="md:hidden">Delete</span>
+            </button>
+          </div>
+        ),
+      },
+
       { key: "branchCode", label: "Branch Code", sortable: true },
-      { key: "branchName", label: "Branch Name", sortable: true },
+      { key: "branchName", label: "Branch Name", sortable: true , className: "min-w-[200px]"},
       {
         key: "address",
         label: "Address",
@@ -332,29 +358,7 @@ const handleCheckDuplicate = async (code) => {
         sortable: true,
         render: (row) => getActiveLabel(row.active),
       },
-      {
-        key: "__actions",
-        label: "Actions",
-        render: (row) => (
-          <div className="flex gap-2 justify-center">
-            <button
-              onClick={() => handleEdit(row)}
-              className="py-1 px-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-              title="Edit"
-            >
-              <FontAwesomeIcon icon={faEdit} />
-            </button>
-
-            <button
-              onClick={() => handleDelete(row)}
-              className="py-1 px-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-              title="Delete"
-            >
-              <FontAwesomeIcon icon={faTrashAlt} />
-            </button>
-          </div>
-        ),
-      },
+      
     ],
     [getAddress, branches, selectedBranchCode, handleDelete]
   );
