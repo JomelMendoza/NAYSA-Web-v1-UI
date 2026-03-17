@@ -22,6 +22,7 @@ import ButtonBar from "@/NAYSA Cloud/Global/ButtonBar.jsx";
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 import RegistrationInfo from "@/NAYSA Cloud/Global/RegistrationInfo.jsx";
 import SearchGlobalReferenceTable from "@/NAYSA Cloud/Lookup/SearchGlobalReferenceTable";
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
 
 import {
@@ -380,19 +381,7 @@ const handleCheckDuplicate = async (code) => {
 
   return (
     <div className="global-ref-main-div-ui">
-      {(isListLoading || isSaving || isDeleting) && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-[2px] flex items-center justify-center">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-4">
-            <div className="relative">
-              <div className="w-12 h-12 border-4 border-blue-100 dark:border-gray-700 rounded-full"></div>
-              <div className="absolute top-0 left-0 w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-            </div>
-            <span className="text-sm font-semibold animate-pulse">
-              {isSaving ? "Saving..." : isDeleting ? "Deleting..." : "Loading..."}
-            </span>
-          </div>
-        </div>
-      )}
+      {(isListLoading || isSaving || isDeleting) && <LoadingSpinner />}
 
       {/* HEADER (same UI pattern as COAMast, no Tabs) */}
       <div className="global-ref-header-ui mb-2">

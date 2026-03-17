@@ -842,10 +842,10 @@ export default function SLMast() {
               </div>
               <button
                 onClick={handleSaveMatching}
-                className="h-8 px-4 rounded-md bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 transition-all"
+                className="h-8 px-4 rounded-md bg-blue-600 text-white text-xs font-medium hover:bg-emerald-700 transition-all"
               >
-                <FontAwesomeIcon icon={faLink} className="mr-2" />
-                Save Matching
+                <FontAwesomeIcon icon={faSave} className="mr-2" />
+                Save SL-GL Matching
               </button>
             </div>
 

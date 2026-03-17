@@ -64,7 +64,7 @@ if (isLoading) return <LoadingSpinner />;
           <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
 
           <div className="mb-12">
-            <p className="text-[10px] font-bold tracking-[0.25em] text-blue-600 dark:text-blue-400 uppercase mb-7">NAYSA Financials Cloud</p>
+            <p className="text-[12px] font-bold tracking-[0.25em] text-blue-600 dark:text-blue-400 uppercase mb-7">NAYSA Financials Cloud</p>
             <h1 className="text-[40px] font-light text-slate-900 dark:text-white tracking-tight">
               Hello, <span className="text-[42px] font-bold text-slate-900 dark:text-white">{name}</span>
             </h1>
