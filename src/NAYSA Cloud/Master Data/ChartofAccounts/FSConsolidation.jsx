@@ -57,15 +57,15 @@ const EMPTY_ROW = {
   bottomLine: "",
   currSign: "N",
 
-  acctCode: "",
-  acctName: "",
+  // acctCode: "",
+  // acctName: "",
 
-  glRetEarn: "",
-  glRetEarnName: "",
-  fsRetEarn: "",
-  fsRetEarnName: "",
-  fsNetIncome: "",
-  fsNetIncomeName: "",
+  // glRetEarn: "",
+  // glRetEarnName: "",
+  // fsRetEarn: "",
+  // fsRetEarnName: "",
+  // fsNetIncome: "",
+  // fsNetIncomeName: "",
 
   registeredBy: "",
   registeredDate: "",
@@ -139,15 +139,15 @@ const FSConsolidation = forwardRef(function FSConsolidation(
       bottomLine: row.bottomLine ? String(row.bottomLine).toUpperCase() : "",
       currSign: String(row.currSign || "N").toUpperCase() === "Y" ? "Y" : "N",
 
-      acctCode: row.acctCode ?? "",
-      acctName: row.acctName ?? "",
+      // acctCode: row.acctCode ?? "",
+      // acctName: row.acctName ?? "",
 
-      glRetEarn: row.glRetEarn ?? "",
-      glRetEarnName: row.glRetEarnName ?? "",
-      fsRetEarn: row.fsRetEarn ?? "",
-      fsRetEarnName: row.fsRetEarnName ?? "",
-      fsNetIncome: row.fsNetIncome ?? "",
-      fsNetIncomeName: row.fsNetIncomeName ?? "",
+      // glRetEarn: row.glRetEarn ?? "",
+      // glRetEarnName: row.glRetEarnName ?? "",
+      // fsRetEarn: row.fsRetEarn ?? "",
+      // fsRetEarnName: row.fsRetEarnName ?? "",
+      // fsNetIncome: row.fsNetIncome ?? "",
+      // fsNetIncomeName: row.fsNetIncomeName ?? "",
 
       __isNew: false,
       __isDirty: false,
@@ -509,7 +509,7 @@ const FSConsolidation = forwardRef(function FSConsolidation(
                 e.stopPropagation();
                 addRow();
               }}
-              className="py-1 px-2 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-colors"
+              className="py-1 px-2 bg-blue-100 border border-blue-100 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-colors"
               title="Add"
             >
               <FontAwesomeIcon icon={faPlus} />
@@ -520,7 +520,7 @@ const FSConsolidation = forwardRef(function FSConsolidation(
                 e.stopPropagation();
                 handleDelete(row);
               }}
-              className="py-1 px-2 bg-red-100 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors"
+              className="py-1 px-2 bg-red-100 border border-red-100 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors"
               title="Delete"
             >
               <FontAwesomeIcon icon={faTrashAlt} />
@@ -531,7 +531,7 @@ const FSConsolidation = forwardRef(function FSConsolidation(
                 e.stopPropagation();
                 openRegistrationModal(row);
               }}
-              className="py-1 px-2 bg-indigo-100 text-indigo-600 rounded-md hover:bg-indigo-600 hover:text-white transition-colors"
+              className="py-1 px-2 bg-indigo-100 border border-indigo-100 text-indigo-600 rounded-md hover:bg-indigo-600 hover:text-white transition-colors"
               title="Registration Info"
             >
               <FontAwesomeIcon icon={faClipboardList} />
@@ -542,6 +542,7 @@ const FSConsolidation = forwardRef(function FSConsolidation(
       {
         key: "fsType",
         label: "FS Type",
+        width: 170,
         sortable: true,
         autoWidthValue: (row) =>
           row.fsType === "BS"
@@ -567,6 +568,7 @@ const FSConsolidation = forwardRef(function FSConsolidation(
       {
         key: "fsConsoCode",
         label: "FS Conso Code",
+        width: 150,
         sortable: true,
         render: (row) => {
           const rowKey = row.fsConsoCode || row.__tempId;
@@ -586,13 +588,13 @@ const FSConsolidation = forwardRef(function FSConsolidation(
       {
         key: "fsConsoName",
         label: "FS Conso Name",
-        width: 220,
+        width: 600,
         sortable: true,
         render: (row) => {
           const rowKey = row.fsConsoCode || row.__tempId;
           return (
             <input
-              className="w-full min-w-[220px] rounded-md border border-gray-300 px-2 py-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-blue-400"
+              className="w-full min-w-[100px] rounded-md border border-gray-300 px-2 py-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-blue-400"
               value={row.fsConsoName || ""}
               maxLength={getMax("fsConsoName") || 100}
               onChange={(e) => updateRow(rowKey, "fsConsoName", e.target.value)}
@@ -603,7 +605,7 @@ const FSConsolidation = forwardRef(function FSConsolidation(
       {
         key: "sumGrp",
         label: "Summary Group",
-        width: 140,
+        width: 150,
         sortable: true,
         render: (row) => {
           const rowKey = row.fsConsoCode || row.__tempId;
@@ -643,32 +645,32 @@ const FSConsolidation = forwardRef(function FSConsolidation(
           );
         },
       },
-      {
-        key: "topLine",
-        label: "Top Line",
-        width: 120,
-        sortable: true,
-        autoWidthValue: (row) =>
-          row.topLine === "S" ? "Single" : row.topLine === "D" ? "Double" : "",
-        render: (row) => {
-          const rowKey = row.fsConsoCode || row.__tempId;
-          return (
-            <select
-              className="w-full rounded-md border border-gray-300 px-2 py-1 text-[11px] bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
-              value={row.topLine ?? ""}
-              onChange={(e) => updateRow(rowKey, "topLine", e.target.value)}
-            >
-              <option value=""></option>
-              <option value="S">Single</option>
-              <option value="D">Double</option>
-            </select>
-          );
-        },
-      },
+      // {
+      //   key: "topLine",
+      //   label: "Top Line",
+      //   width: 120,
+      //   sortable: true,
+      //   autoWidthValue: (row) =>
+      //     row.topLine === "S" ? "Single" : row.topLine === "D" ? "Double" : "",
+      //   render: (row) => {
+      //     const rowKey = row.fsConsoCode || row.__tempId;
+      //     return (
+      //       <select
+      //         className="w-full rounded-md border border-gray-300 px-2 py-1 text-[11px] bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+      //         value={row.topLine ?? ""}
+      //         onChange={(e) => updateRow(rowKey, "topLine", e.target.value)}
+      //       >
+      //         <option value=""></option>
+      //         <option value="S">Single</option>
+      //         <option value="D">Double</option>
+      //       </select>
+      //     );
+      //   },
+      // },
       {
         key: "bottomLine",
         label: "Bottom Line",
-        width: 120,
+        width: 150,
         sortable: true,
         autoWidthValue: (row) =>
           row.bottomLine === "S" ? "Single" : row.bottomLine === "D" ? "Double" : "",
@@ -690,7 +692,7 @@ const FSConsolidation = forwardRef(function FSConsolidation(
       {
         key: "currSign",
         label: "Curr Sign",
-        width: 110,
+        width: 100,
         sortable: true,
         autoWidthValue: (row) =>
           row.currSign === "Y" ? "Yes" : row.currSign === "N" ? "No" : "",
@@ -874,6 +876,7 @@ const FSConsolidation = forwardRef(function FSConsolidation(
             onRowClick={handleRowSelect}
             selectedRowKey={selectedRow}
             rowKeyField="fsConsoCode"
+            // autoFillGrid="True"
           />
         </div>
       </div>

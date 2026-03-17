@@ -483,6 +483,7 @@ const GLFSMatching = forwardRef(function GLFSMatching(
             onRowClick={handleRowSelect}
             selectedRowKey={selectedRow}
             rowKeyField="__rowKey"
+            autoFillGrid="True"
           />
         </div>
       </div>

@@ -19,7 +19,7 @@ import {
   faChevronDown,
   faFilePdf,
   faVideo,
-  faLink,
+  faEye,
 } from "@fortawesome/free-solid-svg-icons";
 
 import {
@@ -42,19 +42,19 @@ const INITIAL_SL_FORM = {
   slTypeName: "",
   slCode: "",
   slName: "",
-  address1: "",
-  address2: "",
-  address3: "",
-  tin: "",
-  active: "Y",
+  slAddress1: "",
+  slAddress2: "",
+  slAddress3: "",
+  slTin: "",
+  slActive: "Y",
 };
 
 const INITIAL_SLTYPE_FORM = {
   slTypeCode: "",
   slTypeName: "",
-  active: "Y",
-  incSu: "N",
-  incCu: "N",
+  slTypeActive: "Y",
+  slTypeIncSu: "N",
+  slTypeIncCu: "N",
 };
 
 const INITIAL_REG = {
@@ -81,6 +81,8 @@ export default function SLMast() {
   const [isEditingSLType, setIsEditingSLType] = useState(false);
 
   const [selectedGLAccounts, setSelectedGLAccounts] = useState([]);
+  const [isGLMatchingLoaded, setIsGLMatchingLoaded] = useState(false);
+
   const [isOpenGuide, setOpenGuide] = useState(false);
   const guideRef = useRef(null);
 
@@ -106,21 +108,18 @@ export default function SLMast() {
   });
 
   const { data: slCoaList = [], isLoading: isLoadingSLCoa } = useQuery({
-    queryKey: ["slCoaList"],
+    queryKey: ["slCoaList", selectedSLTypeCode, isGLMatchingLoaded],
+    enabled: !!selectedSLTypeCode && isGLMatchingLoaded,
     queryFn: async () => {
-      const { data } = await apiClient.get("/sLCoa");
-      const raw = data?.data?.[0]?.result || data?.result;
-      return raw ? JSON.parse(raw) : [];
-    },
-  });
+      const { data } = await apiClient.get("/sLCoa", {
+        params: {
+          mode: "Load_slCoa",
+          slTypeCode: selectedSLTypeCode,
+        },
+      });
 
-  const { data: coaList = [], isLoading: isLoadingCOA } = useQuery({
-    queryKey: ["coaListForSLMatching"],
-    queryFn: async () => {
-      const { data } = await apiClient.get("/cOA");
-      const raw = data?.data?.[0]?.result || data?.result;
-      const parsed = raw ? JSON.parse(raw) : [];
-      return parsed.filter((x) => x.reqSL === "Y");
+      const raw = data?.data?.[0]?.result ?? data?.result;
+      return raw ? JSON.parse(raw) : [];
     },
   });
 
@@ -134,9 +133,11 @@ export default function SLMast() {
   }, [slMasterList, selectedSLTypeCode]);
 
   const matchedGLAccounts = useMemo(() => {
-    if (!selectedSLTypeCode) return [];
-    return slCoaList.filter((x) => x.slTypeCode === selectedSLTypeCode);
-  }, [slCoaList, selectedSLTypeCode]);
+    if (!isGLMatchingLoaded) return [];
+    return slCoaList.filter(
+      (x) => String(x.value).toLowerCase() === "true"
+    );
+  }, [slCoaList, isGLMatchingLoaded]);
 
   useEffect(() => {
     setSelectedGLAccounts(matchedGLAccounts.map((x) => x.acctCode));
@@ -144,16 +145,34 @@ export default function SLMast() {
 
   const canAddSL = useMemo(() => {
     if (!selectedSLType) return false;
-    return selectedSLType.incCu !== "Y" && selectedSLType.incSu !== "Y";
+    return selectedSLType.slTypeIncCu !== "Y" && selectedSLType.slTypeIncSu !== "Y";
   }, [selectedSLType]);
 
   const canDeleteSL = useMemo(() => {
     if (!selectedSLType) return false;
-    return !(selectedSLType.incCu === "Y" || selectedSLType.incSu === "Y");
+    return !(selectedSLType.slTypeIncCu === "Y" || selectedSLType.slTypeIncSu === "Y");
   }, [selectedSLType]);
 
-  const updateSLForm = (updates) => setSLForm((prev) => ({ ...prev, ...updates }));
-  const updateSLTypeForm = (updates) => setSLTypeForm((prev) => ({ ...prev, ...updates }));
+  const displayedSLCoaList = useMemo(() => {
+    return isGLMatchingLoaded ? slCoaList : [];
+  }, [slCoaList, isGLMatchingLoaded]);
+
+  const allGLAccountCodes = useMemo(() => {
+    return displayedSLCoaList.map((x) => x.acctCode);
+  }, [displayedSLCoaList]);
+
+  const isAllSelected = useMemo(() => {
+    if (!allGLAccountCodes.length) return false;
+    return allGLAccountCodes.every((code) =>
+      selectedGLAccounts.includes(code)
+    );
+  }, [allGLAccountCodes, selectedGLAccounts]);
+
+  const updateSLForm = (updates) =>
+    setSLForm((prev) => ({ ...prev, ...updates }));
+
+  const updateSLTypeForm = (updates) =>
+    setSLTypeForm((prev) => ({ ...prev, ...updates }));
 
   const resetSLForm = () => {
     setSLForm({
@@ -170,6 +189,8 @@ export default function SLMast() {
     setSLTypeForm(INITIAL_SLTYPE_FORM);
     setSelectedSLTypeRow(null);
     setIsEditingSLType(false);
+    setIsGLMatchingLoaded(false);
+    setSelectedGLAccounts([]);
   };
 
   const handleEditSL = (row) => {
@@ -179,11 +200,11 @@ export default function SLMast() {
       slTypeName: row.slTypeName || "",
       slCode: row.slCode || "",
       slName: row.slName || "",
-      address1: row.address1 || "",
-      address2: row.address2 || "",
-      address3: row.address3 || "",
-      tin: row.tin || "",
-      active: row.active || "Y",
+      slAddress1: row.slAddress1 || "",
+      slAddress2: row.slAddress2 || "",
+      slAddress3: row.slAddress3 || "",
+      slTin: row.slTin || "",
+      slActive: row.slActive || "Y",
     });
     setRegistrationInfo({
       registeredBy: row.registeredBy || "",
@@ -199,68 +220,183 @@ export default function SLMast() {
     setSLTypeForm({
       slTypeCode: row.slTypeCode || "",
       slTypeName: row.slTypeName || "",
-      active: row.active || "Y",
-      incSu: row.incSu || "N",
-      incCu: row.incCu || "N",
+      slTypeActive: row.slTypeActive || "Y",
+      slTypeIncSu: row.slTypeIncSu || "N",
+      slTypeIncCu: row.slTypeIncCu || "N",
     });
     setSelectedSLTypeCode(row.slTypeCode || "");
     setIsEditingSLType(true);
+    setIsGLMatchingLoaded(false);
+    setSelectedGLAccounts([]);
   };
 
+  const handleViewGLMatching = (row) => {
+    setSelectedSLTypeCode(row.slTypeCode || "");
+    setSelectedSLTypeRow(row);
+    setSLTypeForm({
+      slTypeCode: row.slTypeCode || "",
+      slTypeName: row.slTypeName || "",
+      slTypeActive: row.slTypeActive || "Y",
+      slTypeIncSu: row.slTypeIncSu || "N",
+      slTypeIncCu: row.slTypeIncCu || "N",
+    });
+    setIsGLMatchingLoaded(true);
+    setIsEditingSLType(false);
+  };
+
+  // --- MUTATION: UPSERT ---
   const { mutate: saveSL, isLoading: isSavingSL } = useMutation({
     mutationFn: async (payload) => await apiClient.post("/upsertSLMast", payload),
-    onSuccess: () => {
+
+    onSuccess: (response) => {
+      // 1) SPROC row style (errorcount/errormsg)
+      const sqlRow = response?.data?.data?.[0];
+      if (sqlRow?.errorcount > 0) {
+        useSwalErrorAlert("Error", sqlRow?.errormsg || "Failed to save SL Code.");
+        resetSLForm(); // ✅ reset on failure
+        return;
+      }
+
+      // 2) API status style
+      const status = response?.data?.status ?? response?.data?.data?.status;
+      const success = response?.data?.success || status === "success" || !status;
+
+      if (!success) {
+        useSwalErrorAlert(
+          "Error",
+          response?.data?.message ||
+            response?.data?.data?.message ||
+            "Failed to save SL Code."
+        );
+        resetSLForm(); // ✅ reset on failure
+        return;
+      }
+
+      // ✅ success path
       queryClient.invalidateQueries({ queryKey: ["slMasterList"] });
-      useSwalSuccessAlert("Success!", "SL Master saved successfully.");
+      useSwalSuccessAlert("Success!", "SL Code saved successfully!");
       resetSLForm();
     },
-    onError: (error) => useSwalErrorAlertAPI("Save Error", error),
+
+    onError: (error) => {
+      useSwalErrorAlertAPI(
+        "System Error",
+        error?.response?.status ? `HTTP ${error.response.status}` : error?.message || String(error)
+      );
+      resetSLForm(); // ✅ reset on request error too
+    },
   });
 
   const { mutate: deleteSL, isLoading: isDeletingSL } = useMutation({
     mutationFn: async (payload) => await apiClient.post("/deleteSLMast", payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["slMasterList"] });
-      useSwalDeleteRecord("Deleted!", "SL Master deleted successfully.");
+      useSwalDeleteRecord("Deleted!", "SL deleted successfully.");
       resetSLForm();
     },
     onError: (error) => useSwalErrorAlertAPI("Delete Error", error),
   });
 
+  // --- MUTATION: UPSERT ---
   const { mutate: saveSLType, isLoading: isSavingSLType } = useMutation({
     mutationFn: async (payload) => await apiClient.post("/upsertSLType", payload),
-    onSuccess: () => {
+
+    onSuccess: (response) => {
+      // 1) SPROC row style (errorcount/errormsg)
+      const sqlRow = response?.data?.data?.[0];
+      if (sqlRow?.errorcount > 0) {
+        useSwalErrorAlert("Error", sqlRow?.errormsg || "Failed to save SL Type.");
+        resetSLTypeForm(); // ✅ reset on failure
+        return;
+      }
+
+      // 2) API status style
+      const status = response?.data?.status ?? response?.data?.data?.status;
+      const success = response?.data?.success || status === "success" || !status;
+
+      if (!success) {
+        useSwalErrorAlert(
+          "Error",
+          response?.data?.message ||
+            response?.data?.data?.message ||
+            "Failed to save SL Type."
+        );
+        resetSLTypeForm(); // ✅ reset on failure
+        return;
+      }
+
+      // ✅ success path
       queryClient.invalidateQueries({ queryKey: ["slTypeList"] });
-      useSwalSuccessAlert("Success!", "SL Type saved successfully.");
+      useSwalSuccessAlert("Success!", "SL Type saved successfully!");
       resetSLTypeForm();
     },
-    onError: (error) => useSwalErrorAlertAPI("Save Error", error),
+
+    onError: (error) => {
+      useSwalErrorAlertAPI(
+        "System Error",
+        error?.response?.status ? `HTTP ${error.response.status}` : error?.message || String(error)
+      );
+      resetSLTypeForm(); // ✅ reset on request error too
+    },
   });
 
-  const { mutate: deleteSLType, isLoading: isDeletingSLType } = useMutation({
+    // --- MUTATION: DELETE ---
+    const { mutate: deleteSLType, isLoading: isDeletingSLType } = useMutation({
     mutationFn: async (payload) => await apiClient.post("/deleteSLType", payload),
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ["slTypeList"] });
       queryClient.invalidateQueries({ queryKey: ["slCoaList"] });
-      useSwalDeleteRecord("Deleted!", "SL Type deleted successfully.");
+      useSwalDeleteRecord("Deleted!", "The branch has been removed from the system.");
       resetSLTypeForm();
+      setSelectedSLTypeCode("");
     },
-    onError: (error) => useSwalErrorAlertAPI("Delete Error", error),
+    onError: (error) => useSwalErrorAlertAPI("Delete Error", error)
   });
 
+  // --- MUTATION: UPSERT ---
   const { mutate: saveMatching, isLoading: isSavingMatching } = useMutation({
     mutationFn: async (payload) => await apiClient.post("/upsertSLTypeGLMatching", payload),
-    onSuccess: () => {
+
+    onSuccess: (response) => {
+      // 1) SPROC row style (errorcount/errormsg)
+      const sqlRow = response?.data?.data?.[0];
+      if (sqlRow?.errorcount > 0) {
+        useSwalErrorAlert("Error", sqlRow?.errormsg || "Failed to save SL - GL Matching.");
+        // resetSLTypeForm(); // ✅ reset on failure
+        return;
+      }
+
+      // 2) API status style
+      const status = response?.data?.status ?? response?.data?.data?.status;
+      const success = response?.data?.success || status === "success" || !status;
+
+      if (!success) {
+        useSwalErrorAlert(
+          "Error",
+          response?.data?.message ||
+            response?.data?.data?.message ||
+            "Failed to save SL - GL Matching."
+        );
+        // resetSLTypeForm(); // ✅ reset on failure
+        return;
+      }
+
+      // ✅ success path
       queryClient.invalidateQueries({ queryKey: ["slCoaList"] });
-      useSwalSuccessAlert("Success!", "SL-GL Matching saved successfully.");
+      useSwalSuccessAlert("Success!", "SL - GL Matching saved successfully!");
+      // resetSLTypeForm();
     },
-    onError: (error) => useSwalErrorAlertAPI("Save Error", error),
+
+    onError: (error) => {
+      useSwalErrorAlertAPI(
+        "System Error",
+        error?.response?.status ? `HTTP ${error.response.status}` : error?.message || String(error)
+      );
+      // resetSLTypeForm(); // ✅ reset on request error too
+    },
   });
 
   const handleSaveSL = () => {
-    if (!slForm.slTypeCode) return useSwalErrorAlert("Validation Error", "SL Type is required.");
-    if (!slForm.slCode) return useSwalErrorAlert("Validation Error", "SL Code is required.");
-    if (!slForm.slName) return useSwalErrorAlert("Validation Error", "SL Name is required.");
 
     const payload = {
       json_data: JSON.stringify({
@@ -273,13 +409,14 @@ export default function SLMast() {
     };
 
     saveSL(payload);
+    console.log("Save SL Mast:",payload)
   };
 
   const handleDeleteSL = async (row) => {
     if (!canDeleteSL) {
       return useSwalErrorAlert(
         "Delete Restricted",
-        "Delete is not allowed when selected SL Type is tagged in incCu or incSu."
+        "Delete is not allowed for SL Type Payee and Customer."
       );
     }
 
@@ -299,9 +436,7 @@ export default function SLMast() {
   };
 
   const handleSaveSLType = () => {
-    if (!slTypeForm.slTypeCode) return useSwalErrorAlert("Validation Error", "SL Type Code is required.");
-    if (!slTypeForm.slTypeName) return useSwalErrorAlert("Validation Error", "SL Type Name is required.");
-
+ 
     const payload = {
       json_data: JSON.stringify({
         json_data: {
@@ -313,6 +448,8 @@ export default function SLMast() {
     };
 
     saveSLType(payload);
+
+    console.log("Save SL Type:",payload)
   };
 
   const handleDeleteSLType = async (row) => {
@@ -335,6 +472,13 @@ export default function SLMast() {
       return useSwalErrorAlert("Validation Error", "Please select an SL Type.");
     }
 
+    if (!isGLMatchingLoaded) {
+      return useSwalErrorAlert(
+        "Validation Error",
+        "Please click View GL Matching first."
+      );
+    }
+
     const payload = {
       json_data: JSON.stringify({
         json_data: {
@@ -346,6 +490,7 @@ export default function SLMast() {
     };
 
     saveMatching(payload);
+    console.log("Save SL-GL Matching:",payload)
   };
 
   const toggleGLSelection = (acctCode) => {
@@ -354,6 +499,20 @@ export default function SLMast() {
         ? prev.filter((x) => x !== acctCode)
         : [...prev, acctCode]
     );
+  };
+
+  const handleToggleSelectAllGL = () => {
+    setSelectedGLAccounts((prev) =>
+      isAllSelected ? [] : allGLAccountCodes
+    );
+  };
+
+  const handleSelectAllGL = () => {
+    setSelectedGLAccounts(allGLAccountCodes);
+  };
+
+  const handleClearAllGL = () => {
+    setSelectedGLAccounts([]);
   };
 
   const slMasterColumns = useMemo(
@@ -372,8 +531,8 @@ export default function SLMast() {
               disabled={!canDeleteSL}
               className={`py-1 px-2 rounded-md transition-colors ${
                 canDeleteSL
-                  ? "bg-blue-100 text-blue-600 hover:bg-blue-600 hover:text-white"
-                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                  ? "bg-blue-100 border border-blue-100 text-blue-600 hover:bg-blue-600 hover:text-white"
+                  : "bg-gray-100 border border-gray-100 text-gray-400 cursor-not-allowed"
               }`}
               title="Edit"
             >
@@ -388,8 +547,8 @@ export default function SLMast() {
               disabled={!canDeleteSL}
               className={`py-1 px-2 rounded-md transition-colors ${
                 canDeleteSL
-                  ? "bg-red-100 text-red-600 hover:bg-red-600 hover:text-white"
-                  : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                  ? "bg-red-100 border-red-100 text-red-600 hover:bg-red-600 hover:text-white"
+                  : "bg-gray-100 border-gray-100 text-gray-400 cursor-not-allowed"
               }`}
               title="Delete"
             >
@@ -402,15 +561,15 @@ export default function SLMast() {
       { key: "slTypeName", label: "SL Type Name", sortable: true },
       { key: "slCode", label: "SL Code", sortable: true },
       { key: "slName", label: "SL Name", sortable: true },
-      { key: "address1", label: "Address 1", sortable: true },
-      { key: "address2", label: "Address 2", sortable: true },
-      { key: "address3", label: "Address 3", sortable: true },
-      { key: "tin", label: "TIN", sortable: true },
+      { key: "slAddress1", label: "Address 1", sortable: true },
+      { key: "slAddress2", label: "Address 2", sortable: true },
+      { key: "slAddress3", label: "Address 3", sortable: true },
+      { key: "slTin", label: "TIN", sortable: true },
       {
-        key: "active",
+        key: "slActive",
         label: "Active",
         sortable: true,
-        render: (row) => (row.active === "Y" ? "Y" : "N"),
+        render: (row) => (row.slActive === "Y" ? "Y" : "N"),
       },
     ],
     [canDeleteSL]
@@ -429,29 +588,41 @@ export default function SLMast() {
                 e.stopPropagation();
                 handleEditSLType(row);
               }}
-              className="py-1 px-2 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-colors"
+              className="py-1 px-2 bg-blue-100 text-blue-600 border border-blue-100 rounded-md hover:bg-blue-600 hover:text-white transition-colors"
               title="Edit"
             >
               <FontAwesomeIcon icon={faEdit} />
             </button>
+
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 handleDeleteSLType(row);
               }}
-              className="py-1 px-2 bg-red-100 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors"
+              className="py-1 px-2 bg-red-100 text-red-600 border border-red-100 rounded-md hover:bg-red-600 hover:text-white transition-colors"
               title="Delete"
             >
               <FontAwesomeIcon icon={faTrashAlt} />
+            </button>
+
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleViewGLMatching(row);
+              }}
+              className="py-1 px-2 bg-blue-100 text-blue-600 border border-blue-100 rounded-md hover:bg-blue-600 hover:text-white transition-colors"
+              title="View GL Matching"
+            >
+              <FontAwesomeIcon icon={faEye} />
             </button>
           </div>
         ),
       },
       { key: "slTypeCode", label: "SL Type Code", sortable: true },
       { key: "slTypeName", label: "SL Type Name", sortable: true },
-      { key: "active", label: "Active", sortable: true },
-      { key: "incSu", label: "Payee", sortable: true },
-      { key: "incCu", label: "Customer", sortable: true },
+      { key: "slTypeActive", label: "Active", sortable: true },
+      { key: "slTypeIncSu", label: "Payee", sortable: true },
+      { key: "slTypeIncCu", label: "Customer", sortable: true },
     ],
     []
   );
@@ -460,23 +631,48 @@ export default function SLMast() {
     () => [
       {
         key: "__check",
-        label: "Select",
-        sortable: false,
+        label: (
+          <div className="flex justify-center">
+            <input
+              type="checkbox"
+              checked={isAllSelected}
+              onChange={handleToggleSelectAllGL}
+              className="h-4 w-4 accent-blue-600"
+              title={isAllSelected ? "Deselect All" : "Select All"}
+            />
+          </div>
+        ),
+        sortable: true,
         render: (row) => (
           <div className="flex justify-center">
             <input
               type="checkbox"
               checked={selectedGLAccounts.includes(row.acctCode)}
               onChange={() => toggleGLSelection(row.acctCode)}
-              className="h-4 w-4 accent-blue-600"
+              className="h-6 w-4 accent-blue-600"
             />
           </div>
         ),
+        
+        width: 25,
+        maxWidth: 25
       },
-      { key: "acctCode", label: "GL Account Code", sortable: true },
-      { key: "acctName", label: "GL Account Name", sortable: true },
+      {
+        key: "acctCode",
+        label: "GL Account Code",
+        sortable: true,
+        width: 50,
+        maxWidth: 50
+      },
+      {
+        key: "acctName",
+        label: "GL Account Name",
+        sortable: true,
+        width: 500,
+        maxWidth: 500
+      },
     ],
-    [selectedGLAccounts]
+    [selectedGLAccounts, isAllSelected]
   );
 
   useEffect(() => {
@@ -485,6 +681,7 @@ export default function SLMast() {
         setOpenGuide(false);
       }
     };
+
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
@@ -494,7 +691,6 @@ export default function SLMast() {
       {(isLoadingTypes ||
         isLoadingSL ||
         isLoadingSLCoa ||
-        isLoadingCOA ||
         isSavingSL ||
         isDeletingSL ||
         isSavingSLType ||
@@ -537,9 +733,17 @@ export default function SLMast() {
                   onClick={() => setOpenGuide((v) => !v)}
                   className="bg-blue-600 text-white h-7 w-14 sm:w-auto sm:h-8 sm:px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
                 >
-                  <FontAwesomeIcon icon={faInfoCircle} className="text-[12px]" />
-                  <span className="sm:inline ml-1 text-[11px] font-medium">Info</span>
-                  <FontAwesomeIcon icon={faChevronDown} className="hidden sm:inline text-[10px] opacity-80" />
+                  <FontAwesomeIcon
+                    icon={faInfoCircle}
+                    className="text-[12px]"
+                  />
+                  <span className="sm:inline ml-1 text-[11px] font-medium">
+                    Info
+                  </span>
+                  <FontAwesomeIcon
+                    icon={faChevronDown}
+                    className="hidden sm:inline text-[10px] opacity-80"
+                  />
                 </button>
 
                 {isOpenGuide && (
@@ -551,7 +755,10 @@ export default function SLMast() {
                       }}
                       className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50"
                     >
-                      <FontAwesomeIcon icon={faFilePdf} className="mr-2 text-red-500" />
+                      <FontAwesomeIcon
+                        icon={faFilePdf}
+                        className="mr-2 text-red-500"
+                      />
                       PDF Guide
                     </button>
                     <button
@@ -561,7 +768,10 @@ export default function SLMast() {
                       }}
                       className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50"
                     >
-                      <FontAwesomeIcon icon={faVideo} className="mr-2 text-blue-500" />
+                      <FontAwesomeIcon
+                        icon={faVideo}
+                        className="mr-2 text-blue-500"
+                      />
                       Video Guide
                     </button>
                   </div>
@@ -587,6 +797,7 @@ export default function SLMast() {
                   }))}
                   onChange={(v) => {
                     const row = slTypes.find((x) => x.slTypeCode === v);
+
                     setSelectedSLTypeCode(v);
                     setSLForm({
                       ...INITIAL_SL_FORM,
@@ -610,9 +821,10 @@ export default function SLMast() {
                       if (!canAddSL) {
                         return useSwalErrorAlert(
                           "Add Restricted",
-                          "New SL Code is not allowed when selected SL Type is tagged in incCu or incSu."
+                          "Adding is not allowed for SL Types Payee and Customer."
                         );
                       }
+
                       setIsEditingSL(true);
                       setSLForm({
                         ...INITIAL_SL_FORM,
@@ -628,7 +840,16 @@ export default function SLMast() {
                     key: "save",
                     label: <span className="sm:inline ml-1">Save</span>,
                     icon: faSave,
-                    onClick: handleSaveSL,
+                    onClick: () => {
+                      if (!canAddSL) {
+                        return useSwalErrorAlert(
+                          "Add Restricted",
+                          "Saving is not allowed for SL Types Payee and Customer."
+                        );
+                      }
+
+                      return handleSaveSL();
+                    },
                     className:
                       "flex items-center justify-center h-8 px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
                   },
@@ -647,8 +868,18 @@ export default function SLMast() {
 
           <div className="flex flex-col xl:flex-row gap-4">
             <div className="flex-1 bg-white dark:bg-gray-800 p-6 rounded-xl border shadow-lg grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-              <FieldRenderer label="SL Type Code" type="text" value={slForm.slTypeCode} disabled />
-              <FieldRenderer label="SL Type Name" type="text" value={slForm.slTypeName} disabled />
+              <FieldRenderer
+                label="SL Type Code"
+                type="text"
+                value={slForm.slTypeCode}
+                disabled
+              />
+              <FieldRenderer
+                label="SL Type Name"
+                type="text"
+                value={slForm.slTypeName}
+                disabled
+              />
 
               <FieldRenderer
                 label="SL Code"
@@ -661,50 +892,50 @@ export default function SLMast() {
                 label="SL Name"
                 type="text"
                 value={slForm.slName}
-                disabled={!isEditingSL}
+                disabled={!isEditingSL || !canDeleteSL}
                 onChange={(v) => updateSLForm({ slName: v })}
               />
 
               <FieldRenderer
                 label="Address 1"
                 type="text"
-                value={slForm.address1}
-                disabled={!isEditingSL}
-                onChange={(v) => updateSLForm({ address1: v })}
+                value={slForm.slAddress1}
+                disabled={!isEditingSL || !canDeleteSL}
+                onChange={(v) => updateSLForm({ slAddress1: v })}
               />
               <FieldRenderer
                 label="Address 2"
                 type="text"
-                value={slForm.address2}
-                disabled={!isEditingSL}
-                onChange={(v) => updateSLForm({ address2: v })}
+                value={slForm.slAddress2}
+                disabled={!isEditingSL || !canDeleteSL}
+                onChange={(v) => updateSLForm({ slAddress2: v })}
               />
 
               <FieldRenderer
                 label="Address 3"
                 type="text"
-                value={slForm.address3}
-                disabled={!isEditingSL}
-                onChange={(v) => updateSLForm({ address3: v })}
+                value={slForm.slAddress3}
+                disabled={!isEditingSL || !canDeleteSL}
+                onChange={(v) => updateSLForm({ slAddress3: v })}
               />
               <FieldRenderer
                 label="TIN"
                 type="text"
-                value={slForm.tin}
-                disabled={!isEditingSL}
-                onChange={(v) => updateSLForm({ tin: v })}
+                value={slForm.slTin}
+                disabled={!isEditingSL || !canDeleteSL}
+                onChange={(v) => updateSLForm({ slTin: v })}
               />
 
               <FieldRenderer
                 label="Active"
                 type="select"
-                value={slForm.active}
-                disabled={!isEditingSL}
+                value={slForm.slActive}
+                disabled={!isEditingSL || !canDeleteSL}
                 options={[
-                  { value: "Y", label: "Y" },
-                  { value: "N", label: "N" },
+                  { value: "Y", label: "Yes" },
+                  { value: "N", label: "No" },
                 ]}
-                onChange={(v) => updateSLForm({ active: v })}
+                onChange={(v) => updateSLForm({ slActive: v })}
               />
             </div>
 
@@ -713,24 +944,25 @@ export default function SLMast() {
             </div>
           </div>
 
-          {/* <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border shadow-lg"> */}
-            <SearchGlobalReferenceTable
-              docType={`${DOC_TYPE}_MASTER`}
-              columns={slMasterColumns}
-              data={filteredSLMasterList}
-              isLoading={isLoadingSL}
-              itemsPerPage={200}
-              onRowDoubleClick={handleEditSL}
-            />
-          {/* </div> */}
+          <SearchGlobalReferenceTable
+            docType={`${DOC_TYPE}_MASTER`}
+            columns={slMasterColumns}
+            data={filteredSLMasterList}
+            isLoading={isLoadingSL}
+            itemsPerPage={200}
+            onRowDoubleClick={handleEditSL}
+              autoFillGrid="True"
+          />
         </div>
       )}
 
       {activeTab === "sltype" && (
-        <div className="mt-24 grid grid-cols-1 xl:grid-cols-[750px,1fr] gap-4">
+        <div className="mt-24 grid grid-cols-1 xl:grid-cols-[680px,1fr] gap-2">
           <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border shadow-lg">
             <div className="mb-3 flex items-center justify-between">
-              <div className="text-sm font-semibold text-blue-700">SL Types</div>
+              <div className="text-sm font-semibold text-blue-700">
+                SL Types
+              </div>
               <ButtonBar
                 buttons={[
                   {
@@ -780,45 +1012,43 @@ export default function SLMast() {
                 onChange={(v) => updateSLTypeForm({ slTypeName: v })}
               />
 
-               <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-6">
-                    
-              <FieldRenderer
-                label="Active"
-                type="select"
-                value={slTypeForm.active}
-                disabled={!isEditingSLType}
-                options={[
-                  { value: "Y", label: "Y" },
-                  { value: "N", label: "N" },
-                ]}
-                onChange={(v) => updateSLTypeForm({ active: v })}
-              />
-                    <FieldRenderer
-                        label="Payee"
-                        type="select"
-                        value={slTypeForm.incSu}
-                        disabled={!isEditingSLType}
-                        options={[
-                        { value: "Y", label: "Y" },
-                        { value: "N", label: "N" },
-                        ]}
-                        onChange={(v) => updateSLTypeForm({ incSu: v })}
-                    />
-                    <FieldRenderer
-                        label="Customer"
-                        type="select"
-                        value={slTypeForm.incCu}
-                        disabled={!isEditingSLType}
-                        options={[
-                        { value: "Y", label: "Y" },
-                        { value: "N", label: "N" },
-                        ]}
-                        onChange={(v) => updateSLTypeForm({ incCu: v })}
-                    />
-                </div>
-
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-6">
+                <FieldRenderer
+                  label="Active"
+                  type="select"
+                  value={slTypeForm.slTypeActive}
+                  disabled={!isEditingSLType}
+                  options={[
+                    { value: "Y", label: "Yes" },
+                    { value: "N", label: "No" },
+                  ]}
+                  onChange={(v) => updateSLTypeForm({ slTypeActive: v })}
+                />
+                <FieldRenderer
+                  label="Payee"
+                  type="select"
+                  value={slTypeForm.slTypeIncSu}
+                  disabled={!isEditingSLType}
+                  options={[
+                    { value: "Y", label: "Yes" },
+                    { value: "N", label: "No" },
+                  ]}
+                  onChange={(v) => updateSLTypeForm({ slTypeIncSu: v })}
+                />
+                <FieldRenderer
+                  label="Customer"
+                  type="select"
+                  value={slTypeForm.slTypeIncCu}
+                  disabled={!isEditingSLType}
+                  options={[
+                    { value: "Y", label: "Yes" },
+                    { value: "N", label: "No" },
+                  ]}
+                  onChange={(v) => updateSLTypeForm({ slTypeIncCu: v })}
+                />
+              </div>
             </div>
-<div>
+
             <SearchGlobalReferenceTable
               docType={`${DOC_TYPE}_TYPE`}
               columns={slTypeColumns}
@@ -826,36 +1056,81 @@ export default function SLMast() {
               isLoading={isLoadingTypes}
               itemsPerPage={100}
               onRowClick={(row) => {
-                setSelectedSLTypeCode(row.slTypeCode);
                 handleEditSLType(row);
               }}
               onRowDoubleClick={handleEditSLType}
-                tableSize = "Half"
+              tableSize="Half"
+              autoFillGrid="True"
             />
-            </div>
           </div>
 
           <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border shadow-lg">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="text-sm font-semibold text-blue-700">
-                SL {selectedSLType ? ` (${selectedSLType.slTypeName})` : ""} - GL Matching
+            <div className="mb-2 flex items-center justify-between gap-2 flex-wrap">
+              <div className="text-lg font-semibold text-blue-800">
+                {isGLMatchingLoaded ? (
+                  <>
+                    {selectedSLType && (
+                      <span className="text-lg font-extrabold text-blue-800 bg-blue-100 px-10 py-1.5 rounded-md">
+                        {selectedSLType.slTypeName}  -  GL Matching
+                      </span>
+                    )}{" "}
+                     {/* GL Matching */}
+                  </>
+                ) : (
+                  "SL - GL Matching"
+                )}
               </div>
-              <button
-                onClick={handleSaveMatching}
-                className="h-8 px-4 rounded-md bg-blue-600 text-white text-xs font-medium hover:bg-emerald-700 transition-all"
-              >
-                <FontAwesomeIcon icon={faSave} className="mr-2" />
-                Save SL-GL Matching
-              </button>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* <button
+                  type="button"
+                  onClick={handleSelectAllGL}
+                  disabled={!isGLMatchingLoaded || !displayedSLCoaList.length}
+                  className={`h-8 px-3 rounded-md text-xs font-medium transition-all ${
+                    !isGLMatchingLoaded || !displayedSLCoaList.length
+                      ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                      : "bg-blue-100 text-blue-700 hover:bg-blue-600 hover:text-white"
+                  }`}
+                >
+                  Select All
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleClearAllGL}
+                  disabled={!isGLMatchingLoaded || !displayedSLCoaList.length}
+                  className={`h-8 px-3 rounded-md text-xs font-medium transition-all ${
+                    !isGLMatchingLoaded || !displayedSLCoaList.length
+                      ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-600 hover:text-white"
+                  }`}
+                >
+                  Clear
+                </button> */}
+
+                <button
+                  onClick={handleSaveMatching}
+                  disabled={!isGLMatchingLoaded}
+                  className={`mr-3 h-8 px-4 rounded-md text-xs font-medium transition-all ${
+                    !isGLMatchingLoaded
+                      ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                      : "bg-blue-600 text-white hover:bg-blue-700"
+                  }`}
+                >
+                  <FontAwesomeIcon icon={faSave} className="mr-2" />
+                  Save SL-GL Matching
+                </button>
+              </div>
             </div>
 
             <SearchGlobalReferenceTable
               docType={`${DOC_TYPE}_COA`}
               columns={slCoaColumns}
-              data={coaList}
-              isLoading={isLoadingCOA}
+              data={displayedSLCoaList}
+              isLoading={isLoadingSLCoa}
               itemsPerPage={300}
-                tableSize = "Half"
+              tableSize="Half"
+              // autoFillGrid="True"
             />
           </div>
         </div>

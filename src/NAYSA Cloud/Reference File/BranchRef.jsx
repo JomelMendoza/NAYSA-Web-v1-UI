@@ -317,7 +317,7 @@ const handleCheckDuplicate = async (code) => {
           <div className="flex gap-2 justify-center">
             <button
               onClick={() => handleEdit(row)}
-              className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-blue-50 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-colors text-xs"
+              className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-blue-50 border border-blue-100 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-colors text-xs"
               title="Edit"
             >
               <FontAwesomeIcon icon={faEdit} />
@@ -326,7 +326,7 @@ const handleCheckDuplicate = async (code) => {
 
             <button
               onClick={() => handleDelete(row)}
-              className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-red-50 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors text-xs"
+              className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-red-50 border border-red-100 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors text-xs"
               title="Delete"
             >
               <FontAwesomeIcon icon={faTrashAlt} />
@@ -609,6 +609,7 @@ const handleCheckDuplicate = async (code) => {
           isLoading={isListLoading}
           onRowDoubleClick={handleEdit}
           itemsPerPage={50}
+          autoFillGrid="True"
         />
       </div>
     </div>
