@@ -22,6 +22,7 @@ import ButtonBar from "@/NAYSA Cloud/Global/ButtonBar.jsx";
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 import RegistrationInfo from "@/NAYSA Cloud/Global/RegistrationInfo.jsx";
 import SearchGlobalReferenceTable from "@/NAYSA Cloud/Lookup/SearchGlobalReferenceTable";
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
 
 import {
@@ -309,8 +310,34 @@ const handleCheckDuplicate = async (code) => {
   // --- TABLE COLUMNS (SearchGlobalReferenceTable style) ---
   const columns = useMemo(
     () => [
+{
+        key: "__actions",
+        label: "Actions",
+        render: (row) => (
+          <div className="flex gap-2 justify-center">
+            <button
+              onClick={() => handleEdit(row)}
+              className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-blue-50 border border-blue-100 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-colors text-xs"
+              title="Edit"
+            >
+              <FontAwesomeIcon icon={faEdit} />
+              <span className="md:hidden">Edit</span>
+            </button>
+
+            <button
+              onClick={() => handleDelete(row)}
+              className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-red-50 border border-red-100 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors text-xs"
+              title="Delete"
+            >
+              <FontAwesomeIcon icon={faTrashAlt} />
+              <span className="md:hidden">Delete</span>
+            </button>
+          </div>
+        ),
+      },
+
       { key: "branchCode", label: "Branch Code", sortable: true },
-      { key: "branchName", label: "Branch Name", sortable: true },
+      { key: "branchName", label: "Branch Name", sortable: true , className: "min-w-[200px]"},
       {
         key: "address",
         label: "Address",
@@ -332,29 +359,7 @@ const handleCheckDuplicate = async (code) => {
         sortable: true,
         render: (row) => getActiveLabel(row.active),
       },
-      {
-        key: "__actions",
-        label: "Actions",
-        render: (row) => (
-          <div className="flex gap-2 justify-center">
-            <button
-              onClick={() => handleEdit(row)}
-              className="py-1 px-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-              title="Edit"
-            >
-              <FontAwesomeIcon icon={faEdit} />
-            </button>
-
-            <button
-              onClick={() => handleDelete(row)}
-              className="py-1 px-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-              title="Delete"
-            >
-              <FontAwesomeIcon icon={faTrashAlt} />
-            </button>
-          </div>
-        ),
-      },
+      
     ],
     [getAddress, branches, selectedBranchCode, handleDelete]
   );
@@ -376,19 +381,7 @@ const handleCheckDuplicate = async (code) => {
 
   return (
     <div className="global-ref-main-div-ui">
-      {(isListLoading || isSaving || isDeleting) && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-[2px] flex items-center justify-center">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-4">
-            <div className="relative">
-              <div className="w-12 h-12 border-4 border-blue-100 dark:border-gray-700 rounded-full"></div>
-              <div className="absolute top-0 left-0 w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-            </div>
-            <span className="text-sm font-semibold animate-pulse">
-              {isSaving ? "Saving..." : isDeleting ? "Deleting..." : "Loading..."}
-            </span>
-          </div>
-        </div>
-      )}
+      {(isListLoading || isSaving || isDeleting) && <LoadingSpinner />}
 
       {/* HEADER (same UI pattern as COAMast, no Tabs) */}
       <div className="global-ref-header-ui mb-2">
@@ -616,6 +609,7 @@ const handleCheckDuplicate = async (code) => {
           isLoading={isListLoading}
           onRowDoubleClick={handleEdit}
           itemsPerPage={50}
+          autoFillGrid="True"
         />
       </div>
     </div>

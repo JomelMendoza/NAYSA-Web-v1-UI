@@ -161,11 +161,7 @@ const CurrLookupModal = ({ isOpen, onClose }) => {
                         {curr.currName}
                       </td>
                     </tr>
-<<<<<<< HEAD
-                  ))}
-=======
                   ))} 
->>>>>>> d15a2d968d9eeb894dfd79bbb993444e4a8a0121
                 </tbody>
               </table>
             </div>

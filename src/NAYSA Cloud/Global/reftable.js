@@ -66,6 +66,9 @@ export const reftables = {
     CR: "Collection Receipt Transaction",
     SOA: "Statement of Account Transaction",
 
+    
+    COAMast: "https://www.youtube.com/watch?v=NfiO76wxs9U",
+
   };
 
   export const reftablesPDFGuide = {
@@ -87,29 +90,12 @@ export const reftables = {
     ARCM: "AR Credit Memo Voucher Transaction",
     CR: "Collection Receipt Transaction",
     SOA: "Statement of Account Transaction",
+
+    COAMast: "/public/Guide/NAYSA GL Reference Files.pdf",
+
   };
 
 
-<<<<<<< HEAD
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-=======
->>>>>>> d15a2d968d9eeb894dfd79bbb993444e4a8a0121
   // utils/accountUtils.js (or useAccountActions.js)
 
  export const useGlobalDuplicateRefTable = async (tblCode, payload, fieldcaption) => {

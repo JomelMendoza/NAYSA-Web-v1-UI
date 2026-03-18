@@ -17,6 +17,7 @@ import { faChevronDown, faFilePdf, faSave, faUndo, faInfoCircle, faVideo } from 
 import { reftables, reftablesPDFGuide, reftablesVideoGuide } from "@/NAYSA Cloud/Global/reftable";
 import { useSwalErrorAlert, useSwalSuccessAlert, useSwalErrorAlertAPI} from "@/NAYSA Cloud/Global/behavior";
 import { useFieldLenghtCheck, useGetFieldLength,} from '@/NAYSA Cloud/Global/procedure';
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
 // UI Helpers
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer";
@@ -184,19 +185,7 @@ const Company = () => {
 
     <div className="global-ref-main-div-ui">
       
-      {(isFetching || isSaving) && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-[2px] flex items-center justify-center transition-all">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-4 min-w-[140px]">
-            <div className="relative">
-              <div className="w-12 h-12 border-4 border-blue-100 dark:border-gray-700 rounded-full"></div>
-              <div className="absolute top-0 left-0 w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-            </div>
-            <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 animate-pulse">
-              {isSaving ? "Saving Changes..." : "Loading Data..."}
-            </span>
-          </div>
-        </div>
-      )}
+      {(isFetching || isSaving) && <LoadingSpinner />}
 
       {/* Lookup Modals Logic stays similar but triggers toggleModal */}
       <BranchLookupModal isOpen={modals.branch} onClose={(v) => { toggleModal("branch", false); if(v) updateForm({ branchCode: v.branchCode, branchName: v.branchName }) }} />
