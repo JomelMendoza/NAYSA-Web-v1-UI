@@ -450,8 +450,8 @@ const UsersTab = forwardRef(
                   type="text"
                   inputRef={codeInputRef}
                   value={form.roleCode}
-                  onChange={(e) =>
-                    setField("roleCode", String(e.target.value || "").toUpperCase())
+                  onChange={(v) =>
+                    setField("roleCode", String(v ?? "").toUpperCase())
                   }
                   onBlur={handleCodeValidate}
                   onKeyDown={handleCodeValidate}
@@ -463,7 +463,7 @@ const UsersTab = forwardRef(
                   required
                   type="text"
                   value={form.roleName}
-                  onChange={(e) => setField("roleName", e.target.value)}
+                  onChange={(v) => setField("roleName", v ?? "")}
                   disabled={!isEditing}
                 />
 
@@ -471,13 +471,14 @@ const UsersTab = forwardRef(
                   label="Active?"
                   type="select"
                   value={form.active}
-                  onChange={(e) => setField("active", e.target.value)}
+                  onChange={(v) => setField("active", v ?? "")}
                   disabled={!isEditing}
                   options={[
                     { value: "Y", label: "Yes" },
                     { value: "N", label: "No" },
                   ]}
                 />
+
               </div>
             </div>
           </div>
@@ -495,7 +496,7 @@ const UsersTab = forwardRef(
                 onRowDoubleClick={handleEdit}
                 onRowClick={(row) => setSelectedRow(row)}
                 className="h-full"
-                tablesize = {tableSize}
+                tablesize={tableSize}
               />
             </div>
           </div>

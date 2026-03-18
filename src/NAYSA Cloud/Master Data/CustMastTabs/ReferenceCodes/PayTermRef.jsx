@@ -518,11 +518,8 @@ const PayTermRef = forwardRef((props, ref) => {
             required
             value={form.paytermCode}
             inputRef={codeInputRef}
-            onChange={(e) =>
-              setField(
-                "paytermCode",
-                String(e.target.value || "").toUpperCase()
-              )
+            onChange={(v) =>
+              setField("paytermCode", String(v ?? "").toUpperCase())
             }
             onBlur={handleCodeValidate}
             onKeyDown={handleCodeValidate}
@@ -533,8 +530,8 @@ const PayTermRef = forwardRef((props, ref) => {
             label="Payment Term Name"
             required
             value={form.paytermName}
-            onChange={(e) =>
-              setField("paytermName", e.target.value)
+            onChange={(v) =>
+              setField("paytermName", v ?? "")
             }
             disabled={!isEditing}
           />
@@ -543,8 +540,8 @@ const PayTermRef = forwardRef((props, ref) => {
             label="Due Days"
             type="number"
             value={form.daysDue}
-            onChange={(e) =>
-              setField("daysDue", e.target.value)
+            onChange={(v) =>
+              setField("daysDue", v ?? "")
             }
             disabled={!isEditing}
           />
