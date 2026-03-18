@@ -82,6 +82,7 @@ const PayTermRef = forwardRef((props, ref) => {
   const title = "Payment Terms";
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const tableSize = "Half";
 
   const userCode =
     user?.USER_CODE || user?.userCode || user?.code || "ADMIN";
@@ -564,6 +565,7 @@ const PayTermRef = forwardRef((props, ref) => {
             onRowDoubleClick={handleEdit}
             onRowClick={(row) => setSelectedRow(row)}
             showFilters
+            tableSize={tableSize}
           />
         </div>
       </div>

@@ -1025,7 +1025,7 @@
 // };
 
 // export default UserAccessRights;
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
@@ -1036,8 +1036,6 @@ import {
   faPrint,
   faChevronDown,
   faInfoCircle,
-  faSpinner,
-  faFileCsv,
   faFileExcel,
   faFilePdf,
   faVideo,
@@ -1064,6 +1062,8 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import Swal from "sweetalert2";
 import { exportGenericQueryExcel } from "@/NAYSA Cloud/Global/report";
+
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
 import UsersTab from "./UserAccessRightsTabs/UsersTab";
 import RolesTab from "./UserAccessRightsTabs/RolesTab";
@@ -1098,6 +1098,17 @@ const UserAccessRights = () => {
   const [isOpenExport, setOpenExport] = useState(false);
   const [isOpenGuide, setOpenGuide] = useState(false);
   const [showSpinner, setShowSpinner] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
+  const [tableSize] = useState("Half");
+
+  useEffect(() => {
+  if (activeTab === "userRoles" && pendingAction === "add") {
+    if (usersTabRef.current?.add) {
+      usersTabRef.current.add();
+      setPendingAction(null);
+    }
+  }
+}, [activeTab, pendingAction]);
 
   const tabs = useMemo(
     () => [
@@ -1106,17 +1117,6 @@ const UserAccessRights = () => {
       { id: "roleAccess", label: "Role Access Rights", icon: faShield },
     ],
     []
-  );
-
-  const activeTabIndex = tabs.findIndex((tab) => tab.id === activeTab);
-
-  const LoadingSpinner = () => (
-    <div className="global-tran-spinner-main-div-ui">
-      <div className="global-tran-spinner-sub-div-ui">
-        <FontAwesomeIcon icon={faSpinner} spin size="2x" className="text-blue-500 mb-2" />
-        <p>Please wait...</p>
-      </div>
-    </div>
   );
 
   const fetchRoles = async () => {
@@ -1167,7 +1167,10 @@ const UserAccessRights = () => {
       setUsers(userData);
 
       if (userData.length === 0) {
-        await useSwalInfoAlert("No Users", "No active users found in the system.");
+        await useSwalInfoAlert(
+          "No Users",
+          "No active users found in the system."
+        );
       }
 
       return userData;
@@ -1228,12 +1231,8 @@ const UserAccessRights = () => {
       }
     };
 
-    const isDesktop = window.innerWidth >= 768;
-
-    if (isDesktop || !showMobileMenu) {
-      loadTabData();
-    }
-  }, [activeTab, showMobileMenu]);
+    loadTabData();
+  }, [activeTab]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -1280,7 +1279,7 @@ const UserAccessRights = () => {
       }));
 
       return {
-        fileName: "User Roles",
+        fileName: "User Access Rights",
         rows,
         columns: [
           { key: "roleCode", label: "Role Code" },
@@ -1347,14 +1346,14 @@ const UserAccessRights = () => {
 
       if (type === "excel") {
         await exportGenericQueryExcel(
-          exportRows,                  // data
-          {},                          // grand totals
-          exportColumns,               // visibleCols
-          [],                          // groupBy
-          exportColumns,               // columns
-          {},                          // expandedGroups
-          7,                           // rounding or template arg
-          fileName,                    // file name
+          exportRows,
+          {},
+          exportColumns,
+          [],
+          exportColumns,
+          {},
+          7,
+          fileName,
           user?.USER_NAME || user?.userName || "",
           companyInfo?.compName || "",
           companyInfo?.compAddr || "",
@@ -1365,7 +1364,6 @@ const UserAccessRights = () => {
         return;
       }
 
-      // fallback CSV / PDF export
       const headers = exportColumns.map((c) => c.label);
       const rows = exportRows.map((row) =>
         exportColumns.map((c) => row[c.key] ?? "")
@@ -1426,8 +1424,61 @@ const UserAccessRights = () => {
     setOpenGuide(false);
   };
 
+  const callRefMethod = useCallback((refObj, methodName, delay = 0) => {
+    const run = () => {
+      const fn = refObj?.current?.[methodName];
+      if (typeof fn === "function") fn();
+    };
+
+    if (delay > 0) {
+      window.setTimeout(run, delay);
+    } else {
+      run();
+    }
+  }, []);
+
+  const handleUsersAdd = useCallback(() => {
+    callRefMethod(usersTabRef, "add", 80);
+  }, [callRefMethod]);
+
+  const handleUsersSave = useCallback(() => {
+    callRefMethod(usersTabRef, "save");
+  }, [callRefMethod]);
+
+  const handleUsersReset = useCallback(() => {
+    callRefMethod(usersTabRef, "reset");
+  }, [callRefMethod]);
+
+  const handleRolesView = useCallback(() => {
+    callRefMethod(rolesTabRef, "viewRole", 40);
+  }, [callRefMethod]);
+
+  const handleRolesReset = useCallback(() => {
+    callRefMethod(rolesTabRef, "reset");
+  }, [callRefMethod]);
+
+  const handleRolesApply = useCallback(() => {
+    callRefMethod(rolesTabRef, "apply");
+  }, [callRefMethod]);
+
+  const handleRoleAccessView = useCallback(() => {
+    callRefMethod(roleAccessTabRef, "viewModules", 40);
+  }, [callRefMethod]);
+
+  const handleRoleAccessReset = useCallback(() => {
+    callRefMethod(roleAccessTabRef, "reset");
+  }, [callRefMethod]);
+
+  const handleRoleAccessSave = useCallback(() => {
+    callRefMethod(roleAccessTabRef, "saveAccess");
+  }, [callRefMethod]);
+
   const primaryBtn =
-    "inline-flex items-center justify-center gap-1.5 h-9 px-3 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all whitespace-nowrap";
+    "flex items-center justify-center h-7 w-14 sm:w-auto sm:h-7 sm:px-3 text-[10px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all";
+
+  const mobileIconBtn =
+    "flex items-center justify-center h-9 w-9 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all";
+
   const openMobileTab = (tabId) => {
     setActiveTab(tabId);
     setShowMobileMenu(false);
@@ -1438,19 +1489,19 @@ const UserAccessRights = () => {
       case "userRoles":
         return (
           <>
-            <button className={primaryBtn} onClick={() => usersTabRef.current?.add?.()}>
+            <button type="button" className={primaryBtn} onClick={handleUsersAdd}>
               <FontAwesomeIcon icon={faPlus} />
-              <span>Add</span>
+              <span className="sm:inline ml-1">Add</span>
             </button>
 
-            <button className={primaryBtn} onClick={() => usersTabRef.current?.save?.()}>
+            <button type="button" className={primaryBtn} onClick={handleUsersSave}>
               <FontAwesomeIcon icon={faSave} />
-              <span>Save</span>
+              <span className="sm:inline ml-1">Save</span>
             </button>
 
-            <button className={primaryBtn} onClick={() => usersTabRef.current?.reset?.()}>
+            <button type="button" className={primaryBtn} onClick={handleUsersReset}>
               <FontAwesomeIcon icon={faUndo} />
-              <span>Reset</span>
+              <span className="sm:inline ml-1">Reset</span>
             </button>
           </>
         );
@@ -1458,19 +1509,19 @@ const UserAccessRights = () => {
       case "roleUserMatch":
         return (
           <>
-            <button className={primaryBtn} onClick={() => rolesTabRef.current?.viewRole?.()}>
+            <button type="button" className={primaryBtn} onClick={handleRolesView}>
               <FontAwesomeIcon icon={faEye} />
-              <span>View Role</span>
+              <span className="sm:inline ml-1">View Role</span>
             </button>
 
-            <button className={primaryBtn} onClick={() => rolesTabRef.current?.reset?.()}>
+            <button type="button" className={primaryBtn} onClick={handleRolesReset}>
               <FontAwesomeIcon icon={faUndo} />
-              <span>Reset</span>
+              <span className="sm:inline ml-1">Reset</span>
             </button>
 
-            <button className={primaryBtn} onClick={() => rolesTabRef.current?.apply?.()}>
+            <button type="button" className={primaryBtn} onClick={handleRolesApply}>
               <FontAwesomeIcon icon={faCheck} />
-              <span>Apply</span>
+              <span className="sm:inline ml-1">Apply</span>
             </button>
           </>
         );
@@ -1479,24 +1530,30 @@ const UserAccessRights = () => {
         return (
           <>
             <button
+              type="button"
               className={primaryBtn}
-              onClick={() => roleAccessTabRef.current?.viewModules?.()}
+              onClick={handleRoleAccessView}
             >
               <FontAwesomeIcon icon={faEye} />
-              <span>View Modules</span>
-            </button>
-
-            <button className={primaryBtn} onClick={() => roleAccessTabRef.current?.reset?.()}>
-              <FontAwesomeIcon icon={faUndo} />
-              <span>Reset</span>
+              <span className="sm:inline ml-1">View Modules</span>
             </button>
 
             <button
+              type="button"
               className={primaryBtn}
-              onClick={() => roleAccessTabRef.current?.saveAccess?.()}
+              onClick={handleRoleAccessReset}
+            >
+              <FontAwesomeIcon icon={faUndo} />
+              <span className="sm:inline ml-1">Reset</span>
+            </button>
+
+            <button
+              type="button"
+              className={primaryBtn}
+              onClick={handleRoleAccessSave}
             >
               <FontAwesomeIcon icon={faSave} />
-              <span>Save Access</span>
+              <span className="sm:inline ml-1">Save Access</span>
             </button>
           </>
         );
@@ -1505,6 +1562,110 @@ const UserAccessRights = () => {
         return null;
     }
   };
+
+  const renderMobileActionButtons = () => {
+    switch (activeTab) {
+      case "userRoles":
+        return (
+          <>
+            <button
+              type="button"
+              className={mobileIconBtn}
+              onClick={() => setPendingAction("add")}
+              title="Add"
+            >
+              <FontAwesomeIcon icon={faPlus} />
+            </button>
+
+            <button
+              type="button"
+              className={mobileIconBtn}
+              onClick={handleUsersSave}
+              title="Save"
+            >
+              <FontAwesomeIcon icon={faSave} />
+            </button>
+
+            <button
+              type="button"
+              className={mobileIconBtn}
+              onClick={handleUsersReset}
+              title="Reset"
+            >
+              <FontAwesomeIcon icon={faUndo} />
+            </button>
+          </>
+        );
+
+      case "roleUserMatch":
+        return (
+          <>
+            <button
+              type="button"
+              className={mobileIconBtn}
+              onClick={handleRolesView}
+              title="View Role"
+            >
+              <FontAwesomeIcon icon={faEye} />
+            </button>
+
+            <button
+              type="button"
+              className={mobileIconBtn}
+              onClick={handleRolesReset}
+              title="Reset"
+            >
+              <FontAwesomeIcon icon={faUndo} />
+            </button>
+
+            <button
+              type="button"
+              className={mobileIconBtn}
+              onClick={handleRolesApply}
+              title="Apply"
+            >
+              <FontAwesomeIcon icon={faCheck} />
+            </button>
+          </>
+        );
+
+      case "roleAccess":
+        return (
+          <>
+            <button
+              type="button"
+              className={mobileIconBtn}
+              onClick={handleRoleAccessView}
+              title="View Modules"
+            >
+              <FontAwesomeIcon icon={faEye} />
+            </button>
+
+            <button
+              type="button"
+              className={mobileIconBtn}
+              onClick={handleRoleAccessReset}
+              title="Reset"
+            >
+              <FontAwesomeIcon icon={faUndo} />
+            </button>
+
+            <button
+              type="button"
+              className={mobileIconBtn}
+              onClick={handleRoleAccessSave}
+              title="Save Access"
+            >
+              <FontAwesomeIcon icon={faSave} />
+            </button>
+          </>
+        );
+
+      default:
+        return null;
+    }
+  };
+
   const renderTabContent = () => {
     if (activeTab === "userRoles") {
       return (
@@ -1515,6 +1676,7 @@ const UserAccessRights = () => {
           user={user}
           saving={saving}
           setSaving={setSaving}
+          tableSize={tableSize}
         />
       );
     }
@@ -1528,12 +1690,19 @@ const UserAccessRights = () => {
           appliedUserRoles={appliedUserRoles}
           setAppliedUserRoles={setAppliedUserRoles}
           fetchUserRoles={fetchUserRoles}
+          tableSize={tableSize}
         />
       );
     }
 
     if (activeTab === "roleAccess") {
-      return <RoleAccessTab ref={roleAccessTabRef} roles={roles} />;
+      return (
+        <RoleAccessTab
+          ref={roleAccessTabRef}
+          roles={roles}
+          tableSize={tableSize}
+        />
+      );
     }
 
     if (activeTab === "userAccess") {
@@ -1547,7 +1716,6 @@ const UserAccessRights = () => {
     <div className="global-ref-main-div-ui">
       {(loading || saving || showSpinner) && <LoadingSpinner />}
 
-      {/* MOBILE */}
       <div className="md:hidden pt-[30px]">
         <AnimatePresence mode="wait" initial={false}>
           {showMobileMenu ? (
@@ -1570,6 +1738,7 @@ const UserAccessRights = () => {
               <div className="bg-white">
                 {tabs.map((tab) => (
                   <button
+                    type="button"
                     key={tab.id}
                     onClick={() => openMobileTab(tab.id)}
                     className="w-full flex items-center gap-3 px-5 py-6 text-left text-sm border-b border-gray-200 bg-white hover:bg-blue-50 transition-colors"
@@ -1594,6 +1763,7 @@ const UserAccessRights = () => {
               <div className="sticky top-0 z-30 bg-blue-50 border-b">
                 <div className="flex items-center justify-between px-4 py-3">
                   <button
+                    type="button"
                     onClick={() => setShowMobileMenu(true)}
                     className="text-blue-600 text-sm font-medium flex items-center gap-2"
                   >
@@ -1610,79 +1780,77 @@ const UserAccessRights = () => {
 
                 <div className="px-3 pb-3">
                   <div className="flex flex-wrap gap-2 justify-center">
-                    {renderActionButtons()}
+                    {renderMobileActionButtons()}
 
                     <div ref={exportRef} className="relative">
-                      <button onClick={() => setOpenExport((v) => !v)} className={primaryBtn}>
+                      <button
+                        type="button"
+                        onClick={() => setOpenExport((v) => !v)}
+                        className={mobileIconBtn}
+                        title="Export"
+                      >
                         <FontAwesomeIcon icon={faPrint} />
-                        <span>Export</span>
                       </button>
 
                       {isOpenExport && (
                         <div className="absolute right-0 mt-2 w-40 rounded-lg shadow-lg bg-white ring-1 ring-black/10 z-[60] overflow-hidden">
-                          {/* <button
-                            onClick={() => {
-                              handleExport("csv");
-                              setOpenExport(false);
-                            }}
-                            className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50"
-                          >
-                            <FontAwesomeIcon icon={faFileCsv} className="mr-2 text-green-600" />
-                            CSV
-                          </button> */}
-
                           <button
+                            type="button"
                             onClick={() => {
                               handleExport("excel");
                               setOpenExport(false);
                             }}
                             className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50"
                           >
-                            <FontAwesomeIcon icon={faFileExcel} className="mr-2 text-green-600" />
+                            <FontAwesomeIcon
+                              icon={faFileExcel}
+                              className="mr-2 text-green-600"
+                            />
                             Excel
                           </button>
-
-                          {/* <button
-                            onClick={() => {
-                              handleExport("pdf");
-                              setOpenExport(false);
-                            }}
-                            className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50"
-                          >
-                            <FontAwesomeIcon icon={faFilePdf} className="mr-2 text-red-600" />
-                            PDF
-                          </button> */}
                         </div>
                       )}
                     </div>
 
                     <div ref={guideRef} className="relative">
-                      <button onClick={() => setOpenGuide((v) => !v)} className={primaryBtn}>
+                      <button
+                        type="button"
+                        onClick={() => setOpenGuide((v) => !v)}
+                        className={mobileIconBtn}
+                        title="Help"
+                      >
                         <FontAwesomeIcon icon={faInfoCircle} />
-                        <span>Help</span>
                       </button>
 
                       {isOpenGuide && (
                         <div className="absolute right-0 mt-2 w-40 rounded-md shadow-lg bg-white ring-1 ring-black/10 z-[60] overflow-hidden">
                           <button
+                            type="button"
                             onClick={() => {
                               handlePDFGuide();
                               setOpenGuide(false);
                             }}
                             className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50"
                           >
-                            <FontAwesomeIcon icon={faFilePdf} className="mr-2 text-red-600" />
+                            <FontAwesomeIcon
+                              icon={faFilePdf}
+                              className="mr-2 text-red-600"
+                            />
                             User Guide
                           </button>
 
                           <button
+                            type="button"
                             onClick={() => {
                               handleVideoGuide();
                               setOpenGuide(false);
                             }}
                             className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50"
                           >
-                            <FontAwesomeIcon icon={faVideo} className="mr-2 text-blue-600" />
+                            <FontAwesomeIcon
+                              icon={faVideo}
+                              className="mr-2 text-blue-600"
+                            />
                             Video Guide
                           </button>
                         </div>
@@ -1706,141 +1874,129 @@ const UserAccessRights = () => {
         </AnimatePresence>
       </div>
 
-      {/* DESKTOP */}
       <div className="hidden md:block">
-        <div className="fixed mt-4 top-14 left-3 right-3 sm:left-6 sm:right-6 z-30">
-          <div className="global-ref-header-ui">
-            <div className="w-full flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex justify-center xl:justify-start xl:flex-shrink-0">
-                <h1 className="global-ref-headertext-ui text-center xl:text-left truncate">
-                  {documentTitle}
-                </h1>
-              </div>
+        <div className="global-ref-header-ui !py-2">
+          <div className="w-full flex flex-col gap-1 md:grid md:grid-cols-3 md:items-center md:gap-0">
+            <div className="w-full md:w-auto md:justify-start flex">
+              <h1 className="global-ref-headertext-ui w-full md:w-auto truncate text-center md:text-left text-[18px] leading-tight">
+                {documentTitle}
+              </h1>
+            </div>
 
-              <div className="flex-1 min-w-0 flex justify-start xl:justify-center">
-                <div className="w-full max-w-[620px]">
-                  <div className="relative grid grid-cols-3 rounded-xl border border-blue-100 bg-white p-1 shadow-sm overflow-hidden">
-                    <motion.span
-                      layout
-                      transition={{ type: "spring", stiffness: 380, damping: 32 }}
-                      className="absolute top-1 bottom-1 rounded-lg bg-blue-600 shadow-sm"
-                      style={{
-                        width: "calc(33.333333% - 0.333rem)",
-                        left: `calc(${activeTabIndex * 33.333333}% + 0.17rem)`,
-                      }}
-                    />
-
-                    {tabs.map((tab) => {
-                      const isActive = activeTab === tab.id;
-
-                      return (
-                        <button
-                          key={tab.id}
-                          type="button"
-                          onClick={() => setActiveTab(tab.id)}
-                          className={`relative z-10 flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-[12px] font-bold transition-colors duration-300 ${isActive ? "text-white" : "text-gray-500 hover:text-blue-600"
-                            }`}
-                        >
-                          <FontAwesomeIcon icon={tab.icon} className="w-4 h-4" />
-                          <span className="truncate">{tab.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
+            <div className="w-full md:justify-center flex mtm-2">
+              <div className="w-full md:w-auto">
+                <div className="flex flex-nowrap overflow-x-auto no-scrollbar border-b border-blue-300 dark:border-gray-700">
+                  {tabs.map((tab) => (
+                    <button
+                      type="button"
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`shrink-0 whitespace-nowrap px-3 py-1 sm:py-1.5 sm:px-4 text-[10px] sm:text-[12px] font-bold transition-all border-b-2 rounded-md ${activeTab === tab.id
+                          ? "border-blue-700 text-blue-700 bg-blue-50/50"
+                          : "border-transparent text-gray-500 hover:text-blue-500"
+                        }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
                 </div>
               </div>
+            </div>
 
-              <div className="flex justify-center xl:justify-end xl:flex-shrink-0">
-                <div className="flex items-center justify-center xl:justify-end gap-2 flex-wrap text-xs">
-                  <div className="flex flex-wrap justify-center xl:justify-end gap-2">
-                    {renderActionButtons()}
-                  </div>
+            <div className="w-full md:w-auto flex md:justify-end">
+              <div className="w-full md:w-auto flex items-center justify-center md:justify-end gap-2 flex-wrap">
+                <div className="flex flex-wrap justify-center md:justify-end gap-2">
+                  {renderActionButtons()}
+                </div>
 
-                  <div ref={exportRef} className="relative">
-                    <button onClick={() => setOpenExport((v) => !v)} className={primaryBtn}>
-                      <FontAwesomeIcon icon={faPrint} />
-                      <span className="hidden sm:inline ml-1">Export</span>
-                      <FontAwesomeIcon icon={faChevronDown} className="text-[10px] ml-1" />
-                    </button>
+                <div ref={exportRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setOpenExport((v) => !v)}
+                    className={primaryBtn}
+                  >
+                    <FontAwesomeIcon icon={faPrint} />
+                    <span className="sm:inline ml-1">Export</span>
+                    <FontAwesomeIcon
+                      icon={faChevronDown}
+                      className="text-[10px] ml-1"
+                    />
+                  </button>
 
-                    {isOpenExport && (
-                      <div className="absolute right-0 mt-2 w-40 rounded-lg shadow-lg bg-white ring-1 ring-black/10 z-[60] overflow-hidden">
-                        {/* <button
-                          onClick={() => {
-                            handleExport("csv");
-                            setOpenExport(false);
-                          }}
-                          className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50"
-                        >
-                          <FontAwesomeIcon icon={faFileCsv} className="mr-2 text-green-600" />
-                          CSV
-                        </button> */}
+                  {isOpenExport && (
+                    <div className="absolute right-0 mt-2 w-40 rounded-lg shadow-lg bg-white ring-1 ring-black/10 z-[60] overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleExport("excel");
+                          setOpenExport(false);
+                        }}
+                        className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50"
+                      >
+                        <FontAwesomeIcon
+                          icon={faFileExcel}
+                          className="mr-2 text-green-600"
+                        />
+                        Excel
+                      </button>
+                    </div>
+                  )}
+                </div>
 
-                        <button
-                          onClick={() => {
-                            handleExport("excel");
-                            setOpenExport(false);
-                          }}
-                          className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50"
-                        >
-                          <FontAwesomeIcon icon={faFileExcel} className="mr-2 text-green-600" />
-                          Excel
-                        </button>
+                <div ref={guideRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setOpenGuide((v) => !v)}
+                    className={primaryBtn}
+                  >
+                    <FontAwesomeIcon icon={faInfoCircle} />
+                    <span className="sm:inline ml-1">Info</span>
+                    <FontAwesomeIcon
+                      icon={faChevronDown}
+                      className="text-[10px] ml-1"
+                    />
+                  </button>
 
-                        {/* <button
-                          onClick={() => {
-                            handleExport("pdf");
-                            setOpenExport(false);
-                          }}
-                          className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50"
-                        >
-                          <FontAwesomeIcon icon={faFilePdf} className="mr-2 text-red-600" />
-                          PDF
-                        </button> */}
-                      </div>
-                    )}
-                  </div>
+                  {isOpenGuide && (
+                    <div className="absolute right-0 mt-2 w-40 rounded-md shadow-lg bg-white ring-1 ring-black/10 z-[60] overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handlePDFGuide();
+                          setOpenGuide(false);
+                        }}
+                        className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50"
+                      >
+                        <FontAwesomeIcon
+                          icon={faFilePdf}
+                          className="mr-2 text-red-600"
+                        />
+                        User Guide
+                      </button>
 
-                  <div ref={guideRef} className="relative">
-                    <button onClick={() => setOpenGuide((v) => !v)} className={primaryBtn}>
-                      <FontAwesomeIcon icon={faInfoCircle} />
-                      <span className="hidden sm:inline ml-1">Help</span>
-                      <FontAwesomeIcon icon={faChevronDown} className="text-[10px] ml-1" />
-                    </button>
-
-                    {isOpenGuide && (
-                      <div className="absolute right-0 mt-2 w-40 rounded-md shadow-lg bg-white ring-1 ring-black/10 z-[60] overflow-hidden">
-                        <button
-                          onClick={() => {
-                            handlePDFGuide();
-                            setOpenGuide(false);
-                          }}
-                          className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50"
-                        >
-                          <FontAwesomeIcon icon={faFilePdf} className="mr-2 text-red-600" />
-                          User Guide
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            handleVideoGuide();
-                            setOpenGuide(false);
-                          }}
-                          className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50"
-                        >
-                          <FontAwesomeIcon icon={faVideo} className="mr-2 text-blue-600" />
-                          Video Guide
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleVideoGuide();
+                          setOpenGuide(false);
+                        }}
+                        className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50"
+                      >
+                        <FontAwesomeIcon
+                          icon={faVideo}
+                          className="mr-2 text-blue-600"
+                        />
+                        Video Guide
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="mt-44 sm:mt-28 lg:mt-24">
+        <div className="mt-10">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={activeTab}
@@ -1848,7 +2004,7 @@ const UserAccessRights = () => {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -8, scale: 0.995 }}
               transition={{ duration: 0.22, ease: "easeOut" }}
-              className="global-tran-tab-div-ui"
+              className="global-tran-tab-div-ui pt-2"
             >
               {renderTabContent()}
             </motion.div>
