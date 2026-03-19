@@ -6,7 +6,7 @@ import {
   useSwalErrorAlert,
   useSwalSuccessAlert,
   useSwalWarningAlert,
-} from "@/NAYSA Cloud/Global/behavior";
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 
 const UserRoleTab = ({ users }) => {
   const [selectedUsers, setSelectedUsers] = useState([]);

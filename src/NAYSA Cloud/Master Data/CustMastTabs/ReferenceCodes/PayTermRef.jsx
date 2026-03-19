@@ -27,7 +27,7 @@ import {
   useSwalSuccessAlert,
   useSwalDeleteConfirm,
   useSwalDeleteRecord,
-} from "@/NAYSA Cloud/Global/behavior";
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 import SearchGlobalReferenceTable from "@/NAYSA Cloud/Lookup/SearchGlobalReferenceTable.jsx";

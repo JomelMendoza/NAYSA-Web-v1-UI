@@ -92,6 +92,7 @@ import {
   formatNumber,
   parseFormattedNumber,
   useSwalshowSaveSuccessDialog,
+  useSwalvalidateRequiredFields
 } from '@/NAYSA Cloud/Global/behavior';
 
 
@@ -372,8 +373,8 @@ const CR = () => {
     CANCELLED: "global-tran-stat-text-closed-ui",
     CLOSED: "global-tran-stat-text-closed-ui",
   };
-  const statusColor = statusMap[displayStatus] || "";
-  const isFormDisabled = ["FINALIZED", "CANCELLED", "CLOSED"].includes(displayStatus);
+  const statusColor =  statusMap[displayStatus] || "";
+  const isFormDisabled = isViewDocumentUrl || ["FINALIZED", "CANCELLED", "CLOSED"].includes(displayStatus);
   
 
   //Variables
@@ -981,6 +982,16 @@ const handleCurrRateNoBlur = (e) => {
 
 
   const handleAddRow = async () => {
+
+
+
+  const fieldsToCheck = {
+          "Header : Customer or Chain": custCode || chainCode,
+        };
+        const isValid = useSwalvalidateRequiredFields(fieldsToCheck, "Add Invoice");
+        if (!isValid) return;
+    
+
 
     if(selectedCRType ==="CR11" ) {
       await handleOpenARBalance();

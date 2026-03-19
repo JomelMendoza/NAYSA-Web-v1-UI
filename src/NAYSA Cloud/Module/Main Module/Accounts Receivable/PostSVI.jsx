@@ -4,9 +4,7 @@ import { useSelectedHSColConfig } from '@/NAYSA Cloud/Global/selectedData';
 import GlobalGLPostingModalv1 from "../../../Lookup/SearchGlobalGLPostingv1.jsx";
 import { useSwalValidationAlert } from '@/NAYSA Cloud/Global/behavior';
 import { useHandlePostTran } from '@/NAYSA Cloud/Global/procedure';
-import ReactDOM from 'react-dom';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSpinner } from '@fortawesome/free-solid-svg-icons';
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
 const PostSVI = ({ isOpen, onClose, userCode }) => {
   const [data, setData] = useState([]);
@@ -90,13 +88,20 @@ const handleViewDocument = (row) => {
     return;
   }
 
-  const SVI_VIEW_URL = "/tran-ar-svitran";
-  const url =
-    `${window.location.origin}${SVI_VIEW_URL}` +
-    `?sviNo=${encodeURIComponent(docNo)}&branchCode=${encodeURIComponent(branchCode)}`;
-    window.open(url, "_blank", "noopener,noreferrer");
+  
 
-    console.log(url)
+const SVI_VIEW_URL = "/page/SVI";
+const url =
+  `${window.location.origin}${SVI_VIEW_URL}` +
+  `?sviNo=${encodeURIComponent(docNo)}` +
+  `&branchCode=${encodeURIComponent(branchCode)}` +
+  `&viewDocument=true`;
+window.open(url, "_blank", "noopener,noreferrer");
+
+
+
+
+
 };
 
 
@@ -118,18 +123,10 @@ return (
       />
     )}
 
-    {/* Always allow the overlay to render while loading (no modalReady / isOpen gate) */}
-    {ReactDOM.createPortal(
-      loading ? (
-      <div className="global-tran-spinner-main-div-ui">
-          <div className="global-tran-spinner-sub-div-ui">
-            <FontAwesomeIcon icon={faSpinner} spin size="2x" className="text-blue-500 mb-2" />
-          <p>Please wait...</p>
-          </div>
-      </div>
-      ) : null,
-      document.body
-    )}
+
+    {loading && <LoadingSpinner />}
+
+  
   </>
 );
 };

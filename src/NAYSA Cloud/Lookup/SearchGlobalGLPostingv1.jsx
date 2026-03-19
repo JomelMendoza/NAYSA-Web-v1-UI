@@ -1,26 +1,35 @@
-import { useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
+import {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useLayoutEffect,
+} from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faTimes,
   faSort,
   faSortUp,
   faSortDown,
-  faSpinner,
   faFilterCircleXmark,
   faMagnifyingGlass,
   faCircleExclamation,
   faEye,
   faEyeSlash,
   faListCheck,
+  faTable,
+  faGrip,
 } from "@fortawesome/free-solid-svg-icons";
-import { formatNumber } from "../Global/behavior";
+import { formatNumber } from "../Global/behavior.jsx";
 
 function useDebouncedValue(value, delay = 250) {
   const [debounced, setDebounced] = useState(value);
+
   useEffect(() => {
     const t = setTimeout(() => setDebounced(value), delay);
     return () => clearTimeout(t);
   }, [value, delay]);
+
   return debounced;
 }
 
@@ -36,21 +45,20 @@ const GlobalGLPostingModalv1 = ({
 }) => {
   const [records, setRecords] = useState([]);
   const [filtered, setFiltered] = useState([]);
-  const [selected, setSelected] = useState([]); // keep rows (preserve order)
+  const [selected, setSelected] = useState([]);
   const [filters, setFilters] = useState({});
   const [columnConfig, setColumnConfig] = useState([]);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
-  const [currentPage, setCurrentPage] = useState(1);
   const [showFilters, setShowFilters] = useState(true);
   const [globalQuery, setGlobalQuery] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [userPassword, setUserPassword] = useState(null);
 
-  const itemsPerPage = 50;
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileViewMode, setMobileViewMode] = useState("card");
+
   const firstFocusableRef = useRef(null);
 
-  // Sticky columns: View + Select + 4 data columns
-  // index 0 = View, 1 = Select, 2–5 = first 4 visible data columns
   const STICKY_COUNT = 6;
 
   const selectHeaderRef = useRef(null);
@@ -61,7 +69,6 @@ const GlobalGLPostingModalv1 = ({
 
   const ACTION_COL_W = 70;
 
-  // ✅ robust row id
   const getRowId = (row) =>
     row?.rrId ??
     row?.rr_id ??
@@ -78,23 +85,45 @@ const GlobalGLPostingModalv1 = ({
 
   useEffect(() => {
     firstFocusableRef.current?.focus();
+
     const onKey = (e) => {
       if (e.key === "Escape") onClose?.();
     };
+
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
   useEffect(() => {
-    const handleResize = () => setResizeTick((t) => t + 1);
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      setResizeTick((t) => t + 1);
+
+      if (!mobile) {
+        setMobileViewMode("table");
+      } else {
+        setMobileViewMode((prev) =>
+          prev === "table" || prev === "card" ? prev : "card"
+        );
+      }
+    };
+
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
+
+  useEffect(() => {
+    if (isMobile) {
+      setShowFilters(false);
+      setFilters({});
+    }
+  }, [isMobile]);
 
   useEffect(() => {
     setSelected([]);
     setSortConfig({ key: null, direction: null });
-    setCurrentPage(1);
     setFilters({});
     setGlobalQuery("");
 
@@ -113,6 +142,7 @@ const GlobalGLPostingModalv1 = ({
 
   const renderValue = (column, value, decimal = 2) => {
     if (!value && value !== 0) return "";
+
     switch (column?.renderType) {
       case "number": {
         const digits = Number.isFinite(parseInt(decimal, 10))
@@ -133,12 +163,10 @@ const GlobalGLPostingModalv1 = ({
     }
   };
 
-  // ✅ sorting helpers
   const coerceForSort = (val, type) => {
     if (val == null) return null;
 
     if (type === "number") {
-      // strips commas + currency symbols safely
       const s = String(val).replace(/[^0-9.-]/g, "");
       const n = Number(s);
       return Number.isFinite(n) ? n : null;
@@ -157,21 +185,22 @@ const GlobalGLPostingModalv1 = ({
   const debouncedFilters = useDebouncedValue(filters, 200);
   const debouncedGlobal = useDebouncedValue(globalQuery, 250);
 
-  // ✅ Filter + Global search + Sort (single pipeline)
   useEffect(() => {
     let current = records.slice();
 
-    // global search across visible columns
     if (debouncedGlobal?.trim()) {
       const q = debouncedGlobal.trim().toLowerCase();
       const visibleKeys = visibleCols.map((c) => c.key).filter(Boolean);
 
       current = current.filter((row) =>
-        visibleKeys.some((k) => String(row?.[k] ?? "").toLowerCase().includes(q))
+        visibleKeys.some((k) =>
+          String(row?.[k] ?? "")
+            .toLowerCase()
+            .includes(q)
+        )
       );
     }
 
-    // per-column filters
     current = current.filter((item) =>
       Object.entries(debouncedFilters).every(([key, value]) => {
         if (!value) return true;
@@ -183,7 +212,6 @@ const GlobalGLPostingModalv1 = ({
       })
     );
 
-    // sorting (stable + blanks bottom)
     if (sortConfig?.key && sortConfig?.direction) {
       const col = columnConfig.find((c) => c.key === sortConfig.key);
       const type = col?.renderType || "string";
@@ -196,7 +224,6 @@ const GlobalGLPostingModalv1 = ({
         const aBlank = avRaw == null || avRaw === "";
         const bBlank = bvRaw == null || bvRaw === "";
 
-        // blanks always bottom
         if (aBlank && bBlank) return (a.__idx ?? 0) - (b.__idx ?? 0);
         if (aBlank) return 1;
         if (bBlank) return -1;
@@ -204,7 +231,6 @@ const GlobalGLPostingModalv1 = ({
         const av = coerceForSort(avRaw, type);
         const bv = coerceForSort(bvRaw, type);
 
-        // if coercion fails to null, treat as blank-ish
         const avNull = av == null;
         const bvNull = bv == null;
         if (avNull && bvNull) return (a.__idx ?? 0) - (b.__idx ?? 0);
@@ -215,7 +241,6 @@ const GlobalGLPostingModalv1 = ({
         return res === 0 ? (a.__idx ?? 0) - (b.__idx ?? 0) : dir * res;
       });
     } else {
-      // default: original order
       current.sort((a, b) => (a.__idx ?? 0) - (b.__idx ?? 0));
     }
 
@@ -229,35 +254,13 @@ const GlobalGLPostingModalv1 = ({
     visibleCols,
   ]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [debouncedFilters, debouncedGlobal]);
+  const displayData = useMemo(() => filtered, [filtered]);
 
-  useLayoutEffect(() => {
-    const lefts = [];
-    let accumulated = 0;
+  const totalItems = filtered.length;
+  const startItem = totalItems > 0 ? 1 : 0;
+  const endItem = totalItems;
 
-    if (viewHeaderRef.current) {
-      lefts[0] = 0;
-      accumulated = viewHeaderRef.current.offsetWidth;
-    }
-
-    if (selectHeaderRef.current) {
-      lefts[1] = accumulated;
-      accumulated += selectHeaderRef.current.offsetWidth;
-    }
-
-    visibleCols.forEach((col, idx) => {
-      if (idx < STICKY_COUNT - 2) {
-        const overallIndex = idx + 2;
-        lefts[overallIndex] = accumulated;
-        const hdr = columnHeaderRefs.current[col.key];
-        if (hdr) accumulated += hdr.offsetWidth;
-      }
-    });
-
-    setStickyLefts(lefts);
-  }, [visibleCols, showFilters, resizeTick, filtered.length]);
+  const activeFilterChips = Object.entries(filters).filter(([, v]) => v);
 
   const handleFilterChange = (e, key) => {
     const v = e.target.value;
@@ -270,10 +273,9 @@ const GlobalGLPostingModalv1 = ({
     onPost?.(selected, userPassword);
   };
 
-  // ✅ all columns sortable
   const handleSort = (key) => {
-    if (!key) return; // safety
-    setCurrentPage(1);
+    if (!key) return;
+
     setSortConfig((prev) => {
       if (prev.key !== key) return { key, direction: "asc" };
       if (prev.direction === "asc") return { key, direction: "desc" };
@@ -321,20 +323,6 @@ const GlobalGLPostingModalv1 = ({
     }
   };
 
-  const handleNextPage = () => setCurrentPage((prev) => prev + 1);
-  const handlePrevPage = () => setCurrentPage((prev) => prev - 1);
-
-  const paginatedData = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return filtered.slice(startIndex, startIndex + itemsPerPage);
-  }, [filtered, currentPage]);
-
-  const totalItems = filtered.length;
-  const startItem = totalItems > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
-  const endItem = Math.min(currentPage * itemsPerPage, totalItems);
-
-  const activeFilterChips = Object.entries(filters).filter(([, v]) => v);
-
   const handleViewRow = (row) => onViewDocument?.(row);
 
   const isLoading =
@@ -354,99 +342,282 @@ const GlobalGLPostingModalv1 = ({
   const stickyMeta = (overallIndex) => {
     if (overallIndex < STICKY_COUNT) {
       const left = stickyLefts[overallIndex] ?? 0;
-      return { sticky: true, left, maxWidth: overallIndex > 1 ? 200 : undefined };
+      return {
+        sticky: true,
+        left,
+        maxWidth: overallIndex > 1 ? 200 : undefined,
+      };
     }
     return { sticky: false, left: 0, maxWidth: undefined };
   };
 
-  // selected count vs filtered count based on ids
   const filteredIds = useMemo(
     () => filtered.map(getRowId).filter((x) => x != null),
     [filtered]
   );
+
   const allFilteredSelected =
     filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 sm:p-6 lg:p-8">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[1280px] max-h-[92vh] flex flex-col relative overflow-hidden">
-        <button
-          onClick={onClose}
-          className="absolute top-3 right-3 text-blue-600 hover:text-blue-800 focus:outline-none p-2 rounded-full hover:bg-blue-50"
-          aria-label="Close modal"
-        >
-          <FontAwesomeIcon icon={faTimes} />
-        </button>
+  useLayoutEffect(() => {
+    const lefts = [];
+    let accumulated = 0;
 
-        <div className="border-b border-gray-100 bg-white/95 sticky top-0 z-20">
-          <div className="flex items-center gap-3 px-4 py-3">
-            <h2 className="text-sm font-semibold text-blue-900 truncate">
-              {title}
-            </h2>
-            <span className="ml-auto inline-flex items-center gap-2 text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">
-              <FontAwesomeIcon icon={faListCheck} />
-              {selected.length} selected
-            </span>
+    if (viewHeaderRef.current) {
+      lefts[0] = 0;
+      accumulated = viewHeaderRef.current.offsetWidth;
+    }
+
+    if (selectHeaderRef.current) {
+      lefts[1] = accumulated;
+      accumulated += selectHeaderRef.current.offsetWidth;
+    }
+
+    visibleCols.forEach((col, idx) => {
+      if (idx < STICKY_COUNT - 2) {
+        const overallIndex = idx + 2;
+        lefts[overallIndex] = accumulated;
+        const hdr = columnHeaderRefs.current[col.key];
+        if (hdr) accumulated += hdr.offsetWidth;
+      }
+    });
+
+    setStickyLefts(lefts);
+  }, [visibleCols, showFilters, resizeTick, filtered.length]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 sm:p-4 md:p-6 lg:p-8">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[1280px] max-h-[92vh] flex flex-col relative overflow-hidden">
+        <div className="sticky top-0 z-20">
+          <div className="bg-blue-200 text-slate-800 px-3 sm:px-5 py-2.5 sm:py-3 border-b border-blue-300">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <FontAwesomeIcon
+                    icon={faListCheck}
+                    className="text-sm sm:text-base"
+                  />
+                  <h2 className="text-sm sm:text-lg font-semibold truncate">
+                    {title}
+                  </h2>
+                </div>
+                <p className="text-[11px] sm:text-xs text-slate-700 mt-0.5">
+                  Select transaction entries to post and review before
+                  proceeding.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="inline-flex items-center gap-2 text-xs px-2.5 py-1 rounded-full bg-white/70 text-blue-700 border border-blue-300">
+                  <FontAwesomeIcon icon={faListCheck} />
+                  {selected.length} selected
+                </span>
+
+                <button
+                  onClick={onClose}
+                  className="shrink-0 rounded-md p-1 hover:bg-white/40 transition"
+                  aria-label="Close modal"
+                >
+                  <FontAwesomeIcon icon={faTimes} />
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div className="px-4 pb-3 flex flex-wrap items-center gap-2">
-            <div className="relative">
-              <FontAwesomeIcon
-                icon={faMagnifyingGlass}
-                className="absolute left-2 top-2.5 text-gray-400 text-xs"
-              />
-              <input
-                ref={firstFocusableRef}
-                value={globalQuery}
-                onChange={(e) => setGlobalQuery(e.target.value)}
-                placeholder="Global search…"
-                className="pl-7 pr-3 py-2 text-xs border rounded-md w-72 focus:ring-2 focus:ring-blue-200"
-              />
-            </div>
+          <div className="border-b border-gray-100 bg-white/95">
+            <div className="px-3 sm:px-4 pb-3 pt-3 flex flex-wrap items-center gap-2">
+              {isMobile ? (
+                <div className="flex items-center gap-2 w-full">
+                  <div className="relative flex-1 min-w-0">
+                    <FontAwesomeIcon
+                      icon={faMagnifyingGlass}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs"
+                    />
+                    <input
+                      ref={firstFocusableRef}
+                      value={globalQuery}
+                      onChange={(e) => setGlobalQuery(e.target.value)}
+                      placeholder="Global search…"
+                      className="pl-7 pr-3 py-2 text-xs border rounded-md w-full focus:ring-2 focus:ring-blue-200"
+                    />
+                  </div>
 
-            <button
-              onClick={() => setShowFilters((s) => !s)}
-              className="text-xs px-3 py-2 rounded-md border hover:bg-gray-50"
-            >
-              {showFilters ? "Hide filters" : "Show filters"}
-            </button>
+                  <div className="inline-flex rounded-lg border overflow-hidden shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setMobileViewMode("card")}
+                      className={`px-3 py-2 text-xs inline-flex items-center gap-1.5 ${
+                        mobileViewMode === "card"
+                          ? "bg-blue-600 text-white"
+                          : "bg-white text-gray-700 hover:bg-gray-50"
+                      }`}
+                    >
+                      <FontAwesomeIcon icon={faGrip} />
+                      Card
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMobileViewMode("table")}
+                      className={`px-3 py-2 text-xs inline-flex items-center gap-1.5 border-l ${
+                        mobileViewMode === "table"
+                          ? "bg-blue-600 text-white"
+                          : "bg-white text-gray-700 hover:bg-gray-50"
+                      }`}
+                    >
+                      <FontAwesomeIcon icon={faTable} />
+                      Table
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="relative w-full sm:w-auto">
+                    <FontAwesomeIcon
+                      icon={faMagnifyingGlass}
+                      className="absolute left-2 top-2.5 text-gray-400 text-xs"
+                    />
+                    <input
+                      ref={firstFocusableRef}
+                      value={globalQuery}
+                      onChange={(e) => setGlobalQuery(e.target.value)}
+                      placeholder="Global search…"
+                      className="pl-7 pr-3 py-2 text-xs border rounded-md w-full sm:w-72 focus:ring-2 focus:ring-blue-200"
+                    />
+                  </div>
 
-            <button
-              onClick={clearAllFilters}
-              disabled={activeFilterChips.length === 0}
-              className="text-xs px-3 py-2 rounded-md border hover:bg-gray-50 disabled:opacity-40 inline-flex items-center gap-2"
-              title="Clear all filters"
-            >
-              <FontAwesomeIcon icon={faFilterCircleXmark} />
-              Clear filters
-            </button>
+                  <button
+                    onClick={() => setShowFilters((s) => !s)}
+                    className="text-xs px-3 py-2 rounded-md border hover:bg-gray-50"
+                  >
+                    {showFilters ? "Hide filters" : "Show filters"}
+                  </button>
 
-            <div className="flex flex-wrap gap-1">
-              {activeFilterChips.map(([k, v]) => (
-                <button
-                  key={k}
-                  className="text-[11px] px-2 py-1 rounded-full bg-gray-100 hover:bg-gray-200"
-                  onClick={() => setFilters((prev) => ({ ...prev, [k]: "" }))}
-                  title={`Remove filter: ${k}`}
-                >
-                  {k}: <span className="font-medium">{String(v)}</span> ✕
-                </button>
-              ))}
+                  <button
+                    onClick={clearAllFilters}
+                    disabled={activeFilterChips.length === 0}
+                    className="text-xs px-3 py-2 rounded-md border hover:bg-gray-50 disabled:opacity-40 inline-flex items-center gap-2"
+                    title="Clear all filters"
+                  >
+                    <FontAwesomeIcon icon={faFilterCircleXmark} />
+                    Clear filters
+                  </button>
+                </>
+              )}
+
+              {!isMobile && (
+                <div className="flex flex-wrap gap-1 w-full">
+                  {activeFilterChips.map(([k, v]) => (
+                    <button
+                      key={k}
+                      className="text-[11px] px-2 py-1 rounded-full bg-gray-100 hover:bg-gray-200"
+                      onClick={() => setFilters((prev) => ({ ...prev, [k]: "" }))}
+                      title={`Remove filter: ${k}`}
+                    >
+                      {k}: <span className="font-medium">{String(v)}</span> ✕
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        <div className="flex-grow overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-hidden">
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center h-full min-h-[240px] text-blue-500">
-              <FontAwesomeIcon icon={faSpinner} spin size="2x" className="mb-3" />
-              <span className="text-sm">Loading records…</span>
+            <div className="h-full flex items-center justify-center text-sm text-gray-500">
+              Loading...
+            </div>
+          ) : isMobile && mobileViewMode === "card" ? (
+            <div className="overflow-auto max-h-[calc(92vh-260px)] custom-scrollbar px-3 py-3 space-y-3">
+              {displayData.length > 0 ? (
+                displayData.map((row, rIdx) => {
+                  const rowId = getRowId(row);
+                  const checked = rowId != null && selectedIds.has(rowId);
+
+                  return (
+                    <div
+                      key={rowId ?? row.__idx ?? rIdx}
+                      className="border rounded-2xl bg-white shadow-sm overflow-hidden"
+                    >
+                      <div className="flex items-center justify-between gap-2 px-3 py-2 bg-blue-50 border-b">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleSelect(row)}
+                            className="h-3.5 w-3.5 text-blue-600 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-[10px] font-semibold text-blue-900 truncate">
+                            Record {rIdx + 1}
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleViewRow(row)}
+                          className="px-2 py-0.5 text-[10px] bg-blue-500 text-white rounded-md hover:bg-blue-600 whitespace-nowrap"
+                        >
+                          <FontAwesomeIcon icon={faEye} className="mr-1" />
+                          View
+                        </button>
+                      </div>
+
+                      <div
+                        className="p-2.5 space-y-1.5"
+                        onDoubleClick={() => handleViewRow(row)}
+                      >
+                        {visibleCols.map((column) => {
+                          const isRemarksKey = /remarks/i.test(
+                            String(column?.key ?? "")
+                          );
+
+                          return (
+                            <div
+                              key={column.key}
+                              className="grid grid-cols-[105px_1fr] gap-2 text-[10px]"
+                            >
+                              <div className="font-semibold text-gray-600 break-words leading-tight">
+                                {column.label}
+                              </div>
+                              <div
+                                className={`text-gray-800 break-words leading-tight ${
+                                  column?.renderType === "number"
+                                    ? "text-right tabular-nums"
+                                    : ""
+                                }`}
+                                title={
+                                  isRemarksKey
+                                    ? String(row[column.key] ?? "")
+                                    : undefined
+                                }
+                              >
+                                {renderValue(
+                                  column,
+                                  row[column.key],
+                                  Number(column.roundingOff)
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="px-4 py-10 text-center">
+                  <div className="inline-flex items-center gap-3 text-gray-500">
+                    <FontAwesomeIcon icon={faCircleExclamation} />
+                    <span className="text-sm">No matching records found.</span>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
-            <div className="overflow-auto max-h-[calc(92vh-220px)] custom-scrollbar overscroll-x-contain">
+            <div className="w-full overflow-auto max-h-[calc(82vh-220px)] custom-scrollbar overscroll-x-contain">
               <table className="min-w-full">
                 <thead className="sticky top-0 z-[80]">
-                  <tr className="bg-gray-100/90 backdrop-blur border-b border-gray-200 whitespace-nowrap text-[10px] sm:text[11px]">
+                  <tr className="bg-gray-100/90 backdrop-blur border-b border-gray-200 whitespace-nowrap text-[10px] sm:text-[11px]">
                     {(() => {
                       const m = stickyMeta(0);
                       const stickyStyle = {};
@@ -490,8 +661,11 @@ const GlobalGLPostingModalv1 = ({
                     {visibleCols.map((column, vIdx) => {
                       const overallIndex = vIdx + 2;
                       const m = stickyMeta(overallIndex);
-                      const stickyHeaderClasses = m.sticky ? "sticky bg-gray-100 z-[60]" : "";
+                      const stickyHeaderClasses = m.sticky
+                        ? "sticky bg-gray-100 z-[60]"
+                        : "";
                       const stickyStyle = {};
+
                       if (m.sticky) {
                         stickyStyle.left = m.left;
                         if (m.maxWidth) stickyStyle.maxWidth = m.maxWidth;
@@ -501,8 +675,9 @@ const GlobalGLPostingModalv1 = ({
                         <th
                           key={column.key}
                           ref={(el) => {
-                            if (overallIndex < STICKY_COUNT)
+                            if (overallIndex < STICKY_COUNT) {
                               columnHeaderRefs.current[column.key] = el;
+                            }
                           }}
                           onClick={() => handleSort(column.key)}
                           className={[
@@ -521,7 +696,7 @@ const GlobalGLPostingModalv1 = ({
                     })}
                   </tr>
 
-                  {showFilters && (
+                  {!isMobile && showFilters && (
                     <tr className="bg-white border-b border-gray-100 text-[10px] sm:text-[11px]">
                       {(() => {
                         const m = stickyMeta(0);
@@ -560,8 +735,11 @@ const GlobalGLPostingModalv1 = ({
                       {visibleCols.map((column, vIdx) => {
                         const overallIndex = vIdx + 2;
                         const m = stickyMeta(overallIndex);
-                        const stickyFilterClasses = m.sticky ? "sticky bg-white z-[60]" : "";
+                        const stickyFilterClasses = m.sticky
+                          ? "sticky bg-white z-[60]"
+                          : "";
                         const stickyStyle = {};
+
                         if (m.sticky) {
                           stickyStyle.left = m.left;
                           if (m.maxWidth) stickyStyle.maxWidth = m.maxWidth;
@@ -570,7 +748,9 @@ const GlobalGLPostingModalv1 = ({
                         return (
                           <td
                             key={column.key}
-                            className={["px-2 py-1", stickyFilterClasses].join(" ")}
+                            className={["px-2 py-1", stickyFilterClasses].join(
+                              " "
+                            )}
                             style={stickyStyle}
                           >
                             <input
@@ -588,9 +768,10 @@ const GlobalGLPostingModalv1 = ({
                 </thead>
 
                 <tbody className="bg-white whitespace-nowrap">
-                  {paginatedData.length > 0 ? (
-                    paginatedData.map((row, rIdx) => {
-                      const rowBgClass = rIdx % 2 === 0 ? "bg-white" : "bg-gray-50";
+                  {displayData.length > 0 ? (
+                    displayData.map((row, rIdx) => {
+                      const rowBgClass =
+                        rIdx % 2 === 0 ? "bg-white" : "bg-gray-50";
                       const rowId = getRowId(row);
 
                       return (
@@ -638,7 +819,10 @@ const GlobalGLPostingModalv1 = ({
                               stickyStyle.maxWidth = 50;
                             }
                             return (
-                              <td className="sticky z-[30] text-center bg-white" style={stickyStyle}>
+                              <td
+                                className="sticky z-[30] text-center bg-white"
+                                style={stickyStyle}
+                              >
                                 <input
                                   type="checkbox"
                                   checked={rowId != null && selectedIds.has(rowId)}
@@ -652,14 +836,19 @@ const GlobalGLPostingModalv1 = ({
                           {visibleCols.map((column, vIdx) => {
                             const overallIndex = vIdx + 2;
                             const m = stickyMeta(overallIndex);
-                            const stickyBodyClasses = m.sticky ? "sticky z-[20] bg-white" : "";
+                            const stickyBodyClasses = m.sticky
+                              ? "sticky z-[20] bg-white"
+                              : "";
                             const stickyStyle = {};
+
                             if (m.sticky) {
                               stickyStyle.left = m.left;
                               if (m.maxWidth) stickyStyle.maxWidth = m.maxWidth;
                             }
 
-                            const isRemarksKey = /remarks/i.test(String(column?.key ?? ""));
+                            const isRemarksKey = /remarks/i.test(
+                              String(column?.key ?? "")
+                            );
 
                             return (
                               <td
@@ -671,9 +860,17 @@ const GlobalGLPostingModalv1 = ({
                                   stickyBodyClasses,
                                 ].join(" ")}
                                 style={stickyStyle}
-                                title={isRemarksKey ? String(row[column.key] ?? "") : undefined}
+                                title={
+                                  isRemarksKey
+                                    ? String(row[column.key] ?? "")
+                                    : undefined
+                                }
                               >
-                                {renderValue(column, row[column.key], Number(column.roundingOff))}
+                                {renderValue(
+                                  column,
+                                  row[column.key],
+                                  Number(column.roundingOff)
+                                )}
                               </td>
                             );
                           })}
@@ -682,7 +879,10 @@ const GlobalGLPostingModalv1 = ({
                     })
                   ) : (
                     <tr>
-                      <td colSpan={visibleCols.length + 2} className="px-4 py-10 text-center">
+                      <td
+                        colSpan={visibleCols.length + 2}
+                        className="px-4 py-10 text-center"
+                      >
                         <div className="inline-flex items-center gap-3 text-gray-500">
                           <FontAwesomeIcon icon={faCircleExclamation} />
                           <span className="text-sm">No matching records found.</span>
@@ -696,9 +896,9 @@ const GlobalGLPostingModalv1 = ({
           )}
         </div>
 
-        <div className="border-t border-gray-200 bg-white sticky bottom-0 z-10">
-          <div className="p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="flex flex-col gap-2">
+        <div className="border-t border-gray-200 bg-white shrink-0">
+          <div className="p-3 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 text-xs">
+            <div className="flex flex-col gap-2 w-full lg:w-auto">
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -709,14 +909,15 @@ const GlobalGLPostingModalv1 = ({
                 Select all (filtered)
               </label>
 
-              <div className="flex items-center gap-2">
-                <label className="font-medium">Password</label>
-                <div className="relative">
+              <div className="flex items-center gap-2 w-full flex-wrap md:flex-nowrap">
+                <label className="font-medium shrink-0">Password</label>
+
+                <div className="relative flex-1 min-w-[180px]">
                   <input
                     type={showPassword ? "text" : "password"}
                     value={userPassword ?? ""}
                     onChange={(e) => setUserPassword(e.target.value)}
-                    className="border border-gray-300 rounded px-2 py-1 text-xs w-44 pr-8"
+                    className="border border-gray-300 rounded px-2 py-1.5 text-xs w-full pr-8"
                   />
                   <button
                     type="button"
@@ -724,20 +925,22 @@ const GlobalGLPostingModalv1 = ({
                     className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
                     title={showPassword ? "Hide" : "Show"}
                   >
-                    <FontAwesomeIcon icon={showPassword ? faEyeSlash : faEye} />
+                    <FontAwesomeIcon
+                      icon={showPassword ? faEyeSlash : faEye}
+                    />
                   </button>
                 </div>
 
                 <button
                   disabled={selected.length === 0}
-                  className="px-6 py-1.5 bg-blue-600 text-white rounded-md text-xs disabled:opacity-50 hover:bg-blue-700 transition"
+                  className="px-4 py-1.5 bg-blue-600 text-white rounded-md text-xs disabled:opacity-50 hover:bg-blue-700 transition whitespace-nowrap shrink-0"
                   onClick={handleGetSelected}
                 >
                   {btnCaption} {selected.length ? `(${selected.length})` : ""}
                 </button>
 
                 <button
-                  className="px-6 py-1.5 bg-gray-100 text-gray-800 border rounded-md text-xs hover:bg-gray-200"
+                  className="px-4 py-1.5 bg-gray-100 text-gray-800 border rounded-md text-xs hover:bg-gray-200 whitespace-nowrap shrink-0"
                   onClick={onClose}
                 >
                   Cancel
@@ -752,34 +955,24 @@ const GlobalGLPostingModalv1 = ({
               <div className="text-[11px] leading-snug">
                 <div className="font-semibold text-red-700">Warning!</div>
                 <div className="text-gray-700">
-                  Before running this routine, ensure that the transaction entries are correct.
-                  <span className="font-semibold"> Un-posting is not available.</span>
+                  Before running this routine, ensure that the transaction
+                  entries are correct.
+                  <span className="font-semibold">
+                    {" "}
+                    Un-posting is not available.
+                  </span>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="px-3 pb-3 flex justify-between items-center text-xs text-gray-600">
+          <div className="px-3 pb-3 flex items-center justify-between gap-2 text-xs text-gray-600">
             <div className="font-semibold">
               Showing {startItem}-{endItem} of {totalItems} entries
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handlePrevPage}
-                disabled={currentPage === 1}
-                className="px-3 py-1.5 font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200 disabled:opacity-50"
-              >
-                Previous
-              </button>
-              <span className="px-2">Page {currentPage}</span>
-              <button
-                onClick={handleNextPage}
-                disabled={endItem >= totalItems}
-                className="px-3 py-1.5 font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200"
-              >
-                Next
-              </button>
+            <div className="text-xs text-gray-600 font-semibold">
+              Total {totalItems} entr{totalItems === 1 ? "y" : "ies"}
             </div>
           </div>
         </div>
@@ -789,5 +982,3 @@ const GlobalGLPostingModalv1 = ({
 };
 
 export default GlobalGLPostingModalv1;
-
-

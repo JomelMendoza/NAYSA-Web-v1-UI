@@ -27,7 +27,7 @@ import {
     useSwalErrorAlertAPI,
     useSwalDeleteConfirm,
     useSwalDeleteRecord,
-} from "@/NAYSA Cloud/Global/behavior";
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 
 import CustSetupTab from "./CustSetupTab";
 import CustMasterDataTab from "@/NAYSA Cloud/Master Data/CustMasterDataTab.jsx";

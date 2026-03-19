@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
@@ -7,14 +13,36 @@ import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 import SearchGlobalReferenceTable from "@/NAYSA Cloud/Lookup/SearchGlobalReferenceTable";
 import SearchCOAMast from "@/NAYSA Cloud/Lookup/SearchCOAMast";
 
-
 // Icons & Globals
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPlus, faSave, faUndo, faEdit, faTrashAlt, faInfoCircle, faChevronDown, faFilePdf, faVideo } from "@fortawesome/free-solid-svg-icons";
-import { reftables, reftablesPDFGuide, reftablesVideoGuide } from "@/NAYSA Cloud/Global/reftable";
+import {
+  faPlus,
+  faSave,
+  faUndo,
+  faEdit,
+  faTrashAlt,
+  faInfoCircle,
+  faChevronDown,
+  faFilePdf,
+  faVideo,
+} from "@fortawesome/free-solid-svg-icons";
+import {
+  reftables,
+  reftablesPDFGuide,
+  reftablesVideoGuide,
+} from "@/NAYSA Cloud/Global/reftable";
 import { useTopDocDropDown } from "@/NAYSA Cloud/Global/top1RefTable";
-import { useSwalErrorAlert, useSwalSuccessAlert, useSwalErrorAlertAPI, useSwalDeleteConfirm, useSwalDeleteRecord } from "@/NAYSA Cloud/Global/behavior";
-import { useFieldLenghtCheck, useGetFieldLength,} from '@/NAYSA Cloud/Global/procedure';
+import {
+  useSwalErrorAlert,
+  useSwalSuccessAlert,
+  useSwalErrorAlertAPI,
+  useSwalDeleteConfirm,
+  useSwalDeleteRecord,
+} from "@/NAYSA Cloud/Global/behavior";
+import {
+  useFieldLenghtCheck,
+  useGetFieldLength,
+} from "@/NAYSA Cloud/Global/procedure";
 
 // UI Helpers
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer";
@@ -22,13 +50,24 @@ import ButtonBar from "@/NAYSA Cloud/Global/ButtonBar";
 
 import RegistrationInfo from "@/NAYSA Cloud/Global/RegistrationInfo.jsx";
 
-
 const INITIAL_FORM = {
-  vatCode: "", vatName: "", vatType: "" , vatClass: "" ,vatRate: '0.00',vatCategory: "", acctCode: "", acctName: "",
-  tblFieldArray :[],
+  vatCode: "",
+  vatName: "",
+  vatType: "",
+  vatClass: "",
+  vatRate: "0.00",
+  vatCategory: "",
+  acctCode: "",
+  acctName: "",
+  tblFieldArray: [],
 };
 
-const INITIAL_REG = { registeredBy: "", registeredDate: "", lastUpdatedBy: "", lastUpdatedDate: "" };
+const INITIAL_REG = {
+  registeredBy: "",
+  registeredDate: "",
+  lastUpdatedBy: "",
+  lastUpdatedDate: "",
+};
 
 const VATRef = () => {
   const queryClient = useQueryClient();
@@ -37,7 +76,7 @@ const VATRef = () => {
   const guideRef = useRef(null);
   const pdfLink = reftablesPDFGuide[docType];
   const videoLink = reftablesVideoGuide[docType];
-  
+
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [registrationInfo, setRegistrationInfo] = useState(INITIAL_REG);
   const [isEditing, setIsEditing] = useState(false);
@@ -48,10 +87,11 @@ const VATRef = () => {
   const [tblFieldArray, setTblFieldArray] = useState([]);
 
   const [vatAcct, setvatAcct] = useState(null);
-  
+
   // const [isAccountModalOpen, setAccountModalOpen] = useState(false);
 
-  const toggleModal = (name, isOpen) => setModals(prev => ({ ...prev, [name]: isOpen }));
+  const toggleModal = (name, isOpen) =>
+    setModals((prev) => ({ ...prev, [name]: isOpen }));
 
   // --- TANSTACK QUERY: Fetch Dropdowns & List ---
   const { data: dropdowns, isLoading: isDropdownLoading } = useQuery({
@@ -62,8 +102,8 @@ const VATRef = () => {
         useTopDocDropDown("VATREF", "VAT_TYPE"),
         useTopDocDropDown("VATREF", "VAT_CLASS"),
       ]);
-      return { cat, typ, cls};
-    }
+      return { cat, typ, cls };
+    },
   });
 
   const { data: accounts = [], isLoading: isListLoading } = useQuery({
@@ -72,49 +112,55 @@ const VATRef = () => {
       const { data } = await apiClient.get("/vat");
       const raw = data?.data?.[0]?.result || data?.result;
       return raw ? JSON.parse(raw) : [];
-    }
+    },
   });
 
   // --- TANSTACK QUERY: Save Mutation ---
   const { mutate: saveVAT, isLoading: isSaving } = useMutation({
     mutationFn: async (payload) => await apiClient.post("/upsertVat", payload),
-  
+
     onSuccess: (response) => {
       // 1) SPROC row style (errorcount/errormsg)
       const sqlRow = response?.data?.data?.[0];
       if (sqlRow?.errorcount > 0) {
-        useSwalErrorAlert("Error", sqlRow?.errormsg || "Failed to save Branch.");
+        useSwalErrorAlert(
+          "Error",
+          sqlRow?.errormsg || "Failed to save Branch.",
+        );
         resetForm(); // ✅ reset on failure
         return;
       }
-  
+
       // 2) API status style
       const status = response?.data?.status ?? response?.data?.data?.status;
-      const success = response?.data?.success || status === "success" || !status;
-  
+      const success =
+        response?.data?.success || status === "success" || !status;
+
       if (!success) {
         useSwalErrorAlert(
           "Error",
           response?.data?.message ||
             response?.data?.data?.message ||
-            "Failed to save Account."
+            "Failed to save Account.",
         );
         resetForm(); // ✅ reset on failure
         return;
       }
-  
-      console.log("Save Payload:",sqlRow)
+
+      console.log("Save Payload:", sqlRow);
 
       // ✅ success path
       queryClient.invalidateQueries({ queryKey: ["vatList"] });
       useSwalSuccessAlert("Success!", "Account saved successfully!");
       resetForm();
     },
-  
+
     onError: (error) => {
       useSwalErrorAlertAPI(
         "System Error",
-        error?.response?.status ? `HTTP ${error.response.status}` : error?.message || String(error)
+        error?.response?.status
+          ? `HTTP ${error.response.status}`
+          : error?.message || String(error),
       );
       resetForm(); // ✅ reset on request error too
     },
@@ -122,23 +168,19 @@ const VATRef = () => {
 
   // --- ACTIONS ---
   const handleSave = () => {
-  
     const payload = {
       json_data: JSON.stringify({
         json_data: {
           ...formData,
           action: selectedVatCode ? "EDIT" : "ADD",
           userCode: user?.USER_CODE || "ADMIN",
-        }
-      })
+        },
+      }),
     };
     saveVAT(payload);
   };
 
-
-  
   // --- MUTATION: UPSERT ---
-  
 
   const resetForm = () => {
     setFormData(INITIAL_FORM);
@@ -151,7 +193,8 @@ const VATRef = () => {
     const classNameFromRow = row.className;
 
     const classNameFromDropdown =
-      dropdowns?.cls?.find(d => d.DROPDOWN_CODE === row.classCode)?.DROPDOWN_NAME || "";
+      dropdowns?.cls?.find((d) => d.DROPDOWN_CODE === row.classCode)
+        ?.DROPDOWN_NAME || "";
 
     setSelectedAcctCode(row.vatCode);
 
@@ -160,225 +203,232 @@ const VATRef = () => {
       ...row,
       classCode: row.classCode,
       acctName: row.acctName,
-      className: classNameFromRow || classNameFromDropdown,  // ✅ important
-      vatRate: row.vatRate !== undefined ? row.vatRate : 0, 
+      className: classNameFromRow || classNameFromDropdown, // ✅ important
+      vatRate: row.vatRate !== undefined ? row.vatRate : 0,
     });
 
     setRegistrationInfo({
       registeredBy: row.registeredBy,
       registeredDate: row.registeredDate,
       lastUpdatedBy: row.lastUpdatedBy,
-      lastUpdatedDate: row.lastUpdatedDate
+      lastUpdatedDate: row.lastUpdatedDate,
     });
 
     console.log("Edit Row:", row);
     setIsEditing(true);
-  };  
+  };
 
-
-  
-const { mutate: deleteVat, isLoading: isDeleting } = useMutation({
-  mutationFn: async (payload) => await apiClient.post("/deleteVat", payload),
-  onSuccess: (response) => {
-    queryClient.invalidateQueries(["vatList"]);
-    useSwalDeleteRecord("Deleted!", "The account has been removed from the system.");
-    resetForm();
-  },
-  onError: (error) => useSwalErrorAlertAPI("Delete Error", error)
-});
-
-
-
-const handleDelete = async (row) => {
-  try {
-    setIsLoading(true); // Ensure you have a general loading state or use the mutation's state
-    const payload = {
-      json_data: {
-        vatCode: row.vatCode 
-      }
-    };
-
-    // 1. Check if used in other tables via SPROC
-    const response = await apiClient.post("/checkInUsedVat", payload);    
-    const sqlRow = response?.data?.data?.[0];
-    const rawJsonString = sqlRow?.result || Object.values(sqlRow || {})[0];  
-    const parsedData = JSON.parse(rawJsonString || '{"result":"0"}');
-
-    if (parsedData.result === "1") {
-      setIsLoading(false);
-      return useSwalErrorAlertAPI(
-        `Cannot Delete VAT Code: ${row.vatCode}`, 
-        `Code was already used.`
+  const { mutate: deleteVat, isLoading: isDeleting } = useMutation({
+    mutationFn: async (payload) => await apiClient.post("/deleteVat", payload),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries(["vatList"]);
+      useSwalDeleteRecord(
+        "Deleted!",
+        "The account has been removed from the system.",
       );
-    }
-
-    // 2. Confirmations
-    const confirm = await useSwalDeleteConfirm(
-      "Confirm Delete", 
-      `Are you sure you want to delete Code: ${row.vatCode}?`
-    );
-
-    if (confirm.isConfirmed) {
-      deleteVat(payload); 
-    }
-  } catch (error) {
-    useSwalErrorAlertAPI("System Error", error);
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-
-// --- VALIDATION: Check for Duplicate Code ---
-const handleCheckDuplicate = async (code) => {
-  
-  if (isEditing && selectedVatCode) return; 
-  if (!code) return;
-
-  try {
-    const payload = { json_data: { vatCode: code } };
-    const response = await apiClient.post("/checkDuplicateVat", payload);
-    
-    const sqlRow = response?.data?.data?.[0];
-    const rawJsonString = sqlRow?.result || Object.values(sqlRow || {})[0];
-    const parsedData = JSON.parse(rawJsonString || '{"result":"0"}');
-
-    if (parsedData.result === "1") {
-      setIsLoading(false);
       resetForm();
-      return useSwalErrorAlertAPI(
-        `Duplicate VAT Code: ${code}`, 
-        `Code was already used.`
+    },
+    onError: (error) => useSwalErrorAlertAPI("Delete Error", error),
+  });
+
+  const handleDelete = async (row) => {
+    try {
+      setIsLoading(true); // Ensure you have a general loading state or use the mutation's state
+      const payload = {
+        json_data: {
+          vatCode: row.vatCode,
+        },
+      };
+
+      // 1. Check if used in other tables via SPROC
+      const response = await apiClient.post("/checkInUsedVat", payload);
+      const sqlRow = response?.data?.data?.[0];
+      const rawJsonString = sqlRow?.result || Object.values(sqlRow || {})[0];
+      const parsedData = JSON.parse(rawJsonString || '{"result":"0"}');
+
+      if (parsedData.result === "1") {
+        setIsLoading(false);
+        return useSwalErrorAlertAPI(
+          `Cannot Delete VAT Code: ${row.vatCode}`,
+          `Code was already used.`,
+        );
+      }
+
+      // 2. Confirmations
+      const confirm = await useSwalDeleteConfirm(
+        "Confirm Delete",
+        `Are you sure you want to delete Code: ${row.vatCode}?`,
       );
+
+      if (confirm.isConfirmed) {
+        deleteVat(payload);
+      }
+    } catch (error) {
+      useSwalErrorAlertAPI("System Error", error);
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-  } catch (error) {
-    console.error("Duplicate Check Error:", error);
-  }
-};
+  // --- VALIDATION: Check for Duplicate Code ---
+  const handleCheckDuplicate = async (code) => {
+    if (isEditing && selectedVatCode) return;
+    if (!code) return;
 
+    try {
+      const payload = { json_data: { vatCode: code } };
+      const response = await apiClient.post("/checkDuplicateVat", payload);
 
-const updateForm = (updates) => setFormData(prev => ({ ...prev, ...updates }));
+      const sqlRow = response?.data?.data?.[0];
+      const rawJsonString = sqlRow?.result || Object.values(sqlRow || {})[0];
+      const parsedData = JSON.parse(rawJsonString || '{"result":"0"}');
+
+      if (parsedData.result === "1") {
+        setIsLoading(false);
+        resetForm();
+        return useSwalErrorAlertAPI(
+          `Duplicate VAT Code: ${code}`,
+          `Code was already used.`,
+        );
+      }
+    } catch (error) {
+      console.error("Duplicate Check Error:", error);
+    }
+  };
+
+  const updateForm = (updates) =>
+    setFormData((prev) => ({ ...prev, ...updates }));
 
   // --- TABLE COLUMNS ---
-const columns = useMemo(() => [
-  { key: "vatCode", label: "VAT Code", sortable: true },
-  { key: "vatName", label: "VAT Name", sortable: true },
+  const columns = useMemo(
+    () => [
+      {
+        key: "__actions",
+        label: "Actions",
+        render: (row) => (
+          <div className="flex gap-2 justify-center">
+            {/* Updated Edit Button matching CutoffRef style */}
+            <button
+              onClick={() => handleEdit(row)}
+              className="p-1.5 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-600 hover:text-white transition-colors"
+              title="Edit"
+            >
+              <FontAwesomeIcon icon={faEdit} />
+            </button>
 
-  {
-    key: "vatType",
-    label: "VAT Type",
-    sortable: true,
-    render: (row) => {
-      const match = dropdowns?.typ?.find((d) => d.DROPDOWN_CODE === row.vatType);
-      return match ? match.DROPDOWN_NAME : row.vatType;
-    },
-  },
-
-  {
-    key: "vatClass",
-    label: "VAT Classification",
-    sortable: true,
-    render: (row) => {
-      const match = dropdowns?.cls?.find((d) => d.DROPDOWN_CODE === row.vatClass);
-      return match ? match.DROPDOWN_NAME : row.vatClass;
-    },
-  },
-
-    {
-      key: "vatRate",
-      label: "VAT Rate (%)",
-      sortable: true,
-      className: "text-right font-mono",
-      render: (row) => {
-        const rate = parseFloat(row.vatRate || 0);
-        return `${rate.toFixed(2)}%`;
+            {/* Updated Delete Button matching CutoffRef style */}
+            <button
+              onClick={() => handleDelete(row)}
+              className="p-1.5 rounded-md bg-red-100 text-red-700 hover:bg-red-600 hover:text-white transition-colors"
+              title="Delete"
+            >
+              <FontAwesomeIcon icon={faTrashAlt} />
+            </button>
+          </div>
+        ),
       },
-
-    },
-
+      { key: "vatCode", label: "VAT Code", sortable: true },
+      { key: "vatName", label: "VAT Name", sortable: true },
       {
-    key: "vatCategory",
-    label: "VAT Category",
-    sortable: true,
-    render: (row) => {
-      const match = dropdowns?.cat?.find((d) => d.DROPDOWN_CODE === row.vatCategory);
-      return match ? match.DROPDOWN_NAME : row.vatCategory;
-    },
-  },
-
-      {
-        key: "acctCode",
-        label: "Account Code",
+        key: "vatType",
+        label: "VAT Type",
         sortable: true,
-        className: "sticky left-[200px] z-10 bg-white shadow-[1px_0_0_0_#e2e8f0]",
+        render: (row) => {
+          const match = dropdowns?.typ?.find(
+            (d) => d.DROPDOWN_CODE === row.vatType,
+          );
+          return match ? match.DROPDOWN_NAME : row.vatType;
+        },
       },
-
       {
-        key: "acctName",
-        label: "Account Name",
+        key: "vatClass",
+        label: "VAT Classification",
         sortable: true,
-        className: "sticky left-[200px] z-10 bg-white shadow-[1px_0_0_0_#e2e8f0]",
+        render: (row) => {
+          const match = dropdowns?.cls?.find(
+            (d) => d.DROPDOWN_CODE === row.vatClass,
+          );
+          return match ? match.DROPDOWN_NAME : row.vatClass;
+        },
       },
-  {
-    key: "__actions",
-    label: "Actions",
-    render: (row) => (
-      <div className="flex gap-2 justify-center">
-        <button
-          onClick={() => handleEdit(row)}
-          className="py-1 px-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-          title="Edit"
-        >
-          <FontAwesomeIcon icon={faEdit} />
-        </button>
-
-        <button
-          onClick={() => handleDelete(row)}
-          className="py-1 px-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-          title="Delete"
-        >
-          <FontAwesomeIcon icon={faTrashAlt} />
-        </button>
-      </div>
-    ),
-  },
-], [dropdowns, handleDelete]);
+      {
+        key: "vatRate",
+        label: "VAT Rate (%)",
+        sortable: true,
+        className: "text-right font-mono",
+        render: (row) => {
+          const rate = parseFloat(row.vatRate || 0);
+          return `${rate.toFixed(2)}%`;
+        },
+      },
+      {
+        key: "vatCategory",
+        label: "VAT Category",
+        sortable: true,
+        render: (row) => {
+          const match = dropdowns?.cat?.find(
+            (d) => d.DROPDOWN_CODE === row.vatCategory,
+          );
+          return match ? match.DROPDOWN_NAME : row.vatCategory;
+        },
+      },
+      { key: "acctCode", label: "Account Code", sortable: true },
+      { key: "acctName", label: "Account Name", sortable: true },
+    ],
+    [dropdowns, handleEdit, handleDelete],
+  );
 
   useEffect(() => {
-    const handleKey = (e) => { if (e.ctrlKey && e.key === "s") { e.preventDefault(); handleSave(); } };
-    const handleClick = (e) => { if (guideRef.current && !guideRef.current.contains(e.target)) setOpenGuide(false); };
+    const handleKey = (e) => {
+      if (e.ctrlKey && e.key === "s") {
+        e.preventDefault();
+        handleSave();
+      }
+    };
+    const handleClick = (e) => {
+      if (guideRef.current && !guideRef.current.contains(e.target))
+        setOpenGuide(false);
+    };
     window.addEventListener("keydown", handleKey);
     document.addEventListener("mousedown", handleClick);
-    return () => { window.removeEventListener("keydown", handleKey); document.removeEventListener("mousedown", handleClick); };
+    return () => {
+      window.removeEventListener("keydown", handleKey);
+      document.removeEventListener("mousedown", handleClick);
+    };
   }, [formData]);
 
-  
-    // load max length metadata once
-    useEffect(() => {
-      let mounted = true;
+  // load max length metadata once
+  useEffect(() => {
+    let mounted = true;
 
-      (async () => {
-        const res = await useFieldLenghtCheck("VAT_REF");
-        if (mounted) setTblFieldArray(res || []);
-      })();
+    (async () => {
+      const res = await useFieldLenghtCheck("VAT_REF");
+      if (mounted) setTblFieldArray(res || []);
+    })();
 
-      return () => { mounted = false; };
-    }, []);
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
-    const getMax = (col) => useGetFieldLength(tblFieldArray, col);
-
+  const getMax = (col) => useGetFieldLength(tblFieldArray, col);
 
   return (
     <div className="global-ref-main-div-ui">
-      {(isDropdownLoading || isListLoading || isSaving || isDeleting)  && (
+      {(isDropdownLoading || isListLoading || isSaving || isDeleting) && (
         <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-[2px] flex items-center justify-center">
           <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-4">
             <div className="relative">
               <div className="w-12 h-12 border-4 border-blue-100 dark:border-gray-700 rounded-full"></div>
               <div className="absolute top-0 left-0 w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
             </div>
-            <span className="text-sm font-semibold animate-pulse">{isSaving ? "Saving..." : isDeleting ? "Deleting..." : "Loading..."}</span>
+            <span className="text-sm font-semibold animate-pulse">
+              {isSaving
+                ? "Saving..."
+                : isDeleting
+                  ? "Deleting..."
+                  : "Loading..."}
+            </span>
           </div>
         </div>
       )}
@@ -386,7 +436,6 @@ const columns = useMemo(() => [
       {/* Header Section */}
       <div className="global-ref-header-ui">
         <div className="w-full flex flex-col gap-3 md:grid md:grid-cols-3 md:items-center md:gap-0">
-
           {/* 1) Title */}
           <div className="w-full md:w-auto md:justify-start flex">
             <h1 className="global-ref-headertext-ui w-full md:w-auto truncate text-center md:text-left">
@@ -400,7 +449,6 @@ const columns = useMemo(() => [
           {/* 3) Buttons + Info */}
           <div className="w-full md:w-auto flex md:justify-end">
             <div className="w-full md:w-auto flex items-center justify-center md:justify-end gap-2 flex-wrap">
-
               {/* ButtonBar: allow wrapping on mobile */}
               <div className="flex flex-wrap justify-center md:justify-end gap-2">
                 <ButtonBar
@@ -409,25 +457,33 @@ const columns = useMemo(() => [
                       key: "add",
                       label: <span className="hidden sm:inline ml-1">Add</span>,
                       icon: faPlus,
-                      onClick: () => { resetForm(); setIsEditing(true); },
+                      onClick: () => {
+                        resetForm();
+                        setIsEditing(true);
+                      },
                       className:
                         "flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
                     },
                     {
                       key: "save",
-                      label: <span className="hidden sm:inline ml-1">Save</span>,
+                      label: (
+                        <span className="hidden sm:inline ml-1">Save</span>
+                      ),
                       icon: faSave,
                       onClick: handleSave,
                       disabled: !isEditing || isSaving,
                       className: `flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md transition-all
-                        ${(!isEditing || isSaving)
-                          ? "bg-blue-500 opacity-50 cursor-not-allowed text-white"
-                          : "bg-blue-600 text-white hover:bg-blue-700"
+                        ${
+                          !isEditing || isSaving
+                            ? "bg-blue-500 opacity-50 cursor-not-allowed text-white"
+                            : "bg-blue-600 text-white hover:bg-blue-700"
                         }`,
                     },
                     {
                       key: "reset",
-                      label: <span className="hidden sm:inline ml-1">Reset</span>,
+                      label: (
+                        <span className="hidden sm:inline ml-1">Reset</span>
+                      ),
                       icon: faUndo,
                       onClick: resetForm,
                       className:
@@ -443,97 +499,110 @@ const columns = useMemo(() => [
                   onClick={() => setOpenGuide((v) => !v)}
                   className="bg-blue-600 text-white h-8 w-8 sm:w-auto sm:h-8 sm:px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
                 >
-                  <FontAwesomeIcon icon={faInfoCircle} className="text-[12px]" />
-                  <span className="hidden sm:inline ml-1 text-[11px] font-medium">Info</span>
-                  <FontAwesomeIcon icon={faChevronDown} className="hidden sm:inline text-[10px] opacity-80" />
+                  <FontAwesomeIcon
+                    icon={faInfoCircle}
+                    className="text-[12px]"
+                  />
+                  <span className="hidden sm:inline ml-1 text-[11px] font-medium">
+                    Info
+                  </span>
+                  <FontAwesomeIcon
+                    icon={faChevronDown}
+                    className="hidden sm:inline text-[10px] opacity-80"
+                  />
                 </button>
 
                 {isOpenGuide && (
                   <div className="absolute right-0 mt-2 w-52 rounded-md shadow-xl bg-white ring-1 ring-black/10 z-[60] dark:bg-gray-800 overflow-hidden">
                     <button
-                      onClick={() => { window.open(pdfLink, "_blank"); setOpenGuide(false); }}
+                      onClick={() => {
+                        window.open(pdfLink, "_blank");
+                        setOpenGuide(false);
+                      }}
                       className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900 border-b border-gray-100 dark:border-gray-700"
                     >
-                      <FontAwesomeIcon icon={faFilePdf} className="mr-2 text-red-500" /> PDF Guide
+                      <FontAwesomeIcon
+                        icon={faFilePdf}
+                        className="mr-2 text-red-500"
+                      />{" "}
+                      PDF Guide
                     </button>
                     <button
-                      onClick={() => { window.open(videoLink, "_blank"); setOpenGuide(false); }}
+                      onClick={() => {
+                        window.open(videoLink, "_blank");
+                        setOpenGuide(false);
+                      }}
                       className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900"
                     >
-                      <FontAwesomeIcon icon={faVideo} className="mr-2 text-blue-500" /> Video Guide
+                      <FontAwesomeIcon
+                        icon={faVideo}
+                        className="mr-2 text-blue-500"
+                      />{" "}
+                      Video Guide
                     </button>
                   </div>
                 )}
               </div>
-
             </div>
           </div>
-
         </div>
       </div>
 
-
       {/* Main Content */}
-        <div className="mt-24 flex flex-col lg:flex-row lg:items-stretch gap-2">
-            
-            {/* LEFT DIV: Main Form Fields (Takes 75% of width on large screens) */}
-           <div className="flex-1 bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-100 dark:border-gray-700 shadow-lg grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-          
-              {/* Sub-Column 1 (Internal Grid) */}
-              <div className="space-y-6">
-                  <FieldRenderer
-                    label="VAT Code"
-                    required
-                    type="text"
-                    value={formData.vatCode}
-                    disabled={!isEditing || (isEditing && selectedVatCode)}
-                    onChange={(v) => updateForm({ vatCode: v })}
-                    onBlur={(e) => handleCheckDuplicate(e.target.value)} 
-                    maxLength={getMax("VAT_CODE")}
-                  />
+      <div className="mt-24 flex flex-col lg:flex-row lg:items-stretch gap-2">
+        {/* LEFT DIV: Main Form Fields (Takes 75% of width on large screens) */}
+        <div className="flex-1 bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-100 dark:border-gray-700 shadow-lg grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+          {/* Sub-Column 1 (Internal Grid) */}
+          <div className="space-y-6">
+            <FieldRenderer
+              label="VAT Code"
+              required
+              type="text"
+              value={formData.vatCode}
+              disabled={!isEditing || (isEditing && selectedVatCode)}
+              onChange={(v) => updateForm({ vatCode: v })}
+              onBlur={(e) => handleCheckDuplicate(e.target.value)}
+              maxLength={getMax("VAT_CODE")}
+            />
 
-                <FieldRenderer
-                  label="VAT Name"
-                  required
-                  type="text"
-                  value={formData.vatName}
-                  disabled={!isEditing}
-                  onChange={(v) => updateForm({ vatName: v })}
-                  maxLength={getMax("VAT_NAME")}
-                />
+            <FieldRenderer
+              label="VAT Name"
+              required
+              type="text"
+              value={formData.vatName}
+              disabled={!isEditing}
+              onChange={(v) => updateForm({ vatName: v })}
+              maxLength={getMax("VAT_NAME")}
+            />
 
-                  <FieldRenderer
-                    label="VAT Type"
-                    required
-                    type="select"
-                    value={formData.vatType}
-                    disabled={!isEditing}
-                    options={dropdowns?.typ?.map((d) => ({
-                      value: d.DROPDOWN_CODE,
-                      label: d.DROPDOWN_NAME,
-                    }))}
-                    onChange={(v) => updateForm({ vatType: v })}
-                  />
-                  <FieldRenderer
-                    label="VAT Classification"
-                    required
-                    type="select"
-                    value={formData.vatClass}
-                    disabled={!isEditing}
-                    options={dropdowns?.cls?.map((d) => ({
-                      value: d.DROPDOWN_CODE,
-                      label: d.DROPDOWN_NAME,
-                    }))}
-                    onChange={(v) => updateForm({ vatClass: v })}
-                  />
-              </div>
+            <FieldRenderer
+              label="VAT Type"
+              required
+              type="select"
+              value={formData.vatType}
+              disabled={!isEditing}
+              options={dropdowns?.typ?.map((d) => ({
+                value: d.DROPDOWN_CODE,
+                label: d.DROPDOWN_NAME,
+              }))}
+              onChange={(v) => updateForm({ vatType: v })}
+            />
+            <FieldRenderer
+              label="VAT Classification"
+              required
+              type="select"
+              value={formData.vatClass}
+              disabled={!isEditing}
+              options={dropdowns?.cls?.map((d) => ({
+                value: d.DROPDOWN_CODE,
+                label: d.DROPDOWN_NAME,
+              }))}
+              onChange={(v) => updateForm({ vatClass: v })}
+            />
+          </div>
 
-
-
-
-              {/* Sub-Column 2 (Internal Grid) */}
-              <div className="space-y-6">
-                
+          {/* Sub-Column 2 (Internal Grid) */}
+          <div className="space-y-6">
             <FieldRenderer
               label="VAT Rate (%)"
               type="number"
@@ -543,7 +612,7 @@ const columns = useMemo(() => [
               step="0.01"
               onChange={(v) => {
                 // 1. Allow the user to type freely by updating state with the raw input
-                updateForm({ vatRate: v }); 
+                updateForm({ vatRate: v });
               }}
               onBlur={(e) => {
                 // 2. Format to 2 decimal places ONLY when the user clicks away
@@ -552,61 +621,66 @@ const columns = useMemo(() => [
               }}
             />
 
-                  <FieldRenderer
-                    label="VAT Category"
-                    required
-                    type="select"
-                    value={formData.vatCategory}
-                    disabled={!isEditing}
-                    options={dropdowns?.cat?.map((d) => ({
-                      value: d.DROPDOWN_CODE,
-                      label: d.DROPDOWN_NAME,
-                    }))}
-                    onChange={(v) => updateForm({ vatCategory: v })}
-                  />
-                    
-                    <FieldRenderer 
-                      label="Account Code" 
-                      type="lookup" 
-                      value={formData.acctCode ? `(${formData.acctCode}) - ${formData.acctName}` : ""} 
-                      onLookup={() => { setvatAcct("acctCode"); toggleModal("coa", true); }}
-                      disabled={!isEditing}
-                      required
-                      readOnly
-                     />
+            <FieldRenderer
+              label="VAT Category"
+              required
+              type="select"
+              value={formData.vatCategory}
+              disabled={!isEditing}
+              options={dropdowns?.cat?.map((d) => ({
+                value: d.DROPDOWN_CODE,
+                label: d.DROPDOWN_NAME,
+              }))}
+              onChange={(v) => updateForm({ vatCategory: v })}
+            />
 
-                </div>
-              </div>
-            
-            {/* RIGHT: Registration Info */}
-            <div className="w-full lg:w-[320px]">
-              <RegistrationInfo layout="stacked" data={registrationInfo} />
-            </div>
-
-          </div>
-
-          {/* Table Section */}
-          <div className="global-tran-table-main-div-ui mt-4">
-            <SearchGlobalReferenceTable
-              docType={docType}
-              columns={columns}
-              data={accounts}
-              isLoading={isListLoading}
-              onRowDoubleClick={handleEdit}
-              itemsPerPage={50}
+            <FieldRenderer
+              label="Account Code"
+              type="lookup"
+              value={
+                formData.acctCode
+                  ? `(${formData.acctCode}) - ${formData.acctName}`
+                  : ""
+              }
+              onLookup={() => {
+                setvatAcct("acctCode");
+                toggleModal("coa", true);
+              }}
+              disabled={!isEditing}
+              required
+              readOnly
             />
           </div>
+        </div>
 
+        {/* RIGHT: Registration Info */}
+        <div className="w-full lg:w-[320px]">
+          <RegistrationInfo layout="stacked" data={registrationInfo} />
+        </div>
+      </div>
 
-          <SearchCOAMast 
-            isOpen={modals.coa} 
-            onClose={(v) => { toggleModal("coa", false); if(v && vatAcct) 
-                updateForm({ acctCode: v.acctCode , acctName: v.acctName }) }} 
-            customParam= "VATAcct"
-          />
+      {/* Table Section */}
+      <div className="global-tran-table-main-div-ui mt-4">
+        <SearchGlobalReferenceTable
+          docType={docType}
+          columns={columns}
+          data={accounts}
+          isLoading={isListLoading}
+          onRowDoubleClick={handleEdit}
+          itemsPerPage={50}
+        />
+      </div>
 
-
-          </div>
+      <SearchCOAMast
+        isOpen={modals.coa}
+        onClose={(v) => {
+          toggleModal("coa", false);
+          if (v && vatAcct)
+            updateForm({ acctCode: v.acctCode, acctName: v.acctName });
+        }}
+        customParam="VATAcct"
+      />
+    </div>
   );
 };
 

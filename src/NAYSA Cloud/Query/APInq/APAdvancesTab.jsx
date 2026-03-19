@@ -22,7 +22,7 @@ import PayeeMastLookupModal from "@/NAYSA Cloud/Lookup/SearchVendMast";
 import { useTopUserRow, useTopBranchRow } from "@/NAYSA Cloud/Global/top1RefTable";
 import { useGetCurrentDay } from "@/NAYSA Cloud/Global/dates";
 import { useSelectedHSColConfig } from "@/NAYSA Cloud/Global/selectedData";
-import { formatNumber, parseFormattedNumber } from "@/NAYSA Cloud/Global/behavior";
+import { formatNumber, parseFormattedNumber } from "@/NAYSA Cloud/Global/behavior.jsx";
 import SearchGlobalReportTable from "@/NAYSA Cloud/Lookup/SearchGlobalReportTable.jsx";
 
 /** Different endpoints */

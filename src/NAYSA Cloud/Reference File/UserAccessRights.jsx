@@ -20,7 +20,7 @@ import {
 // Import SweetAlert utilities from behavior.js
 import {
   useSwalInfoAlert,
-} from "@/NAYSA Cloud/Global/behavior";
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 
 // Exports
 import * as XLSX from "xlsx";

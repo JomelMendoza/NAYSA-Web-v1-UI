@@ -1,16 +1,15 @@
-
-
 // import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
-// import { 
-//   BrowserRouter as Router, 
-//   Routes, 
-//   Route, 
-//   Navigate, 
-//   useNavigate, 
-//   useParams, 
-//   useLocation 
+// import {
+//   BrowserRouter as Router,
+//   Routes,
+//   Route,
+//   Navigate,
+//   useNavigate,
+//   useParams,
+//   useLocation,
 // } from "react-router-dom";
 // import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+// import { AnimatePresence, motion } from "motion/react";
 // import { pageRegistry } from "./pageRegistry.jsx";
 // import ErrorBoundary from "./NAYSA Cloud/Components/ErrorBoundary";
 // import { fetchData, getTenant } from "./NAYSA Cloud/Configuration/BaseURL.jsx";
@@ -20,7 +19,7 @@
 // import Login from "./NAYSA Cloud/Authentication/Login.jsx";
 // import Register from "./NAYSA Cloud/Authentication/Register.jsx";
 // import Dashboard1 from "./NAYSA Cloud/Components/Dashboard1.jsx";
-// import ChangePassword from "./NAYSA Cloud/Authentication/ChangePassword.jsx"; 
+// import ChangePassword from "./NAYSA Cloud/Authentication/ChangePassword.jsx";
 // import AuthProvider, { useAuth } from "./NAYSA Cloud/Authentication/AuthContext.jsx";
 // import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
@@ -35,7 +34,7 @@
 
 //   const matchingComponentKey = useMemo(() => {
 //     if (paramKey && pageRegistry[paramKey]) return paramKey;
-    
+
 //     const currentPath = location.pathname.replace(/\/$/, "") || "/";
 //     const dbMatch = routeRows.find((r) => {
 //       if (!r.path) return false;
@@ -51,15 +50,15 @@
 //     return (
 //       <div className="flex flex-col items-center justify-center min-h-[60vh]">
 //         <LoadingSpinner />
-//         <p className="mt-4 text-gray-400 animate-pulse font-medium">Validating Access...</p>
+//         <p className="mt-4 text-gray-400 animate-pulse font-medium">
+//           Validating Access...
+//         </p>
 //       </div>
 //     );
 //   }
 
-//   const isAuthorized = routeRows.some(r => r.componentKey === matchingComponentKey);
+//   const isAuthorized = routeRows.some((r) => r.componentKey === matchingComponentKey);
 
-//   // If the path isn't in the database routes, this logic redirects to "/"
-//   // This is why we must define /change-password OUTSIDE of this logic.
 //   if (!Component || (!isAuthorized && !isViewMode)) {
 //     return <Navigate to="/" replace />;
 //   }
@@ -75,12 +74,19 @@
 // const ModalHost = ({ modalKey, onClose }) => {
 //   const { user } = useAuth();
 //   if (!modalKey) return null;
+
 //   const Cmp = pageRegistry[modalKey];
 //   if (!Cmp) return null;
 
 //   return (
-//     <div className="fixed inset-0 z-[999] bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
-//       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
+//     <div
+//       className="fixed inset-0 z-[999] bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm"
+//       onClick={onClose}
+//     >
+//       <div
+//         className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-auto"
+//         onClick={(e) => e.stopPropagation()}
+//       >
 //         <Cmp isOpen={true} onClose={onClose} userCode={user?.USER_CODE} />
 //       </div>
 //     </div>
@@ -93,12 +99,20 @@
 //   const navigate = useNavigate();
 //   const location = useLocation();
 
-//   const [menuItems, setMenuItems] = useState(() => JSON.parse(sessionStorage.getItem("menuItems")) || []);
-//   const [routeRows, setRouteRows] = useState(() => JSON.parse(sessionStorage.getItem("routeRows")) || []);
+//   const [menuItems, setMenuItems] = useState(
+//     () => JSON.parse(sessionStorage.getItem("menuItems")) || []
+//   );
+//   const [routeRows, setRouteRows] = useState(
+//     () => JSON.parse(sessionStorage.getItem("routeRows")) || []
+//   );
 //   const [loadingMenu, setLoadingMenu] = useState(false);
 //   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
 //   const [activeModalKey, setActiveModalKey] = useState(null);
-//   const menuFetchedRef = useRef(null); 
+//   const menuFetchedRef = useRef(null);
+
+//   // for slide direction
+//   const [navDirection, setNavDirection] = useState(1);
+//   const pathnameHistoryRef = useRef([location.pathname]);
 
 //   const resetAppData = useCallback(() => {
 //     setMenuItems([]);
@@ -111,25 +125,32 @@
 //     sessionStorage.removeItem("routeRows");
 //   }, []);
 
-//   const handleLogout = useCallback(async () => {
-//     resetAppData();
-//     await logout();
-//     window.location.href = "/"; 
-//   }, [logout, resetAppData]);
+//  const handleLogout = useCallback(async () => {
+//   resetAppData();
+//   await logout();
+//   navigate("/", { replace: true });
+// }, [logout, resetAppData, navigate]);
 
 //   useEffect(() => {
 //     let alive = true;
 //     const tenant = getTenant();
-//     if (!user) { resetAppData(); return; }
+
+//     if (!user) {
+//       resetAppData();
+//       return;
+//     }
+
 //     if (loading || !tenant || menuFetchedRef.current === user.USER_CODE) return;
 
 //     (async () => {
 //       try {
 //         if (routeRows.length === 0) setLoadingMenu(true);
+
 //         const [menuResp, routesResp] = await Promise.all([
 //           fetchData("menu-items", { USER_CODE: user.USER_CODE }),
 //           fetchData("menu-routes", { USER_CODE: user.USER_CODE }),
 //         ]);
+
 //         if (!alive) return;
 
 //         const mData = menuResp?.menuItems ?? menuResp?.data ?? [];
@@ -139,71 +160,154 @@
 //         setRouteRows(rData);
 //         sessionStorage.setItem("menuItems", JSON.stringify(mData));
 //         sessionStorage.setItem("routeRows", JSON.stringify(rData));
-//         menuFetchedRef.current = user.USER_CODE; 
+//         menuFetchedRef.current = user.USER_CODE;
 //       } catch (e) {
 //         console.error("Metadata Fetch Error:", e);
 //       } finally {
 //         if (alive) setLoadingMenu(false);
 //       }
 //     })();
-//     return () => { alive = false; };
+
+//     return () => {
+//       alive = false;
+//     };
 //   }, [user, loading, resetAppData, routeRows.length]);
 
 //   useEffect(() => {
 //     document.body.style.overflow = activeModalKey ? "hidden" : "auto";
-//     return () => { document.body.style.overflow = "auto"; };
+//     return () => {
+//       document.body.style.overflow = "auto";
+//     };
 //   }, [activeModalKey]);
 
-//   if (loading) return <div className="fixed inset-0 flex items-center justify-center bg-white z-[9999]"><LoadingSpinner /></div>;
+//   // detect forward/back-like direction
+//   useEffect(() => {
+//     const history = pathnameHistoryRef.current;
+//     const currentPath = location.pathname;
+//     const existingIndex = history.indexOf(currentPath);
+//     const lastPath = history[history.length - 1];
+
+//     if (currentPath === lastPath) return;
+
+//     if (existingIndex !== -1) {
+//       setNavDirection(-1);
+//       pathnameHistoryRef.current = history.slice(0, existingIndex + 1);
+//     } else {
+//       setNavDirection(1);
+//       pathnameHistoryRef.current = [...history, currentPath];
+//     }
+//   }, [location.pathname]);
+
+//   const pageVariants = {
+//     initial: (direction) => ({
+//       x: direction > 0 ? 50 : -50,
+//       opacity: 1,
+//     }),
+//     animate: {
+//       x: 0,
+//       opacity: 1,
+//       transition: {
+//         duration: 0.26,
+//         ease: [0.22, 1, 0.36, 1],
+//       },
+//     },
+//     exit: (direction) => ({
+//       x: direction > 0 ? -50 : 50,
+//       opacity: 1,
+//       transition: {
+//         duration: 0.2,
+//         ease: [0.4, 0, 0.2, 1],
+//       },
+//     }),
+//   };
+
+//   if (loading) {
+//     return (
+//       <div className="fixed inset-0 flex items-center justify-center bg-white z-[9999]">
+//         <LoadingSpinner />
+//       </div>
+//     );
+//   }
 
 //   /* --- 1. UNAUTHENTICATED ROUTES --- */
 //   if (!user) {
 //     return (
 //       <Routes>
 //         <Route path="/register" element={<Register />} />
-//         {/* Explicitly defined here so clicking the link doesn't default to Login */}
 //         <Route path="/change-password" element={<ChangePassword />} />
-//         <Route path="*" element={<Login onSwitchToRegister={() => navigate("/register")} />} />
+//         <Route
+//           path="*"
+//           element={<Login onSwitchToRegister={() => navigate("/register")} />}
+//         />
 //       </Routes>
 //     );
 //   }
 
 //   /* --- 2. AUTHENTICATED ROUTES --- */
 //   return (
-//     <div className="relative min-h-screen flex flex-col bg-gray-50 dark:bg-black font-roboto">
+//     <div className="relative min-h-screen flex flex-col bg-gray-50 dark:bg-black font-roboto overflow-hidden">
 //       <div className="sticky top-0 z-40">
-//         <Navbar onMenuClick={() => setIsSidebarVisible(!isSidebarVisible)} onLogout={handleLogout} />
+//         <Navbar
+//           onMenuClick={() => setIsSidebarVisible(!isSidebarVisible)}
+//           onLogout={handleLogout}
+//         />
 //       </div>
-      
+
 //       {isSidebarVisible && (
 //         <div className="fixed inset-0 z-50 flex">
-//           <Sidebar 
-//             menuItems={menuItems} 
-//             onNavigate={() => setIsSidebarVisible(false)} 
-//             onOpenModal={(key) => { setIsSidebarVisible(false); setActiveModalKey(key); }}
+//           <Sidebar
+//             menuItems={menuItems}
+//             onNavigate={() => setIsSidebarVisible(false)}
+//             onOpenModal={(key) => {
+//               setIsSidebarVisible(false);
+//               setActiveModalKey(key);
+//             }}
 //           />
-//           <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={() => setIsSidebarVisible(false)} />
+//           <div
+//             className="flex-1 bg-black/40 backdrop-blur-sm"
+//             onClick={() => setIsSidebarVisible(false)}
+//           />
 //         </div>
 //       )}
 
-//       <div className="flex-1 p-4 overflow-y-auto">
-//         <Routes>
-//           <Route path="/" element={<Dashboard1 user={user} />} />
-          
-//           {/* CRITICAL FIX: Defined here ABOVE the '*' catch-all. 
-//               This bypasses UniversalRegistryRoute for this specific page. */}
-//           <Route path="/change-password" element={<ChangePassword />} />
+//       <div className="flex-1 p-4 overflow-hidden">
+//         <AnimatePresence mode="wait" initial={false} custom={navDirection}>
+//           <motion.div
+//             key={location.pathname}
+//             custom={navDirection}
+//             variants={pageVariants}
+//             initial="initial"
+//             animate="animate"
+//             exit="exit"
+//             className="h-full overflow-y-auto"
+//           >
+//             <Routes location={location}>
+//               <Route path="/" element={<Dashboard1 user={user} />} />
 
-//           <Route 
-//             path="/page/:componentKey" 
-//             element={<UniversalRegistryRoute routeRows={routeRows} loadingMenu={loadingMenu} />} 
-//           />
+//               <Route path="/change-password" element={<ChangePassword />} />
 
-//           <Route 
-//             path="*" 
-//             element={<UniversalRegistryRoute routeRows={routeRows} loadingMenu={loadingMenu} />} 
-//           />
-//         </Routes>
+//               <Route
+//                 path="/page/:componentKey"
+//                 element={
+//                   <UniversalRegistryRoute
+//                     routeRows={routeRows}
+//                     loadingMenu={loadingMenu}
+//                   />
+//                 }
+//               />
+
+//               <Route
+//                 path="*"
+//                 element={
+//                   <UniversalRegistryRoute
+//                     routeRows={routeRows}
+//                     loadingMenu={loadingMenu}
+//                   />
+//                 }
+//               />
+//             </Routes>
+//           </motion.div>
+//         </AnimatePresence>
 //       </div>
 
 //       <ModalHost modalKey={activeModalKey} onClose={() => setActiveModalKey(null)} />
@@ -224,25 +328,23 @@
 //   </Router>
 // );
 
+
 // export default App;
 
 
 
-
-
-
-
 import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
-import { 
-  BrowserRouter as Router, 
-  Routes, 
-  Route, 
-  Navigate, 
-  useNavigate, 
-  useParams, 
-  useLocation 
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useNavigate,
+  useParams,
+  useLocation,
 } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "motion/react";
 import { pageRegistry } from "./pageRegistry.jsx";
 import ErrorBoundary from "./NAYSA Cloud/Components/ErrorBoundary";
 import { fetchData, getTenant } from "./NAYSA Cloud/Configuration/BaseURL.jsx";
@@ -252,7 +354,7 @@ import { ResetProvider } from "./NAYSA Cloud/Components/ResetContext";
 import Login from "./NAYSA Cloud/Authentication/Login.jsx";
 import Register from "./NAYSA Cloud/Authentication/Register.jsx";
 import Dashboard1 from "./NAYSA Cloud/Components/Dashboard1.jsx";
-import ChangePassword from "./NAYSA Cloud/Authentication/ChangePassword.jsx"; 
+import ChangePassword from "./NAYSA Cloud/Authentication/ChangePassword.jsx";
 import AuthProvider, { useAuth } from "./NAYSA Cloud/Authentication/AuthContext.jsx";
 import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
@@ -267,7 +369,7 @@ const UniversalRegistryRoute = ({ routeRows, loadingMenu }) => {
 
   const matchingComponentKey = useMemo(() => {
     if (paramKey && pageRegistry[paramKey]) return paramKey;
-    
+
     const currentPath = location.pathname.replace(/\/$/, "") || "/";
     const dbMatch = routeRows.find((r) => {
       if (!r.path) return false;
@@ -283,15 +385,15 @@ const UniversalRegistryRoute = ({ routeRows, loadingMenu }) => {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <LoadingSpinner />
-        <p className="mt-4 text-gray-400 animate-pulse font-medium">Validating Access...</p>
+        <p className="mt-4 text-gray-400 animate-pulse font-medium">
+          Validating Access...
+        </p>
       </div>
     );
   }
 
-  const isAuthorized = routeRows.some(r => r.componentKey === matchingComponentKey);
+  const isAuthorized = routeRows.some((r) => r.componentKey === matchingComponentKey);
 
-  // If the path isn't in the database routes, this logic redirects to "/"
-  // This is why we must define /change-password OUTSIDE of this logic.
   if (!Component || (!isAuthorized && !isViewMode)) {
     return <Navigate to="/" replace />;
   }
@@ -307,12 +409,19 @@ const UniversalRegistryRoute = ({ routeRows, loadingMenu }) => {
 const ModalHost = ({ modalKey, onClose }) => {
   const { user } = useAuth();
   if (!modalKey) return null;
+
   const Cmp = pageRegistry[modalKey];
   if (!Cmp) return null;
 
   return (
-    <div className="fixed inset-0 z-[999] bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-[999] bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         <Cmp isOpen={true} onClose={onClose} userCode={user?.USER_CODE} />
       </div>
     </div>
@@ -325,12 +434,24 @@ const AppContent = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [menuItems, setMenuItems] = useState(() => JSON.parse(sessionStorage.getItem("menuItems")) || []);
-  const [routeRows, setRouteRows] = useState(() => JSON.parse(sessionStorage.getItem("routeRows")) || []);
+  const [menuItems, setMenuItems] = useState(
+    () => JSON.parse(sessionStorage.getItem("menuItems")) || []
+  );
+  const [routeRows, setRouteRows] = useState(
+    () => JSON.parse(sessionStorage.getItem("routeRows")) || []
+  );
   const [loadingMenu, setLoadingMenu] = useState(false);
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const [activeModalKey, setActiveModalKey] = useState(null);
-  const menuFetchedRef = useRef(null); 
+
+  // ✅ new
+  const [pendingModalKey, setPendingModalKey] = useState(null);
+
+  const menuFetchedRef = useRef(null);
+
+  // for slide direction
+  const [navDirection, setNavDirection] = useState(1);
+  const pathnameHistoryRef = useRef([location.pathname]);
 
   const resetAppData = useCallback(() => {
     setMenuItems([]);
@@ -338,6 +459,7 @@ const AppContent = () => {
     setLoadingMenu(false);
     setIsSidebarVisible(false);
     setActiveModalKey(null);
+    setPendingModalKey(null); // ✅ new
     menuFetchedRef.current = null;
     sessionStorage.removeItem("menuItems");
     sessionStorage.removeItem("routeRows");
@@ -346,22 +468,29 @@ const AppContent = () => {
   const handleLogout = useCallback(async () => {
     resetAppData();
     await logout();
-    window.location.href = "/"; 
-  }, [logout, resetAppData]);
+    navigate("/", { replace: true });
+  }, [logout, resetAppData, navigate]);
 
   useEffect(() => {
     let alive = true;
     const tenant = getTenant();
-    if (!user) { resetAppData(); return; }
+
+    if (!user) {
+      resetAppData();
+      return;
+    }
+
     if (loading || !tenant || menuFetchedRef.current === user.USER_CODE) return;
 
     (async () => {
       try {
         if (routeRows.length === 0) setLoadingMenu(true);
+
         const [menuResp, routesResp] = await Promise.all([
           fetchData("menu-items", { USER_CODE: user.USER_CODE }),
           fetchData("menu-routes", { USER_CODE: user.USER_CODE }),
         ]);
+
         if (!alive) return;
 
         const mData = menuResp?.menuItems ?? menuResp?.data ?? [];
@@ -371,74 +500,180 @@ const AppContent = () => {
         setRouteRows(rData);
         sessionStorage.setItem("menuItems", JSON.stringify(mData));
         sessionStorage.setItem("routeRows", JSON.stringify(rData));
-        menuFetchedRef.current = user.USER_CODE; 
+        menuFetchedRef.current = user.USER_CODE;
       } catch (e) {
         console.error("Metadata Fetch Error:", e);
       } finally {
         if (alive) setLoadingMenu(false);
       }
     })();
-    return () => { alive = false; };
+
+    return () => {
+      alive = false;
+    };
   }, [user, loading, resetAppData, routeRows.length]);
 
   useEffect(() => {
     document.body.style.overflow = activeModalKey ? "hidden" : "auto";
-    return () => { document.body.style.overflow = "auto"; };
+    return () => {
+      document.body.style.overflow = "auto";
+    };
   }, [activeModalKey]);
 
-  if (loading) return <div className="fixed inset-0 flex items-center justify-center bg-white z-[9999]"><LoadingSpinner /></div>;
+  // ✅ open modal only after route becomes "/"
+  useEffect(() => {
+    if (pendingModalKey && location.pathname === "/") {
+      const id = requestAnimationFrame(() => {
+        setActiveModalKey(pendingModalKey);
+        setPendingModalKey(null);
+      });
 
-  /* --- 1. UNAUTHENTICATED ROUTES --- */
+      return () => cancelAnimationFrame(id);
+    }
+  }, [pendingModalKey, location.pathname]);
+
+  // detect forward/back-like direction
+  useEffect(() => {
+    const history = pathnameHistoryRef.current;
+    const currentPath = location.pathname;
+    const existingIndex = history.indexOf(currentPath);
+    const lastPath = history[history.length - 1];
+
+    if (currentPath === lastPath) return;
+
+    if (existingIndex !== -1) {
+      setNavDirection(-1);
+      pathnameHistoryRef.current = history.slice(0, existingIndex + 1);
+    } else {
+      setNavDirection(1);
+      pathnameHistoryRef.current = [...history, currentPath];
+    }
+  }, [location.pathname]);
+
+  const pageVariants = {
+    initial: (direction) => ({
+      x: direction > 0 ? 50 : -50,
+      opacity: 1,
+    }),
+    animate: {
+      x: 0,
+      opacity: 1,
+      transition: {
+        duration: 0.26,
+        ease: [0.22, 1, 0.36, 1],
+      },
+    },
+    exit: (direction) => ({
+      x: direction > 0 ? -50 : 50,
+      opacity: 1,
+      transition: {
+        duration: 0.2,
+        ease: [0.4, 0, 0.2, 1],
+      },
+    }),
+  };
+
+  // ✅ reusable handler for modal menu click
+  const handleOpenModalFromMenu = useCallback(
+    (key) => {
+      setIsSidebarVisible(false);
+      setActiveModalKey(null);
+
+      if (location.pathname !== "/") {
+        setPendingModalKey(key);
+        navigate("/", { replace: false });
+      } else {
+        setActiveModalKey(key);
+      }
+    },
+    [location.pathname, navigate]
+  );
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-white z-[9999]">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
   if (!user) {
     return (
       <Routes>
         <Route path="/register" element={<Register />} />
-        {/* Explicitly defined here so clicking the link doesn't default to Login */}
         <Route path="/change-password" element={<ChangePassword />} />
-        <Route path="*" element={<Login onSwitchToRegister={() => navigate("/register")} />} />
+        <Route
+          path="*"
+          element={<Login onSwitchToRegister={() => navigate("/register")} />}
+        />
       </Routes>
     );
   }
 
-  /* --- 2. AUTHENTICATED ROUTES --- */
   return (
-    <div className="relative min-h-screen flex flex-col bg-gray-50 dark:bg-black font-roboto">
+    <div className="relative min-h-screen flex flex-col bg-gray-50 dark:bg-black font-roboto overflow-hidden">
       <div className="sticky top-0 z-40">
-        <Navbar onMenuClick={() => setIsSidebarVisible(!isSidebarVisible)} onLogout={handleLogout} />
+        <Navbar
+          onMenuClick={() => setIsSidebarVisible(!isSidebarVisible)}
+          onLogout={handleLogout}
+        />
       </div>
-      
+
       {isSidebarVisible && (
         <div className="fixed inset-0 z-50 flex">
-          <Sidebar 
-            menuItems={menuItems} 
-            onNavigate={() => setIsSidebarVisible(false)} 
-            onOpenModal={(key) => { setIsSidebarVisible(false); setActiveModalKey(key); }}
+          <Sidebar
+            menuItems={menuItems}
+            onNavigate={() => setIsSidebarVisible(false)}
+            onOpenModal={handleOpenModalFromMenu}
           />
-          <div className="flex-1 bg-black/40 backdrop-blur-sm" onClick={() => setIsSidebarVisible(false)} />
+          <div
+            className="flex-1 bg-black/40 backdrop-blur-sm"
+            onClick={() => setIsSidebarVisible(false)}
+          />
         </div>
       )}
 
-      <div className="flex-1 p-4 overflow-y-auto">
-        <Routes>
-          <Route path="/" element={<Dashboard1 user={user} />} />
-          
-          {/* CRITICAL FIX: Defined here ABOVE the '*' catch-all. 
-              This bypasses UniversalRegistryRoute for this specific page. */}
-          <Route path="/change-password" element={<ChangePassword />} />
-
-          <Route 
-            path="/page/:componentKey" 
-            element={<UniversalRegistryRoute routeRows={routeRows} loadingMenu={loadingMenu} />} 
-          />
-
-          <Route 
-            path="*" 
-            element={<UniversalRegistryRoute routeRows={routeRows} loadingMenu={loadingMenu} />} 
-          />
-        </Routes>
+      <div className="flex-1 p-4 overflow-hidden">
+        <AnimatePresence mode="wait" initial={false} custom={navDirection}>
+          <motion.div
+            key={location.pathname}
+            custom={navDirection}
+            variants={pageVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="h-full overflow-y-auto"
+          >
+            <Routes location={location}>
+              <Route path="/" element={<Dashboard1 user={user} />} />
+              <Route path="/change-password" element={<ChangePassword />} />
+              <Route
+                path="/page/:componentKey"
+                element={
+                  <UniversalRegistryRoute
+                    routeRows={routeRows}
+                    loadingMenu={loadingMenu}
+                  />
+                }
+              />
+              <Route
+                path="*"
+                element={
+                  <UniversalRegistryRoute
+                    routeRows={routeRows}
+                    loadingMenu={loadingMenu}
+                  />
+                }
+              />
+            </Routes>
+          </motion.div>
+        </AnimatePresence>
       </div>
 
-      <ModalHost modalKey={activeModalKey} onClose={() => setActiveModalKey(null)} />
+      <ModalHost
+        modalKey={activeModalKey}
+        onClose={() => setActiveModalKey(null)}
+      />
     </div>
   );
 };
@@ -456,7 +691,562 @@ const App = () => (
   </Router>
 );
 
+
 export default App;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

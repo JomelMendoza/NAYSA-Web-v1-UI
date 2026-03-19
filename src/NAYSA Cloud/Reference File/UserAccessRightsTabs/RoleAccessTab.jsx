@@ -10,7 +10,7 @@ import {
   useSwalSuccessAlert,
   useSwalErrorAlert,
   useSwalInfoAlert,
-} from "@/NAYSA Cloud/Global/behavior";
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 
 
 const RoleAccessTab = forwardRef(({ roles }, ref) => {

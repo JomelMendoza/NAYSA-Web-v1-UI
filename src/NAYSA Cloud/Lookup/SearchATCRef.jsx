@@ -42,13 +42,13 @@ const ATCLookupModal = ({ isOpen, onClose, customParam }) => {
     const fetchATC = async () => {
       setLoading(true);
       try {
-        const { data: result } = await apiClient.post("/lookupATC", {
-          params: {
-            PARAMS: JSON.stringify({ search: paramToSend }),
-            page: 1,
-            itemsPerPage: 1000, // fetch more and filter client-side like COA
-          },
-        });
+        const { data: result } = await apiClient.get("/lookupATC", {
+            params: {
+              search: paramToSend, // Flattened: no longer inside a JSON.stringify block
+              page: 1,
+              itemsPerPage: 1000,
+            },
+          });
 
         const atcData =
           Array.isArray(result?.data) && result.data[0]?.result

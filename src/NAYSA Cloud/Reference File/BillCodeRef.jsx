@@ -1,16 +1,16 @@
 // src/NAYSA Cloud/Reference File/BillCodeRef.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Save, Undo2, Edit, Trash2, Loader2, Info } from "lucide-react";
-
-import Swal from "sweetalert2";
+import { Plus, Save, Undo2, Edit, Trash2, Info } from "lucide-react";
 
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 import {
   useSwalErrorAlert,
   useSwalSuccessAlert,
-} from "@/NAYSA Cloud/Global/behavior";
+  useSwalInfoAlert
+} from "@/NAYSA Cloud/Global/behavior.jsx";
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
 import SearchGlobalReferenceTable from "@/NAYSA Cloud/Lookup/SearchGlobalReferenceTable";
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
@@ -74,21 +74,21 @@ const DEFAULT_FORM = {
 };
 
 const toYN = (v, def = "N") => {
-  const x = String(v ?? "")
-    .trim()
-    .toUpperCase();
+  const x = String(v ?? "").trim().toUpperCase();
   if (x === "Y" || x === "YES" || x === "TRUE" || x === "1") return "Y";
   if (x === "N" || x === "NO" || x === "FALSE" || x === "0") return "N";
   return def;
 };
-
-const req = (v) => String(v || "").trim().length > 0;
 
 /* ================= COMPONENT ================= */
 
 const BillCodeRef = React.forwardRef((props, ref) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+
+  const { showError } = useSwalErrorAlert();
+  const { showSuccess } = useSwalSuccessAlert();
+  const { showInfo } = useSwalInfoAlert();
 
   const docType = "BillCode";
   const documentTitle = reftables?.[docType];
@@ -120,6 +120,18 @@ const BillCodeRef = React.forwardRef((props, ref) => {
 
   /* ================= DUPLICATE & USAGE CHECKS ================= */
 
+  const parseResultFlag = (res) => {
+    const row0 = res?.data?.data?.[0] || {};
+    const raw = row0?.result ?? row0?.[""] ?? '{"result":"0"}';
+
+    try {
+      const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+      return String(parsed?.result) === "1";
+    } catch {
+      return false;
+    }
+  };
+
   const checkDuplicate = async (billCode) => {
     const c = String(billCode || "").trim();
     if (!c) return false;
@@ -128,22 +140,18 @@ const BillCodeRef = React.forwardRef((props, ref) => {
       json_data: { billCode: c },
     });
 
-    const row0 = res?.data?.data?.[0] || {};
-    const raw = row0?.result ?? row0?.[""] ?? '{"result":"0"}';
-    const parsed = JSON.parse(raw);
-    return String(parsed?.result) === "1";
+    return parseResultFlag(res);
   };
 
   const checkInUsed = async (billCode) => {
     const c = String(billCode || "").trim();
+    if (!c) return false;
+
     const res = await apiClient.post("/checkInUsedbillCode", {
       json_data: { billCode: c },
     });
 
-    const row0 = res?.data?.data?.[0] || {};
-    const raw = row0?.result ?? row0?.[""] ?? '{"result":"0"}';
-    const parsed = JSON.parse(raw);
-    return String(parsed?.result) === "1";
+    return parseResultFlag(res);
   };
 
   const startNew = () => {
@@ -171,7 +179,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
 
   const billCodes = useMemo(
     () => billCodeListQuery.data || [],
-    [billCodeListQuery.data],
+    [billCodeListQuery.data]
   );
 
   const isInitialLoading = billCodeListQuery.isLoading;
@@ -182,26 +190,26 @@ const BillCodeRef = React.forwardRef((props, ref) => {
         json_data: payload,
       });
     },
-    onSuccess: (response) => {
+    onSuccess: async (response) => {
       const row0 = response?.data?.data?.[0] || {};
       const errorcount = Number(row0.errorcount ?? row0.ERRORCOUNT ?? 0);
       const errormsg = String(row0.errormsg ?? row0.ERRORMSG ?? "");
 
       if (errorcount > 0) {
-        useSwalErrorAlert("Error", errormsg);
+        showError("Error", errormsg || "Failed to save Bill Code.");
         return;
       }
 
-      queryClient.invalidateQueries({ queryKey: ["billCodeList"] });
-      useSwalSuccessAlert("Success!", "Bill code saved successfully.");
+      await queryClient.invalidateQueries({ queryKey: ["billCodeList"] });
+      showSuccess("Success!", "Bill code saved successfully.");
       setIsEditing(false);
       resetForm(DEFAULT_FORM);
       setSelectedRow(null);
     },
     onError: (error) => {
-      useSwalErrorAlert(
+      showError(
         "System Error",
-        error?.response?.data?.message || error.message,
+        error?.response?.data?.message || error?.message || "Save failed."
       );
     },
   });
@@ -212,15 +220,15 @@ const BillCodeRef = React.forwardRef((props, ref) => {
         json_data: { billCode },
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["billCodeList"] });
-      Swal.fire("Deleted", "Bill code has been removed.", "success");
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["billCodeList"] });
+      showSuccess("Deleted", "Bill code has been removed.");
       handleReset();
     },
     onError: (error) => {
-      useSwalErrorAlert(
+      showError(
         "System Error",
-        error?.response?.data?.message || error.message,
+        error?.response?.data?.message || error?.message || "Delete failed."
       );
     },
   });
@@ -230,15 +238,47 @@ const BillCodeRef = React.forwardRef((props, ref) => {
   const handleSave = async () => {
     if (!isEditing || saveMutation.isPending) return;
 
-    const confirm = await Swal.fire({
-      title: "Save Bill Code?",
-      text: "Make sure details are correct.",
-      icon: "question",
-      showCancelButton: true,
-      confirmButtonText: "Save",
-    });
+    const billCode = String(form.billCode || "").trim().toUpperCase();
+    const billName = String(form.billName || "").trim();
+    const uomCode = String(form.uomCode || "").trim();
+    const rcCode = String(form.rcCode || "").trim();
+    const arAcct = String(form.arAcct || "").trim();
+    const salesAcct = String(form.salesAcct || "").trim();
+    const vatAcct = String(form.vatAcct || "").trim();
 
-    if (!confirm.isConfirmed) return;
+    const missing = [];
+    if (!billCode) missing.push("• Bill Code");
+    if (!billName) missing.push("• Description");
+    if (!uomCode) missing.push("• UOM");
+    if (!rcCode) missing.push("• RC Code");
+    if (!arAcct) missing.push("• AR Account");
+    if (!salesAcct) missing.push("• Sales Account");
+    if (!vatAcct) missing.push("• VAT Account");
+
+    if (missing.length) {
+      showError(
+        "Error!",
+        `Please fill in the required field(s):\n${missing.join("\n")}`
+      );
+      return;
+    }
+
+    if (!form.__existing) {
+      const isDup = await checkDuplicate(billCode);
+      if (isDup) {
+        showError("Duplicate Entry", "Bill Code already exists.");
+        setField("billCode", "");
+        setTimeout(() => billCodeInputRef.current?.focus?.(), 0);
+        return;
+      }
+    }
+
+    const confirm = await useSwalConfirmAlert(
+      "Save Bill Code?",
+      "Make sure details are correct."
+    );
+
+    if (!confirm?.isConfirmed) return;
 
     const {
       __existing,
@@ -251,9 +291,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
 
     saveMutation.mutate({
       ...payload,
-      billCode: String(form.billCode || "")
-        .trim()
-        .toUpperCase(),
+      billCode,
       unitPriceRequired: toYN(form.unitPriceRequired, "N"),
       userCode: user?.USER_CODE || "ADMIN",
     });
@@ -263,7 +301,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
     const code = row?.billCode ?? row?.BILLCODE ?? row?.bill_code ?? "";
 
     if (!String(code).trim()) {
-      useSwalErrorAlert("Error", "Selected row has no Bill Code.");
+      showError("Error", "Selected row has no Bill Code.");
       return;
     }
 
@@ -283,70 +321,89 @@ const BillCodeRef = React.forwardRef((props, ref) => {
       setIsEditing(true);
       setSelectedRow(row);
     } catch (error) {
-      useSwalErrorAlert(
+      showError(
         "System Error",
-        error?.response?.data?.message || error.message,
+        error?.response?.data?.message || error?.message || "Failed to fetch record."
       );
     }
   };
 
   const handleDelete = async (row) => {
-    // Check if used before confirming
-    const isUsed = await checkInUsed(row.billCode);
+    const code = String(row?.billCode || "").trim();
+    const name = String(row?.billName || "").trim();
+
+    if (!code) {
+      showError("Error", "No Bill Code selected.");
+      return;
+    }
+
+    const isUsed = await checkInUsed(code);
     if (isUsed) {
-      useSwalErrorAlert(
+      showError(
         "Restricted",
-        "This Bill Code is in use and cannot be deleted.",
+        "This Bill Code is in use and cannot be deleted."
       );
       return;
     }
 
-    const confirm = await Swal.fire({
-      title: "Delete this Bill Code?",
-      text: `${row.billCode} - ${row.billName}`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "Delete",
-      confirmButtonColor: "#d33",
-    });
+    const confirm = await useSwalDeleteConfirm(
+      "Delete this Bill Code?",
+      `${code}${name ? ` - ${name}` : ""}`,
+      "Delete"
+    );
 
-    if (!confirm.isConfirmed) return;
-    deleteMutation.mutate(row.billCode);
+    if (!confirm?.isConfirmed) return;
+    deleteMutation.mutate(code);
   };
 
   const handleOpenInfo = async () => {
-    const actions = [];
+    const messages = [];
 
-    if (pdfLink) actions.push({ label: "User Guide", value: "pdf" });
-    if (videoLink) actions.push({ label: "Video Guide", value: "video" });
+    if (pdfLink) messages.push(`PDF Guide: ${pdfLink}`);
+    if (videoLink) messages.push(`Video Guide: ${videoLink}`);
 
-    if (!actions.length) {
-      Swal.fire("Info", "No guide available for this page.", "info");
+    if (!messages.length) {
+      showInfo("Info", "No guide available for this page.");
       return;
     }
 
-    const { isConfirmed, value } = await Swal.fire({
-      title: "Reference Information",
-      input: "radio",
-      inputOptions: actions.reduce((acc, item) => {
-        acc[item.value] = item.label;
-        return acc;
-      }, {}),
-      inputValidator: (value) => (!value ? "Please select one option." : null),
-      showCancelButton: true,
-      confirmButtonText: "Open",
-    });
-
-    if (!isConfirmed || !value) return;
-
-    if (value === "pdf" && pdfLink) window.open(pdfLink, "_blank");
-    if (value === "video" && videoLink) window.open(videoLink, "_blank");
+    showInfo("Reference Information", messages.join("\n"));
   };
 
   /* ================= TABLE COLUMNS ================= */
 
   const columns = useMemo(
     () => [
+      {
+        key: "__actions",
+        label: "Actions",
+        sortable: false,
+        renderType: "actions",
+        render: (row) => (
+          <div className="flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEdit(row);
+              }}
+              className="rounded-md border border-blue-200 bg-blue-50 p-1 text-blue-600 transition-colors hover:bg-blue-600 hover:text-white"
+            >
+              <Edit size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete(row);
+              }}
+              className="rounded-md border border-red-200 bg-red-50 p-1 text-red-600 transition-colors hover:bg-red-600 hover:text-white"
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
+        ),
+      },
       {
         key: "billCode",
         label: "Bill Code",
@@ -381,36 +438,8 @@ const BillCodeRef = React.forwardRef((props, ref) => {
       { key: "vatAcct", label: "VAT Account", sortable: true },
       { key: "advancesAcct", label: "Advances Account", sortable: true },
       { key: "sDiscAcct", label: "Discount Account", sortable: true },
-      {
-        key: "__actions",
-        label: "Actions",
-        sortable: false,
-        renderType: "actions",
-        render: (row) => (
-          <div className="flex items-center justify-center gap-3">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleEdit(row);
-              }}
-              className="p-1 rounded-md bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-600 hover:text-white transition-colors"
-            >
-              <Edit size={16} />
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDelete(row);
-              }}
-              className="p-1 rounded-md bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white transition-colors"
-            >
-              <Trash2 size={16} />
-            </button>
-          </div>
-        ),
-      },
     ],
-    [],
+    []
   );
 
   /* ================= EXPOSE METHODS ================= */
@@ -425,12 +454,12 @@ const BillCodeRef = React.forwardRef((props, ref) => {
   /* ================= HEADER BUTTONS ================= */
 
   const headerButtons = (
-    <div className="flex gap-2 justify-center text-xs flex-wrap">
+    <div className="flex flex-wrap justify-center gap-2 text-xs">
       <button
         type="button"
         onClick={startNew}
-        className={`bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 ${
-          isEditing ? "opacity-50 cursor-not-allowed" : ""
+        className={`flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-white hover:bg-blue-700 ${
+          isEditing ? "cursor-not-allowed opacity-50" : ""
         }`}
         disabled={isEditing}
       >
@@ -440,9 +469,9 @@ const BillCodeRef = React.forwardRef((props, ref) => {
       <button
         type="button"
         onClick={handleSave}
-        className={`bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 ${
+        className={`flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-white hover:bg-blue-700 ${
           !isEditing || saveMutation.isPending
-            ? "opacity-50 cursor-not-allowed"
+            ? "cursor-not-allowed opacity-50"
             : ""
         }`}
         disabled={!isEditing || saveMutation.isPending}
@@ -453,7 +482,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
       <button
         type="button"
         onClick={handleReset}
-        className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
+        className="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-white hover:bg-blue-700"
         disabled={saveMutation.isPending}
       >
         <Undo2 size={16} /> Reset
@@ -462,7 +491,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
       <button
         type="button"
         onClick={handleOpenInfo}
-        className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
+        className="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-white hover:bg-blue-700"
       >
         <Info size={16} /> Info
       </button>
@@ -473,7 +502,11 @@ const BillCodeRef = React.forwardRef((props, ref) => {
 
   return (
     <div className="global-ref-main-div-ui mt-24">
-      <div className="fixed mt-4 top-14 left-6 right-6 z-30 global-ref-header-ui flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 bg-white/80 backdrop-blur p-3 rounded-xl border border-slate-200 shadow-sm">
+      {(isInitialLoading || saveMutation.isPending || deleteMutation.isPending) && (
+        <LoadingSpinner />
+      )}
+
+      <div className="fixed top-14 left-6 right-6 z-30 mt-4 global-ref-header-ui flex flex-col gap-4 rounded-xl border border-slate-200 bg-white/80 p-3 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between">
         <h1 className="global-ref-headertext-ui">{documentTitle}</h1>
         {headerButtons}
       </div>
@@ -482,9 +515,9 @@ const BillCodeRef = React.forwardRef((props, ref) => {
         className="global-tran-tab-div-ui mt-8 p-6"
         style={{ minHeight: "calc(100vh - 170px)" }}
       >
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-          <div className="md:col-span-10 bg-white p-6 rounded-xl border shadow-sm">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
+          <div className="rounded-xl border bg-white p-6 shadow-sm md:col-span-10">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
               <div className="flex flex-col gap-4">
                 <FieldRenderer
                   label="Bill Code"
@@ -497,10 +530,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
                     if (!isEditing || form.__existing) return;
                     const isDup = await checkDuplicate(form.billCode);
                     if (isDup) {
-                      useSwalErrorAlert(
-                        "Duplicate Entry",
-                        "Bill Code already exists.",
-                      );
+                      showError("Duplicate Entry", "Bill Code already exists.");
                       setField("billCode", "");
                       setTimeout(() => billCodeInputRef.current?.focus?.(), 0);
                     }
@@ -615,7 +645,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
                       ? `${form.advancesAcct}${form.advancesName ? ` - ${form.advancesName}` : ""}`
                       : ""
                   }
-                  onChange={(e) => setField("advancesAcct", e.target.value)} 
+                  onChange={(e) => setField("advancesAcct", e.target.value)}
                   onLookup={() => handleOpenAccountLookup("advancesAcct")}
                   disabled={!isEditing}
                 />
@@ -641,16 +671,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
           </div>
         </div>
 
-        <div className="global-tran-table-main-div-ui mt-6 relative border border-slate-200 rounded-xl overflow-x-auto bg-white shadow-sm">
-          {isInitialLoading && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/70 z-20 backdrop-blur-sm">
-              <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
-              <p className="mt-3 text-sm font-bold text-slate-600 animate-pulse">
-                Synchronizing Data...
-              </p>
-            </div>
-          )}
-
+        <div className="global-tran-table-main-div-ui relative mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
           <SearchGlobalReferenceTable
             docType={docType}
             columns={columns}

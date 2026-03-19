@@ -11,7 +11,7 @@ import {
   useSwalValidationAlert,
   useSwalDeleteRecord,
   useSwalInfoAlert,
-} from "@/NAYSA Cloud/Global/behavior";
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 
 export const reftables = {
 

@@ -79,7 +79,7 @@ import {
   useSwalInfoAlert,
   useSwalConfirmAlert,
   useSwalHandleOpenSpecsModal
-} from "@/NAYSA Cloud/Global/behavior";
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 
 import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
@@ -309,8 +309,9 @@ const JO = () => {
     CANCELLED: "global-tran-stat-text-closed-ui",
     CLOSED: "global-tran-stat-text-closed-ui",
   };
+  
   const statusColor = statusMap[displayStatus] || "";
-  const isFormDisabled = ["FINALIZED", "CANCELLED", "CLOSED"].includes(
+  const isFormDisabled = isViewDocumentUrl || ["FINALIZED", "CANCELLED", "CLOSED"].includes(
     displayStatus
   );
 

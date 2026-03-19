@@ -30,7 +30,7 @@ import {
 import { reftables } from "@/NAYSA Cloud/Global/reftable";
 import { exportGenericQueryExcel } from "@/NAYSA Cloud/Global/report";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
-import { formatNumber, parseFormattedNumber } from "@/NAYSA Cloud/Global/behavior";
+import { formatNumber, parseFormattedNumber } from "@/NAYSA Cloud/Global/behavior.jsx";
 import { useReturnToDate } from "@/NAYSA Cloud/Global/dates";
 import Swal from "sweetalert2";
 import html2canvas from "html2canvas";

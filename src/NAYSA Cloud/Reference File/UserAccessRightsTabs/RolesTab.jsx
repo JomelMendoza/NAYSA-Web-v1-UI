@@ -9,7 +9,7 @@ import {
   useSwalSuccessAlert,
   useSwalWarningAlert,
   useSwalErrorAlert,
-} from "@/NAYSA Cloud/Global/behavior";
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 
 const RolesTab = forwardRef(({ users, roles, appliedUserRoles, setAppliedUserRoles, fetchUserRoles }, ref) => {
   const [selectedUsers, setSelectedUsers] = useState([]);

@@ -35,7 +35,7 @@ import { useSelectedHSColConfig } from "@/NAYSA Cloud/Global/selectedData";
 import {
   formatNumber,
   parseFormattedNumber,
-} from "@/NAYSA Cloud/Global/behavior";
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 import SearchGlobalReportTable from "@/NAYSA Cloud/Lookup/SearchGlobalReportTable.jsx";
 import CustomerMastLookupModal from "@/NAYSA Cloud/Lookup/SearchCustMast";
 import BranchLookupModal from "@/NAYSA Cloud/Lookup/SearchBranchRef";

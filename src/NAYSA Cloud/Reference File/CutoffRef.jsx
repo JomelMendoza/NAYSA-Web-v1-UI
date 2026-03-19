@@ -1,943 +1,733 @@
-// CutoffRef.jsx
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
+
+// Import Lookup Modals
+import SearchGlobalReferenceTable from "@/NAYSA Cloud/Lookup/SearchGlobalReferenceTable";
+
+// Icons & Globals
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faSpinner,
-  faVideo,
-  faUndo,
-  faSave,
-  faTrashAlt,
   faPlus,
+  faSave,
+  faUndo,
   faEdit,
+  faTrashAlt,
   faInfoCircle,
   faChevronDown,
   faFilePdf,
-  faFileExport,
+  faVideo,
 } from "@fortawesome/free-solid-svg-icons";
-import Swal from "sweetalert2";
-
-// Global
 import {
   reftables,
   reftablesPDFGuide,
   reftablesVideoGuide,
 } from "@/NAYSA Cloud/Global/reftable";
 
-// Global UI helpers
+import {
+  useSwalErrorAlert,
+  useSwalSuccessAlert,
+  useSwalErrorAlertAPI,
+  useSwalDeleteConfirm,
+  useSwalDeleteRecord,
+} from "@/NAYSA Cloud/Global/behavior";
+import {
+  useFieldLenghtCheck,
+  useGetFieldLength,
+} from "@/NAYSA Cloud/Global/procedure";
+
+// UI Helpers
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer";
 import ButtonBar from "@/NAYSA Cloud/Global/ButtonBar";
 
-// ---- Small helpers ----
-const pick = (o, ...keys) => keys.reduce((r, k) => (r ?? o?.[k]), undefined);
-const _clean = (v) => String(v || "").trim().split(" ")[0].replaceAll("/", "-");
+import RegistrationInfo from "@/NAYSA Cloud/Global/RegistrationInfo.jsx";
 
-const toISO = (v) => {
-  const s = _clean(v);
-  if (!s) return "";
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; // already ISO
-  const mdy = s.match(/^(\d{2})-(\d{2})-(\d{4})$/); // MM-DD-YYYY
-  if (mdy) return `${mdy[3]}-${mdy[1]}-${mdy[2]}`;
-  const d = new Date(s);
-  if (isNaN(d)) return "";
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${mm}-${dd}`;
+const INITIAL_FORM = {
+  cutoffCode: "",
+  cutoffName: "",
+  fromDate: "",
+  toDate: "",
+  status: "O",
+  tblFieldArray: [],
 };
 
-const toDisplay = (v) => {
-  const iso = toISO(v);
-  if (!iso) return "";
-  const [y, m, d] = iso.split("-");
-  return `${m}/${d}/${y}`; // use slashes
+const INITIAL_REG = {
+  registeredBy: "",
+  registeredDate: "",
+  lastUpdatedBy: "",
+  lastUpdatedDate: "",
 };
 
-const getId = (row) => row?.CUTOFF_CODE ?? row?.cutoffCode ?? null;
-
-const CutoffRef = ({ onSelect }) => {
+const CutoffRef = () => {
+  const queryClient = useQueryClient();
   const { user } = useAuth();
-
-  const docType = "Cutoff";
-  const documentTitle = reftables[docType];
+  const docType = "CutoffRef";
+  const guideRef = useRef(null);
   const pdfLink = reftablesPDFGuide[docType];
   const videoLink = reftablesVideoGuide[docType];
 
-  // Data
-  const [cutoffData, setCutoffData] = useState([]);
-  const [filtered, setFiltered] = useState([]);
-
-  // Year filter (default current year; will auto-switch to latest available)
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const initYearRef = useRef(false);
-
-  // UI state
-  const [loading, setLoading] = useState(false);
-  const [isOpenGuide, setOpenGuide] = useState(false);
-  const [selectedCutoff, setSelectedCutoff] = useState(null);
-
-  // Form state
+  const [formData, setFormData] = useState(INITIAL_FORM);
+  const [registrationInfo, setRegistrationInfo] = useState(INITIAL_REG);
   const [isEditing, setIsEditing] = useState(false);
-  const [isAdding, setIsAdding] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [selectedCutoffCode, setSelectedCutoffCode] = useState(null);
+  const [isOpenGuide, setOpenGuide] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [tblFieldArray, setTblFieldArray] = useState([]);
+  const [selectedYear, setSelectedYear] = useState(
+    new Date().getFullYear().toString(),
+  );
 
-  // Form fields
-  const [cutoffCode, setCutoffCode] = useState("");
-  const [isDuplicateCode, setIsDuplicateCode] = useState(false);
-  const [cutoffName, setCutoffName] = useState("");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [stat, setStat] = useState("O");
-  const [editingId, setEditingId] = useState(null);
+  const toggleModal = (name, isOpen) =>
+    setModals((prev) => ({ ...prev, [name]: isOpen }));
 
-  // Filters (text filters)
-  const [filters, setFilters] = useState({
-    cutoffCode: "",
-    cutoffName: "",
-    fromDate: "",
-    toDate: "",
-    stat: "",
+  const { data: accounts = [], isLoading: isListLoading } = useQuery({
+    queryKey: ["cutoffList"],
+    queryFn: async () => {
+      const { data } = await apiClient.get("/cutOff");
+      const raw = data?.data?.[0]?.result || data?.result;
+      return raw ? JSON.parse(raw) : [];
+    },
   });
 
-  // Refs
-  const guideRef = useRef(null);
+  const handleCodeChange = (v) => {
+    // 1. Strictly enforce 6-digit limit during typing
+    if (v.length > 6) return;
 
-  // Sorting
-  const [sortBy, setSortBy] = useState("cutoffCode");
-  const [sortDir, setSortDir] = useState("asc");
+    const updates = { cutoffCode: v };
 
-  // --- Date validations (future date guard) ---
-  const todayISO = () => {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`; // local today
-  };
+    if (/^\d{6}$/.test(v)) {
+      const year = parseInt(v.substring(0, 4));
+      const month = parseInt(v.substring(4, 6)) - 1;
 
-  const isFutureDate = (iso) => {
-    if (!iso) return false;
-    return iso > todayISO(); // YYYY-MM-DD safe compare
-  };
+      if (month >= 0 && month <= 11) {
+        const startDate = new Date(year, month, 1);
+        const endDate = new Date(year, month + 1, 0);
 
-  // Available years (latest first)
-  const availableYears = useMemo(() => {
-    const years = cutoffData
-      .map((item) => {
-        const d = toISO(pick(item, "FROM_DATE", "fromDate"));
-        return d ? new Date(d).getFullYear() : null;
-      })
-      .filter(Boolean);
+        // Local formatting helper to avoid UTC timezone shifts
+        const formatLocal = (date) => {
+          const y = date.getFullYear();
+          const m = String(date.getMonth() + 1).padStart(2, "0");
+          const d = String(date.getDate()).padStart(2, "0");
+          return `${y}-${m}-${d}`;
+        };
 
-    return [...new Set(years)].sort((a, b) => b - a);
-  }, [cutoffData]);
-
-  // Default to latest year + latest dates (DESC) once data is available
-  useEffect(() => {
-    if (availableYears.length > 0 && !initYearRef.current) {
-      initYearRef.current = true;
-      setSelectedYear(availableYears[0]); // latest year
-      setSortBy("fromDate");
-      setSortDir("desc");
+        const monthName = startDate
+          .toLocaleString("default", { month: "long" })
+          .toUpperCase();
+        updates.cutoffName = `${monthName} ${year}`;
+        updates.fromDate = formatLocal(startDate); // Result: 2027-01-01
+        updates.toDate = formatLocal(endDate); // Result: 2027-01-31
+      }
     }
-  }, [availableYears]);
-
-  // Initial load
-  useEffect(() => {
-    fetchCutoffPeriods();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Close Help menu on click-away
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (guideRef.current && !guideRef.current.contains(e.target)) {
-        setOpenGuide(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // Ctrl+S to save when editing
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.ctrlKey && e.key.toLowerCase() === "s") {
-        e.preventDefault();
-        if (!saving && isEditing) handleSaveCutoff();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [saving, isEditing, cutoffCode, cutoffName, fromDate, toDate, stat, isDuplicateCode]);
-
-  // Fetch
-  const fetchCutoffPeriods = () => {
-    setLoading(true);
-    apiClient
-      .get("/cutOff", { params: { PARAMS: "All" } })
-      .then(({ data }) => {
-        if (data?.success) {
-          if (Array.isArray(data.data) && data.data[0]?.result) {
-            try {
-              const parsed = JSON.parse(data.data[0].result || "[]");
-              setCutoffData(parsed);
-              setFiltered(parsed);
-              return;
-            } catch (e) {
-              console.error("Parse error:", e);
-            }
-          } else if (Array.isArray(data.data)) {
-            setCutoffData(data.data);
-            setFiltered(data.data);
-            return;
-          }
-        }
-
-        setCutoffData([]);
-        setFiltered([]);
-        if (!data?.success) {
-          Swal.fire(
-            "Error",
-            data?.message || "Server returned an unsuccessful response",
-            "error"
-          );
-        }
-      })
-      .catch((err) => {
-        console.error("Fetch error:", err);
-        Swal.fire({
-          title: "Database Error",
-          text: `The server couldn't process your request: ${
-            err.response?.data?.message || err.message
-          }`,
-          icon: "error",
-          confirmButtonText: "Okay",
-        });
-        setCutoffData([]);
-        setFiltered([]);
-      })
-      .finally(() => setLoading(false));
+    updateForm(updates);
   };
 
-  // Filtering & Sorting
-  useEffect(() => {
-    let nf = cutoffData.filter((item) => {
-      const code = String(pick(item, "CUTOFF_CODE", "cutoffCode") || "").toLowerCase();
-      const name = String(pick(item, "CUTOFF_NAME", "cutoffName") || "").toLowerCase();
-      const fromIso = toISO(pick(item, "FROM_DATE", "fromDate"));
-      const toIso = toISO(pick(item, "TO_DATE", "toDate"));
-      const status = String(pick(item, "STAT", "stat") || "").toLowerCase();
+  const filteredAccounts = useMemo(() => {
+    if (!selectedYear) return accounts;
+    return accounts.filter((item) => {
+      // Matches the year from the cutoffCode (first 4 digits) or the fromDate
+      return item.cutoffCode?.startsWith(selectedYear);
+    });
+  }, [accounts, selectedYear]);
 
-      // Year filter uses FROM_DATE year
-      const yearMatch =
-        selectedYear && fromIso
-          ? String(new Date(fromIso).getFullYear()) === String(selectedYear)
-          : true;
+  const yearOptions = useMemo(() => {
+    // Extract the first 4 digits from all available cutoffCodes
+    const yearsInData = accounts.map((item) =>
+      item.cutoffCode?.substring(0, 4),
+    );
 
-      return (
-        yearMatch &&
-        code.includes((filters.cutoffCode || "").toLowerCase()) &&
-        name.includes((filters.cutoffName || "").toLowerCase()) &&
-        toDisplay(fromIso).toLowerCase().includes((filters.fromDate || "").toLowerCase()) &&
-        toDisplay(toIso).toLowerCase().includes((filters.toDate || "").toLowerCase()) &&
-        status.includes((filters.stat || "").toLowerCase())
+    // Create a unique, sorted list of years
+    const uniqueYears = [...new Set(yearsInData)]
+      .filter((year) => year && year.length === 4)
+      .sort((a, b) => b - a);
+
+    return uniqueYears.map((year) => ({
+      value: year,
+      label: year,
+    }));
+  }, [accounts]);
+
+  // --- TANSTACK QUERY: Save Mutation ---
+  const { mutate: saveCutOff, isLoading: isSaving } = useMutation({
+    mutationFn: async (payload) =>
+      await apiClient.post("/upsertCutOff", payload),
+
+    onSuccess: (response) => {
+      // 1) SPROC row style (errorcount/errormsg)
+      const sqlRow = response?.data?.data?.[0];
+      if (sqlRow?.errorcount > 0) {
+        useSwalErrorAlert(
+          "Error",
+          sqlRow?.errormsg || "Failed to save Cutt Off.",
+        );
+        resetForm(); // ✅ reset on failure
+        return;
+      }
+
+      // 2) API status style
+      const status = response?.data?.status ?? response?.data?.data?.status;
+      const success =
+        response?.data?.success || status === "success" || !status;
+
+      if (!success) {
+        useSwalErrorAlert(
+          "Error",
+          response?.data?.message ||
+            response?.data?.data?.message ||
+            "Failed to save Account.",
+        );
+        resetForm(); // ✅ reset on failure
+        return;
+      }
+      console.log("Save Payload:", sqlRow);
+
+      // ✅ success path
+      queryClient.invalidateQueries({ queryKey: ["cutoffList"] });
+      useSwalSuccessAlert("Success!", "Account saved successfully!");
+      resetForm();
+    },
+
+    onError: (error) => {
+      useSwalErrorAlertAPI(
+        "System Error",
+        error?.response?.status
+          ? `HTTP ${error.response.status}`
+          : error?.message || String(error),
       );
-    });
+      resetForm(); // ✅ reset on request error too
+    },
+  });
 
-    if (sortBy) {
-      nf = [...nf].sort((a, b) => {
-        let av, bv;
-
-        if (sortBy === "cutoffCode") {
-          av = String(pick(a, "CUTOFF_CODE", "cutoffCode") || "").toLowerCase();
-          bv = String(pick(b, "CUTOFF_CODE", "cutoffCode") || "").toLowerCase();
-        } else if (sortBy === "cutoffName") {
-          av = String(pick(a, "CUTOFF_NAME", "cutoffName") || "").toLowerCase();
-          bv = String(pick(b, "CUTOFF_NAME", "cutoffName") || "").toLowerCase();
-        } else if (sortBy === "fromDate") {
-          av = toISO(pick(a, "FROM_DATE", "fromDate"));
-          bv = toISO(pick(b, "FROM_DATE", "fromDate"));
-        } else if (sortBy === "toDate") {
-          av = toISO(pick(a, "TO_DATE", "toDate"));
-          bv = toISO(pick(b, "TO_DATE", "toDate"));
-        } else if (sortBy === "stat") {
-          av = String(pick(a, "STAT", "stat") || "").toLowerCase();
-          bv = String(pick(b, "STAT", "stat") || "").toLowerCase();
-        }
-
-        if (av < bv) return sortDir === "asc" ? -1 : 1;
-        if (av > bv) return sortDir === "asc" ? 1 : -1;
-        return 0;
-      });
+  // --- ACTIONS ---
+  const handleSave = () => {
+    // 1. Check if dates exist
+    if (!formData.fromDate || !formData.toDate) {
+      return useSwalErrorAlert(
+        "Validation Error",
+        "Both Start and End dates are required.",
+      );
     }
 
-    setFiltered(nf);
-  }, [filters, cutoffData, sortBy, sortDir, selectedYear]);
+    // 2. Compare Date Values
+    const start = new Date(formData.fromDate);
+    const end = new Date(formData.toDate);
 
-  const handleSelect = (cutoff) => {
-    if (isEditing) return;
-    setSelectedCutoff(cutoff);
-    setCutoffCode(pick(cutoff, "CUTOFF_CODE", "cutoffCode") || "");
-    setCutoffName(pick(cutoff, "CUTOFF_NAME", "cutoffName") || "");
-    setFromDate(toISO(pick(cutoff, "fromDate", "FROM_DATE")));
-    setToDate(toISO(pick(cutoff, "toDate", "TO_DATE")));
-    setStat(pick(cutoff, "stat", "STAT") ?? "O");
-    setEditingId(getId(cutoff));
-    onSelect && typeof onSelect === "function" && onSelect(cutoff);
+    if (start > end) {
+      return useSwalErrorAlert(
+        "Invalid Date Range",
+        "The Start Date cannot be later than the End Date.",
+      );
+    }
+
+    // 3. Proceed with Save if validation passes
+    const payload = {
+      json_data: {
+        cutoffCode: formData.cutoffCode,
+        cutoffName: formData.cutoffName,
+        fromDate: formData.fromDate,
+        toDate: formData.toDate,
+        status: formData.status,
+        userCode: user?.USER_CODE || "ADMIN",
+      },
+    };
+
+    saveCutOff(payload);
   };
 
-  const handleFilterChange = (e, key) =>
-    setFilters({ ...filters, [key]: e.target.value });
-
-  const resetFilters = () =>
-    setFilters({
-      cutoffCode: "",
-      cutoffName: "",
-      fromDate: "",
-      toDate: "",
-      stat: "",
-    });
-
-  const startNew = () => {
-    resetForm();
-    setIsAdding(true);
-    setIsEditing(true);
-  };
+  // --- MUTATION: UPSERT ---
 
   const resetForm = () => {
-    setCutoffCode("");
-    setIsDuplicateCode(false);
-    setCutoffName("");
-    setFromDate("");
-    setToDate("");
-    setStat("O");
-    setEditingId(null);
+    setFormData(INITIAL_FORM);
+    setRegistrationInfo(INITIAL_REG);
     setIsEditing(false);
-    setIsAdding(false);
-    setSelectedCutoff(null);
-    if (!isEditing) resetFilters();
+    setSelectedCutoffCode(null); // Clear the lock
   };
 
-  const handleEditRow = (cutoff) => {
-    if (!cutoff) return;
-    setCutoffCode(pick(cutoff, "CUTOFF_CODE", "cutoffCode") || "");
-    setIsDuplicateCode(false); // editing existing code; no duplicate check needed
-    setCutoffName(pick(cutoff, "CUTOFF_NAME", "cutoffName") || "");
-    setFromDate(toISO(pick(cutoff, "FROM_DATE", "fromDate")));
-    setToDate(toISO(pick(cutoff, "TO_DATE", "toDate")));
-    setStat(pick(cutoff, "STAT", "stat") ?? "O");
-    setEditingId(getId(cutoff));
-    setIsEditing(true);
-    setIsAdding(false);
-    setSelectedCutoff(cutoff);
-  };
+  const handleEdit = (row) => {
+    // Clean dates for HTML5 input (YYYY-MM-DD)
+    const formattedFromDate = row.fromDate ? row.fromDate.substring(0, 10) : "";
+    const formattedToDate = row.toDate ? row.toDate.substring(0, 10) : "";
 
-  const handleSaveCutoff = async () => {
-    if (!cutoffCode || !cutoffName || !fromDate || !toDate || !stat) {
-      await Swal.fire("Error!", "Please fill all required fields.", "error");
-      return;
-    }
-
-    // ✅ duplicate code guard (final safety net)
-    if (isDuplicateCode) {
-      await Swal.fire("Error!", "Duplicate Code is not allowed.", "error");
-      return;
-    }
-
-    // ✅ future date validation
-    if (isFutureDate(fromDate) || isFutureDate(toDate)) {
-      await Swal.fire(
-        "Invalid Date",
-        `You cannot save a cutoff period with a future date.\nToday: ${toDisplay(todayISO())}`,
-        "error"
-      );
-      return;
-    }
-
-    // ✅ fromDate must not be after toDate
-    if (fromDate > toDate) {
-      await Swal.fire(
-        "Invalid Date Range",
-        "From Date cannot be later than To Date.",
-        "error"
-      );
-      return;
-    }
-
-    setSaving(true);
-
-    try {
-      const payload = {
-        json_data: JSON.stringify({
-          json_data: {
-            cutoffCode,
-            cutoffName,
-            status: stat,
-            fromDate,
-            toDate,
-            userCode: user.USER_CODE,
-          },
-        }),
-      };
-
-      const { data } = await apiClient.post("/upsertCutOff", payload);
-
-      if (data?.success || data?.status === "success") {
-        await Swal.fire("Success", "Cutoff period saved successfully.", "success");
-        fetchCutoffPeriods();
-        resetForm();
-        setIsEditing(false);
-      } else {
-        await Swal.fire("Error", data?.message || "Failed to save cutoff period.", "error");
-      }
-    } catch (error) {
-      await Swal.fire(
-        "Error",
-        error?.response?.data?.message ||
-          error.message ||
-          "Failed to save cutoff period.",
-        "error"
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDeleteCutoff = async () => {
-    if (!selectedCutoff) {
-      Swal.fire("Error", "Please select a cutoff period to delete", "error");
-      return;
-    }
-
-    const code = (selectedCutoff.CUTOFF_CODE ?? selectedCutoff.cutoffCode ?? "")
-      .toString()
-      .trim();
-
-    if (!code) {
-      Swal.fire("Error", "Cannot identify the selected cutoff period", "error");
-      return;
-    }
-
-    const confirm = await Swal.fire({
-      title: "Delete this cutoff period?",
-      text: `Code: ${code} | Name: ${
-        selectedCutoff.CUTOFF_NAME ?? selectedCutoff.cutoffName ?? ""
-      }`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#dc2626",
-      confirmButtonText: "Yes, delete it",
+    setFormData({
+      ...INITIAL_FORM,
+      ...row,
+      fromDate: formattedFromDate,
+      toDate: formattedToDate,
     });
 
-    if (!confirm.isConfirmed) return;
+    setRegistrationInfo({
+      registeredBy: row.registeredBy,
+      registeredDate: row.registeredDate,
+      lastUpdatedBy: row.lastUpdatedBy,
+      lastUpdatedDate: row.lastUpdatedDate,
+    });
+
+    // This is the key: setting this makes the field disabled
+    setSelectedCutoffCode(row.cutoffCode);
+    setIsEditing(true);
+  };
+
+  const { mutate: deleteCutoff, isLoading: isDeleting } = useMutation({
+    mutationFn: async (payload) =>
+      await apiClient.post("/deleteCutOff", payload),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries(["cutoffList"]);
+      useSwalDeleteRecord(
+        "Deleted!",
+        "The account has been removed from the system.",
+      );
+      resetForm();
+    },
+    onError: (error) => useSwalErrorAlertAPI("Delete Error", error),
+  });
+
+  const handleDelete = async (row) => {
+    // 1. Check if the status is Closed ('C')
+    if (row.status === "C") {
+      return useSwalErrorAlert(
+        "Cannot Delete",
+        `Cut Off Code ${row.cutoffCode} is currently CLOSED and cannot be deleted.`,
+      );
+    }
 
     try {
-      const userCode = user?.USER_CODE || user?.username || "SYSTEM";
-
+      setIsLoading(true);
       const payload = {
-        json_data: JSON.stringify({
-          json_data: {
-            cutoffCode: code,
-            userCode,
-          },
-        }),
+        json_data: {
+          cutoffCode: row.cutoffCode,
+        },
       };
 
-      const { data } = await apiClient.post("/deleteCutOff", payload);
+      // 2. Check if used in other tables via SPROC
+      const response = await apiClient.post("/checkInUsedCutOff", payload);
+      const sqlRow = response?.data?.data?.[0];
+      const rawJsonString = sqlRow?.result || Object.values(sqlRow || {})[0];
+      const parsedData = JSON.parse(rawJsonString || '{"result":"0"}');
 
-      if (data?.success || data?.status === "success") {
-        await Swal.fire({
-          title: "Deleted",
-          text: "The cutoff period has been deleted.",
-          icon: "success",
-        });
-        fetchCutoffPeriods();
-        resetForm();
-        setSelectedCutoff(null);
-      } else {
-        Swal.fire("Error", data?.message || "Failed to delete cutoff period.", "error");
+      if (parsedData.result === "1") {
+        setIsLoading(false);
+        return useSwalErrorAlertAPI(
+          `Cannot Delete Cut Off Code: ${row.cutoffCode}`,
+          `Code was already used.`,
+        );
+      }
+
+      // 3. Confirmations
+      const confirm = await useSwalDeleteConfirm(
+        "Confirm Delete",
+        `Are you sure you want to delete Code: ${row.cutoffCode}?`,
+      );
+
+      if (confirm.isConfirmed) {
+        deleteCutoff(payload);
       }
     } catch (error) {
-      Swal.fire(
-        "Error",
-        error.response?.data?.message ||
-          error.message ||
-          "Failed to delete cutoff period",
-        "error"
-      );
+      useSwalErrorAlertAPI("System Error", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Export placeholder
-  const handleExport = () =>
-    Swal.fire({ title: "Export", text: "Export coming soon", icon: "info" });
+  // --- VALIDATION: Check for Duplicate Code ---
+  const handleCheckDuplicate = async (code) => {
+    if (isEditing && selectedCutoffCode) return;
+    if (!code) return;
 
-  // Guides
-  const handlePDFGuide = () => {
-    if (pdfLink) window.open(pdfLink, "_blank");
-    setOpenGuide(false);
+    try {
+      const payload = { json_data: { cutoffCode: code } };
+      const response = await apiClient.post("/checkDuplicateCutOff", payload);
+
+      const sqlRow = response?.data?.data?.[0];
+      const rawJsonString = sqlRow?.result || Object.values(sqlRow || {})[0];
+      const parsedData = JSON.parse(rawJsonString || '{"result":"0"}');
+
+      if (parsedData.result === "1") {
+        setIsLoading(false);
+        resetForm();
+        return useSwalErrorAlertAPI(
+          `Duplicate Cut off Code: ${code}`,
+          `Code was already used.`,
+        );
+      }
+    } catch (error) {
+      console.error("Duplicate Check Error:", error);
+    }
   };
-  const handleVideoGuide = () => {
-    if (videoLink) window.open(videoLink, "_blank");
-    setOpenGuide(false);
-  };
 
-  // Dynamic label for Reset button in ButtonBar
-  const resetLabel = isEditing ? "Reset" : selectedCutoff ? "Clear Selection" : "Reset Filters";
+  const updateForm = (updates) =>
+    setFormData((prev) => ({ ...prev, ...updates }));
 
-  return (
-    <div className="global-ref-main-div-ui mt-24">
-      {/* Header */}
-      <div className="fixed mt-4 top-14 left-6 right-6 z-30 global-ref-header-ui flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <h1 className="global-ref-headertext-ui">{documentTitle}</h1>
-        </div>
-
-        <div className="flex gap-2 justify-end text-xs">
-          <ButtonBar
-            buttons={[
-              { key: "add", label: "Add", icon: faPlus, onClick: startNew, disabled: isEditing },
-              {
-                key: "edit",
-                label: "Edit",
-                icon: faEdit,
-                onClick: () => handleEditRow(selectedCutoff),
-                disabled: !selectedCutoff || isEditing,
-              },
-              {
-                key: "delete",
-                label: "Delete",
-                icon: faTrashAlt,
-                onClick: handleDeleteCutoff,
-                disabled: !selectedCutoff || isEditing,
-              },
-              {
-                key: "save",
-                label: saving ? "Saving..." : "Save",
-                icon: faSave,
-                onClick: handleSaveCutoff,
-                disabled: !isEditing || saving,
-                className:
-                  "bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 " +
-                  (!isEditing || saving ? "opacity-50 cursor-not-allowed" : "hover:bg-blue-700"),
-              },
-              {
-                key: "reset",
-                label: resetLabel,
-                icon: faUndo,
-                onClick: () => {
-                  if (isEditing || selectedCutoff) resetForm();
-                  else resetFilters();
-                },
-                disabled: false,
-              },
-            ]}
-          />
-
+// --- TABLE COLUMNS ---
+const columns = useMemo(
+  () => [
+    {
+      key: "__actions",
+      label: "Actions",
+      render: (row) => (
+        <div className="flex gap-2 justify-center">
+          {/* Updated Edit Button matching RCMast style */}
           <button
-            onClick={handleExport}
-            className="bg-green-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700"
+            onClick={() => handleEdit(row)}
+            className="p-1.5 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-600 hover:text-white transition-colors"
+            title="Edit"
           >
-            <FontAwesomeIcon icon={faFileExport} /> Export
+            <FontAwesomeIcon icon={faEdit} />
           </button>
 
-          <div ref={guideRef} className="relative">
-            <button
-              onClick={() => setOpenGuide(!isOpenGuide)}
-              className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
-            >
-              <FontAwesomeIcon icon={faInfoCircle} /> Info{" "}
-              <FontAwesomeIcon icon={faChevronDown} className="text-xs" />
-            </button>
+          {/* Updated Delete Button matching RCMast style */}
+          <button
+            onClick={() => handleDelete(row)}
+            className="p-1.5 rounded-md bg-red-100 text-red-700 hover:bg-red-600 hover:text-white transition-colors"
+            title="Delete"
+          >
+            <FontAwesomeIcon icon={faTrashAlt} />
+          </button>
+        </div>
+      ),
+    },
+    { key: "cutoffCode", label: "Cut Off Code", sortable: true },
+    { key: "cutoffName", label: "Cut Off Name", sortable: true },
+    {
+      key: "fromDate",
+      label: "Start Date",
+      sortable: true,
+      render: (row) => {
+        if (!row.fromDate) return "";
+        const [year, month, day] = row.fromDate.substring(0, 10).split("-");
+        return `${month}/${day}/${year}`;
+      },
+    },
+    {
+      key: "toDate",
+      label: "End Date",
+      sortable: true,
+      render: (row) => {
+        if (!row.toDate) return "";
+        const [year, month, day] = row.toDate.substring(0, 10).split("-");
+        return `${month}/${day}/${year}`;
+      },
+    },
+    {
+      key: "status",
+      label: "Status",
+      sortable: true,
+      render: (row) => {
+        const statusMap = {
+          O: <span className="text-blue-600 font-medium">Open</span>,
+          C: <span className="text-red-600 font-medium">Closed</span>,
+        };
+        return statusMap[row.status] || row.status;
+      },
+    },
+  ],
+  [handleEdit, handleDelete]
+);
+  useEffect(() => {
+    // If current selected year is not in the options and options exist,
+    // default to the first available year in the list
+    if (
+      yearOptions.length > 0 &&
+      !yearOptions.find((o) => o.value === selectedYear)
+    ) {
+      setSelectedYear(yearOptions[0].value);
+    }
+  }, [yearOptions, selectedYear]);
 
-            {isOpenGuide && (
-              <div className="absolute right-0 mt-1 w-40 rounded-md shadow-lg bg-white ring-1 ring-black/10 z-[60] dark:bg-gray-800">
-                <button
-                  onClick={handlePDFGuide}
-                  className="block w-full text-left px-4 py-2 text-sm hover:bg-blue-50 dark:hover:bg-blue-900"
-                >
-                  <FontAwesomeIcon icon={faFilePdf} className="mr-2 text-red-600" /> User Guide
-                </button>
-                <button
-                  onClick={handleVideoGuide}
-                  className="block w-full text-left px-4 py-2 text-sm hover:bg-blue-50 dark:hover:bg-blue-900"
-                >
-                  <FontAwesomeIcon icon={faVideo} className="mr-2 text-blue-600" /> Video Guide
-                </button>
-              </div>
-            )}
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (e.ctrlKey && e.key === "s") {
+        e.preventDefault();
+        handleSave();
+      }
+    };
+    const handleClick = (e) => {
+      if (guideRef.current && !guideRef.current.contains(e.target))
+        setOpenGuide(false);
+    };
+    window.addEventListener("keydown", handleKey);
+    document.addEventListener("mousedown", handleClick);
+    return () => {
+      window.removeEventListener("keydown", handleKey);
+      document.removeEventListener("mousedown", handleClick);
+    };
+  }, [formData]);
+
+  // load max length metadata once
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      const res = await useFieldLenghtCheck("VAT_REF");
+      if (mounted) setTblFieldArray(res || []);
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const getMax = (col) => useGetFieldLength(tblFieldArray, col);
+
+  // ... (keep all your existing imports and logic exactly as they are)
+
+  // ... (imports and logic remain the same)
+
+  return (
+    <div className="global-ref-main-div-ui">
+      {(isListLoading || isSaving || isDeleting) && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-[2px] flex items-center justify-center">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-4">
+            <div className="relative">
+              <div className="w-12 h-12 border-4 border-blue-100 dark:border-gray-700 rounded-full"></div>
+              <div className="absolute top-0 left-0 w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+            <span className="text-sm font-semibold animate-pulse">
+              {isSaving
+                ? "Saving..."
+                : isDeleting
+                  ? "Deleting..."
+                  : "Loading..."}
+            </span>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Main content */}
-      <div className="mt-4 mb-4 bg-white rounded-lg shadow-md overflow-x-auto">
-        <div className="w-full bg-white p-4 sm:p-6 shadow-md rounded-lg">
-          <div className="flex flex-col gap-4">
-            {/* Form */}
-            <div className="w-full">
-              <div className="border rounded-lg overflow-hidden p-4 bg-gray-50">
-                {saving && <div className="text-xs text-blue-600 mb-2">Processing...</div>}
+      {/* Header Section */}
+      <div className="global-ref-header-ui">
+        <div className="w-full flex flex-col gap-3 md:grid md:grid-cols-3 md:items-center md:gap-0">
+          <div className="w-full md:w-auto md:justify-start flex">
+            <h1 className="global-ref-headertext-ui w-full md:w-auto truncate text-center md:text-left">
+              {reftables[docType] || "Cut Off Codes"}
+            </h1>
+          </div>
+          <div className="hidden md:flex justify-center w-full" />
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <FieldRenderer
-                    label="Cut Off Code"
-                    required={true}
-                    type="text"
-                    value={cutoffCode}
-                    disabled={!isEditing || !isAdding}
-                    onChange={(val) => {
-                      const code = String(val || "").toUpperCase();
+          <div className="w-full md:w-auto flex md:justify-end">
+            <div className="w-full md:w-auto flex items-center justify-center md:justify-end gap-2 flex-wrap">
+              <ButtonBar
+                buttons={[
+                  {
+                    key: "add",
+                    label: <span className="hidden sm:inline ml-1">Add</span>,
+                    icon: faPlus,
+                    onClick: () => {
+                      resetForm();
+                      setIsEditing(true);
 
-                      // allow clearing
-                      if (!code) {
-                        setCutoffCode("");
-                        setIsDuplicateCode(false);
-                        return;
-                      }
-
-                      const exists = cutoffData.some((item) => {
-                        const existingCode = String(pick(item, "CUTOFF_CODE", "cutoffCode") || "")
-                          .trim()
-                          .toUpperCase();
-                        return existingCode === code;
-                      });
-
-                      setIsDuplicateCode(exists);
-
-                      // ✅ If duplicate, DO NOT update the value
-                      if (exists) {
-                        Swal.fire({
-                          title: "Duplicate Code",
-                          text: "Duplicate Code is not allowed.",
-                          icon: "error",
-                        });
-                        return;
-                      }
-
-                      setCutoffCode(code);
-                    }}
-                  />
-
-                  <FieldRenderer
-                    label="Cut Off Name"
-                    required={true}
-                    type="text"
-                    value={cutoffName}
-                    disabled={!isEditing}
-                    onChange={(val) => setCutoffName(val)}
-                  />
-
-                  <FieldRenderer
-                    label="Status"
-                    required={true}
-                    type="select"
-                    value={stat}
-                    disabled={!isEditing}
-                    onChange={(val) => setStat(val)}
-                    options={[
-                      { value: "O", label: "Open" },
-                      { value: "C", label: "Closed" },
-                    ]}
-                  />
-
-                  <FieldRenderer
-                    label="From Date"
-                    required={true}
-                    type="date"
-                    value={fromDate}
-                    disabled={!isEditing}
-                    onChange={(val) => {
-                      if (isFutureDate(val)) {
-                        Swal.fire("Invalid Date", "From Date cannot be a future date.", "error");
-                        return;
-                      }
-
-                      if (toDate && val > toDate) {
-                        Swal.fire(
-                          "Invalid Date Range",
-                          "From Date cannot be later than To Date.",
-                          "error"
+                      // 1. Find the highest existing Cut Off Code
+                      if (accounts.length > 0) {
+                        const maxCode = Math.max(
+                          ...accounts.map((item) => parseInt(item.cutoffCode)),
                         );
-                        return;
-                      }
+                        const codeStr = maxCode.toString();
 
-                      setFromDate(val);
-                    }}
+                        let year = parseInt(codeStr.substring(0, 4));
+                        let month = parseInt(codeStr.substring(4, 6));
+
+                        // 2. Increment Month logic
+                        if (month === 12) {
+                          month = 1;
+                          year += 1;
+                        } else {
+                          month += 1;
+                        }
+
+                        // 3. Format back to YYYYMM (with leading zero for month)
+                        const nextCode = `${year}${String(month).padStart(2, "0")}`;
+
+                        // 4. Trigger handleCodeChange to auto-fill Name and Dates
+                        handleCodeChange(nextCode);
+                      }
+                    },
+                    className:
+                      "flex items-center justify-center h-8 px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
+                  },
+                  {
+                    key: "save",
+                    label: <span className="hidden sm:inline ml-1">Save</span>,
+                    icon: faSave,
+                    onClick: handleSave,
+                    disabled: !isEditing || isSaving,
+                    className: `flex items-center justify-center h-8 px-4 text-[11px] font-medium rounded-md transition-all ${!isEditing || isSaving ? "bg-blue-500 opacity-50 cursor-not-allowed text-white" : "bg-blue-600 text-white hover:bg-blue-700"}`,
+                  },
+                  {
+                    key: "reset",
+                    label: <span className="hidden sm:inline ml-1">Reset</span>,
+                    icon: faUndo,
+                    onClick: resetForm,
+                    className:
+                      "flex items-center justify-center h-8 px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
+                  },
+                ]}
+              />
+
+              <div ref={guideRef} className="relative">
+                <button
+                  onClick={() => setOpenGuide((v) => !v)}
+                  className="bg-blue-600 text-white h-8 px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
+                >
+                  <FontAwesomeIcon
+                    icon={faInfoCircle}
+                    className="text-[12px]"
                   />
-
-                  <FieldRenderer
-                    label="To Date"
-                    required={true}
-                    type="date"
-                    value={toDate}
-                    disabled={!isEditing}
-                    onChange={(val) => {
-                      if (isFutureDate(val)) {
-                        Swal.fire("Invalid Date", "To Date cannot be a future date.", "error");
-                        return;
-                      }
-
-                      if (fromDate && val < fromDate) {
-                        Swal.fire(
-                          "Invalid Date Range",
-                          "To Date cannot be earlier than From Date.",
-                          "error"
-                        );
-                        return;
-                      }
-
-                      setToDate(val);
-                    }}
+                  <span className="hidden sm:inline ml-1 text-[11px] font-medium">
+                    Info
+                  </span>
+                  <FontAwesomeIcon
+                    icon={faChevronDown}
+                    className="hidden sm:inline text-[10px] opacity-80"
                   />
-                </div>
-              </div>
-            </div>
+                </button>
 
-            {/* Table */}
-            <div className="global-ref-table-main-div-ui">
-              <div className="global-ref-table-main-sub-div-ui">
-                <div className="global-ref-table-div-ui">
-                  <table className="global-ref-table-div-ui">
-                    <thead className="global-ref-thead-div-ui">
-                      <tr>
-                        <th className="global-ref-th-ui">Year</th>
-
-                        <th
-                          className="global-ref-th-ui cursor-pointer select-none"
-                          onClick={() => {
-                            setSortBy("cutoffCode");
-                            setSortDir((p) => (p === "asc" ? "desc" : "asc"));
-                          }}
-                        >
-                          Cut Off Code{" "}
-                          {sortBy === "cutoffCode" ? (sortDir === "asc" ? "▲" : "▼") : ""}
-                        </th>
-
-                        <th
-                          className="global-ref-th-ui cursor-pointer select-none"
-                          onClick={() => {
-                            setSortBy("cutoffName");
-                            setSortDir((p) => (p === "asc" ? "desc" : "asc"));
-                          }}
-                        >
-                          Cut Off Name{" "}
-                          {sortBy === "cutoffName" ? (sortDir === "asc" ? "▲" : "▼") : ""}
-                        </th>
-
-                        <th
-                          className="global-ref-th-ui cursor-pointer select-none"
-                          onClick={() => {
-                            setSortBy("fromDate");
-                            setSortDir((p) => (p === "asc" ? "desc" : "asc"));
-                          }}
-                        >
-                          From Date{" "}
-                          {sortBy === "fromDate" ? (sortDir === "asc" ? "▲" : "▼") : ""}
-                        </th>
-
-                        <th
-                          className="global-ref-th-ui cursor-pointer select-none"
-                          onClick={() => {
-                            setSortBy("toDate");
-                            setSortDir((p) => (p === "asc" ? "desc" : "asc"));
-                          }}
-                        >
-                          To Date {sortBy === "toDate" ? (sortDir === "asc" ? "▲" : "▼") : ""}
-                        </th>
-
-                        <th
-                          className="global-ref-th-ui cursor-pointer select-none"
-                          onClick={() => {
-                            setSortBy("stat");
-                            setSortDir((p) => (p === "asc" ? "desc" : "asc"));
-                          }}
-                        >
-                          Status {sortBy === "stat" ? (sortDir === "asc" ? "▲" : "▼") : ""}
-                        </th>
-                      </tr>
-
-                      {/* Filter row */}
-                      <tr>
-                        <th className="global-ref-th-ui">
-                          <select
-                            className="w-full global-ref-filterbox-ui global-ref-filterbox-enabled"
-                            value={selectedYear}
-                            onChange={(e) => setSelectedYear(e.target.value)}
-                          >
-                            {availableYears.length === 0 ? (
-                              <option value={new Date().getFullYear()}>
-                                {new Date().getFullYear()}
-                              </option>
-                            ) : (
-                              availableYears.map((y) => (
-                                <option key={y} value={y}>
-                                  {y}
-                                </option>
-                              ))
-                            )}
-                          </select>
-                        </th>
-
-                        <th className="global-ref-th-ui">
-                          <input
-                            className="w-full global-ref-filterbox-ui global-ref-filterbox-enabled"
-                            placeholder="Filter…"
-                            value={filters.cutoffCode}
-                            onChange={(e) => handleFilterChange(e, "cutoffCode")}
-                          />
-                        </th>
-
-                        <th className="global-ref-th-ui">
-                          <input
-                            className="w-full global-ref-filterbox-ui global-ref-filterbox-enabled"
-                            placeholder="Filter…"
-                            value={filters.cutoffName}
-                            onChange={(e) => handleFilterChange(e, "cutoffName")}
-                          />
-                        </th>
-
-                        <th className="global-ref-th-ui">
-                          <input
-                            className="w-full global-ref-filterbox-ui global-ref-filterbox-enabled"
-                            placeholder="Filter…"
-                            value={filters.fromDate}
-                            onChange={(e) => handleFilterChange(e, "fromDate")}
-                          />
-                        </th>
-
-                        <th className="global-ref-th-ui">
-                          <input
-                            className="w-full global-ref-filterbox-ui global-ref-filterbox-enabled"
-                            placeholder="Filter…"
-                            value={filters.toDate}
-                            onChange={(e) => handleFilterChange(e, "toDate")}
-                          />
-                        </th>
-
-                        <th className="global-ref-th-ui">
-                          <input
-                            className="w-full global-ref-filterbox-ui global-ref-filterbox-enabled"
-                            placeholder="Filter…"
-                            value={filters.stat}
-                            onChange={(e) => handleFilterChange(e, "stat")}
-                          />
-                        </th>
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      {filtered.length > 0 ? (
-                        filtered.map((cutoff, idx) => {
-                          const id = getId(cutoff) ?? idx;
-                          const isSel = getId(selectedCutoff) === getId(cutoff);
-
-                          const fromIso = toISO(pick(cutoff, "fromDate", "FROM_DATE"));
-                          const rowYear = fromIso ? new Date(fromIso).getFullYear() : "";
-
-                          return (
-                            <tr
-                              key={id}
-                              className={`global-tran-tr-ui ${isSel ? "bg-blue-50" : ""}`}
-                              onClick={() => handleSelect(cutoff)}
-                              onDoubleClick={() => {
-                                if (!isEditing) handleEditRow(cutoff);
-                              }}
-                            >
-                              <td className="global-ref-td-ui">{rowYear}</td>
-
-                              <td className="global-ref-td-ui">
-                                {pick(cutoff, "CUTOFF_CODE", "cutoffCode") || ""}
-                              </td>
-
-                              <td className="global-ref-td-ui">
-                                {pick(cutoff, "CUTOFF_NAME", "cutoffName") || "-"}
-                              </td>
-
-                              <td className="global-ref-td-ui">
-                                {toDisplay(pick(cutoff, "fromDate", "FROM_DATE"))}
-                              </td>
-
-                              <td className="global-ref-td-ui">
-                                {toDisplay(pick(cutoff, "toDate", "TO_DATE"))}
-                              </td>
-
-                              <td className="global-ref-td-ui">
-                                {pick(cutoff, "STAT", "stat") === "C" ? "Closed" : "Open"}
-                              </td>
-                            </tr>
-                          );
-                        })
-                      ) : (
-                        <tr>
-                          <td colSpan="6" className="global-ref-norecords-ui">
-                            {loading ? (
-                              <span className="inline-flex items-center gap-2">
-                                <FontAwesomeIcon icon={faSpinner} spin />
-                                Loading…
-                              </span>
-                            ) : (
-                              "No cutoff periods found"
-                            )}
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-
-                  {/* Pagination (placeholder) */}
-                  <div className="flex items-center justify-between p-3">
-                    <div className="text-xs opacity-80 font-semibold">
-                      Total Records: {filtered.length}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <select
-                        className="px-7 py-2 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150"
-                        value={10}
-                        onChange={() => {}}
-                      >
-                        {[10, 20, 50, 100].map((n) => (
-                          <option key={n} value={n}>
-                            {n}/page
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                {isOpenGuide && (
+                  <div className="absolute right-0 mt-2 w-52 rounded-md shadow-xl bg-white ring-1 ring-black/10 z-[60] dark:bg-gray-800 overflow-hidden">
+                    <button
+                      onClick={() => window.open(pdfLink, "_blank")}
+                      className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900 border-b border-gray-100 dark:border-gray-700"
+                    >
+                      <FontAwesomeIcon
+                        icon={faFilePdf}
+                        className="mr-2 text-red-500"
+                      />{" "}
+                      PDF Guide
+                    </button>
+                    <button
+                      onClick={() => window.open(videoLink, "_blank")}
+                      className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900"
+                    >
+                      <FontAwesomeIcon
+                        icon={faVideo}
+                        className="mr-2 text-blue-500"
+                      />{" "}
+                      Video Guide
+                    </button>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           </div>
         </div>
-
-        {/* Footer */}
-        <div className="p-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center mt-4 rounded-b-lg">
-          <div className="text-sm text-gray-700">
-            Showing <span className="font-medium">{filtered.length}</span> of{" "}
-            <span className="font-medium">{cutoffData.length}</span> cutoff periods
-          </div>
-        </div>
       </div>
 
-      <style jsx="true">{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 8px;
-          height: 8px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: #f1f1f1;
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #c1c1c1;
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #a8a8a8;
-        }
-      `}</style>
+      {/* NEW LAYOUT: SIDE-BY-SIDE */}
+      <div className="mt-24 flex flex-col xl:flex-row gap-4 px-4 h-[calc(100vh-130px)]">
+        <div className="w-full xl:w-[400px] flex flex-col gap-4 h-fit">
+          {/* Entry Details Card */}
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-100 dark:border-gray-700 shadow-lg">
+            <h2 className="text-sm font-bold text-blue-600 mb-6 uppercase tracking-wider border-b pb-2 flex justify-between items-center">
+              Entry Details
+              {/* Year Filter Dropdown inside the header or just below it */}
+              <div className="w-24">
+                <FieldRenderer
+                  type="select"
+                  value={selectedYear}
+                  onChange={(v) => setSelectedYear(v)}
+                  options={yearOptions}
+                  // High contrast blue style
+                  className="!bg-blue-600 !text-white !border-blue-700 rounded-md text-[12px] font-bold cursor-pointer"
+                />
+              </div>
+            </h2>
+
+            <div className="space-y-6">
+              <FieldRenderer
+                label="Cut Off Code"
+                required
+                type="text"
+                value={formData.cutoffCode || ""}
+                disabled={!isEditing || !!selectedCutoffCode}
+                onChange={(v) => handleCodeChange(v)}
+                onBlur={(e) => handleCheckDuplicate(e.target.value)}
+                maxLength={6}
+              />
+              {/* ... rest of your fields (Cut Off Name, Dates, Status) */}
+              <FieldRenderer
+                label="Cut Off Name"
+                required
+                type="text"
+                value={formData.cutoffName || ""}
+                disabled={!isEditing}
+                onChange={(v) => updateForm({ cutoffName: v })}
+                maxLength={getMax("CUTOFF_NAME")}
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FieldRenderer
+                  label="Start Date"
+                  required
+                  type="date"
+                  value={formData.fromDate || ""}
+                  disabled={!isEditing}
+                  onChange={(v) => {
+                    updateForm({ fromDate: v });
+                    if (
+                      formData.toDate &&
+                      new Date(v) > new Date(formData.toDate)
+                    ) {
+                      // Optional: Trigger a small toast or temporary warning here
+                      console.warn("Start date is after end date");
+                    }
+                  }}
+                />
+                <FieldRenderer
+                  label="End Date"
+                  required
+                  type="date"
+                  value={formData.toDate || ""}
+                  disabled={!isEditing}
+                  onChange={(v) => {
+                    updateForm({ toDate: v });
+                    if (
+                      formData.fromDate &&
+                      new Date(formData.fromDate) > new Date(v)
+                    ) {
+                      // Optional: Trigger a small toast or temporary warning here
+                      console.warn("End date is before start date");
+                    }
+                  }}
+                />
+              </div>
+              <FieldRenderer
+                label="Status"
+                required
+                type="select"
+                value={formData.status || ""}
+                disabled={!isEditing}
+                onChange={(v) => updateForm({ status: v })}
+                options={[
+                  { value: "O", label: "Open" },
+                  { value: "C", label: "Closed" },
+                ]}
+              />
+            </div>
+          </div>
+
+          {/* Registration Information Card - Added extra bottom margin/padding */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 mb-8">
+            <RegistrationInfo layout="stacked" data={registrationInfo} />
+          </div>
+        </div>
+
+        {/* RIGHT SIDE: Global Reference Table (Flexible Width) */}
+        {/* RIGHT SIDE: Global Reference Table */}
+        <div className="flex-1 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-lg overflow-hidden flex flex-col">
+          <SearchGlobalReferenceTable
+            columns={columns}
+            data={filteredAccounts}
+            isLoading={isListLoading}
+            /* ADD OR UPDATE THIS PROP */
+            fileName={`Cutoff_Reference_${selectedYear}_${new Date().toISOString().split("T")[0]}`}
+            title="Cut off Reference Records"
+            tableSize="Half"
+          />
+        </div>
+      </div>
     </div>
   );
 };

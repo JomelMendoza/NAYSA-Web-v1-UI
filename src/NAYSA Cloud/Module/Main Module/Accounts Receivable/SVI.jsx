@@ -4,7 +4,7 @@ import { useNavigate,useLocation  } from "react-router-dom";
 
 // UI
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faMagnifyingGlass, faPlus, faMinus, faTrashAlt, faFolderOpen, faSpinner } from "@fortawesome/free-solid-svg-icons";
+import { faMagnifyingGlass, faPlus, faMinus, faTrashAlt, faFolderOpen, faSpinner,faSearch } from "@fortawesome/free-solid-svg-icons";
 
 // Lookup/Modal
 import BranchLookupModal from "../../../Lookup/SearchBranchRef";
@@ -77,6 +77,7 @@ import {
   formatNumber,
   parseFormattedNumber,
   useSwalshowSaveSuccessDialog,
+  useSwalHandleOpenSpecsModal
 } from '@/NAYSA Cloud/Global/behavior';
 
 
@@ -102,6 +103,7 @@ const SVI = () => {
       setIsViewDocument(true);
     }
     }, []); 
+    
   const isViewDocumentUrl = isViewDocument;
 
 
@@ -2224,32 +2226,74 @@ return (
               </td>
 
 
-                {/* Description */}
-              <td className="global-tran-td-ui">
+                {/* Description */}           
+                <td className="global-tran-td-ui">
+                <div className="relative flex items-center">
                   <input
                     type="text"
-                    className="w-[100px] global-tran-td-inputclass-ui"
+                    className="w-[300px] global-tran-td-inputclass-ui pr-8"
                     value={row.billName || ""}
+                    onChange={(e) =>
+                      handleDetailChange(index, "billName", e.target.value, false)
+                    }
                     readOnly={isFormDisabled}
-                    onChange={(e) => handleDetailChange(index, 'billName', e.target.value)}
                     maxLength={useGetFieldLength(tblFieldArray, "bill_name")}
                   />
-                </td>
 
-                {/* Specification */}
-              <td className="global-tran-td-ui">
-                <input
-                  type="text"
-                  className="w-[100px] global-tran-td-inputclass-ui"
-                  value={row.sviSpecs || ""}
-                  readOnly={isFormDisabled}
-                  onChange={(e) => handleDetailChange(index, "sviSpecs", e.target.value)}
-                  maxLength={useGetFieldLength(tblFieldArray, "svi_specs")}
-                />
+                  {!isFormDisabled && (
+                    <FontAwesomeIcon
+                      icon={faSearch}
+                      className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                      onClick={() =>
+                        useSwalHandleOpenSpecsModal(
+                          index,
+                          detailRows,
+                          handleDetailChange,
+                          row.billName,
+                          "Description",
+                          "billName",
+                          `Enter Description for ${row.billCode || "this item"}...`
+                        )
+                      }
+                    />
+                  )}
+                </div>
               </td>
 
 
-              
+              <td className="global-tran-td-ui">
+                <div className="relative flex items-center">
+                  <input
+                    type="text"
+                    className="w-[300px] global-tran-td-inputclass-ui pr-8"
+                    value={row.sviSpecs || ""}
+                    onChange={(e) =>
+                      handleDetailChange(index, "sviSpecs", e.target.value, false)
+                    }
+                    readOnly={isFormDisabled}
+                    maxLength={useGetFieldLength(tblFieldArray, "svi_specs")}
+                  />
+
+                  {!isFormDisabled && (
+                    <FontAwesomeIcon
+                      icon={faSearch}
+                      className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                      onClick={() =>
+                        useSwalHandleOpenSpecsModal(
+                          index,
+                          detailRows,
+                          handleDetailChange,
+                          row.sviSpecs,
+                          "Specification",
+                          "sviSpecs",
+                          `Enter specification for ${row.billCode || "this item"}...`
+                        )
+                      }
+                    />
+                  )}
+                </div>
+              </td>
+
 
                 <td className="global-tran-td-ui">
                     <input
@@ -2695,50 +2739,85 @@ return (
     </div>
 
 
+      <div
+    className={`global-tran-tab-footer-total-main-div-ui grid gap-1 ${
+      currRate > 1 ? "grid-cols-3" : "grid-cols-2"
+    }`}
+      >
+        {/* Header Row */}
+        <div></div>
+        <div className="global-tran-tab-footer-total-label-ui text-right">
+          Currency ({glCurrDefault})
+        </div>
+        {currRate > 1 && (
+          <div className="global-tran-tab-footer-total-label-ui text-right">
+            Currency ({currCode})
+          </div>
+        )}
 
-    {/* Totals Section */}
-    <div className="global-tran-tab-footer-total-main-div-ui">
-
-      {/* Total Invoice Amount */}
-      <div className="global-tran-tab-footer-total-div-ui">
-        <label className="global-tran-tab-footer-total-label-ui">
+        {/* Total Invoice Amount */}
+        <div className="global-tran-tab-footer-total-label-ui">
           Total Invoice Amount:
-        </label>
-        <label id="totInvoiceAmount" className="global-tran-tab-footer-total-value-ui">
-          {totals.totalNetAmount}
-        </label>
-      </div>
+        </div>
+        <div id="totInvoiceAmount" className="global-tran-tab-footer-total-value-ui">
+          {currRate === 1
+            ? totals.totalNetAmount
+            : formatNumber( parseFormattedNumber(totals.totalNetAmount)  * currRate)}
+        </div>
+        {currRate > 1 && (
+          <div className="global-tran-tab-footer-total-value-ui">
+            {totals.totalNetAmount}
+          </div>
+        )}
 
-      {/* Total VAT Amount */}
-      <div className="global-tran-tab-footer-total-div-ui">
-        <label className="global-tran-tab-footer-total-label-ui">
+        {/* Total VAT Amount */}
+        <div className="global-tran-tab-footer-total-label-ui">
           Total VAT Amount:
-        </label>
-        <label id="totVATAmount" className="global-tran-tab-footer-total-value-ui">
-          {totals.totalVatAmount}
-        </label>
-      </div>
+        </div>
+        <div id="totVATAmount" className="global-tran-tab-footer-total-value-ui">
+          {currRate === 1
+            ? totals.totalVatAmount
+          : formatNumber( parseFormattedNumber(totals.totalVatAmount)  * currRate)}
+        </div>
+        {currRate > 1 && (
+          <div className="global-tran-tab-footer-total-value-ui">
+            {totals.totalVatAmount}
+          </div>
+        )}
 
-      {/* Total ATC Amount */}
-      <div className="global-tran-tab-footer-total-div-ui">
-        <label className="global-tran-tab-footer-total-label-ui">
+        {/* Total ATC Amount */}
+        <div className="global-tran-tab-footer-total-label-ui">
           Total ATC Amount:
-        </label>
-        <label id="totATCAmount" className="global-tran-tab-footer-total-value-ui">
-          {totals.totalAtcAmount}
-        </label>
+        </div>
+        <div id="totATCAmount" className="global-tran-tab-footer-total-value-ui">
+          {currRate === 1
+            ? totals.totalAtcAmount
+            : formatNumber( parseFormattedNumber(totals.totalAtcAmount)  * currRate)}
+        </div>
+        {currRate > 1 && (
+          <div className="global-tran-tab-footer-total-value-ui">
+            {totals.totalAtcAmount}
+          </div>
+        )}
+
+        {/* Total Amount Due */}
+        <div className="global-tran-tab-footer-total-label-ui">
+          Total Amount Due:
+        </div>
+        <div id="totAmountDue" className="global-tran-tab-footer-total-value-ui">
+          {currRate === 1
+            ? totals.totalAmountDue
+            : formatNumber( parseFormattedNumber(totals.totalAmountDue)  * currRate)}
+        </div>
+        {currRate > 1 && (
+          <div className="global-tran-tab-footer-total-value-ui">
+            {totals.totalAmountDue}
+          </div>
+        )}
       </div>
 
-      {/* Total Payable Amount (Invoice + VAT - ATC) */}
-      <div className="global-tran-tab-footer-total-div-ui">
-        <label className="global-tran-tab-footer-total-label-ui">
-          Total Amount Due:
-        </label>
-        <label id="totAmountDue" className="global-tran-tab-footer-total-value-ui">
-          {totals.totalAmountDue}
-        </label>
-      </div>
-    </div>
+        
+    
     </div>
 
     </div>

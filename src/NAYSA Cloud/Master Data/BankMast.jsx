@@ -6,8 +6,6 @@ import {
   Undo2,
   Edit,
   Trash2,
-  Loader2,
-  FileText,
   Info,
 } from "lucide-react";
 
@@ -16,20 +14,16 @@ import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 import {
   useSwalErrorAlert,
   useSwalSuccessAlert,
-} from "@/NAYSA Cloud/Global/behavior";
+  useSwalDeleteRecord
+} from "@/NAYSA Cloud/Global/behavior.jsx";
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
 import SearchGlobalReferenceTable from "../Lookup/SearchGlobalReferenceTable";
 import RegistrationInfo from "@/NAYSA Cloud/Global/RegistrationInfo.jsx";
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 import BankRef from "../Reference File/BankRef";
 
-import Swal from "sweetalert2";
-
-import {
-  reftables,
-  reftablesPDFGuide,
-  reftablesVideoGuide,
-} from "@/NAYSA Cloud/Global/reftable";
+import { reftables } from "@/NAYSA Cloud/Global/reftable";
 
 import SearchBankRef from "@/NAYSA Cloud/Lookup/SearchBankRef.jsx";
 import SearchCOAMast from "../Lookup/SearchCOAMast";
@@ -92,6 +86,10 @@ const BankMast = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
+  const { showError } = useSwalErrorAlert();
+  const { showSuccess } = useSwalSuccessAlert();
+  const { showDeleteRecord } = useSwalDeleteRecord();
+
   const docType = "BankMast";
   const documentTitle = reftables?.[docType] || "Bank Master";
 
@@ -110,7 +108,9 @@ const BankMast = () => {
   const [activeTab, setActiveTab] = useState("bamast");
   const [form, setForm] = useState(DEFAULT_FORM);
 
-  const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+  const setField = (key, value) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
+
   const resetForm = (next = DEFAULT_FORM) => setForm(next);
 
   const tabs = useMemo(
@@ -163,24 +163,24 @@ const BankMast = () => {
       };
       return apiClient.post("/upsertBank", requestBody);
     },
-    onSuccess: (response) => {
+    onSuccess: async (response) => {
       const sqlRow = response?.data?.data?.[0] || {};
       const errorcount = Number(sqlRow.errorcount ?? sqlRow.ERRORCOUNT ?? 0);
       const errormsg = String(sqlRow.errormsg ?? sqlRow.ERRORMSG ?? "");
 
       if (errorcount > 0) {
-        useSwalErrorAlert("Error", errormsg);
+        showError("Error", errormsg || "Failed to save bank record.");
         return;
       }
 
-      queryClient.invalidateQueries({ queryKey: ["bankList"] });
-      useSwalSuccessAlert("Success!", "Bank record saved successfully.");
+      await queryClient.invalidateQueries({ queryKey: ["bankList"] });
+      showSuccess("Success!", "Bank record saved successfully.");
       setIsEditing(false);
       resetForm(DEFAULT_FORM);
       setSelectedRow(null);
     },
     onError: (error) => {
-      useSwalErrorAlert("System Error", error.message);
+      showError("System Error", error?.message || "Failed to save record.");
     },
   });
 
@@ -188,17 +188,29 @@ const BankMast = () => {
     mutationFn: async (bankCode) => {
       return apiClient.post("/deleteBank", { json_data: { bankCode } });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["bankList"] });
-      Swal.fire("Deleted", "Bank record has been removed.", "success");
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["bankList"] });
+      showDeleteRecord("Deleted!", "Record has been successfully removed.");
       handleReset();
     },
     onError: (error) => {
-      useSwalErrorAlert("System Error", error.message);
+      showError("System Error", error?.message || "Failed to delete record.");
     },
   });
 
   /* ================= ACTIONS ================= */
+
+  const parseResultFlag = (res) => {
+    const row0 = res?.data?.data?.[0] || {};
+    const raw = row0?.result ?? row0?.[""] ?? '{"result":"0"}';
+
+    try {
+      const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+      return String(parsed?.result) === "1";
+    } catch {
+      return false;
+    }
+  };
 
   const checkDuplicate = async (bankCode) => {
     const c = String(bankCode || "").trim();
@@ -208,11 +220,18 @@ const BankMast = () => {
       json_data: { bankCode: c },
     });
 
-    const row0 = res?.data?.data?.[0] || {};
-    const raw = row0?.result ?? row0?.[""] ?? '{"result":"0"}';
-    const parsed = JSON.parse(raw);
+    return parseResultFlag(res);
+  };
 
-    return String(parsed?.result) === "1";
+  const checkInUsed = async (bankCode) => {
+    const c = String(bankCode || "").trim();
+    if (!c) return false;
+
+    const res = await apiClient.post("/checkInUsedBank", {
+      json_data: { bankCode: c },
+    });
+
+    return parseResultFlag(res);
   };
 
   const handleBankCodeValidate = async (arg) => {
@@ -228,32 +247,72 @@ const BankMast = () => {
       return;
     }
 
-    const code = String(form.bankCode || "").trim();
+    const code = String(form.bankCode || "").trim().toUpperCase();
     if (!code || !isEditing || form.__existing) return;
 
-    const dup = await checkDuplicate(code);
+    try {
+      const dup = await checkDuplicate(code);
 
-    if (dup) {
-      setIsDupCode(true);
-      Swal.fire("Duplicate Entry", `Bank Code "${code}" is already in use.`, "error");
-      setField("bankCode", "");
-      setTimeout(() => bankCodeInputRef.current?.focus?.(), 0);
-    } else {
-      setIsDupCode(false);
+      if (dup) {
+        setIsDupCode(true);
+        showError("Duplicate Code", `Bank Code "${code}" already exists.`);
+        setField("bankCode", "");
+        setTimeout(() => bankCodeInputRef.current?.focus?.(), 0);
+      } else {
+        setIsDupCode(false);
+      }
+    } catch (error) {
+      showError(
+        "Validation Error",
+        error?.message || "Failed to validate Bank Code."
+      );
     }
   };
 
   const handleSave = async () => {
     if (!isEditing || saveMutation.isPending) return;
 
-    const { __existing, acctName, currName, bankTypeName, ...payload } = form;
+    const bankCode = String(form.bankCode || "").trim().toUpperCase();
 
-    saveMutation.mutate({
-      ...payload,
-      bankCode: String(form.bankCode || "").trim().toUpperCase(),
-      autoCk: toYN(form.autoCk, "Y"),
-      userCode: user?.USER_CODE || "ADMIN",
-    });
+    const missing = [];
+    if (!bankCode) missing.push("• Bank Code");
+    if (!String(form.acctCode || "").trim()) missing.push("• Account Code");
+    if (!String(form.bankAcctNo || "").trim()) missing.push("• Bank Account No");
+    if (!String(form.bankAcctType || "").trim()) missing.push("• Bank Account Type");
+    if (!String(form.currCode || "").trim()) missing.push("• Currency");
+
+    if (missing.length) {
+      showError(
+        "Error!",
+        `Please fill in the required field(s):\n${missing.join("\n")}`
+      );
+      return;
+    }
+
+    try {
+      if (!form.__existing) {
+        const dup = await checkDuplicate(bankCode);
+        if (dup) {
+          showError("Duplicate Code", `Bank Code "${bankCode}" already exists.`);
+          setTimeout(() => bankCodeInputRef.current?.focus?.(), 0);
+          return;
+        }
+      }
+
+      const { __existing, acctName, currName, bankTypeName, ...payload } = form;
+
+      saveMutation.mutate({
+        ...payload,
+        bankCode,
+        autoCk: toYN(form.autoCk, "Y"),
+        userCode: user?.USER_CODE || "ADMIN",
+      });
+    } catch (error) {
+      showError(
+        "System Error",
+        error?.message || "Failed to save bank record."
+      );
+    }
   };
 
   const handleEdit = async (row) => {
@@ -266,8 +325,37 @@ const BankMast = () => {
       resetForm({ ...DEFAULT_FORM, ...record, __existing: true });
       setIsEditing(true);
       setSelectedRow(row);
+      setIsDupCode(false);
     } catch {
-      Swal.fire("Error", "Could not fetch record", "error");
+      showError("Error", "Could not fetch record");
+    }
+  };
+
+  const handleDelete = async (row) => {
+    const code = row?.bankCode ?? "";
+
+    try {
+      const used = await checkInUsed(code);
+
+      if (used) {
+        showError("Cannot Delete", `Bank Code "${code}" is already in use.`);
+        return;
+      }
+
+      const result = await useSwalDeleteConfirm(
+        "Delete Record?",
+        `Are you sure you want to delete Bank "${code}"?`,
+        "Yes, delete it"
+      );
+
+      if (!result?.isConfirmed) return;
+
+      deleteMutation.mutate(code);
+    } catch (error) {
+      showError(
+        "System Error",
+        error?.message || "Failed to delete record."
+      );
     }
   };
 
@@ -275,6 +363,35 @@ const BankMast = () => {
 
   const columns = useMemo(
     () => [
+      {
+        key: "__actions",
+        label: "Actions",
+        sortable: false,
+        render: (row) => (
+          <div className="flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEdit(row);
+              }}
+              className="rounded-md border border-blue-200 bg-blue-50 p-1 text-blue-600 transition-colors hover:bg-blue-600 hover:text-white"
+            >
+              <Edit size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete(row);
+              }}
+              className="rounded-md border border-red-200 bg-red-50 p-1 text-red-600 transition-colors hover:bg-red-600 hover:text-white"
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
+        ),
+      },
       {
         key: "bankCode",
         label: "Bank Code",
@@ -317,33 +434,6 @@ const BankMast = () => {
       { key: "bankContact", label: "Contact Person", sortable: true },
       { key: "bankTelNo", label: "Contact No", sortable: true },
       { key: "bankPosition", label: "Position", sortable: true },
-      {
-        key: "__actions",
-        label: "Actions",
-        sortable: false,
-        render: (row) => (
-          <div className="flex items-center justify-center gap-3">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleEdit(row);
-              }}
-              className="p-1 rounded-md bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-600 hover:text-white transition-colors"
-            >
-              <Edit size={16} />
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                deleteMutation.mutate(row.bankCode);
-              }}
-              className="p-1 rounded-md bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white transition-colors"
-            >
-              <Trash2 size={16} />
-            </button>
-          </div>
-        ),
-      },
     ],
     []
   );
@@ -351,12 +441,12 @@ const BankMast = () => {
   /* ================= DYNAMIC HEADER BUTTONS ================= */
 
   const bankMastButtons = (
-    <div className="flex gap-2 justify-center text-xs flex-wrap">
+    <div className="flex flex-wrap justify-center gap-2 text-xs">
       <button
         type="button"
         onClick={startNew}
-        className={`bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 ${
-          isEditing ? "opacity-50 cursor-not-allowed" : ""
+        className={`flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-white hover:bg-blue-700 ${
+          isEditing ? "cursor-not-allowed opacity-50" : ""
         }`}
         disabled={isEditing}
       >
@@ -366,8 +456,10 @@ const BankMast = () => {
       <button
         type="button"
         onClick={handleSave}
-        className={`bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 ${
-          !isEditing || saveMutation.isPending ? "opacity-50 cursor-not-allowed" : ""
+        className={`flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-white hover:bg-blue-700 ${
+          !isEditing || saveMutation.isPending
+            ? "cursor-not-allowed opacity-50"
+            : ""
         }`}
         disabled={!isEditing || saveMutation.isPending}
       >
@@ -377,20 +469,28 @@ const BankMast = () => {
       <button
         type="button"
         onClick={handleReset}
-        className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
+        className="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-white hover:bg-blue-700"
         disabled={saveMutation.isPending}
       >
         <Undo2 size={16} /> Reset
+      </button>
+
+      <button
+        type="button"
+        onClick={() => bankRefTabRef.current?.openInfo?.()}
+        className="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-white hover:bg-blue-700"
+      >
+        <Info size={16} /> Info
       </button>
     </div>
   );
 
   const bankTypeButtons = (
-    <div className="flex gap-2 justify-center text-xs flex-wrap">
+    <div className="flex flex-wrap justify-center gap-2 text-xs">
       <button
         type="button"
         onClick={() => bankRefTabRef.current?.startNew?.()}
-        className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
+        className="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-white hover:bg-blue-700"
       >
         <Plus size={16} /> Add
       </button>
@@ -398,7 +498,7 @@ const BankMast = () => {
       <button
         type="button"
         onClick={() => bankRefTabRef.current?.save?.()}
-        className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
+        className="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-white hover:bg-blue-700"
       >
         <Save size={16} /> Save
       </button>
@@ -406,16 +506,15 @@ const BankMast = () => {
       <button
         type="button"
         onClick={() => bankRefTabRef.current?.reset?.()}
-        className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
+        className="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-white hover:bg-blue-700"
       >
         <Undo2 size={16} /> Reset
       </button>
 
-
       <button
         type="button"
         onClick={() => bankRefTabRef.current?.openInfo?.()}
-        className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
+        className="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-white hover:bg-blue-700"
       >
         <Info size={16} /> Info
       </button>
@@ -425,12 +524,14 @@ const BankMast = () => {
   const activeHeaderButtons =
     activeTab === "banktypes" ? bankTypeButtons : bankMastButtons;
 
-  /* ================= RENDER ================= */
+  const showGlobalLoading =
+    isInitialLoading || saveMutation.isPending || deleteMutation.isPending;
 
   return (
     <div className="global-ref-main-div-ui mt-24">
-      {/* HEADER */}
-      <div className="fixed mt-4 top-14 left-6 right-6 z-30 global-ref-header-ui flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 bg-white/80 backdrop-blur p-3 rounded-xl border border-slate-200 shadow-sm">
+      {showGlobalLoading && <LoadingSpinner />}
+
+      <div className="global-ref-header-ui fixed left-6 right-6 top-10 z-30 mt-4 flex flex-col gap-4 rounded-xl border border-slate-200 bg-white/80 p-3 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between">
         <h1 className="global-ref-headertext-ui">{activeHeaderTitle}</h1>
 
         <div className="flex flex-wrap gap-1 overflow-x-hidden">
@@ -439,7 +540,7 @@ const BankMast = () => {
               key={t.id}
               type="button"
               onClick={() => setActiveTab(t.id)}
-              className={`flex items-center px-3 py-2 rounded-md text-xs md:text-sm font-bold transition-colors duration-200 mr-1 ${
+              className={`mr-1 flex items-center rounded-md px-3 py-2 text-xs font-bold transition-colors duration-200 md:text-sm ${
                 activeTab === t.id
                   ? "bg-blue-100 text-blue-700"
                   : "text-gray-600 hover:bg-gray-100 hover:text-blue-700"
@@ -453,7 +554,6 @@ const BankMast = () => {
         {activeHeaderButtons}
       </div>
 
-      {/* BODY */}
       <div
         className="global-tran-tab-div-ui mt-8 p-6"
         style={{ minHeight: "calc(100vh - 170px)" }}
@@ -468,9 +568,9 @@ const BankMast = () => {
           />
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-              <div className="md:col-span-10 bg-white p-6 rounded-xl border shadow-sm">
-                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
+              <div className="rounded-xl border bg-white p-6 shadow-sm md:col-span-10">
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
                   <div className="flex flex-col gap-4">
                     <FieldRenderer
                       label="Bank Code"
@@ -480,6 +580,7 @@ const BankMast = () => {
                         setField("bankCode", e.target.value.toUpperCase())
                       }
                       onBlur={handleBankCodeValidate}
+                      onKeyDown={handleBankCodeValidate}
                       disabled={!isEditing || form.__existing}
                       required
                     />
@@ -556,7 +657,9 @@ const BankMast = () => {
                       label="Currency"
                       type="lookup"
                       value={
-                        form.currCode ? `${form.currCode} - ${form.currName || ""}` : ""
+                        form.currCode
+                          ? `${form.currCode} - ${form.currName || ""}`
+                          : ""
                       }
                       onLookup={() => setCurrencyModalOpen(true)}
                       disabled={!isEditing}
@@ -629,16 +732,7 @@ const BankMast = () => {
               </div>
             </div>
 
-            <div className="global-tran-table-main-div-ui mt-6 relative border border-slate-200 rounded-xl overflow-x-auto bg-white shadow-sm">
-              {isInitialLoading && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/70 z-20 backdrop-blur-sm">
-                  <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
-                  <p className="mt-3 text-sm font-bold text-slate-600 animate-pulse">
-                    Synchronizing Data...
-                  </p>
-                </div>
-              )}
-
+            <div className="global-tran-table-main-div-ui relative mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
               <SearchGlobalReferenceTable
                 docType={docType}
                 columns={columns}
@@ -653,9 +747,7 @@ const BankMast = () => {
           </>
         )}
       </div>
-      
 
-      {/* LOOKUP MODALS */}
       <SearchBankRef
         isOpen={isBankTypeModalOpen}
         onClose={(v) => {

@@ -8,7 +8,7 @@ import {
   useSwalSuccessAlert,
   useSwalDeleteConfirm,
   useSwalDeleteSuccess
-} from "@/NAYSA Cloud/Global/behavior";
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 
 const UsersTab = forwardRef(({ roles, fetchRoles, user, saving, setSaving }, ref) => {
   const [isEditing, setIsEditing] = useState(false);

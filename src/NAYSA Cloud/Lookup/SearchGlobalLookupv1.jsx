@@ -27,7 +27,7 @@ import {
   faFileImage,
   faColumns,
 } from "@fortawesome/free-solid-svg-icons";
-import { formatNumber } from "../Global/behavior";
+import { formatNumber } from "../Global/behavior.jsx";
 import { exportGenericQueryExcel } from "@/NAYSA Cloud/Global/report";
 import Swal from "sweetalert2";
 import html2canvas from "html2canvas";

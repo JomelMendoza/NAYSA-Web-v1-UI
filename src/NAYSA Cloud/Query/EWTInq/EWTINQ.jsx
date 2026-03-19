@@ -26,7 +26,7 @@
 // } from "@/NAYSA Cloud/Global/top1RefTable";
 // import { export1601EQReportExcel, export1604EReportExcel } from "@/NAYSA Cloud/Global/birReport";
 // import { useSelectedHSColConfig } from "@/NAYSA Cloud/Global/selectedData";
-// import { formatNumber, parseFormattedNumber } from "@/NAYSA Cloud/Global/behavior";
+// import { formatNumber, parseFormattedNumber } from "@/NAYSA Cloud/Global/behavior.jsx";
 // import SearchGlobalReportTable from "@/NAYSA Cloud/Lookup/SearchGlobalReportTable.jsx";
 // import BranchLookupModal from "@/NAYSA Cloud/Lookup/SearchBranchRef";
 // import PayeeMastLookupModal from "@/NAYSA Cloud/Lookup/SearchVendMast";
@@ -983,7 +983,7 @@ import {
   export1604EReportExcel,
 } from "@/NAYSA Cloud/Global/birReport";
 import { useSelectedHSColConfig } from "@/NAYSA Cloud/Global/selectedData";
-import { formatNumber, parseFormattedNumber } from "@/NAYSA Cloud/Global/behavior";
+import { formatNumber, parseFormattedNumber } from "@/NAYSA Cloud/Global/behavior.jsx";
 import SearchGlobalReportTable from "@/NAYSA Cloud/Lookup/SearchGlobalReportTable.jsx";
 import BranchLookupModal from "@/NAYSA Cloud/Lookup/SearchBranchRef";
 import PayeeMastLookupModal from "@/NAYSA Cloud/Lookup/SearchVendMast";

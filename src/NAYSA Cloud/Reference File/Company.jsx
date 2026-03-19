@@ -15,7 +15,7 @@ import SearchEmailNotification from "@/NAYSA Cloud/Lookup/SearchEmailNotificatio
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faChevronDown, faFilePdf, faSave, faUndo, faInfoCircle, faVideo } from "@fortawesome/free-solid-svg-icons";
 import { reftables, reftablesPDFGuide, reftablesVideoGuide } from "@/NAYSA Cloud/Global/reftable";
-import { useSwalErrorAlert, useSwalSuccessAlert, useSwalErrorAlertAPI} from "@/NAYSA Cloud/Global/behavior";
+import { useSwalErrorAlert, useSwalSuccessAlert, useSwalErrorAlertAPI} from "@/NAYSA Cloud/Global/behavior.jsx";
 import { useFieldLenghtCheck, useGetFieldLength,} from '@/NAYSA Cloud/Global/procedure';
 
 // UI Helpers

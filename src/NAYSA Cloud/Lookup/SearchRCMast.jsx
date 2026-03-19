@@ -18,18 +18,13 @@ const RCLookupModal = ({ isOpen, onClose, customParam }) => {
     } = useQuery({
         queryKey: ['lookupRCMast', customParam],
         queryFn: async () => {
-            let actualCustomParam = customParam;
-            if (customParam === "apv_hd") actualCustomParam = "ActiveAll";
-
             const { data: result } = await apiClient.get("/lookupRCMast", {
-                params: {
-                    PARAMS: JSON.stringify({
-                        search: "",
-                        page: 1,
-                        pageSize: 100, // Matches your currency logic
-                    }),
-                },
-            });
+                                     params: {
+                                         PARAMS: customParam ?? "ActiveAll",
+                                     }
+                                 });
+
+
 
             const rawData = result?.data?.[0]?.result || "[]";
             return Array.isArray(rawData) ? rawData : JSON.parse(rawData);

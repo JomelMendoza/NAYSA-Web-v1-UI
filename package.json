@@ -36,6 +36,7 @@
     "jspdf-autotable": "^5.0.2",
     "lodash": "^4.17.23",
     "lucide-react": "^0.475.0",
+    "motion": "^12.36.0",
     "pdfjs-dist-viewer-min": "^3.11.174",
     "react": "^18.3.1",
     "react-datepicker": "^7.6.0",

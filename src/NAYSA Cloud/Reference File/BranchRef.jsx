@@ -37,7 +37,7 @@ import {
   useSwalDeleteConfirm,
   useSwalDeleteRecord,
   useSwalValidationAlert,
-} from "@/NAYSA Cloud/Global/behavior";
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 
 import { useFieldLenghtCheck, useGetFieldLength,} from '@/NAYSA Cloud/Global/procedure';
 

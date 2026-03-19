@@ -9,14 +9,16 @@ import React, {
 } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Edit, Trash2 } from "lucide-react";
-import Swal from "sweetalert2";
 
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 import {
   useSwalErrorAlert,
   useSwalSuccessAlert,
-} from "@/NAYSA Cloud/Global/behavior";
+  useSwalWarningAlert,
+  useSwalInfoAlert,
+  useSwalDeleteRecord
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 import {
   reftables,
   reftablesPDFGuide,
@@ -25,6 +27,7 @@ import {
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 import SearchGlobalReferenceTable from "@/NAYSA Cloud/Lookup/SearchGlobalReferenceTable.jsx";
 import RegistrationInfo from "@/NAYSA Cloud/Global/RegistrationInfo.jsx";
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
 /* ================= HELPERS ================= */
 
@@ -82,6 +85,12 @@ const BankRef = forwardRef(
 
     const [form, setForm] = useState(DEFAULT_FORM);
 
+    const { showSuccess } = useSwalSuccessAlert();
+    const { showError } = useSwalErrorAlert();
+    const { showDeleteRecord } = useSwalDeleteRecord();
+    const { showInfo } = useSwalInfoAlert();
+    const showWarning = useSwalWarningAlert;
+
     const setField = (key, value) =>
       setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -116,25 +125,25 @@ const BankRef = forwardRef(
           json_data: JSON.stringify(payload),
         });
       },
-      onSuccess: (response) => {
+      onSuccess: async (response) => {
         const sqlRow = response?.data?.data?.[0] || {};
         const errorcount = Number(sqlRow.errorcount ?? sqlRow.ERRORCOUNT ?? 0);
         const errormsg = String(sqlRow.errormsg ?? sqlRow.ERRORMSG ?? "");
 
         if (errorcount > 0) {
-          useSwalErrorAlert("Error", errormsg);
+          showError("Error", errormsg || "Failed to save Bank Type.");
           return;
         }
 
-        queryClient.invalidateQueries({ queryKey: ["bankTypeList"] });
-        useSwalSuccessAlert("Success!", "Bank Type saved successfully.");
+        await queryClient.invalidateQueries({ queryKey: ["bankTypeList"] });
+        showSuccess("Success!", "Bank Type saved successfully.");
         setIsEditing(false);
         setSelectedRow(null);
         setIsDupCode(false);
         resetForm(DEFAULT_FORM);
       },
       onError: (error) => {
-        useSwalErrorAlert("System Error", error.message);
+        showError("System Error", error?.message || "Failed to save record.");
       },
     });
 
@@ -144,13 +153,13 @@ const BankRef = forwardRef(
           json_data: { bankTypeCode },
         });
       },
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["bankTypeList"] });
-        Swal.fire("Deleted", "Bank Type record has been removed.", "success");
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({ queryKey: ["bankTypeList"] });
+        showDeleteRecord("Deleted", "Bank Type record has been removed.");
         handleReset();
       },
       onError: (error) => {
-        useSwalErrorAlert("System Error", error.message);
+        showError("System Error", error?.message || "Failed to delete record.");
       },
     });
 
@@ -171,6 +180,18 @@ const BankRef = forwardRef(
       setIsDupCode(false);
     }, [resetForm]);
 
+    const parseResultFlag = (res) => {
+      const row0 = res?.data?.data?.[0] || {};
+      const raw = row0?.result ?? row0?.[""] ?? '{"result":"0"}';
+
+      try {
+        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+        return String(parsed?.result) === "1";
+      } catch {
+        return false;
+      }
+    };
+
     const checkDuplicate = async (bankTypeCode) => {
       const c = String(bankTypeCode || "").trim();
       if (!c) return false;
@@ -179,11 +200,7 @@ const BankRef = forwardRef(
         json_data: { bankTypeCode: c },
       });
 
-      const row0 = res?.data?.data?.[0] || {};
-      const raw = row0?.result ?? row0?.[""] ?? '{"result":"0"}';
-      const parsed = JSON.parse(raw);
-
-      return String(parsed?.result) === "1";
+      return parseResultFlag(res);
     };
 
     const checkInUsed = async (bankTypeCode) => {
@@ -194,11 +211,7 @@ const BankRef = forwardRef(
         json_data: { bankTypeCode: c },
       });
 
-      const row0 = res?.data?.data?.[0] || {};
-      const raw = row0?.result ?? row0?.[""] ?? '{"result":"0"}';
-      const parsed = JSON.parse(raw);
-
-      return String(parsed?.result) === "1";
+      return parseResultFlag(res);
     };
 
     const handleBankTypeCodeValidate = async (arg) => {
@@ -214,127 +227,164 @@ const BankRef = forwardRef(
         return;
       }
 
-      const code = String(form.bankTypeCode || "").trim();
+      const code = String(form.bankTypeCode || "").trim().toUpperCase();
       if (!code || !isEditing || form.__existing) return;
 
-      const dup = await checkDuplicate(code);
+      try {
+        const dup = await checkDuplicate(code);
 
-      if (dup) {
-        setIsDupCode(true);
-        Swal.fire(
-          "Duplicate Entry",
-          `Bank Type Code "${code}" is already in use.`,
-          "error"
+        if (dup) {
+          setIsDupCode(true);
+          showError(
+            "Duplicate Entry",
+            `Bank Type Code "${code}" already exists.`
+          );
+          setField("bankTypeCode", "");
+          setTimeout(() => codeInputRef.current?.focus?.(), 0);
+        } else {
+          setIsDupCode(false);
+        }
+      } catch (error) {
+        showError(
+          "Validation Error",
+          error?.message || "Failed to validate Bank Type Code."
         );
-        setField("bankTypeCode", "");
-        setTimeout(() => codeInputRef.current?.focus?.(), 0);
-      } else {
-        setIsDupCode(false);
       }
     };
 
-    const handleSave = useCallback(() => {
+    const handleSave = useCallback(async () => {
       if (!isEditing || saveMutation.isPending) return;
 
-      const payload = {
-        bankTypeCode: String(form.bankTypeCode || "").trim().toUpperCase(),
-        bankTypeName: String(form.bankTypeName || "").trim(),
-        userCode: user?.USER_CODE || "ADMIN",
-      };
+      const code = String(form.bankTypeCode || "").trim().toUpperCase();
+      const name = String(form.bankTypeName || "").trim();
 
-      saveMutation.mutate(payload);
-    }, [form, isEditing, saveMutation, user?.USER_CODE]);
+      const missing = [];
+      if (!code) missing.push("• Bank Type Code");
+      if (!name) missing.push("• Bank Type Name");
+
+      if (missing.length) {
+        showError(
+          "Error!",
+          `Please fill in the required field(s):\n${missing.join("\n")}`
+        );
+        return;
+      }
+
+      try {
+        if (!form.__existing) {
+          const dup = await checkDuplicate(code);
+          if (dup) {
+            showError(
+              "Duplicate Entry",
+              `Bank Type Code "${code}" already exists.`
+            );
+            setTimeout(() => codeInputRef.current?.focus?.(), 0);
+            return;
+          }
+        }
+
+        const payload = {
+          bankTypeCode: code,
+          bankTypeName: name,
+          userCode: user?.USER_CODE || "ADMIN",
+        };
+
+        saveMutation.mutate(payload);
+      } catch (error) {
+        showError(
+          "System Error",
+          error?.message || "Failed to save Bank Type."
+        );
+      }
+    }, [form, isEditing, saveMutation, user?.USER_CODE, showError]);
 
     const handleEdit = async (row) => {
-        try {
-          const res = await apiClient.get("/getBankType", {
-            params: { bankTypeCode: row.bankTypeCode },
-          });
-    
-          const record = extractRows(res)?.[0];
-          resetForm({ ...DEFAULT_FORM, ...record, __existing: true });
-          setIsEditing(true);
-          setSelectedRow(row);
-        } catch {
-          Swal.fire("Error", "Could not fetch record", "error");
-        }
-      };
+      try {
+        const res = await apiClient.get("/getBankType", {
+          params: { bankTypeCode: row.bankTypeCode },
+        });
+
+        const record = extractRows(res)?.[0];
+        resetForm({ ...DEFAULT_FORM, ...record, __existing: true });
+        setIsEditing(true);
+        setSelectedRow(row);
+      } catch {
+        showError("Error", "Could not fetch record");
+      }
+    };
 
     const handleDelete = useCallback(
       async (row) => {
         const code = row?.bankTypeCode ?? row?.banktype_code ?? "";
 
         if (!code) {
-          return Swal.fire("Error", "No record selected.", "error");
+          showError("Error", "No record selected.");
+          return;
         }
 
-        const used = await checkInUsed(code);
+        try {
+          const used = await checkInUsed(code);
 
-        if (used) {
-          return Swal.fire(
-            "Cannot Delete",
-            `Bank Type Code "${code}" is already in use.`,
-            "warning"
+          if (used) {
+            showError(
+              "Cannot Delete",
+              `Bank Type Code "${code}" is already in use.`
+            );
+            return;
+          }
+
+          const confirm = await useSwalDeleteConfirm(
+            "Delete Record?",
+            `Are you sure you want to delete Bank Type "${code}"?`,
+            "Yes, delete it"
+          );
+
+          if (!confirm?.isConfirmed) return;
+
+          deleteMutation.mutate(code);
+        } catch (error) {
+          showError(
+            "System Error",
+            error?.message || "Failed to delete record."
           );
         }
-
-        const confirm = await Swal.fire({
-          title: "Delete Record?",
-          text: `Are you sure you want to delete Bank Type "${code}"?`,
-          icon: "warning",
-          showCancelButton: true,
-          confirmButtonText: "Yes, delete it",
-          cancelButtonText: "Cancel",
-        });
-
-        if (!confirm.isConfirmed) return;
-
-        deleteMutation.mutate(code);
       },
-      [deleteMutation]
+      [deleteMutation, useSwalDeleteConfirm, showError]
     );
 
     const editSelected = useCallback(() => {
       if (!selectedRow) {
-        return Swal.fire("Info", "Please select a record first.", "info");
+        showInfo("Info", "Please select a record first.");
+        return;
       }
       handleEdit(selectedRow);
-    }, [selectedRow, handleEdit]);
+    }, [selectedRow, showInfo]);
 
     const deleteSelected = useCallback(async () => {
       if (!selectedRow) {
-        return Swal.fire("Info", "Please select a record first.", "info");
+        showInfo("Info", "Please select a record first.");
+        return;
       }
       await handleDelete(selectedRow);
-    }, [selectedRow, handleDelete]);
+    }, [selectedRow, handleDelete, showInfo]);
 
     const exportData = useCallback(() => {
       tableRef.current?.getState?.();
     }, []);
 
     const openInfo = useCallback(() => {
-      const htmlParts = [];
+      const messages = [];
 
-      if (pdfLink) {
-        htmlParts.push(
-          `<div style="margin-bottom:8px;"><a href="${pdfLink}" target="_blank" rel="noopener noreferrer">Open PDF Guide</a></div>`
-        );
+      if (pdfLink) messages.push(`PDF Guide: ${pdfLink}`);
+      if (videoLink) messages.push(`Video Guide: ${videoLink}`);
+
+      if (messages.length) {
+        showInfo("Guide", messages.join("\n"));
+        return;
       }
 
-      if (videoLink) {
-        htmlParts.push(
-          `<div><a href="${videoLink}" target="_blank" rel="noopener noreferrer">Open Video Guide</a></div>`
-        );
-      }
-
-      Swal.fire({
-        title: documentTitle,
-        html:
-          htmlParts.join("") ||
-          "<div>No guide or video link is available for this reference.</div>",
-        icon: "info",
-      });
-    }, [documentTitle, pdfLink, videoLink]);
+      showInfo("Guide", "No guide or video link is available for this reference.");
+    }, [pdfLink, videoLink, showInfo]);
 
     useImperativeHandle(ref, () => ({
       startNew,
@@ -354,6 +404,36 @@ const BankRef = forwardRef(
     const tableColumns = useMemo(
       () => [
         {
+          key: "__actions",
+          label: "Actions",
+          sortable: false,
+          width: 140,
+          render: (row) => (
+            <div className="flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleEdit(row);
+                }}
+                className="rounded-md border border-blue-200 bg-blue-50 p-1 text-blue-600 transition-colors hover:bg-blue-600 hover:text-white"
+              >
+                <Edit size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete(row);
+                }}
+                className="rounded-md border border-red-200 bg-red-50 p-1 text-red-600 transition-colors hover:bg-red-600 hover:text-white"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          ),
+        },
+        {
           key: "bankTypeCode",
           label: "Code",
           sortable: true,
@@ -367,38 +447,8 @@ const BankRef = forwardRef(
           width: 360,
           render: (row) => row?.bankTypeName,
         },
-        {
-          key: "__actions",
-          label: "Actions",
-          sortable: false,
-          width: 140,
-          render: (row) => (
-            <div className="flex items-center justify-center gap-2">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleEdit(row);
-                }}
-                className="p-1 rounded-md bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-600 hover:text-white transition-colors"
-              >
-                <Edit size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDelete(row);
-                }}
-                className="p-1 rounded-md bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white transition-colors"
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
-          ),
-        },
       ],
-      [handleEdit, handleDelete]
+      [handleDelete]
     );
 
     const tableData = useMemo(
@@ -411,25 +461,31 @@ const BankRef = forwardRef(
         })),
       [bankTypes]
     );
- 
-    
+
     const registrationData = useMemo(
-  () => ({
-    registeredBy: form?.registeredBy,
-    registeredDate: form?.registeredDate,
-    lastUpdatedBy: form?.lastUpdatedBy,
-    lastUpdatedDate: form?.lastUpdatedDate,
-  }),
-  [form]
-);
+      () => ({
+        registeredBy: form?.registeredBy,
+        registeredDate: form?.registeredDate,
+        lastUpdatedBy: form?.lastUpdatedBy,
+        lastUpdatedDate: form?.lastUpdatedDate,
+      }),
+      [form]
+    );
+
+    const showGlobalLoading =
+      isInitialLoading ||
+      saveMutation.isPending ||
+      deleteMutation.isPending;
 
     return (
       <div className={embedded ? "w-full" : "global-ref-main-div-ui mt-24"}>
-        <div className="w-full max-w-[905px] mx-auto px-4">
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+        {showGlobalLoading && <LoadingSpinner />}
+
+        <div className="mx-auto w-full max-w-[905px] px-4">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
             <div className="xl:col-span-4">
               <div className="flex flex-col gap-4">
-                <div className="border rounded-lg p-4">
+                <div className="rounded-lg border p-4">
                   <div className="grid grid-cols-1 gap-4">
                     <FieldRenderer
                       label="Bank Type Code"
@@ -443,6 +499,7 @@ const BankRef = forwardRef(
                         )
                       }
                       onBlur={handleBankTypeCodeValidate}
+                      onKeyDown={handleBankTypeCodeValidate}
                       disabled={!isEditing || form.__existing}
                     />
 
@@ -466,8 +523,8 @@ const BankRef = forwardRef(
               </div>
             </div>
 
-            <div className="xl:col-span-8 flex items-start">
-              <div className="w-full h-[426px] border rounded-lg p-2 min-w-0">
+            <div className="flex items-start xl:col-span-8">
+              <div className="h-[426px] w-full min-w-0 rounded-lg border p-2">
                 <SearchGlobalReferenceTable
                   ref={tableRef}
                   docType={docType}
@@ -480,6 +537,8 @@ const BankRef = forwardRef(
                   onRowDoubleClick={handleEdit}
                   selectedRow={selectedRow}
                   onRowClick={(row) => setSelectedRow(row)}
+                  showGlobalSearch={false}
+                  tableSize="Half"
                 />
               </div>
             </div>

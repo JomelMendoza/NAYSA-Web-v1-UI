@@ -32,7 +32,7 @@ import {
   useSwalErrorAlertAPI,
   useSwalDeleteConfirm,
   useSwalDeleteRecord,
-} from "@/NAYSA Cloud/Global/behavior";
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 
 import { useFieldLenghtCheck, useGetFieldLength } from "@/NAYSA Cloud/Global/procedure";
 import { useTopDocDropDown } from "@/NAYSA Cloud/Global/top1RefTable";

@@ -31,7 +31,7 @@ import {
 import {
   formatNumber,
   parseFormattedNumber,
-} from "@/NAYSA Cloud/Global/behavior";
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 import { useReturnToDate } from "@/NAYSA Cloud/Global/dates";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 import { exportGenericQueryExcel } from "@/NAYSA Cloud/Global/report";

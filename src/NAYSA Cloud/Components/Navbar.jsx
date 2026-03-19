@@ -128,7 +128,7 @@ const Navbar = ({ onMenuClick, onLogout }) => {
         let timerInterval;
         Swal.fire({
             title: "Confirm Logout",
-            html: "Logging out automatically in <b>5</b> seconds...",
+            html: "Logging out automatically in <b>10</b> seconds...",
             icon: "warning",
             timer: 10000,
             timerProgressBar: true,
@@ -160,7 +160,6 @@ const Navbar = ({ onMenuClick, onLogout }) => {
             if (result.isConfirmed || result.dismiss === Swal.DismissReason.timer) {
                 if (onLogout) {
                     await onLogout();
-                    window.location.href = "/"; 
                 }
             } else if (result.dismiss === Swal.DismissReason.cancel) {
                 // User explicitly clicked "No"

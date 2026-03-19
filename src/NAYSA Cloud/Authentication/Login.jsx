@@ -34,7 +34,7 @@ function normalizeCompaniesPayload(raw) {
 }
 
 export default function Login({ onSwitchToRegister, onForgot }) {
-  const { setUser } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
 
   const [form, setForm] = useState({ USER_CODE: "", PASSWORD: "" });
@@ -114,97 +114,80 @@ export default function Login({ onSwitchToRegister, onForgot }) {
       return;
     }
 
-    setIsLoading(true);
-    try {
-      setTenant(companyCode);
-
-      const { data } = await apiClient.post("/login", {
-        USER_CODE: form.USER_CODE.trim(),
-        PASSWORD: form.PASSWORD,
-      });
-
-      if (data?.status !== "success") {
-        throw new Error(data?.message || "Login failed.");
-      }
-
-      const d = data?.data || {};
-      const normalized = {
-        USER_CODE: d.USER_CODE ?? form.USER_CODE.trim(),
-        USER_NAME: d.USER_NAME ?? d.username ?? form.USER_CODE.trim(),
-      };
-
-      setUser(normalized);
-
-      await Swal.fire({
-        toast: true,
-        position: "top-end",
-        icon: "success",
-        title: `Welcome back, ${normalized.USER_NAME}!`,
-        showConfirmButton: false,
-        timer: 1800,
-        timerProgressBar: true,
-      });
-
-      navigate("/", { replace: true });
-    } catch (err) {
-      const status = err?.response?.status;
-      const code = err?.response?.data?.code;
-      const msg =
-        err?.response?.data?.message ||
-        err?.message ||
-        "Please try again.";
-
-      // ✅ Pending
-      if (status === 403 && code === "PENDING") {
-        await Swal.fire({
-          icon: "info",
-          title: "Awaiting System Administrator Approval",
-          html: `
-            <p style="font-size: 14px; color: #1f2937;">
-              Your account is currently <strong>pending activation</strong>.<br/>
-              Please wait for the administrator to approve your account and send a temporary password.
-            </p>
-          `,
-          confirmButtonText: "OK",
-          confirmButtonColor: "#1e3a8a",
-          background: "#f9fafb",
-          iconColor: "#2563eb",
+   setIsLoading(true);
+      try {
+        await login({
+          companyCode,
+          USER_CODE: form.USER_CODE.trim(),
+          PASSWORD: form.PASSWORD,
         });
-        return;
-      }
 
-      // ✅ Inactive
-      if (status === 403 && code === "INACTIVE") {
+        await Swal.fire({
+          toast: true,
+          position: "top-end",
+          icon: "success",
+          title: "Welcome back!",
+          showConfirmButton: false,
+          timer: 1800,
+          timerProgressBar: true,
+        });
+
+        navigate("/", { replace: true });
+      } catch (err) {
+        const status = err?.response?.status;
+        const code = err?.response?.data?.code;
+        const msg =
+          err?.response?.data?.message ||
+          err?.message ||
+          "Please try again.";
+
+        if (status === 403 && code === "PENDING") {
+          await Swal.fire({
+            icon: "info",
+            title: "Awaiting System Administrator Approval",
+            html: `
+              <p style="font-size: 14px; color: #1f2937;">
+                Your account is currently <strong>pending activation</strong>.<br/>
+                Please wait for the administrator to approve your account and send a temporary password.
+              </p>
+            `,
+            confirmButtonText: "OK",
+            confirmButtonColor: "#1e3a8a",
+            background: "#f9fafb",
+            iconColor: "#2563eb",
+          });
+          return;
+        }
+
+        if (status === 403 && code === "INACTIVE") {
+          await Swal.fire({
+            icon: "error",
+            title: "Account Inactive",
+            text: msg || "Your account has been deactivated. Please contact the administrator.",
+            confirmButtonText: "OK",
+          });
+          return;
+        }
+
+        if (status === 429 && code === "SEAT_LIMIT") {
+          await Swal.fire({
+            icon: "warning",
+            title: "Login Limit Reached",
+            text: msg || "Maximum concurrent users reached. Please try again later.",
+            confirmButtonText: "OK",
+          });
+          return;
+        }
+
         await Swal.fire({
           icon: "error",
-          title: "Account Inactive",
-          text: msg || "Your account has been deactivated. Please contact the administrator.",
+          title: "Login failed",
+          text: msg,
           confirmButtonText: "OK",
         });
-        return;
+      } finally {
+        setIsLoading(false);
       }
-
-      // ✅ Seat limit
-      if (status === 429 && code === "SEAT_LIMIT") {
-        await Swal.fire({
-          icon: "warning",
-          title: "Login Limit Reached",
-          text: msg || "Maximum concurrent users reached. Please try again later.",
-          confirmButtonText: "OK",
-        });
-        return;
-      }
-
-      // ✅ Generic error
-      await Swal.fire({
-        icon: "error",
-        title: "Login failed",
-        text: msg,
-        confirmButtonText: "OK",
-      });
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   return (
