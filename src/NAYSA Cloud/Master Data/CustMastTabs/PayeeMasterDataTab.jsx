@@ -175,7 +175,7 @@
 //           >
 //             {SLTYPE_OPTIONS.map((o) => (
 //               <option key={o.value} value={o.value}>
-                
+
 //               </option>
 //             ))}
 //           </select>
@@ -325,12 +325,13 @@ const PayeeMasterDataTab = ({
 
   // Search state
   const [searchTerm, setSearchTerm] = useState("");
-  const [searchMode, setSearchMode] = useState("start"); // "start" or "part"
+  const [searchMode, setSearchMode] = useState("part"); // default = Contains
 
   // when switching subsidiary type, do not auto-load; clear view and search
   useEffect(() => {
     setHasLoaded(false);
     setSearchTerm("");
+    setSearchMode("part");
   }, [subsidiaryType]);
 
   const col = useMemo(() => {
@@ -356,6 +357,7 @@ const PayeeMasterDataTab = ({
 
   const handleReset = useCallback(() => {
     setSearchTerm("");
+    setSearchMode("part");
     setHasLoaded(false);
     onReset?.();
   }, [onReset]);
@@ -371,15 +373,15 @@ const PayeeMasterDataTab = ({
 
   const tableColumns = useMemo(
     () => [
-      { key: col.codeKey, label: col.codeLabel, sortable: true, width: 160 },
-      { key: col.nameKey, label: col.nameLabel, sortable: true, width: 260 },
-      { key: "taxClass", label: "Tax Rate Class", sortable: true, width: 140 },
+      { key: col.codeKey, label: "Payee Code", sortable: true, width: 130 },
+      { key: col.nameKey, label: "Payee Name", sortable: true, width: 260 },
+      { key: "taxClass", label: "Tax Class", sortable: true, width: 110 },
       { key: "firstName", label: "First Name", sortable: true, width: 140 },
       { key: "middleName", label: "Middle Name", sortable: true, width: 140 },
       { key: "lastName", label: "Last Name", sortable: true, width: 140 },
-      { key: col.tinKey, label: "TIN", sortable: true, width: 140 },
-      { key: "address", label: "Address", sortable: true, width: 320 },
-      { key: "branchCode", label: "Branch Code", sortable: true, width: 120 },
+      { key: col.tinKey, label: "TIN", sortable: true, width: 150 },
+      { key: "address", label: "Address", sortable: true, width: 200 },
+      { key: "branchCode", label: "Branch", sortable: true, width: 100 },
     ],
     [col]
   );
@@ -447,13 +449,14 @@ const PayeeMasterDataTab = ({
           <input
             type="text"
             placeholder="Search Payee Name..."
-            className="block w-full pl-10 pr-10 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400 outline-none transition-all"
+            className="block w-full pl-10 pr-10 py-2 text-sm bg-white border-2 border-blue-500 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-300 transition-all"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleLoad()}
           />
           {searchTerm && (
             <button
+              type="button"
               onClick={() => setSearchTerm("")}
               className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-red-500 transition-colors"
             >
@@ -523,6 +526,7 @@ const PayeeMasterDataTab = ({
         rightActionLabel="View"
         docType={docType}
         onRowDoubleClick={handleRowDblClick}
+        autoFillGrid={false}
       />
     </div>
   );

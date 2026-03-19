@@ -1,7 +1,6 @@
 import React from "react";
 import { Search } from "lucide-react";
 
-// Shadcn UI Component Imports
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -27,9 +26,11 @@ const FieldRenderer = ({
   readOnly = false,
   placeholder = " ",
   inputRef,
-  variant = "default", // "default" or "audit"
+  variant = "default",
+  maxLength,
+  onPaste,
+  ...props
 }) => {
-  // ✅ LOGIC: If variant is "audit", we bypass disabled styling to keep it looking clean/white
   const isAudit = variant === "audit";
   const isEnabled = !disabled || isAudit;
 
@@ -37,12 +38,9 @@ const FieldRenderer = ({
   const idSource = id || name || labelText;
 
   const inputId = idSource
-    ? String(idSource)
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/gi, "_")
+    ? String(idSource).toLowerCase().replace(/[^a-z0-9]+/gi, "_")
     : undefined;
 
-  // ✅ SHARED CLASSES: Conditional styling based on isEnabled (or audit bypass)
   const sharedClasses = `
     peer w-full h-8 sm:h-8
     global-ref-textbox-ui 
@@ -59,27 +57,24 @@ const FieldRenderer = ({
     isEnabled ? "global-ref-label-enabled" : "global-ref-label-disabled"
   }`;
 
+  const getDisplayValue = (val, fieldType = "text") => {
+    if (val === undefined || val === null) return "";
+    if (typeof val !== "object") return String(val);
+
+    if (fieldType === "select") {
+      return val.value !== undefined && val.value !== null ? String(val.value) : "";
+    }
+
+    return val.label ?? val.value ?? "";
+  };
+
   const handleChange = (val) => {
     if (!onChange || readOnly || isAudit) return;
 
     const isEvent = val && typeof val === "object" && "target" in val;
     const finalValue = isEvent ? val.target.value : val;
 
-    if (!isEvent) {
-      onChange(finalValue);
-      return;
-    }
-
-    if (name) {
-      onChange({
-        target: {
-          name,
-          value: finalValue,
-        },
-      });
-    } else {
-      onChange(val);
-    }
+    onChange(finalValue);
   };
 
   const renderLabel = () => (
@@ -91,33 +86,31 @@ const FieldRenderer = ({
 
   return (
     <div className="relative w-full">
-
       {type === "lookup" && (
         <div className="relative flex items-center w-full">
           <Input
             id={inputId}
-            value={value || ""}
+            value={getDisplayValue(value, "lookup")}
             readOnly
             placeholder={placeholder}
-            className={`${sharedClasses} cursor-pointer pr-12 !important`}
+            className={`${sharedClasses} cursor-pointer pr-12`}
             onClick={() => !disabled && !isAudit && onLookup?.()}
           />
           <button
             type="button"
-            onClick={() => !disabled && onLookup?.()}
+            onClick={() => !disabled && !isAudit && onLookup?.()}
             disabled={disabled || isAudit}
             title="Search"
             className={`
               absolute right-0 top-0 h-8 sm:h-8 w-10 flex items-center justify-center
-              rounded-r-lg border border-l-0  transition-colors
-        ${
-          !disabled && !isAudit
-            ? "bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-colors"
-            : "bg-gray-100 text-gray-400"
-        }
-      `}
+              rounded-r-lg border border-l-0 transition-colors
+              ${
+                !disabled && !isAudit
+                  ? "bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white"
+                  : "bg-gray-100 text-gray-400"
+              }
+            `}
           >
-            
             <Search className="h-4 w-4" strokeWidth={3} />
           </button>
           {renderLabel()}
@@ -131,23 +124,25 @@ const FieldRenderer = ({
             ref={inputRef}
             type={type}
             placeholder={placeholder}
-            value={value || ""}
+            value={getDisplayValue(value, type)}
             onChange={handleChange}
             onBlur={onBlur}
             onKeyDown={onKeyDown}
-            disabled={disabled} 
+            disabled={disabled}
             readOnly={readOnly || isAudit}
             className={sharedClasses}
+            maxLength={maxLength}
+            onPaste={onPaste}
+            {...props}
           />
           {renderLabel()}
         </>
       )}
 
-      {/* 3. SELECT FIELD */}
       {type === "select" && (
         <>
           <Select
-            value={value !== undefined && value !== null ? String(value) : ""}
+            value={getDisplayValue(value, "select")}
             onValueChange={(newVal) => handleChange(newVal)}
             disabled={disabled || readOnly || isAudit}
           >

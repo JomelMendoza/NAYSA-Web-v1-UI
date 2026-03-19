@@ -82,6 +82,7 @@ const PayTermRef = forwardRef((props, ref) => {
   const title = "Payment Terms";
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const tableSize = "Half";
 
   const userCode =
     user?.USER_CODE || user?.userCode || user?.code || "ADMIN";
@@ -360,24 +361,6 @@ const PayTermRef = forwardRef((props, ref) => {
   const tableColumns = useMemo(
     () => [
       {
-        key: "paytermCode",
-        label: "Code",
-        sortable: true,
-        width: 160,
-      },
-      {
-        key: "paytermName",
-        label: "Name",
-        sortable: true,
-        width: 380,
-      },
-      {
-        key: "daysDue",
-        label: "Due Days",
-        sortable: true,
-        width: 140,
-      },
-      {
         key: "__actions",
         label: "Actions",
         width: 140,
@@ -405,6 +388,24 @@ const PayTermRef = forwardRef((props, ref) => {
             </button>
           </div>
         ),
+      },
+      {
+        key: "paytermCode",
+        label: "Code",
+        sortable: true,
+        width: 160,
+      },
+      {
+        key: "paytermName",
+        label: "Name",
+        sortable: true,
+        width: 380,
+      },
+      {
+        key: "daysDue",
+        label: "Due Days",
+        sortable: true,
+        width: 140,
       },
     ],
     [handleEdit, handleDelete]
@@ -517,11 +518,8 @@ const PayTermRef = forwardRef((props, ref) => {
             required
             value={form.paytermCode}
             inputRef={codeInputRef}
-            onChange={(e) =>
-              setField(
-                "paytermCode",
-                String(e.target.value || "").toUpperCase()
-              )
+            onChange={(v) =>
+              setField("paytermCode", String(v ?? "").toUpperCase())
             }
             onBlur={handleCodeValidate}
             onKeyDown={handleCodeValidate}
@@ -532,8 +530,8 @@ const PayTermRef = forwardRef((props, ref) => {
             label="Payment Term Name"
             required
             value={form.paytermName}
-            onChange={(e) =>
-              setField("paytermName", e.target.value)
+            onChange={(v) =>
+              setField("paytermName", v ?? "")
             }
             disabled={!isEditing}
           />
@@ -542,8 +540,8 @@ const PayTermRef = forwardRef((props, ref) => {
             label="Due Days"
             type="number"
             value={form.daysDue}
-            onChange={(e) =>
-              setField("daysDue", e.target.value)
+            onChange={(v) =>
+              setField("daysDue", v ?? "")
             }
             disabled={!isEditing}
           />
@@ -564,6 +562,7 @@ const PayTermRef = forwardRef((props, ref) => {
             onRowDoubleClick={handleEdit}
             onRowClick={(row) => setSelectedRow(row)}
             showFilters
+            tableSize={tableSize}
           />
         </div>
       </div>

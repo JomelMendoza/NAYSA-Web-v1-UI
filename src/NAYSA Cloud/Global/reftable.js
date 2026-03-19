@@ -66,6 +66,9 @@ export const reftables = {
     CR: "Collection Receipt Transaction",
     SOA: "Statement of Account Transaction",
 
+    
+    COAMast: "https://www.youtube.com/watch?v=NfiO76wxs9U",
+
   };
 
   export const reftablesPDFGuide = {
@@ -87,6 +90,9 @@ export const reftables = {
     ARCM: "AR Credit Memo Voucher Transaction",
     CR: "Collection Receipt Transaction",
     SOA: "Statement of Account Transaction",
+
+    COAMast: "/public/Guide/NAYSA GL Reference Files.pdf",
+
   };
 
 

@@ -77,7 +77,7 @@ const RcRef = forwardRef(
       setActiveTab = () => {},
       tabs = [],
     },
-    ref,
+    ref
   ) => {
     const { user } = useAuth();
     const queryClient = useQueryClient();
@@ -118,8 +118,7 @@ const RcRef = forwardRef(
       };
 
       document.addEventListener("mousedown", handleClickOutside);
-      return () =>
-        document.removeEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
     const rcTypeListQuery = useQuery({
@@ -133,7 +132,7 @@ const RcRef = forwardRef(
 
     const rcTypes = useMemo(
       () => rcTypeListQuery.data || [],
-      [rcTypeListQuery.data],
+      [rcTypeListQuery.data]
     );
 
     const isInitialLoading = rcTypeListQuery.isLoading;
@@ -166,33 +165,21 @@ const RcRef = forwardRef(
       },
     });
 
-const deleteMutation = useMutation({
-  mutationFn: async (rcTypeCode) => {
-    const res = await apiClient.post("/deleteRcType", {
-      json_data: JSON.stringify({ rcTypeCode, userCode: user?.userCode }),
+    const deleteMutation = useMutation({
+      mutationFn: async (rcTypeCode) => {
+        return apiClient.post("/deleteRcType", {
+          json_data: { rcTypeCode },
+        });
+      },
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["rcTypeList"] });
+        Swal.fire("Deleted", "RC Type record has been removed.", "success");
+        handleReset();
+      },
+      onError: (error) => {
+        useSwalErrorAlert("System Error", error.message);
+      },
     });
-    return res.data;
-  },
-  onSuccess: (response) => {
-    // response.data is the array directly from the controller
-    const result = response.data?.[0];  // Changed from response.data.data?.[0]
-
-    if (result && (result.errorcount > 0 || result.ERRORCOUNT > 0)) {
-      const errorMsg = result.errormsg || result.ERRORMSG || "Delete failed";
-      Swal.fire("Delete Failed", errorMsg, "error");
-      return;
-    }
-
-    queryClient.invalidateQueries({ queryKey: ["rcTypeList"] }); // Fixed query key
-    Swal.fire("Deleted!", "Record has been deleted.", "success");
-    resetForm(DEFAULT_FORM); // Fixed: pass DEFAULT_FORM instead of calling resetForm with no args
-    setSelectedRow(null);
-    setIsEditing(false);
-  },
-  onError: (error) => {
-    Swal.fire("System Error", error.message, "error");
-  },
-});
 
     const startNew = useCallback(() => {
       resetForm(DEFAULT_FORM);
@@ -209,68 +196,35 @@ const deleteMutation = useMutation({
       setIsDupCode(false);
     }, [resetForm]);
 
-const checkDuplicate = async (rcTypeCode) => {
-  const c = String(rcTypeCode || "").trim();
-  if (!c) return false;
+    const checkDuplicate = async (rcTypeCode) => {
+      const c = String(rcTypeCode || "").trim();
+      if (!c) return false;
 
-  try {
-    // FIX: Stringify the object - controller expects a JSON string
-    const res = await apiClient.post("/checkDuplicateRcType", {
-      json_data: JSON.stringify({ rcTypeCode: c })  // Changed to stringify
-    });
+      const res = await apiClient.post("/checkDuplicateRcType", {
+        json_data: { rcTypeCode: c },
+      });
 
-    console.log("Duplicate check response:", res.data);
+      const row0 = res?.data?.data?.[0] || {};
+      const raw = row0?.result ?? row0?.[""] ?? '{"result":"0"}';
+      const parsed = JSON.parse(raw);
 
-    // Extract the result from the response
-    const row0 = res?.data?.data?.[0] || {};
-    const raw = row0?.result ?? '{"result":"0"}';
-    
-    let parsed;
-    try {
-      parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    } catch (e) {
-      console.error("Error parsing result:", e);
-      parsed = { result: "0" };
-    }
-    
-    return String(parsed?.result) === "1";
-    
-  } catch (error) {
-    console.error("Error in checkDuplicate:", error);
-    return false;
-  }
-};
+      return String(parsed?.result) === "1";
+    };
 
-const checkInUsed = async (rcTypeCode) => {
-  const c = String(rcTypeCode || "").trim();
-  if (!c) return false;
+    const checkInUsed = async (rcTypeCode) => {
+      const c = String(rcTypeCode || "").trim();
+      if (!c) return false;
 
-  try {
-    // FIX: Stringify the object
-    const res = await apiClient.post("/checkInUsedRcType", {
-      json_data: JSON.stringify({ rcTypeCode: c })  // Changed to stringify
-    });
+      const res = await apiClient.post("/checkInUsedRcType", {
+        json_data: { rcTypeCode: c },
+      });
 
-    console.log("InUse check response:", res.data);
+      const row0 = res?.data?.data?.[0] || {};
+      const raw = row0?.result ?? row0?.[""] ?? '{"result":"0"}';
+      const parsed = JSON.parse(raw);
 
-    const row0 = res?.data?.data?.[0] || {};
-    const raw = row0?.result ?? '{"result":"0"}';
-    
-    let parsed;
-    try {
-      parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    } catch (e) {
-      console.error("Error parsing result:", e);
-      parsed = { result: "0" };
-    }
-    
-    return String(parsed?.result) === "1";
-    
-  } catch (error) {
-    console.error("Error in checkInUsed:", error);
-    return false;
-  }
-};
+      return String(parsed?.result) === "1";
+    };
 
     const handleRcTypeCodeValidate = async (arg) => {
       const isEvent = arg && typeof arg === "object" && "type" in arg;
@@ -295,7 +249,7 @@ const checkInUsed = async (rcTypeCode) => {
         Swal.fire(
           "Duplicate Entry",
           `RC Type Code "${code}" is already in use.`,
-          "error",
+          "error"
         );
         setField("rcTypeCode", "");
         setTimeout(() => codeInputRef.current?.focus?.(), 0);
@@ -308,9 +262,7 @@ const checkInUsed = async (rcTypeCode) => {
       if (!isEditing || saveMutation.isPending) return;
 
       const payload = {
-        rcTypeCode: String(form.rcTypeCode || "")
-          .trim()
-          .toUpperCase(),
+        rcTypeCode: String(form.rcTypeCode || "").trim().toUpperCase(),
         rcTypeName: String(form.rcTypeName || "").trim(),
         userCode: user?.USER_CODE || "ADMIN",
       };
@@ -319,7 +271,7 @@ const checkInUsed = async (rcTypeCode) => {
         Swal.fire(
           "Validation",
           "RC Type Code and RC Type Name are required.",
-          "warning",
+          "warning"
         );
         return;
       }
@@ -342,42 +294,42 @@ const checkInUsed = async (rcTypeCode) => {
           Swal.fire("Error", "Could not fetch record", "error");
         }
       },
-      [resetForm],
+      [resetForm]
     );
-    
-const handleDelete = useCallback(
-  async (row) => {
-    const code = row?.rcTypeCode ?? "";
 
-    if (!code) {
-      return Swal.fire("Error", "No record selected.", "error");
-    }
+    const handleDelete = useCallback(
+      async (row) => {
+        const code = row?.rcTypeCode ?? "";
 
-    // Optional: Remove this check since the SPROC already does it
-    // const used = await checkInUsed(code);
-    // if (used) {
-    //   return Swal.fire(
-    //     "Cannot Delete",
-    //     `RC Type Code "${code}" is already in use.`,
-    //     "warning"
-    //   );
-    // }
+        if (!code) {
+          return Swal.fire("Error", "No record selected.", "error");
+        }
 
-    const confirm = await Swal.fire({
-      title: "Delete Record?",
-      text: `Are you sure you want to delete RC Type "${code}"?`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "Yes, delete it",
-      cancelButtonText: "Cancel",
-    });
+        const used = await checkInUsed(code);
 
-    if (!confirm.isConfirmed) return;
+        if (used) {
+          return Swal.fire(
+            "Cannot Delete",
+            `RC Type Code "${code}" is already in use.`,
+            "warning"
+          );
+        }
 
-    deleteMutation.mutate(code);
-  },
-  [deleteMutation], // Removed checkInUsed from dependencies
-);
+        const confirm = await Swal.fire({
+          title: "Delete Record?",
+          text: `Are you sure you want to delete RC Type "${code}"?`,
+          icon: "warning",
+          showCancelButton: true,
+          confirmButtonText: "Yes, delete it",
+          cancelButtonText: "Cancel",
+        });
+
+        if (!confirm.isConfirmed) return;
+
+        deleteMutation.mutate(code);
+      },
+      [deleteMutation]
+    );
 
     const editSelected = useCallback(() => {
       if (!selectedRow) {
@@ -402,13 +354,13 @@ const handleDelete = useCallback(
 
       if (pdfLink) {
         htmlParts.push(
-          `<div style="margin-bottom:8px;"><a href="${pdfLink}" target="_blank" rel="noopener noreferrer">Open PDF Guide</a></div>`,
+          `<div style="margin-bottom:8px;"><a href="${pdfLink}" target="_blank" rel="noopener noreferrer">Open PDF Guide</a></div>`
         );
       }
 
       if (videoLink) {
         htmlParts.push(
-          `<div><a href="${videoLink}" target="_blank" rel="noopener noreferrer">Open Video Guide</a></div>`,
+          `<div><a href="${videoLink}" target="_blank" rel="noopener noreferrer">Open Video Guide</a></div>`
         );
       }
 
@@ -435,57 +387,54 @@ const handleDelete = useCallback(
     }));
 
     const tableColumns = useMemo(
-  () => [
-    {
-      key: "__actions",
-      label: "Actions",
-      sortable: false,
-      width: 140,
-      render: (row) => (
-        <div className="flex gap-2 justify-center">
-          {/* Edit Button - Styled like RCMast */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleEdit(row);
-            }}
-            className="p-1.5 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-600 hover:text-white transition-colors"
-          >
-            <Edit size={16} />
-          </button>
-
-          {/* Delete Button - Styled like RCMast */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete(row);
-            }}
-            className="p-1.5 rounded-md bg-red-100 text-red-700 hover:bg-red-600 hover:text-white transition-colors"
-          >
-            <Trash2 size={16} />
-          </button>
-        </div>
-      ),
-    },
-    {
-      key: "rcTypeCode",
-      label: "Code",
-      sortable: true,
-      width: 140,
-      render: (row) => row?.rcTypeCode,
-    },
-    {
-      key: "rcTypeName",
-      label: "Name",
-      sortable: true,
-      width: 360,
-      render: (row) => row?.rcTypeName,
-    },
-  ],
-  [handleEdit, handleDelete],
-);
+      () => [
+        {
+          key: "__actions",
+          label: "Actions",
+          sortable: false,
+          width: 140,
+          render: (row) => (
+            <div className="flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleEdit(row);
+                }}
+                className="p-1 rounded-md bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-600 hover:text-white transition-colors"
+              >
+                <Edit size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete(row);
+                }}
+                className="p-1 rounded-md bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white transition-colors"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          ),
+        },
+        {
+          key: "rcTypeCode",
+          label: "Code",
+          sortable: true,
+          width: 140,
+          render: (row) => row?.rcTypeCode,
+        },
+        {
+          key: "rcTypeName",
+          label: "Name",
+          sortable: true,
+          width: 360,
+          render: (row) => row?.rcTypeName,
+        },
+      ],
+      [handleEdit, handleDelete]
+    );
 
     const tableData = useMemo(
       () =>
@@ -495,7 +444,7 @@ const handleDelete = useCallback(
           rcTypeCode: row?.rcTypeCode,
           rcTypeName: row?.rcTypeName,
         })),
-      [rcTypes],
+      [rcTypes]
     );
 
     const registrationData = useMemo(
@@ -505,7 +454,7 @@ const handleDelete = useCallback(
         lastUpdatedBy: form?.lastUpdatedBy,
         lastUpdatedDate: form?.lastUpdatedDate,
       }),
-      [form],
+      [form]
     );
 
     // if (activeTab === "rcMast") {
@@ -525,34 +474,34 @@ const handleDelete = useCallback(
           <div className="w-full flex flex-col gap-3 md:grid md:grid-cols-3 md:items-center">
             <div className="flex flex-col">
               <h1 className="global-ref-headertext-ui text-center md:text-left">
-                {reftables?.[docType] || "RC Type"}
+                {reftables?.[docType] || "RC Reference Type"}
               </h1>
             </div>
 
             <div className="flex gap-4 justify-center items-end h-full">
               <button
-                type="button"
-                onClick={() => setActiveTab("rcMast")}
-                className={`text-[11px] font-bold pb-1 border-b-2 transition-all ${
-                  activeTab === "rcMast"
-                    ? "border-blue-600 text-blue-600"
-                    : "border-transparent text-gray-400 hover:text-gray-600"
-                }`}
-              >
-                RC Master Data
-              </button>
+  type="button"
+  onClick={() => setActiveTab("rcMast")}
+  className={`text-[11px] font-bold pb-1 border-b-2 transition-all ${
+    activeTab === "rcMast"
+      ? "border-blue-600 text-blue-600"
+      : "border-transparent text-gray-400 hover:text-gray-600"
+  }`}
+>
+  RC Master
+</button>
 
-              <button
-                type="button"
-                onClick={() => setActiveTab("rctype")}
-                className={`text-[11px] font-bold pb-1 border-b-2 transition-all ${
-                  activeTab === "rctype"
-                    ? "border-blue-600 text-blue-600"
-                    : "border-transparent text-gray-400 hover:text-gray-600"
-                }`}
-              >
-                RC Type
-              </button>
+<button
+  type="button"
+  onClick={() => setActiveTab("rctype")}
+  className={`text-[11px] font-bold pb-1 border-b-2 transition-all ${
+    activeTab === "rctype"
+      ? "border-blue-600 text-blue-600"
+      : "border-transparent text-gray-400 hover:text-gray-600"
+  }`}
+>
+  RC Reference Type
+</button>
             </div>
 
             <div className="flex items-center justify-center md:justify-end gap-2 flex-wrap">
@@ -608,10 +557,7 @@ const handleDelete = useCallback(
                         }}
                         className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 border-b border-gray-100"
                       >
-                        <FileText
-                          size={14}
-                          className="inline mr-2 text-red-500"
-                        />
+                        <FileText size={14} className="inline mr-2 text-red-500" />
                         PDF Guide
                       </button>
                     )}
@@ -625,10 +571,7 @@ const handleDelete = useCallback(
                         }}
                         className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50"
                       >
-                        <Video
-                          size={14}
-                          className="inline mr-2 text-blue-500"
-                        />
+                        <Video size={14} className="inline mr-2 text-blue-500" />
                         Video Guide
                       </button>
                     )}
@@ -656,8 +599,11 @@ const handleDelete = useCallback(
                       required
                       value={form.rcTypeCode}
                       inputRef={codeInputRef}
-                      onChange={(val) =>
-                        setField("rcTypeCode", String(val || "").toUpperCase())
+                      onChange={(e) =>
+                        setField(
+                          "rcTypeCode",
+                          String(e.target.value || "").toUpperCase()
+                        )
                       }
                       onBlur={handleRcTypeCodeValidate}
                       onKeyDown={handleRcTypeCodeValidate}
@@ -668,7 +614,7 @@ const handleDelete = useCallback(
                       label="RC Type Name"
                       required
                       value={form.rcTypeName}
-                      onChange={(val) => setField("rcTypeName", val)}
+                      onChange={(e) => setField("rcTypeName", e.target.value)}
                       disabled={!isEditing || saveMutation.isPending}
                     />
                   </div>
@@ -696,7 +642,6 @@ const handleDelete = useCallback(
                   onRowDoubleClick={handleEdit}
                   selectedRow={selectedRow}
                   onRowClick={(row) => setSelectedRow(row)}
-                  tableSize="Half"
                 />
               </div>
             </div>
@@ -704,7 +649,7 @@ const handleDelete = useCallback(
         </div>
       </div>
     );
-  },
+  }
 );
 
 export default RcRef;
