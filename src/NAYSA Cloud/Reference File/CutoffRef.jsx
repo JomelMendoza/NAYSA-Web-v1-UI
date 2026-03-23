@@ -3,7 +3,6 @@ import React, {
   useMemo,
   useRef,
   useState,
-  useCallback,
 } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
@@ -80,9 +79,10 @@ const CutoffRef = () => {
   const [isOpenGuide, setOpenGuide] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [tblFieldArray, setTblFieldArray] = useState([]);
-  const [selectedYear, setSelectedYear] = useState(
-    new Date().getFullYear().toString(),
-  );
+
+ const [selectedYear, setSelectedYear] = useState(
+  new Date().getFullYear().toString() // Defaults to current year (e.g., "2026")
+);
 
   const toggleModal = (name, isOpen) =>
     setModals((prev) => ({ ...prev, [name]: isOpen }));
@@ -129,13 +129,13 @@ const CutoffRef = () => {
     updateForm(updates);
   };
 
-  const filteredAccounts = useMemo(() => {
-    if (!selectedYear) return accounts;
-    return accounts.filter((item) => {
-      // Matches the year from the cutoffCode (first 4 digits) or the fromDate
-      return item.cutoffCode?.startsWith(selectedYear);
-    });
-  }, [accounts, selectedYear]);
+const filteredAccounts = useMemo(() => {
+  if (!selectedYear) return accounts; // Show all if input is cleared
+  return accounts.filter((item) => {
+    // Matches the start of the cutoffCode with your typed year
+    return item.cutoffCode?.startsWith(selectedYear);
+  });
+}, [accounts, selectedYear]);
 
   const yearOptions = useMemo(() => {
     // Extract the first 4 digits from all available cutoffCodes
@@ -429,16 +429,16 @@ const columns = useMemo(
   ],
   [handleEdit, handleDelete]
 );
-  useEffect(() => {
-    // If current selected year is not in the options and options exist,
-    // default to the first available year in the list
-    if (
-      yearOptions.length > 0 &&
-      !yearOptions.find((o) => o.value === selectedYear)
-    ) {
-      setSelectedYear(yearOptions[0].value);
-    }
-  }, [yearOptions, selectedYear]);
+  // useEffect(() => {
+  //   // If current selected year is not in the options and options exist,
+  //   // default to the first available year in the list
+  //   if (
+  //     yearOptions.length > 0 &&
+  //     !yearOptions.find((o) => o.value === selectedYear)
+  //   ) {
+  //     setSelectedYear(yearOptions[0].value);
+  //   }
+  // }, [yearOptions, selectedYear]);
 
   useEffect(() => {
     const handleKey = (e) => {
@@ -621,20 +621,32 @@ const columns = useMemo(
         <div className="w-full xl:w-[400px] flex flex-col gap-4 h-fit">
           {/* Entry Details Card */}
           <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-100 dark:border-gray-700 shadow-lg">
-            <h2 className="text-sm font-bold text-blue-600 mb-6 uppercase tracking-wider border-b pb-2 flex justify-between items-center">
-              Entry Details
-              {/* Year Filter Dropdown inside the header or just below it */}
-              <div className="w-24">
-                <FieldRenderer
-                  type="select"
-                  value={selectedYear}
-                  onChange={(v) => setSelectedYear(v)}
-                  options={yearOptions}
-                  // High contrast blue style
-                  className="!bg-blue-600 !text-white !border-blue-700 rounded-md text-[12px] font-bold cursor-pointer"
-                />
-              </div>
-            </h2>
+ <h2 className="text-sm font-bold text-blue-600 mb-6 uppercase tracking-wider border-b pb-2 flex justify-between items-center">
+  Entry Details
+  <div className="flex items-center gap-2">
+    <div className="w-28 relative">
+      <FieldRenderer
+        type="text"
+        placeholder="Search Year..."
+        value={selectedYear}
+        onChange={(v) => {
+          // Allow only numbers and limit to 4 digits
+          const numericValue = v.replace(/\D/g, "").slice(0, 4);
+          setSelectedYear(numericValue);
+        }}
+        className="!h-8 !text-[12px] border-blue-600 focus:ring-blue-500 rounded-md pr-6 font-bold"
+      />
+      {selectedYear && (
+        <button
+          onClick={() => setSelectedYear("")}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 text-[10px]"
+        >
+          ✕
+        </button>
+      )}
+    </div>
+  </div>
+</h2>
 
             <div className="space-y-6">
               <FieldRenderer
