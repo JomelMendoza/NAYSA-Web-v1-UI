@@ -17,7 +17,8 @@ import {
   useSwalSuccessAlert,
   useSwalWarningAlert,
   useSwalInfoAlert,
-  useSwalDeleteRecord
+  useSwalDeleteRecord,
+  useSwalDeleteConfirm 
 } from "@/NAYSA Cloud/Global/behavior.jsx";
 import {
   reftables,
@@ -85,12 +86,6 @@ const BankRef = forwardRef(
 
     const [form, setForm] = useState(DEFAULT_FORM);
 
-    const { showSuccess } = useSwalSuccessAlert();
-    const { showError } = useSwalErrorAlert();
-    const { showDeleteRecord } = useSwalDeleteRecord();
-    const { showInfo } = useSwalInfoAlert();
-    const showWarning = useSwalWarningAlert;
-
     const setField = (key, value) =>
       setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -131,19 +126,22 @@ const BankRef = forwardRef(
         const errormsg = String(sqlRow.errormsg ?? sqlRow.ERRORMSG ?? "");
 
         if (errorcount > 0) {
-          showError("Error", errormsg || "Failed to save Bank Type.");
+          useSwalErrorAlert("Error", errormsg || "Failed to save Bank Type.");
           return;
         }
 
         await queryClient.invalidateQueries({ queryKey: ["bankTypeList"] });
-        showSuccess("Success!", "Bank Type saved successfully.");
+        useSwalSuccessAlert("Success!", "Bank Type saved successfully.");
         setIsEditing(false);
         setSelectedRow(null);
         setIsDupCode(false);
         resetForm(DEFAULT_FORM);
       },
       onError: (error) => {
-        showError("System Error", error?.message || "Failed to save record.");
+        useSwalErrorAlert(
+          "System Error",
+          error?.message || "Failed to save record."
+        );
       },
     });
 
@@ -155,11 +153,14 @@ const BankRef = forwardRef(
       },
       onSuccess: async () => {
         await queryClient.invalidateQueries({ queryKey: ["bankTypeList"] });
-        showDeleteRecord("Deleted", "Bank Type record has been removed.");
+        useSwalDeleteRecord("Deleted", "Bank Type record has been removed.");
         handleReset();
       },
       onError: (error) => {
-        showError("System Error", error?.message || "Failed to delete record.");
+        useSwalErrorAlert(
+          "System Error",
+          error?.message || "Failed to delete record."
+        );
       },
     });
 
@@ -235,7 +236,7 @@ const BankRef = forwardRef(
 
         if (dup) {
           setIsDupCode(true);
-          showError(
+          useSwalErrorAlert(
             "Duplicate Entry",
             `Bank Type Code "${code}" already exists.`
           );
@@ -245,7 +246,7 @@ const BankRef = forwardRef(
           setIsDupCode(false);
         }
       } catch (error) {
-        showError(
+        useSwalErrorAlert(
           "Validation Error",
           error?.message || "Failed to validate Bank Type Code."
         );
@@ -263,7 +264,7 @@ const BankRef = forwardRef(
       if (!name) missing.push("• Bank Type Name");
 
       if (missing.length) {
-        showError(
+        useSwalErrorAlert(
           "Error!",
           `Please fill in the required field(s):\n${missing.join("\n")}`
         );
@@ -274,7 +275,7 @@ const BankRef = forwardRef(
         if (!form.__existing) {
           const dup = await checkDuplicate(code);
           if (dup) {
-            showError(
+            useSwalErrorAlert(
               "Duplicate Entry",
               `Bank Type Code "${code}" already exists.`
             );
@@ -291,12 +292,12 @@ const BankRef = forwardRef(
 
         saveMutation.mutate(payload);
       } catch (error) {
-        showError(
+        useSwalErrorAlert(
           "System Error",
           error?.message || "Failed to save Bank Type."
         );
       }
-    }, [form, isEditing, saveMutation, user?.USER_CODE, showError]);
+    }, [form, isEditing, saveMutation, user?.USER_CODE]);
 
     const handleEdit = async (row) => {
       try {
@@ -309,7 +310,7 @@ const BankRef = forwardRef(
         setIsEditing(true);
         setSelectedRow(row);
       } catch {
-        showError("Error", "Could not fetch record");
+        useSwalErrorAlert("Error", "Could not fetch record");
       }
     };
 
@@ -318,7 +319,7 @@ const BankRef = forwardRef(
         const code = row?.bankTypeCode ?? row?.banktype_code ?? "";
 
         if (!code) {
-          showError("Error", "No record selected.");
+          useSwalErrorAlert("Error", "No record selected.");
           return;
         }
 
@@ -326,7 +327,7 @@ const BankRef = forwardRef(
           const used = await checkInUsed(code);
 
           if (used) {
-            showError(
+            useSwalErrorAlert(
               "Cannot Delete",
               `Bank Type Code "${code}" is already in use.`
             );
@@ -343,30 +344,30 @@ const BankRef = forwardRef(
 
           deleteMutation.mutate(code);
         } catch (error) {
-          showError(
+          useSwalErrorAlert(
             "System Error",
             error?.message || "Failed to delete record."
           );
         }
       },
-      [deleteMutation, useSwalDeleteConfirm, showError]
+      [deleteMutation, useSwalDeleteConfirm]
     );
 
     const editSelected = useCallback(() => {
       if (!selectedRow) {
-        showInfo("Info", "Please select a record first.");
+        useSwalInfoAlert("Info", "Please select a record first.");
         return;
       }
       handleEdit(selectedRow);
-    }, [selectedRow, showInfo]);
+    }, [selectedRow]);
 
     const deleteSelected = useCallback(async () => {
       if (!selectedRow) {
-        showInfo("Info", "Please select a record first.");
+        useSwalInfoAlert("Info", "Please select a record first.");
         return;
       }
       await handleDelete(selectedRow);
-    }, [selectedRow, handleDelete, showInfo]);
+    }, [selectedRow, handleDelete]);
 
     const exportData = useCallback(() => {
       tableRef.current?.getState?.();
@@ -379,12 +380,15 @@ const BankRef = forwardRef(
       if (videoLink) messages.push(`Video Guide: ${videoLink}`);
 
       if (messages.length) {
-        showInfo("Guide", messages.join("\n"));
+        useSwalInfoAlert("Guide", messages.join("\n"));
         return;
       }
 
-      showInfo("Guide", "No guide or video link is available for this reference.");
-    }, [pdfLink, videoLink, showInfo]);
+      useSwalInfoAlert(
+        "Guide",
+        "No guide or video link is available for this reference."
+      );
+    }, [pdfLink, videoLink]);
 
     useImperativeHandle(ref, () => ({
       startNew,
@@ -492,12 +496,7 @@ const BankRef = forwardRef(
                       required
                       value={form.bankTypeCode}
                       inputRef={codeInputRef}
-                      onChange={(e) =>
-                        setField(
-                          "bankTypeCode",
-                          String(e.target.value || "").toUpperCase()
-                        )
-                      }
+                      onChange={(val) => setField("bankTypeCode", val)}
                       onBlur={handleBankTypeCodeValidate}
                       onKeyDown={handleBankTypeCodeValidate}
                       disabled={!isEditing || form.__existing}
@@ -507,9 +506,7 @@ const BankRef = forwardRef(
                       label="Bank Type Name"
                       required
                       value={form.bankTypeName}
-                      onChange={(e) =>
-                        setField("bankTypeName", e.target.value)
-                      }
+                      onChange={(val) => setField("bankTypeName", val)}
                       disabled={!isEditing || saveMutation.isPending}
                     />
                   </div>

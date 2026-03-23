@@ -11,9 +11,14 @@ import {
   useSwalErrorAlert,
   useSwalSuccessAlert,
   useSwalDeleteSuccess,
-  useSwalValidationAlert,
-  useBehaviorDialogs,
+  useSwalDeleteConfirm,
 } from "@/NAYSA Cloud/Global/behavior";
+import {
+  faPlus,
+  faSave,
+  faUndo,
+  faList,
+} from "@fortawesome/free-solid-svg-icons";
 
 // Helper function to extract rows from response
 const extractRows = (payload) => {
@@ -47,10 +52,6 @@ export const SalesRep = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const userCode = user?.USER_CODE ?? user?.userCode ?? "ADMIN";
-
-  const { showError } = useSwalErrorAlert();
-  const { showSuccess } = useSwalSuccessAlert();
-  const { useSwalDeleteConfirm } = useBehaviorDialogs();
 
   const emptyForm = {
     salesRepCode: "",
@@ -109,16 +110,16 @@ export const SalesRep = () => {
       const sqlRow = extractRows(res)?.[0] ?? res?.data?.data?.[0] ?? {};
 
       if (Number(sqlRow?.errorcount || 0) > 0) {
-        showError("Error", sqlRow?.errormsg || "Failed to save.");
+        useSwalErrorAlert("Error", sqlRow?.errormsg || "Failed to save.");
         return;
       }
 
       await queryClient.invalidateQueries({ queryKey: ["salesRep"] });
-      showSuccess("Success!", "Sales Rep record saved successfully.");
+      useSwalSuccessAlert("Success!", "Sales Rep record saved successfully.");
       resetUI();
     },
     onError: (error) => {
-      showError("Error", error?.message || "Failed to save Sales Rep.");
+      useSwalErrorAlert("Error", error?.message || "Failed to save Sales Rep.");
     },
   });
 
@@ -131,7 +132,7 @@ export const SalesRep = () => {
       const sqlRow = extractRows(res)?.[0] ?? res?.data?.data?.[0] ?? {};
 
       if (Number(sqlRow?.errorcount || 0) > 0) {
-        showError("Error", sqlRow?.errormsg || "Failed to delete.");
+        useSwalErrorAlert("Error", sqlRow?.errormsg || "Failed to delete.");
         return;
       }
 
@@ -140,7 +141,10 @@ export const SalesRep = () => {
       resetUI();
     },
     onError: (error) => {
-      showError("Error", error?.message || "Failed to delete Sales Rep.");
+      useSwalErrorAlert(
+        "Error",
+        error?.message || "Failed to delete Sales Rep."
+      );
     },
   });
 
@@ -157,127 +161,93 @@ export const SalesRep = () => {
   };
 
   const checkDuplicate = async (salesRepCode) => {
-    const c = String(salesRepCode || "").trim();
-    if (!c) return false;
+  const c = String(salesRepCode || "").trim();
+  if (!c) return false;
 
-    const res = await apiClient.post("/checkDuplicatesalesRep", {
-      json_data: { salesRepCode: c },
-    });
+  const res = await apiClient.post("/checkDuplicatesalesRep", {
+    json_data: { salesRepCode: c },
+  });
 
-    return parseResultFlag(res);
-  };
+  return parseResultFlag(res);
+};
 
-  const checkInUsed = async (salesRepCode) => {
-    const c = String(salesRepCode || "").trim();
-    if (!c) return false;
-
-    const res = await apiClient.post("/checkInUsedsalesRep", {
-      json_data: { salesRepCode: c },
-    });
-
-    return parseResultFlag(res);
-  };
 
   const handleSalesRepCodeValidate = async () => {
-    const code = String(form.salesRepCode || "")
-      .trim()
-      .toUpperCase();
+  const code = String(form.salesRepCode || "").trim().toUpperCase();
 
-    if (!code || !isEditing || form.__existing) return;
+  if (!code || !isEditing || form.__existing) return;
 
-    try {
-      const dup = await checkDuplicate(code);
-      if (dup) {
-        useSwalValidationAlert({
-          title: "Duplicate",
-          message: `Code "${code}" already exists.`,
-        });
+  try {
+    const dup = await checkDuplicate(code);
+
+    if (dup) {
+      useSwalErrorAlert("Duplicate Entry", `Code "${code}" already exists.`);
+      setField("salesRepCode", "");
+      setTimeout(() => codeInputRef.current?.focus?.(), 0);
+    }
+  } catch {
+    useSwalErrorAlert(
+      "Validation Error",
+      "An error occurred while validating the Sales Rep code."
+    );
+  }
+};
+
+  const handleSave = async () => {
+  if (!isEditing || upsertMutation.isPending) return;
+
+  const code = String(form.salesRepCode || "").trim().toUpperCase();
+  const name = String(form.salesRepName || "").trim();
+  const type = String(form.salesRepType || "").trim();
+  const branch = String(form.salesRepBranch || "").trim();
+
+  const missing = [];
+  if (!code) missing.push("• Agent Code");
+  if (!name) missing.push("• Agent Name");
+  if (!type) missing.push("• Agent Type");
+  if (!branch) missing.push("• Agent Branch");
+
+  if (missing.length) {
+    useSwalErrorAlert(
+      "Error!",
+      `Please fill in the required field(s):\n${missing.join("\n")}`
+    );
+    return;
+  }
+
+  try {
+    if (!form.__existing) {
+      const duplicate = await checkDuplicate(code);
+
+      if (duplicate) {
+        useSwalErrorAlert("Duplicate Entry", `Code "${code}" already exists.`);
         setField("salesRepCode", "");
         setTimeout(() => codeInputRef.current?.focus?.(), 0);
         return;
       }
-
-      const inUse = await checkInUsed(code);
-      if (inUse) {
-        useSwalValidationAlert({
-          title: "In Use",
-          message: `Code "${code}" is currently in use.`,
-        });
-        setField("salesRepCode", "");
-        setTimeout(() => codeInputRef.current?.focus?.(), 0);
-      }
-    } catch {
-      showError(
-        "Validation Error",
-        "An error occurred while validating the Sales Rep code."
-      );
-    }
-  };
-
-  const handleSave = async () => {
-    if (!isEditing || upsertMutation.isPending) return;
-
-    const code = String(form.salesRepCode || "")
-      .trim()
-      .toUpperCase();
-    const name = String(form.salesRepName || "").trim();
-
-    const missing = [];
-    if (!code) missing.push("• Agent Code");
-    if (!name) missing.push("• Agent Name");
-    if (!String(form.salesRepType || "").trim()) missing.push("• Agent Type");
-    if (!String(form.salesRepBranch || "").trim()) missing.push("• Agent Branch");
-
-    if (missing.length) {
-      showError(
-        "Error!",
-        `Please fill in the required field(s):\n${missing.join("\n")}`
-      );
-      return;
     }
 
-    try {
-      if (!form.__existing) {
-        const duplicate = await checkDuplicate(code);
-        if (duplicate) {
-          useSwalValidationAlert({
-            title: "Duplicate",
-            message: `Code "${code}" already exists.`,
-          });
-          setTimeout(() => codeInputRef.current?.focus?.(), 0);
-          return;
-        }
-
-        const inUse = await checkInUsed(code);
-        if (inUse) {
-          useSwalValidationAlert({
-            title: "In Use",
-            message: `Code "${code}" is currently in use.`,
-          });
-          setTimeout(() => codeInputRef.current?.focus?.(), 0);
-          return;
-        }
-      }
-
-      await upsertMutation.mutateAsync({
-        ...form,
-        salesRepCode: code,
-        salesRepName: name,
-        userCode,
-      });
-    } catch (err) {
-      showError(
-        "Validation Error",
-        err?.message || "An error occurred while saving the Agent record."
-      );
-    }
-  };
+    await upsertMutation.mutateAsync({
+      ...form,
+      salesRepCode: code,
+      salesRepName: name,
+      salesRepType: type,
+      salesRepBranch: branch,
+      userCode,
+    });
+  } catch (err) {
+    useSwalErrorAlert(
+      "Validation Error",
+      err?.message || "An error occurred while saving the Agent record."
+    );
+  }
+};
 
   const handleDelete = async (row) => {
     const code = String(row?.salesRepCode || "").trim();
 
     if (!code) {
-      showError("Error", "No Sales Rep Code selected.");
+      useSwalErrorAlert("Error", "No Sales Rep Code selected.");
       return;
     }
 
@@ -357,18 +327,21 @@ export const SalesRep = () => {
               {
                 key: "add",
                 label: "Add",
+                icon: faPlus,
                 onClick: startNew,
                 disabled: isEditing && !form.__existing,
               },
               {
                 key: "save",
                 label: "Save",
+                icon: faSave,
                 onClick: handleSave,
                 disabled: !isEditing || upsertMutation.isPending,
               },
               {
                 key: "reset",
                 label: "Reset",
+                icon: faUndo,
                 onClick: resetUI,
               },
             ]}
@@ -386,9 +359,7 @@ export const SalesRep = () => {
                 required
                 value={form.salesRepCode}
                 inputRef={codeInputRef}
-                onChange={(e) =>
-                  setField("salesRepCode", e.target.value.toUpperCase())
-                }
+                onChange={(val) => setField("salesRepCode", val)}
                 onBlur={handleSalesRepCodeValidate}
                 disabled={!isEditing || form.__existing}
               />
@@ -397,7 +368,7 @@ export const SalesRep = () => {
                 label="Agent Name"
                 required
                 value={form.salesRepName}
-                onChange={(e) => setField("salesRepName", e.target.value)}
+                onChange={(val) => setField("salesRepName", val)}
                 disabled={!isEditing}
               />
 

@@ -1,4 +1,3 @@
-// src/NAYSA Cloud/Reference File/BillCodeRef.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Save, Undo2, Edit, Trash2, Info } from "lucide-react";
@@ -8,7 +7,10 @@ import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 import {
   useSwalErrorAlert,
   useSwalSuccessAlert,
-  useSwalInfoAlert
+  useSwalInfoAlert,
+  useSwalConfirmAlert,
+  useSwalDeleteConfirm,
+  useSwalDeleteRecord,
 } from "@/NAYSA Cloud/Global/behavior.jsx";
 import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
@@ -85,10 +87,6 @@ const toYN = (v, def = "N") => {
 const BillCodeRef = React.forwardRef((props, ref) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-
-  const { showError } = useSwalErrorAlert();
-  const { showSuccess } = useSwalSuccessAlert();
-  const { showInfo } = useSwalInfoAlert();
 
   const docType = "BillCode";
   const documentTitle = reftables?.[docType];
@@ -196,18 +194,18 @@ const BillCodeRef = React.forwardRef((props, ref) => {
       const errormsg = String(row0.errormsg ?? row0.ERRORMSG ?? "");
 
       if (errorcount > 0) {
-        showError("Error", errormsg || "Failed to save Bill Code.");
+        useSwalErrorAlert("Missing Fields", errormsg || "Failed to save Bill Code.");
         return;
       }
 
       await queryClient.invalidateQueries({ queryKey: ["billCodeList"] });
-      showSuccess("Success!", "Bill code saved successfully.");
+      useSwalSuccessAlert("Success!", "Bill code saved successfully.");
       setIsEditing(false);
       resetForm(DEFAULT_FORM);
       setSelectedRow(null);
     },
     onError: (error) => {
-      showError(
+      useSwalErrorAlert(
         "System Error",
         error?.response?.data?.message || error?.message || "Save failed."
       );
@@ -222,11 +220,14 @@ const BillCodeRef = React.forwardRef((props, ref) => {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["billCodeList"] });
-      showSuccess("Deleted", "Bill code has been removed.");
+      useSwalDeleteRecord(
+        "Deleted!",
+        "Record has been successfully removed."
+      );
       handleReset();
     },
     onError: (error) => {
-      showError(
+      useSwalErrorAlert(
         "System Error",
         error?.response?.data?.message || error?.message || "Delete failed."
       );
@@ -246,62 +247,53 @@ const BillCodeRef = React.forwardRef((props, ref) => {
     const salesAcct = String(form.salesAcct || "").trim();
     const vatAcct = String(form.vatAcct || "").trim();
 
-    const missing = [];
-    if (!billCode) missing.push("• Bill Code");
-    if (!billName) missing.push("• Description");
-    if (!uomCode) missing.push("• UOM");
-    if (!rcCode) missing.push("• RC Code");
-    if (!arAcct) missing.push("• AR Account");
-    if (!salesAcct) missing.push("• Sales Account");
-    if (!vatAcct) missing.push("• VAT Account");
-
-    if (missing.length) {
-      showError(
-        "Error!",
-        `Please fill in the required field(s):\n${missing.join("\n")}`
-      );
-      return;
-    }
-
-    if (!form.__existing) {
-      const isDup = await checkDuplicate(billCode);
-      if (isDup) {
-        showError("Duplicate Entry", "Bill Code already exists.");
-        setField("billCode", "");
-        setTimeout(() => billCodeInputRef.current?.focus?.(), 0);
-        return;
+    try {
+      if (!form.__existing) {
+        const isDup = await checkDuplicate(billCode);
+        if (isDup) {
+          useSwalErrorAlert("Duplicate Entry", "Bill Code already exists.");
+          setField("billCode", "");
+          setTimeout(() => billCodeInputRef.current?.focus?.(), 0);
+          return;
+        }
       }
+
+
+
+      const {
+        __existing,
+        registeredBy,
+        registeredDate,
+        updatedBy,
+        updatedDate,
+        ...payload
+      } = form;
+
+      saveMutation.mutate({
+        ...payload,
+        billCode,
+        billName,
+        uomCode,
+        rcCode,
+        arAcct,
+        salesAcct,
+        vatAcct,
+        unitPriceRequired: toYN(form.unitPriceRequired, "N"),
+        userCode: user?.USER_CODE || "ADMIN",
+      });
+    } catch (error) {
+      useSwalErrorAlert(
+        "System Error",
+        error?.message || "Failed to save Bill Code."
+      );
     }
-
-    const confirm = await useSwalConfirmAlert(
-      "Save Bill Code?",
-      "Make sure details are correct."
-    );
-
-    if (!confirm?.isConfirmed) return;
-
-    const {
-      __existing,
-      registeredBy,
-      registeredDate,
-      updatedBy,
-      updatedDate,
-      ...payload
-    } = form;
-
-    saveMutation.mutate({
-      ...payload,
-      billCode,
-      unitPriceRequired: toYN(form.unitPriceRequired, "N"),
-      userCode: user?.USER_CODE || "ADMIN",
-    });
   };
 
   const handleEdit = async (row) => {
     const code = row?.billCode ?? row?.BILLCODE ?? row?.bill_code ?? "";
 
     if (!String(code).trim()) {
-      showError("Error", "Selected row has no Bill Code.");
+      useSwalErrorAlert("Error", "Selected row has no Bill Code.");
       return;
     }
 
@@ -321,9 +313,11 @@ const BillCodeRef = React.forwardRef((props, ref) => {
       setIsEditing(true);
       setSelectedRow(row);
     } catch (error) {
-      showError(
+      useSwalErrorAlert(
         "System Error",
-        error?.response?.data?.message || error?.message || "Failed to fetch record."
+        error?.response?.data?.message ||
+          error?.message ||
+          "Failed to fetch record."
       );
     }
   };
@@ -333,27 +327,36 @@ const BillCodeRef = React.forwardRef((props, ref) => {
     const name = String(row?.billName || "").trim();
 
     if (!code) {
-      showError("Error", "No Bill Code selected.");
+      useSwalErrorAlert("Error", "No Bill Code selected.");
       return;
     }
 
-    const isUsed = await checkInUsed(code);
-    if (isUsed) {
-      showError(
-        "Restricted",
-        "This Bill Code is in use and cannot be deleted."
+    try {
+      const isUsed = await checkInUsed(code);
+
+      if (isUsed) {
+        useSwalErrorAlert(
+          "Cannot Delete",
+          `Bill Code "${code}" is already in use.`
+        );
+        return;
+      }
+
+      const confirm = await useSwalDeleteConfirm(
+        "Delete Record?",
+        `Are you sure you want to delete Bill Code "${code}${name ? ` - ${name}` : ""}"?`,
+        "Yes, delete it"
       );
-      return;
+
+      if (!confirm?.isConfirmed) return;
+
+      deleteMutation.mutate(code);
+    } catch (error) {
+      useSwalErrorAlert(
+        "System Error",
+        error?.message || "Failed to delete record."
+      );
     }
-
-    const confirm = await useSwalDeleteConfirm(
-      "Delete this Bill Code?",
-      `${code}${name ? ` - ${name}` : ""}`,
-      "Delete"
-    );
-
-    if (!confirm?.isConfirmed) return;
-    deleteMutation.mutate(code);
   };
 
   const handleOpenInfo = async () => {
@@ -363,11 +366,11 @@ const BillCodeRef = React.forwardRef((props, ref) => {
     if (videoLink) messages.push(`Video Guide: ${videoLink}`);
 
     if (!messages.length) {
-      showInfo("Info", "No guide available for this page.");
+      useSwalInfoAlert("Info", "No guide available for this page.");
       return;
     }
 
-    showInfo("Reference Information", messages.join("\n"));
+    useSwalInfoAlert("Reference Information", messages.join("\n"));
   };
 
   /* ================= TABLE COLUMNS ================= */
@@ -442,16 +445,12 @@ const BillCodeRef = React.forwardRef((props, ref) => {
     []
   );
 
-  /* ================= EXPOSE METHODS ================= */
-
   React.useImperativeHandle(ref, () => ({
     startNew,
     save: handleSave,
     reset: handleReset,
     openInfo: handleOpenInfo,
   }));
-
-  /* ================= HEADER BUTTONS ================= */
 
   const headerButtons = (
     <div className="flex flex-wrap justify-center gap-2 text-xs">
@@ -498,8 +497,6 @@ const BillCodeRef = React.forwardRef((props, ref) => {
     </div>
   );
 
-  /* ================= RENDER ================= */
-
   return (
     <div className="global-ref-main-div-ui mt-24">
       {(isInitialLoading || saveMutation.isPending || deleteMutation.isPending) && (
@@ -530,7 +527,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
                     if (!isEditing || form.__existing) return;
                     const isDup = await checkDuplicate(form.billCode);
                     if (isDup) {
-                      showError("Duplicate Entry", "Bill Code already exists.");
+                      useSwalErrorAlert("Duplicate Entry", "Bill Code already exists.");
                       setField("billCode", "");
                       setTimeout(() => billCodeInputRef.current?.focus?.(), 0);
                     }

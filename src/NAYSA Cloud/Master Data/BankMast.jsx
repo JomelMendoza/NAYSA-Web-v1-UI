@@ -14,7 +14,8 @@ import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 import {
   useSwalErrorAlert,
   useSwalSuccessAlert,
-  useSwalDeleteRecord
+  useSwalDeleteRecord,
+  useSwalDeleteConfirm,
 } from "@/NAYSA Cloud/Global/behavior.jsx";
 import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
@@ -85,10 +86,6 @@ const toYN = (v, def = "N") => {
 const BankMast = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-
-  const { showError } = useSwalErrorAlert();
-  const { showSuccess } = useSwalSuccessAlert();
-  const { showDeleteRecord } = useSwalDeleteRecord();
 
   const docType = "BankMast";
   const documentTitle = reftables?.[docType] || "Bank Master";
@@ -169,18 +166,21 @@ const BankMast = () => {
       const errormsg = String(sqlRow.errormsg ?? sqlRow.ERRORMSG ?? "");
 
       if (errorcount > 0) {
-        showError("Error", errormsg || "Failed to save bank record.");
-        return;
-      }
+  useSwalErrorAlert("Missing Fields", errormsg || "Failed to save bank record.");
+  return;
+}
 
       await queryClient.invalidateQueries({ queryKey: ["bankList"] });
-      showSuccess("Success!", "Bank record saved successfully.");
+      useSwalSuccessAlert("Success!", "Bank record saved successfully.");
       setIsEditing(false);
       resetForm(DEFAULT_FORM);
       setSelectedRow(null);
     },
     onError: (error) => {
-      showError("System Error", error?.message || "Failed to save record.");
+      useSwalErrorAlert(
+        "System Error",
+        error?.message || "Failed to save record."
+      );
     },
   });
 
@@ -190,11 +190,17 @@ const BankMast = () => {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["bankList"] });
-      showDeleteRecord("Deleted!", "Record has been successfully removed.");
+      useSwalDeleteRecord(
+        "Deleted!",
+        "Record has been successfully removed."
+      );
       handleReset();
     },
     onError: (error) => {
-      showError("System Error", error?.message || "Failed to delete record.");
+      useSwalErrorAlert(
+        "System Error",
+        error?.message || "Failed to delete record."
+      );
     },
   });
 
@@ -255,14 +261,14 @@ const BankMast = () => {
 
       if (dup) {
         setIsDupCode(true);
-        showError("Duplicate Code", `Bank Code "${code}" already exists.`);
+        useSwalErrorAlert("Duplicate Code", `Bank Code "${code}" already exists.`);
         setField("bankCode", "");
         setTimeout(() => bankCodeInputRef.current?.focus?.(), 0);
       } else {
         setIsDupCode(false);
       }
     } catch (error) {
-      showError(
+      useSwalErrorAlert(
         "Validation Error",
         error?.message || "Failed to validate Bank Code."
       );
@@ -270,50 +276,38 @@ const BankMast = () => {
   };
 
   const handleSave = async () => {
-    if (!isEditing || saveMutation.isPending) return;
+  if (!isEditing || saveMutation.isPending) return;
 
-    const bankCode = String(form.bankCode || "").trim().toUpperCase();
+  const bankCode = String(form.bankCode || "").trim().toUpperCase();
 
-    const missing = [];
-    if (!bankCode) missing.push("• Bank Code");
-    if (!String(form.acctCode || "").trim()) missing.push("• Account Code");
-    if (!String(form.bankAcctNo || "").trim()) missing.push("• Bank Account No");
-    if (!String(form.bankAcctType || "").trim()) missing.push("• Bank Account Type");
-    if (!String(form.currCode || "").trim()) missing.push("• Currency");
-
-    if (missing.length) {
-      showError(
-        "Error!",
-        `Please fill in the required field(s):\n${missing.join("\n")}`
-      );
-      return;
-    }
-
-    try {
-      if (!form.__existing) {
-        const dup = await checkDuplicate(bankCode);
-        if (dup) {
-          showError("Duplicate Code", `Bank Code "${bankCode}" already exists.`);
-          setTimeout(() => bankCodeInputRef.current?.focus?.(), 0);
-          return;
-        }
+  try {
+    if (!form.__existing) {
+      const dup = await checkDuplicate(bankCode);
+      if (dup) {
+        useSwalErrorAlert(
+          "Duplicate Code",
+          `Bank Code "${bankCode}" already exists.`
+        );
+        setTimeout(() => bankCodeInputRef.current?.focus?.(), 0);
+        return;
       }
-
-      const { __existing, acctName, currName, bankTypeName, ...payload } = form;
-
-      saveMutation.mutate({
-        ...payload,
-        bankCode,
-        autoCk: toYN(form.autoCk, "Y"),
-        userCode: user?.USER_CODE || "ADMIN",
-      });
-    } catch (error) {
-      showError(
-        "System Error",
-        error?.message || "Failed to save bank record."
-      );
     }
-  };
+
+    const { __existing, acctName, currName, bankTypeName, ...payload } = form;
+
+    saveMutation.mutate({
+      ...payload,
+      bankCode,
+      autoCk: toYN(form.autoCk, "Y"),
+      userCode: user?.USER_CODE || "ADMIN",
+    });
+  } catch (error) {
+    useSwalErrorAlert(
+      "System Error",
+      error?.message || "Failed to save bank record."
+    );
+  }
+};
 
   const handleEdit = async (row) => {
     try {
@@ -327,7 +321,7 @@ const BankMast = () => {
       setSelectedRow(row);
       setIsDupCode(false);
     } catch {
-      showError("Error", "Could not fetch record");
+      useSwalErrorAlert("Error", "Could not fetch record");
     }
   };
 
@@ -338,7 +332,7 @@ const BankMast = () => {
       const used = await checkInUsed(code);
 
       if (used) {
-        showError("Cannot Delete", `Bank Code "${code}" is already in use.`);
+        useSwalErrorAlert("Cannot Delete", `Bank Code "${code}" is already in use.`);
         return;
       }
 
@@ -352,12 +346,13 @@ const BankMast = () => {
 
       deleteMutation.mutate(code);
     } catch (error) {
-      showError(
+      useSwalErrorAlert(
         "System Error",
         error?.message || "Failed to delete record."
       );
     }
   };
+
 
   /* ================= TABLE COLUMNS ================= */
 
@@ -576,9 +571,7 @@ const BankMast = () => {
                       label="Bank Code"
                       value={form.bankCode}
                       inputRef={bankCodeInputRef}
-                      onChange={(e) =>
-                        setField("bankCode", e.target.value.toUpperCase())
-                      }
+                      onChange={(val) => setField("bankCode", val)}
                       onBlur={handleBankCodeValidate}
                       onKeyDown={handleBankCodeValidate}
                       disabled={!isEditing || form.__existing}
@@ -605,7 +598,7 @@ const BankMast = () => {
                     <FieldRenderer
                       label="Bank Account No"
                       value={form.bankAcctNo}
-                      onChange={(e) => setField("bankAcctNo", e.target.value)}
+                      onChange={(val) => setField("bankAcctNo", val)}
                       disabled={!isEditing}
                       required
                     />
@@ -640,14 +633,14 @@ const BankMast = () => {
                     <FieldRenderer
                       label="Start Check No"
                       value={form.startCheckNo}
-                      onChange={(e) => setField("startCheckNo", e.target.value)}
+                      onChange={(val) => setField("startCheckNo", val)}
                       disabled={!isEditing || form.autoCk === "N"}
                     />
 
                     <FieldRenderer
                       label="Last Check No"
                       value={form.lastCheckNo}
-                      onChange={(e) => setField("lastCheckNo", e.target.value)}
+                      onChange={(val) => setField("lastCheckNo", val)}
                       disabled={!isEditing || form.autoCk === "N"}
                     />
                   </div>
@@ -683,14 +676,14 @@ const BankMast = () => {
                     <FieldRenderer
                       label="Bank Branch"
                       value={form.bankBranch}
-                      onChange={(e) => setField("bankBranch", e.target.value)}
+                      onChange={(val) => setField("bankBranch", val)}
                       disabled={!isEditing}
                     />
 
                     <FieldRenderer
                       label="Contact Person"
                       value={form.bankContact}
-                      onChange={(e) => setField("bankContact", e.target.value)}
+                      onChange={(val) => setField("bankContact", val)}
                       disabled={!isEditing}
                     />
                   </div>
@@ -699,28 +692,28 @@ const BankMast = () => {
                     <FieldRenderer
                       label="Address 1"
                       value={form.bankAddr1}
-                      onChange={(e) => setField("bankAddr1", e.target.value)}
+                      onChange={(val) => setField("bankAddr1", val)}
                       disabled={!isEditing}
                     />
 
                     <FieldRenderer
                       label="Address 2"
                       value={form.bankAddr2}
-                      onChange={(e) => setField("bankAddr2", e.target.value)}
+                      onChange={(val) => setField("bankAddr2", val)}
                       disabled={!isEditing}
                     />
 
                     <FieldRenderer
                       label="Contact No"
                       value={form.bankTelNo}
-                      onChange={(e) => setField("bankTelNo", e.target.value)}
+                      onChange={(val) => setField("bankTelNo", val)}
                       disabled={!isEditing}
                     />
 
                     <FieldRenderer
                       label="Position"
                       value={form.bankPosition}
-                      onChange={(e) => setField("bankPosition", e.target.value)}
+                      onChange={(val) => setField("bankPosition", val)}
                       disabled={!isEditing}
                     />
                   </div>
