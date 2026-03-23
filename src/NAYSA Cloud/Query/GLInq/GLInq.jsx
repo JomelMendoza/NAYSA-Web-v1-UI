@@ -1040,7 +1040,7 @@ const jumpToGLInquiryFromBS = useCallback(
               </div>
 
               <div className="global-tran-table-main-div-ui">
-                <div className="relative max-h-[92vh] overflow-y-auto">
+               <div className="relative max-h-[92vh] overflow-y-auto overflow-x-auto">
                   <ActiveReport
                     view={view}
                     filters={filters}

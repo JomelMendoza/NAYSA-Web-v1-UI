@@ -3,7 +3,7 @@
         'name' => 'naysa/web-v1-ui',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => '1d0c031d5df1734d26cbe31e261b9b7f131528f2',
+        'reference' => '701b926012ee5f3eb7e717f57ad3049d410c556c',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -367,6 +367,15 @@
             'aliases' => array(),
             'dev_requirement' => false,
         ),
+        'lbuchs/webauthn' => array(
+            'pretty_version' => 'v2.2.0',
+            'version' => '2.2.0.0',
+            'reference' => '20adb4a240c3997bd8cac7dc4dde38ab0bea0ed1',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../lbuchs/webauthn',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
         'league/commonmark' => array(
             'pretty_version' => '2.8.0',
             'version' => '2.8.0.0',
@@ -448,7 +457,7 @@
         'naysa/web-v1-ui' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => '1d0c031d5df1734d26cbe31e261b9b7f131528f2',
+            'reference' => '701b926012ee5f3eb7e717f57ad3049d410c556c',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

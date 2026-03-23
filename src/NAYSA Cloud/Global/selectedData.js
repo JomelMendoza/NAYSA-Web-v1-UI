@@ -7,20 +7,17 @@ import Swal from 'sweetalert2';
 
 
 
-export const useSelectedHSColConfig = async (endpoint,userCode) => {
+export const useSelectedHSColConfig = async (endpoint,userCode, all = "") => {
   try {
     const payload ={
       json_data :{
-      endpoint,userCode
+      endpoint,userCode,all
     }
   }
-  
     const response = await fetchData("getHSColConfig", { json_data: JSON.stringify(payload) });
     if (response?.success && response.data?.[0]?.result) {
       return JSON.parse(response.data[0].result);
     }
-
-
     throw new Error(response?.message || "No getHSColConfig found.");
   } catch (error) {
     console.error("Error in getHSColConfig:", error);
@@ -33,6 +30,8 @@ export const useSelectedHSColConfig = async (endpoint,userCode) => {
     return null;
   }
 };
+
+
 
 
 

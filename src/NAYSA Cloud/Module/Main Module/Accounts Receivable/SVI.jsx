@@ -78,7 +78,7 @@ import {
   parseFormattedNumber,
   useSwalshowSaveSuccessDialog,
   useSwalHandleOpenSpecsModal
-} from '@/NAYSA Cloud/Global/behavior';
+} from '@/NAYSA Cloud/Global/behavior.jsx';
 
 
 import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
@@ -543,15 +543,6 @@ useEffect(() => {
     try {
 
       
- 
-    // const filteredTypes = getAllDropDown("SVITRAN_TYPE", docType); 
-    // if (filteredTypes.length > 0) {
-    //   updateState({
-    //     sviTypes: filteredTypes,
-    //     selectedSVIType: "REG",
-    //   });
-    // }
-
 
       // 🔹 2. Document row (independent)
       const docRow = await useTopDocControlRow(docType);
@@ -565,28 +556,6 @@ useEffect(() => {
 
 
 
-      // 🔹 3. HS Options + Currency row (dependent chain)
-      const hsOption = await useTopHSOption();
-      if (hsOption) {
-        updateState({
-          glCurrMode: hsOption.glCurrMode,
-          glCurrDefault: hsOption.glCurrDefault,
-          currCode: hsOption.glCurrDefault,
-          glCurrGlobal1: hsOption.glCurrGlobal1,
-          glCurrGlobal2: hsOption.glCurrGlobal2,
-          glCurrGlobal3: hsOption.glCurrGlobal3,
-        });
-
-        const curr = await useTopCurrencyRow(hsOption.glCurrDefault);
-        if (curr) {
-          updateState({
-            currName: curr.currName,
-            currRate: formatNumber(1, 6),
-          });
-        }
-      }
-
-      
      const tbls = 'svi_hd,svi_dt1,svi_dt2'
      const hdtblcol_result = await useFieldLenghtCheck(tbls);
      if (hdtblcol_result){

@@ -10,8 +10,11 @@ import { fetchData, postRequest } from '@/NAYSA Cloud/Configuration/BaseURL';
 export async function useTopUserRow(userCode) {
   try {
     const response = await fetchData("getUser", { USER_CODE: userCode});
+   
     if (response.success) {
       const responseData = JSON.parse(response.data[0].result);
+
+       console.log(responseData[0] )
       return responseData.length > 0 ? responseData[0] : null;
     }
     return null;
@@ -204,6 +207,8 @@ export async function useTopVatAmount(vatCode, grossAmt) {
 
 
 
+
+
 export async function useTopATCRow(atcCode) {
   if (!atcCode) return null;
 
@@ -219,6 +224,9 @@ export async function useTopATCRow(atcCode) {
     return null;
   }
 }
+
+
+
 
 export async function useTopATCAmount(atcCode, netAmount) {
   if (!atcCode || netAmount === 0) return 0;
@@ -236,6 +244,9 @@ export async function useTopATCAmount(atcCode, netAmount) {
     return 0;
   }
 }
+
+
+
 
 
 export async function useTopBillCodeRow(billCode) {
@@ -258,10 +269,10 @@ export async function useTopBillCodeRow(billCode) {
 
 
 
+
 export async function useTopBillTermRow(billtermCode) {
   if (!billtermCode) return null;
 
-  
 
   try {
     const response = await fetchData("getBillterm", { BILLTERM_CODE: billtermCode });
@@ -275,6 +286,8 @@ export async function useTopBillTermRow(billtermCode) {
     return null;
   }
 }
+
+
 
 
 
@@ -299,6 +312,8 @@ export async function useTopRCRow(rcCode) {
 
 
 
+
+
 export async function useTopSLRow(slCode) {
   if (!slCode) return null;
 
@@ -314,6 +329,7 @@ export async function useTopSLRow(slCode) {
     return null;
   }
 }
+
 
 
 
@@ -335,6 +351,9 @@ export async function useTopCutOffRow(cutoffCode) {
 }
 
 
+
+
+
 export async function useTopAccountRow(acctCode) {
   if (!acctCode) return null;
 
@@ -354,6 +373,9 @@ export async function useTopAccountRow(acctCode) {
 
 
 
+
+
+
 export async function useTopPayeeRow(vendCode) {
   if (!vendCode) return null;
 
@@ -369,6 +391,8 @@ export async function useTopPayeeRow(vendCode) {
     return null;
   }
 }
+
+
 
 
 
@@ -393,45 +417,42 @@ export async function useTopCurrencyRow(currCode) {
 
 
 
+
+
 //global curreny update
 export const useTopForexRate = async (currencyCode, documentDate) => {
-    if (!currencyCode) return '1.000000'
-  
-    try {
-      const currResponse = await fetchData("getCurr", { CURR_CODE: currencyCode });
-  
-      if (currResponse.success) {
-        const currData = JSON.parse(currResponse.data[0].result);
-       
-        if (currencyCode.toUpperCase() !== 'PHP') {
-          const forexPayload = {
-            json_data: {
-              docDate: documentDate,
-              currCode: currencyCode,
-            },
-          };
-          try {
-            const forexResponse = await postRequest("getDForex", JSON.stringify(forexPayload));
-  
-            if (forexResponse.success) {
-              const rawResult = forexResponse.data[0].result;
-              if (rawResult) {
-                const forexData = JSON.parse(rawResult);
-               return forexData.currRate ? parseFloat(forexData.currRate).toFixed(6) : '1.000000';
-              }
-            }
-          } catch (forexError) {
-            console.error("Forex API error:", forexError);
-            return '1.000000'
-          }
-        }
-        
-      }
-    } catch (currError) {
-      console.error("Currency API error:", currError);
-      return '1.000000'
-    }
+  if (!currencyCode || currencyCode.toUpperCase() === "PHP") {
+    return "1.000000";
+  }
+
+  try {
+    const forexPayload = {
+      json_data: {
+        docDate: documentDate,
+        currCode: currencyCode,
+      },
+    };
+
+    const forexResponse = await postRequest(
+      "getDForexByDate",
+      JSON.stringify(forexPayload)
+    );
+
+    if (!forexResponse?.success) return "1.000000";
+
+    const rawResult = forexResponse.data?.[0]?.result;
+    if (!rawResult) return "1.000000";
+
+    const forexData = JSON.parse(rawResult);
+    const rate = forexData?.[0]?.currRate2;
+
+    return rate != null ? Number(rate).toFixed(6) : "1.000000";
+  } catch (error) {
+    console.error("Forex API error:", error);
+    return "1.000000";
+  }
 };
+
 
 
 
@@ -474,6 +495,8 @@ export async function useTopBankRow(bankCode) {
 
 
 
+
+
 export async function useTopBankMastRow(bankCode) {
   if (!bankCode) return null;
 
@@ -489,6 +512,10 @@ export async function useTopBankMastRow(bankCode) {
     return null;
   }
 }
+
+
+
+
 
 export const useTopPayTermRow = async (paytermCode) => {
   if (!paytermCode) return null;
@@ -511,6 +538,7 @@ export const useTopPayTermRow = async (paytermCode) => {
     return null;
   }
 };
+
 
 
 

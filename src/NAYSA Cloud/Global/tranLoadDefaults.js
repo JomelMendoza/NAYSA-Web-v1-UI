@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchData, postRequest } from '@/NAYSA Cloud/Configuration/BaseURL';
 
 
+
 export const useTopDocControlRow = (docId) => {
   return useQuery({
     queryKey: ['docControl', docId],
@@ -20,7 +21,6 @@ export const useTopDocControlRow = (docId) => {
       }
     },
     enabled: !!docId,
-    // --- KEEP IT STATIC ---
     staleTime: Infinity, 
     gcTime: Infinity,
   });
@@ -37,7 +37,6 @@ export const useTopHSOption = () => {
       try {
         const response = await fetchData("getHSOption");
         if (response.success) {
-          // Parsing the result column from the first row
           const responseData = JSON.parse(response.data[0].result);
           return responseData.length > 0 ? responseData[0] : null;
         }
@@ -47,7 +46,7 @@ export const useTopHSOption = () => {
         return null;
       }
     },
-    // --- KEEP IT STATIC ---
+
     staleTime: Infinity, 
     gcTime: Infinity,
     refetchOnWindowFocus: false,
@@ -61,15 +60,14 @@ export const useTopHSOption = () => {
 
 export const useTopCurrencyRow = (currCode) => {
   return useQuery({
-    // The currCode in the key ensures each currency is cached separately
-    queryKey: ['currency', currCode], 
-    
+
+    queryKey: ['currency', currCode],   
     queryFn: async () => {
       if (!currCode) return null;
       try {
         const response = await fetchData("getCurr", { CURR_CODE: currCode });
         if (response.success) {
-          // Parsing the result column from the first row
+
           const responseData = JSON.parse(response.data[0].result);
           return responseData.length > 0 ? responseData[0] : null;
         }
@@ -94,7 +92,7 @@ export const useTopCurrencyRow = (currCode) => {
 
 export const useFieldLenghtCheck = (tableName) => {
   return useQuery({
-    // Cache specifically by table name
+
     queryKey: ['fieldLengths', tableName],
     
     queryFn: async () => {
@@ -173,6 +171,8 @@ export const useSelectedHSColConfigAll = (userCode) => {
         throw error;
       }
     },
+
+
 
     staleTime: Infinity,          // Never consider data old
     gcTime: Infinity,             // Never garbage collect (keep in RAM)
