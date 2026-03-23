@@ -233,7 +233,6 @@ const FSConsolidation = forwardRef(function FSConsolidation(
       ...EMPTY_ROW,
       __tempId: tempId,
     };
-
     setRows((prev) => [newRow, ...prev]);
     setSelectedRow(tempId);
     setRegistrationInfo({

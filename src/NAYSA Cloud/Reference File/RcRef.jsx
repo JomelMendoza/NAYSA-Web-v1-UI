@@ -642,6 +642,7 @@ const RcRef = forwardRef(
                   onRowDoubleClick={handleEdit}
                   selectedRow={selectedRow}
                   onRowClick={(row) => setSelectedRow(row)}
+          
                 />
               </div>
             </div>

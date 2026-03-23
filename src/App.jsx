@@ -928,9 +928,7 @@ const AppContent = () => {
 
   useEffect(() => {
     document.body.style.overflow = activeModalKey ? "hidden" : "auto";
-    return () => {
-      document.body.style.overflow = "auto";
-    };
+    return () => { document.body.style.overflow = "auto"; };
   }, [activeModalKey]);
 
   useEffect(() => {
