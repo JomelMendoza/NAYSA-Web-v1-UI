@@ -1,9 +1,4 @@
-import React, {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
@@ -36,7 +31,7 @@ import {
   useSwalErrorAlertAPI,
   useSwalDeleteConfirm,
   useSwalDeleteRecord,
-} from "@/NAYSA Cloud/Global/behavior";
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 import {
   useFieldLenghtCheck,
   useGetFieldLength,
@@ -80,9 +75,9 @@ const CutoffRef = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [tblFieldArray, setTblFieldArray] = useState([]);
 
- const [selectedYear, setSelectedYear] = useState(
-  new Date().getFullYear().toString() // Defaults to current year (e.g., "2026")
-);
+  const [selectedYear, setSelectedYear] = useState(
+    new Date().getFullYear().toString(), // Defaults to current year (e.g., "2026")
+  );
 
   const toggleModal = (name, isOpen) =>
     setModals((prev) => ({ ...prev, [name]: isOpen }));
@@ -129,13 +124,13 @@ const CutoffRef = () => {
     updateForm(updates);
   };
 
-const filteredAccounts = useMemo(() => {
-  if (!selectedYear) return accounts; // Show all if input is cleared
-  return accounts.filter((item) => {
-    // Matches the start of the cutoffCode with your typed year
-    return item.cutoffCode?.startsWith(selectedYear);
-  });
-}, [accounts, selectedYear]);
+  const filteredAccounts = useMemo(() => {
+    if (!selectedYear) return accounts; // Show all if input is cleared
+    return accounts.filter((item) => {
+      // Matches the start of the cutoffCode with your typed year
+      return item.cutoffCode?.startsWith(selectedYear);
+    });
+  }, [accounts, selectedYear]);
 
   const yearOptions = useMemo(() => {
     // Extract the first 4 digits from all available cutoffCodes
@@ -206,27 +201,54 @@ const filteredAccounts = useMemo(() => {
   });
 
   // --- ACTIONS ---
-  const handleSave = () => {
-    // 1. Check if dates exist
-    if (!formData.fromDate || !formData.toDate) {
-      return useSwalErrorAlert(
-        "Validation Error",
-        "Both Start and End dates are required.",
-      );
+  const handleSave = async () => {
+    // 1. Basic Validations
+    if (!formData.cutoffCode || !formData.fromDate || !formData.toDate) {
+      return useSwalErrorAlert("Validation Error", "All fields are required.");
     }
 
-    // 2. Compare Date Values
+    // 2. Final Duplicate Check for New Records
+    // We perform this ONLY if it's a new record (no selectedCutoffCode)
+    if (!selectedCutoffCode) {
+      try {
+        setIsLoading(true);
+        const payloadCheck = { json_data: { cutoffCode: formData.cutoffCode } };
+        const checkRes = await apiClient.post(
+          "/checkDuplicateCutOff",
+          payloadCheck,
+        );
+
+        const sqlRow = checkRes?.data?.data?.[0];
+        const rawJsonString = sqlRow?.result || Object.values(sqlRow || {})[0];
+        const parsedData = JSON.parse(rawJsonString || '{"result":"0"}');
+
+        if (parsedData.result === "1") {
+          setIsLoading(false);
+          // We only show this alert if the user managed to click save
+          // before the onBlur validation finished or if onBlur was bypassed.
+          return useSwalErrorAlert(
+            "Duplicate Error",
+            `The Cut Off Code ${formData.cutoffCode} is already used.`,
+          );
+        }
+      } catch (error) {
+        console.error("Validation Error:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    // 3. Date Range Validation
     const start = new Date(formData.fromDate);
     const end = new Date(formData.toDate);
-
     if (start > end) {
       return useSwalErrorAlert(
         "Invalid Date Range",
-        "The Start Date cannot be later than the End Date.",
+        "Start Date cannot be later than End Date.",
       );
     }
 
-    // 3. Proceed with Save if validation passes
+    // 4. Proceed with Save
     const payload = {
       json_data: {
         cutoffCode: formData.cutoffCode,
@@ -257,7 +279,7 @@ const filteredAccounts = useMemo(() => {
 
     setFormData({
       ...INITIAL_FORM,
-      ...row,
+      ...row, // Ensure row.cutoffName exists here
       fromDate: formattedFromDate,
       toDate: formattedToDate,
     });
@@ -280,8 +302,8 @@ const filteredAccounts = useMemo(() => {
     onSuccess: (response) => {
       queryClient.invalidateQueries(["cutoffList"]);
       useSwalDeleteRecord(
-        "Deleted!",
-        "The account has been removed from the system.",
+        "Cut Off Deleted!",
+        "The cut off code has been successfully removed.",
       );
       resetForm();
     },
@@ -337,10 +359,12 @@ const filteredAccounts = useMemo(() => {
 
   // --- VALIDATION: Check for Duplicate Code ---
   const handleCheckDuplicate = async (code) => {
-    if (isEditing && selectedCutoffCode) return;
+    // Only skip if we have a selectedCutoffCode (meaning it's an existing record being updated)
+    if (selectedCutoffCode) return;
     if (!code) return;
 
     try {
+      setIsLoading(true);
       const payload = { json_data: { cutoffCode: code } };
       const response = await apiClient.post("/checkDuplicateCutOff", payload);
 
@@ -349,86 +373,92 @@ const filteredAccounts = useMemo(() => {
       const parsedData = JSON.parse(rawJsonString || '{"result":"0"}');
 
       if (parsedData.result === "1") {
+        // Clear the code so the user cannot save a duplicate
+        updateForm({ cutoffCode: "" });
         setIsLoading(false);
-        resetForm();
         return useSwalErrorAlertAPI(
           `Duplicate Cut off Code: ${code}`,
-          `Code was already used.`,
+          `This code is already in use. Please enter a unique code.`,
         );
       }
     } catch (error) {
       console.error("Duplicate Check Error:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const updateForm = (updates) =>
-    setFormData((prev) => ({ ...prev, ...updates }));
+    setFormData((prev) => ({
+      ...prev,
+      ...updates,
+    }));
 
-// --- TABLE COLUMNS ---
-const columns = useMemo(
-  () => [
-    {
-      key: "__actions",
-      label: "Actions",
-      render: (row) => (
-        <div className="flex gap-2 justify-center">
-          {/* Updated Edit Button matching RCMast style */}
-          <button
-            onClick={() => handleEdit(row)}
-            className="p-1.5 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-600 hover:text-white transition-colors"
-            title="Edit"
-          >
-            <FontAwesomeIcon icon={faEdit} />
-          </button>
+  // --- TABLE COLUMNS ---
+  const columns = useMemo(
+    () => [
+      {
+        key: "__actions",
+        label: "Actions",
+        render: (row) => (
+          <div className="flex gap-2 justify-center">
+            {/* Updated Edit Button matching RCMast style */}
+            <button
+              onClick={() => handleEdit(row)}
+              className="p-1.5 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-600 hover:text-white transition-colors"
+              title="Edit"
+            >
+              <FontAwesomeIcon icon={faEdit} />
+            </button>
 
-          {/* Updated Delete Button matching RCMast style */}
-          <button
-            onClick={() => handleDelete(row)}
-            className="p-1.5 rounded-md bg-red-100 text-red-700 hover:bg-red-600 hover:text-white transition-colors"
-            title="Delete"
-          >
-            <FontAwesomeIcon icon={faTrashAlt} />
-          </button>
-        </div>
-      ),
-    },
-    { key: "cutoffCode", label: "Cut Off Code", sortable: true },
-    { key: "cutoffName", label: "Cut Off Name", sortable: true },
-    {
-      key: "fromDate",
-      label: "Start Date",
-      sortable: true,
-      render: (row) => {
-        if (!row.fromDate) return "";
-        const [year, month, day] = row.fromDate.substring(0, 10).split("-");
-        return `${month}/${day}/${year}`;
+            {/* Updated Delete Button matching RCMast style */}
+            <button
+              onClick={() => handleDelete(row)}
+              className="p-1.5 rounded-md bg-red-100 text-red-700 hover:bg-red-600 hover:text-white transition-colors"
+              title="Delete"
+            >
+              <FontAwesomeIcon icon={faTrashAlt} />
+            </button>
+          </div>
+        ),
       },
-    },
-    {
-      key: "toDate",
-      label: "End Date",
-      sortable: true,
-      render: (row) => {
-        if (!row.toDate) return "";
-        const [year, month, day] = row.toDate.substring(0, 10).split("-");
-        return `${month}/${day}/${year}`;
+      { key: "cutoffCode", label: "Cut Off Code", sortable: true },
+      { key: "cutoffName", label: "Cut Off Name", sortable: true },
+      {
+        key: "fromDate",
+        label: "Start Date",
+        sortable: true,
+        render: (row) => {
+          if (!row.fromDate) return "";
+          const [year, month, day] = row.fromDate.substring(0, 10).split("-");
+          return `${month}/${day}/${year}`;
+        },
       },
-    },
-    {
-      key: "status",
-      label: "Status",
-      sortable: true,
-      render: (row) => {
-        const statusMap = {
-          O: <span className="text-blue-600 font-medium">Open</span>,
-          C: <span className="text-red-600 font-medium">Closed</span>,
-        };
-        return statusMap[row.status] || row.status;
+      {
+        key: "toDate",
+        label: "End Date",
+        sortable: true,
+        render: (row) => {
+          if (!row.toDate) return "";
+          const [year, month, day] = row.toDate.substring(0, 10).split("-");
+          return `${month}/${day}/${year}`;
+        },
       },
-    },
-  ],
-  [handleEdit, handleDelete]
-);
+      {
+        key: "status",
+        label: "Status",
+        sortable: true,
+        render: (row) => {
+          const statusMap = {
+            O: <span className="text-blue-600 font-medium">Open</span>,
+            C: <span className="text-red-600 font-medium">Closed</span>,
+          };
+          return statusMap[row.status] || row.status;
+        },
+      },
+    ],
+    [handleEdit, handleDelete],
+  );
   // useEffect(() => {
   //   // If current selected year is not in the options and options exist,
   //   // default to the first available year in the list
@@ -474,10 +504,6 @@ const columns = useMemo(
   }, []);
 
   const getMax = (col) => useGetFieldLength(tblFieldArray, col);
-
-  // ... (keep all your existing imports and logic exactly as they are)
-
-  // ... (imports and logic remain the same)
 
   return (
     <div className="global-ref-main-div-ui">
@@ -621,32 +647,32 @@ const columns = useMemo(
         <div className="w-full xl:w-[400px] flex flex-col gap-4 h-fit">
           {/* Entry Details Card */}
           <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-100 dark:border-gray-700 shadow-lg">
- <h2 className="text-sm font-bold text-blue-600 mb-6 uppercase tracking-wider border-b pb-2 flex justify-between items-center">
-  Entry Details
-  <div className="flex items-center gap-2">
-    <div className="w-28 relative">
-      <FieldRenderer
-        type="text"
-        placeholder="Search Year..."
-        value={selectedYear}
-        onChange={(v) => {
-          // Allow only numbers and limit to 4 digits
-          const numericValue = v.replace(/\D/g, "").slice(0, 4);
-          setSelectedYear(numericValue);
-        }}
-        className="!h-8 !text-[12px] border-blue-600 focus:ring-blue-500 rounded-md pr-6 font-bold"
-      />
-      {selectedYear && (
-        <button
-          onClick={() => setSelectedYear("")}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 text-[10px]"
-        >
-          ✕
-        </button>
-      )}
-    </div>
-  </div>
-</h2>
+            <h2 className="text-sm font-bold text-blue-600 mb-6 uppercase tracking-wider border-b pb-2 flex justify-between items-center">
+              Entry Details
+              <div className="flex items-center gap-2">
+                <div className="w-28 relative">
+                  <FieldRenderer
+                    type="text"
+                    placeholder="Search Year..."
+                    value={selectedYear}
+                    onChange={(v) => {
+                      // Allow only numbers and limit to 4 digits
+                      const numericValue = v.replace(/\D/g, "").slice(0, 4);
+                      setSelectedYear(numericValue);
+                    }}
+                    className="!h-8 !text-[12px] border-blue-600 focus:ring-blue-500 rounded-md pr-6 font-bold"
+                  />
+                  {selectedYear && (
+                    <button
+                      onClick={() => setSelectedYear("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 text-[10px]"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+            </h2>
 
             <div className="space-y-6">
               <FieldRenderer
@@ -654,9 +680,9 @@ const columns = useMemo(
                 required
                 type="text"
                 value={formData.cutoffCode || ""}
-                disabled={!isEditing || !!selectedCutoffCode}
+                disabled={!isEditing || !!selectedCutoffCode} // Field is locked during edit
                 onChange={(v) => handleCodeChange(v)}
-                onBlur={(e) => handleCheckDuplicate(e.target.value)}
+                onBlur={(e) => handleCheckDuplicate(e.target.value)} // <--- This triggers the check
                 maxLength={6}
               />
               {/* ... rest of your fields (Cut Off Name, Dates, Status) */}
@@ -665,9 +691,14 @@ const columns = useMemo(
                 required
                 type="text"
                 value={formData.cutoffName || ""}
+                // Ensure it is enabled when isEditing is true
                 disabled={!isEditing}
-                onChange={(v) => updateForm({ cutoffName: v })}
-                maxLength={getMax("CUTOFF_NAME")}
+                // Use functional update to ensure state is captured correctly
+                onChange={(v) =>
+                  setFormData((prev) => ({ ...prev, cutoffName: v }))
+                }
+                // Change this from getMax("CUTOFF_NAME") to a number like 50 for testing
+                maxLength={50}
               />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FieldRenderer
@@ -734,6 +765,7 @@ const columns = useMemo(
             data={filteredAccounts}
             isLoading={isListLoading}
             /* ADD OR UPDATE THIS PROP */
+            docType="Cut Off Codes"
             fileName={`Cutoff_Reference_${selectedYear}_${new Date().toISOString().split("T")[0]}`}
             title="Cut off Reference Records"
             tableSize="Half"
