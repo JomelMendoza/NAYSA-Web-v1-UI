@@ -12,7 +12,7 @@ import {
   Undo2,
   Edit,
   Trash2,
-  Info
+  Info,
 } from "lucide-react";
 
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
@@ -21,14 +21,14 @@ import {
   useSwalErrorAlert,
   useSwalSuccessAlert,
   useSwalInfoAlert,
-  useSwalDeleteRecord
+  useSwalDeleteRecord,
+  useSwalDeleteConfirm,
 } from "@/NAYSA Cloud/Global/behavior.jsx";
 import {
   reftables,
   reftablesPDFGuide,
   reftablesVideoGuide,
 } from "@/NAYSA Cloud/Global/reftable";
-
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 import RegistrationInfo from "@/NAYSA Cloud/Global/RegistrationInfo.jsx";
 import SearchGlobalReferenceTable from "../Lookup/SearchGlobalReferenceTable.jsx";
@@ -36,7 +36,7 @@ import SearchCOAMast from "../Lookup/SearchCOAMast.jsx";
 import { useReset } from "../Components/ResetContext";
 import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
-/* ================= HELPERS ================= */
+/* ================= CONSTANTS ================= */
 
 const ATC_LIST_QUERY_KEY = ["ATC", "list"];
 
@@ -56,6 +56,8 @@ const DEFAULT_FORM = {
   lastUpdatedDate: "",
   __existing: false,
 };
+
+/* ================= HELPERS ================= */
 
 const formatDate = (value) => {
   if (!value) return "";
@@ -80,32 +82,101 @@ const extractRows = (payload) => {
     }
   }
 
+  if (typeof res === "object") {
+    return Array.isArray(res?.result) ? res.result : [];
+  }
+
   return [];
 };
 
+const parseResultFlag = (res) => {
+  const row0 = res?.data?.data?.[0] || {};
+  const raw = row0?.result ?? row0?.[""] ?? '{"result":"0"}';
+
+  try {
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    return String(parsed?.result) === "1";
+  } catch {
+    return false;
+  }
+};
+
 const mapAtcRow = (row) => ({
-  atcCode: row?.atcCode || "",
-  atcName: row?.atcName || "",
-  atcRate: String(row?.atcRate || "0"),
-  ewtAcct: row?.ewtAcct || "",
-  ewtAcctName: row?.ewtAcctName || "",
-  cwtAcct: row?.cwtAcct || "",
-  cwtAcctName: row?.cwtAcctName || "",
-  clAcct: row?.clAcct || "",
-  clAcctName: row?.clAcctName || "",
-  registeredBy: row?.registeredBy || "",
-  registeredDate: formatDate(row?.registeredDate),
-  lastUpdatedBy: row?.lastUpdatedBy || "",
-  lastUpdatedDate: formatDate(row?.lastUpdatedDate),
+  atcCode:
+    row?.atcCode ??
+    row?.ATC_CODE ??
+    row?.atc_code ??
+    "",
+  atcName:
+    row?.atcName ??
+    row?.ATC_NAME ??
+    row?.atc_name ??
+    "",
+  atcRate: String(
+    row?.atcRate ??
+      row?.ATC_RATE ??
+      row?.atc_rate ??
+      ""
+  ),
+  ewtAcct:
+    row?.ewtAcct ??
+    row?.EWT_ACCT ??
+    row?.ewt_acct ??
+    "",
+  ewtAcctName:
+    row?.ewtAcctName ??
+    row?.EWT_ACCT_NAME ??
+    row?.ewt_acct_name ??
+    "",
+  cwtAcct:
+    row?.cwtAcct ??
+    row?.CWT_ACCT ??
+    row?.cwt_acct ??
+    "",
+  cwtAcctName:
+    row?.cwtAcctName ??
+    row?.CWT_ACCT_NAME ??
+    row?.cwt_acct_name ??
+    "",
+  clAcct:
+    row?.clAcct ??
+    row?.CL_ACCT ??
+    row?.cl_acct ??
+    "",
+  clAcctName:
+    row?.clAcctName ??
+    row?.CL_ACCT_NAME ??
+    row?.cl_acct_name ??
+    "",
+  registeredBy:
+    row?.registeredBy ??
+    row?.REGISTERED_BY ??
+    row?.registered_by ??
+    "",
+  registeredDate: formatDate(
+    row?.registeredDate ??
+      row?.REGISTERED_DATE ??
+      row?.registered_date
+  ),
+  lastUpdatedBy:
+    row?.lastUpdatedBy ??
+    row?.LAST_UPDATED_BY ??
+    row?.last_updated_by ??
+    "",
+  lastUpdatedDate: formatDate(
+    row?.lastUpdatedDate ??
+      row?.LAST_UPDATED_DATE ??
+      row?.last_updated_date
+  ),
   __existing: true,
 });
 
 /* ================= API ================= */
 
 const fetchAtcList = async () => {
-  const res = await apiClient.get("/ATC");
+  const res = await apiClient.post("/atc");
 
-  if (!res?.data?.success) {
+  if (res?.data?.success === false) {
     throw new Error(res?.data?.message || "Failed to load ATC data.");
   }
 
@@ -117,53 +188,58 @@ const checkDuplicateAtcApi = async (atcCode) => {
     json_data: { atcCode },
   });
 
-  if (!res?.data?.success) {
+  if (res?.data?.success === false) {
     throw new Error(res?.data?.message || "Failed to check duplicate ATC.");
   }
 
-  const rows = extractRows(res);
-  const result = rows?.[0]?.result ?? rows?.[0]?.RESULT ?? "0";
-  return String(result) === "1";
+  return parseResultFlag(res);
+};
+
+const checkInUsedAtcApi = async (atcCode) => {
+  const res = await apiClient.post("/checkInUsedATC", {
+    json_data: { atcCode },
+  });
+
+  if (res?.data?.success === false) {
+    throw new Error(res?.data?.message || "Failed to validate ATC usage.");
+  }
+
+  return parseResultFlag(res);
 };
 
 const saveAtcApi = async (payload) => {
-  const { data } = await apiClient.post("/upsertATC", {
+  const res = await apiClient.post("/upsertATC", {
     json_data: payload,
   });
 
-  if (data?.status !== "success" && data?.success !== true) {
-    throw new Error(data?.message || "Failed to save ATC.");
-  }
+  const data = res?.data || {};
+  const firstRow = data?.data?.[0] || {};
+  const errorCount = Number(firstRow?.errorcount ?? firstRow?.ERRORCOUNT ?? 0);
+  const errorMsg = String(
+    firstRow?.errormsg ?? firstRow?.ERRORMSG ?? data?.message ?? ""
+  );
 
-  const rows = extractRows({ data });
-  const firstRow = rows?.[0] || data?.data?.[0] || {};
-  const errorCount = Number(firstRow?.errorcount || 0);
-  const errorMsg = firstRow?.errormsg || "";
-
-  if (errorCount > 0) {
+  if (data?.success === false || errorCount > 0) {
     throw new Error(errorMsg || "Failed to save ATC.");
   }
 
   return data;
 };
 
-const deleteAtcApi = async (payload) => {
+const deleteAtcApi = async ({ atcCode }) => {
   const res = await apiClient.post("/deleteATC", {
-    json_data: payload,
+    json_data: { atcCode },
   });
 
   const data = res?.data || {};
-  const rows = extractRows(res);
-  const firstRow = rows?.[0] || data?.data?.[0] || {};
-  const errorCount = Number(firstRow?.errorcount ?? 0);
-  const errorMsg =
-    firstRow?.errormsg ?? data?.message ?? "Failed to delete ATC.";
+  const firstRow = data?.data?.[0] || {};
+  const errorCount = Number(firstRow?.errorcount ?? firstRow?.ERRORCOUNT ?? 0);
+  const errorMsg = String(
+    firstRow?.errormsg ?? firstRow?.ERRORMSG ?? data?.message ?? ""
+  );
 
-  if (
-    errorCount > 0 ||
-    (data?.success === false && data?.status !== "success")
-  ) {
-    throw new Error(errorMsg);
+  if (data?.success === false || errorCount > 0) {
+    throw new Error(errorMsg || "Failed to delete ATC.");
   }
 
   return data;
@@ -176,22 +252,18 @@ const ATCRef = () => {
   const queryClient = useQueryClient();
   const { setOnSave, setOnReset } = useReset();
 
-
-  const { showSuccess } = useSwalSuccessAlert();
-  const { showError } = useSwalErrorAlert();
-  const { showDeleteRecord } = useSwalDeleteRecord();
-  const { showInfo } = useSwalInfoAlert();
-
   const docType = "ATC";
   const documentTitle = reftables?.[docType] || "Alphanumeric Tax Code";
   const pdfLink = reftablesPDFGuide?.[docType];
   const videoLink = reftablesVideoGuide?.[docType];
 
   const atcCodeInputRef = useRef(null);
+  const enterValidatedRef = useRef(false);
 
   const [form, setForm] = useState(DEFAULT_FORM);
-  const [isEditing, setIsEditing] = useState(false);
   const [selectedRow, setSelectedRow] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isDupCode, setIsDupCode] = useState(false);
 
   const [isEwtAcctModalOpen, setEwtAcctModalOpen] = useState(false);
   const [isCwtAcctModalOpen, setCwtAcctModalOpen] = useState(false);
@@ -221,29 +293,39 @@ const ATCRef = () => {
     resetForm(DEFAULT_FORM);
     setSelectedRow(null);
     setIsEditing(false);
+    setIsDupCode(false);
   }, [resetForm]);
 
   const saveMutation = useMutation({
     mutationFn: saveAtcApi,
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ATC_LIST_QUERY_KEY });
+    onSuccess: async (response) => {
+  const sqlRow = response?.data?.data?.[0] || {};
+  const errorcount = Number(sqlRow.errorcount ?? sqlRow.ERRORCOUNT ?? 0);
+  const errormsg = String(sqlRow.errormsg ?? sqlRow.ERRORMSG ?? "");
 
-      showSuccess("Success!", "ATC saved successfully.");
-    },
-    onError: (error) => {
-      showError("Error", error?.message || "Error saving ATC.");
-    },
+  if (errorcount > 0) {
+    useSwalErrorAlert("Missing Fields", errormsg || "Failed to save ATC.");
+    return;
+  }
+
+  await queryClient.invalidateQueries({ queryKey: ATC_LIST_QUERY_KEY });
+  useSwalSuccessAlert("Success!", "ATC saved successfully.");
+  handleReset();
+},
   });
 
   const deleteMutation = useMutation({
     mutationFn: deleteAtcApi,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ATC_LIST_QUERY_KEY });
-      showDeleteRecord("Deleted", "ATC record has been removed.");
+      useSwalDeleteRecord("Deleted", "ATC record has been removed.");
       handleReset();
     },
     onError: (error) => {
-      showError("Error", error?.message || "Failed to delete ATC.");
+      useSwalErrorAlert(
+        "System Error",
+        error?.message || "Failed to delete ATC."
+      );
     },
   });
 
@@ -251,85 +333,142 @@ const ATCRef = () => {
     resetForm(DEFAULT_FORM);
     setSelectedRow(null);
     setIsEditing(true);
+    setIsDupCode(false);
     setTimeout(() => atcCodeInputRef.current?.focus?.(), 0);
   }, [resetForm]);
 
-  const handleEdit = async (row) => {
+  const handleEdit = useCallback(async (row) => {
     try {
       const res = await apiClient.get("/getATC", {
-        params: { atcCode: row.atcCode },
+        params: { atcCode: row?.atcCode },
       });
 
       const freshData = extractRows(res)?.[0];
-      if (freshData) {
-        const mapped = mapAtcRow(freshData);
-        setForm(mapped);
-        setSelectedRow(mapped);
-        setIsEditing(true);
+      if (!freshData) {
+        useSwalErrorAlert("Error", "Could not fetch details for this record.");
+        return;
       }
-    } catch {
-      showError("Error", "Could not fetch details for this record.");
-    }
-  };
 
-  const handleSave = useCallback(async () => {
-    if (!isEditing || saveMutation.isPending) return;
-
-    const missing = [];
-    if (!String(form.atcCode || "").trim()) missing.push("• ATC Code");
-    if (!String(form.atcName || "").trim()) missing.push("• ATC Description");
-    if (!String(form.atcRate || "").trim()) missing.push("• ATC Rate");
-    if (!String(form.ewtAcct || "").trim()) missing.push("• EWT Account");
-    if (!String(form.cwtAcct || "").trim()) missing.push("• CWT Account");
-    if (!String(form.clAcct || "").trim())
-      missing.push("• CWT Clearing Account");
-
-    if (missing.length) {
-      showError(
-        "Error!",
-        `Please fill in the required field(s):\n${missing.join("\n")}`
+      const mapped = mapAtcRow(freshData);
+      setForm(mapped);
+      setSelectedRow(mapped);
+      setIsEditing(true);
+      setIsDupCode(false);
+    } catch (error) {
+      useSwalErrorAlert(
+        "Error",
+        error?.message || "Could not fetch details for this record."
       );
-      return;
     }
+  }, []);
 
-    const code = String(form.atcCode || "").trim().toUpperCase();
+  const handleATCCodeValidate = useCallback(
+    async (arg) => {
+      const isEvent = arg && typeof arg === "object" && "type" in arg;
 
-    try {
-      if (!form.__existing) {
+      if (isEvent && arg.type === "keydown") {
+        if (arg.key !== "Enter") return;
+        enterValidatedRef.current = true;
+      }
+
+      if (isEvent && arg.type === "blur" && enterValidatedRef.current) {
+        enterValidatedRef.current = false;
+        return;
+      }
+
+      const code = String(form.atcCode || "").trim().toUpperCase();
+      if (!code || !isEditing || form.__existing) return;
+
+      try {
         const isDuplicate = await checkDuplicateAtcApi(code);
 
         if (isDuplicate) {
-          showError("Duplicate ATC Code", `ATC Code "${code}" already exists.`);
+          setIsDupCode(true);
+          useSwalErrorAlert(
+            "Duplicate Entry",
+            `ATC Code "${code}" already exists.`
+          );
+          setField("atcCode", "");
+          setTimeout(() => atcCodeInputRef.current?.focus?.(), 0);
           return;
         }
+
+        setIsDupCode(false);
+        setField("atcCode", code);
+      } catch (error) {
+        useSwalErrorAlert(
+          "Validation Error",
+          error?.message || "Failed to validate ATC Code."
+        );
       }
+    },
+    [form.atcCode, form.__existing, isEditing]
+  );
 
-      const parsedRate = parseFloat(form.atcRate);
+  const handleSave = useCallback(async () => {
+  if (!isEditing || saveMutation.isPending) return;
 
-      await saveMutation.mutateAsync({
-        atcCode: code,
-        atcName: String(form.atcName || "").trim(),
-        atcRate: Number.isNaN(parsedRate) ? 0 : parsedRate,
-        ewtAcct: String(form.ewtAcct || "").trim(),
-        cwtAcct: String(form.cwtAcct || "").trim(),
-        clAcct: String(form.clAcct || "").trim(),
-        userCode: user?.USER_CODE || "ADMIN",
-      });
-    } catch (error) {
-      showError("Error", error?.message || "Error saving ATC.");
+  const code = String(form.atcCode || "").trim().toUpperCase();
+  const name = String(form.atcName || "").trim();
+  const rate = String(form.atcRate || "").trim();
+  const ewtAcct = String(form.ewtAcct || "").trim();
+  const cwtAcct = String(form.cwtAcct || "").trim();
+  const clAcct = String(form.clAcct || "").trim();
+
+  try {
+    if (!form.__existing) {
+      const isDuplicate = await checkDuplicateAtcApi(code);
+
+      if (isDuplicate) {
+        setIsDupCode(true);
+        useSwalErrorAlert(
+          "Duplicate Entry",
+          `ATC Code "${code}" already exists.`
+        );
+        setTimeout(() => atcCodeInputRef.current?.focus?.(), 0);
+        return;
+      }
     }
-  }, [form, isEditing, saveMutation, user?.USER_CODE, showError]);
+
+    const parsedRate = parseFloat(rate);
+
+    await saveMutation.mutateAsync({
+      atcCode: code,
+      atcName: name,
+      atcRate: Number.isNaN(parsedRate) ? 0 : parsedRate,
+      ewtAcct,
+      cwtAcct,
+      clAcct,
+      userCode: user?.USER_CODE || "ADMIN",
+    });
+  } catch (error) {
+    useSwalErrorAlert(
+      "System Error",
+      error?.message || "Failed to save ATC."
+    );
+  }
+}, [form, isEditing, saveMutation, user?.USER_CODE]);
 
   const handleDelete = useCallback(
     async (row = selectedRow) => {
       const atcCode = String(row?.atcCode || "").trim();
 
       if (!atcCode) {
-        showError("Error", "No ATC Code selected.");
+        useSwalErrorAlert("Error", "No ATC Code selected.");
         return;
       }
 
       try {
+        const isInUsed = await checkInUsedAtcApi(atcCode);
+
+        if (isInUsed) {
+          useSwalErrorAlert(
+            "Unable to Delete",
+            `ATC "${atcCode}" is already in use.`
+          );
+          return;
+        }
+
         const confirm = await useSwalDeleteConfirm(
           "Delete Record?",
           `Are you sure you want to delete ATC "${atcCode}"?`,
@@ -340,30 +479,43 @@ const ATCRef = () => {
 
         deleteMutation.mutate({ atcCode });
       } catch (error) {
-        showError(
+        useSwalErrorAlert(
           "System Error",
           error?.message || "Failed to delete record."
         );
       }
     },
-    [selectedRow, deleteMutation, useSwalDeleteConfirm, showError]
+    [selectedRow, deleteMutation]
   );
 
+  const handleSaveRef = useRef(null);
+  const handleResetRef = useRef(null);
+
   useEffect(() => {
-    setOnSave(() => handleSave);
-    setOnReset(() => handleReset);
+    handleSaveRef.current = handleSave;
+  }, [handleSave]);
+
+  useEffect(() => {
+    handleResetRef.current = handleReset;
+  }, [handleReset]);
+
+  useEffect(() => {
+    setOnSave(() => () => handleSaveRef.current?.());
+    setOnReset(() => () => handleResetRef.current?.());
 
     return () => {
       setOnSave(null);
       setOnReset(null);
     };
-  }, [setOnSave, setOnReset, handleSave, handleReset]);
+  }, [setOnSave, setOnReset]);
 
   useEffect(() => {
     const onKey = (e) => {
       if (e.ctrlKey && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        if (isEditing && !saveMutation.isPending) handleSave();
+        if (isEditing && !saveMutation.isPending) {
+          handleSave();
+        }
       }
     };
 
@@ -389,6 +541,7 @@ const ATCRef = () => {
             >
               <Edit size={16} />
             </button>
+
             <button
               type="button"
               onClick={(e) => {
@@ -439,7 +592,7 @@ const ATCRef = () => {
         render: (row) => row?.clAcct,
       },
     ],
-    [handleDelete]
+    [handleEdit, handleDelete]
   );
 
   const tableData = useMemo(
@@ -502,12 +655,32 @@ const ATCRef = () => {
             <Undo2 size={16} />
             Reset
           </button>
+
           <button
-                  type="button"
-                  className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
-                >
-                  <Info size={16} /> Info
-                </button>
+            type="button"
+            onClick={() => {
+              if (pdfLink || videoLink) {
+                useSwalInfoAlert(
+                  "Guide",
+                  [
+                    pdfLink ? `PDF Guide: ${pdfLink}` : null,
+                    videoLink ? `Video Guide: ${videoLink}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join("\n")
+                );
+              } else {
+                useSwalInfoAlert(
+                  "Guide",
+                  "No guide or video link is available for this reference."
+                );
+              }
+            }}
+            className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
+          >
+            <Info size={16} />
+            Info
+          </button>
         </div>
       </div>
 
@@ -523,12 +696,12 @@ const ATCRef = () => {
                   label="ATC"
                   value={form.atcCode}
                   inputRef={atcCodeInputRef}
-                  onChange={(e) =>
-                    setField(
-                      "atcCode",
-                      String(e?.target?.value || "").toUpperCase()
-                    )
-                  }
+                  onChange={(val) => {
+                    setField("atcCode", val);
+                    if (isDupCode) setIsDupCode(false);
+                  }}
+                  onBlur={handleATCCodeValidate}
+                  onKeyDown={handleATCCodeValidate}
                   disabled={!isEditing || form.__existing}
                   required
                 />
@@ -536,9 +709,7 @@ const ATCRef = () => {
                 <FieldRenderer
                   label="ATC Name"
                   value={form.atcName}
-                  onChange={(e) =>
-                    setField("atcName", e?.target?.value || "")
-                  }
+                  onChange={(val) => setField("atcName", val)}
                   disabled={!isEditing}
                   required
                 />
@@ -546,12 +717,7 @@ const ATCRef = () => {
                 <FieldRenderer
                   label="Tax Rate (%)"
                   value={form.atcRate}
-                  onChange={(e) =>
-                    setField(
-                      "atcRate",
-                      String(e?.target?.value || "").replace(/[^0-9.]/g, "")
-                    )
-                  }
+                  onChange={(val) => setField("atcRate", val)}
                   disabled={!isEditing}
                   required
                 />
@@ -563,7 +729,9 @@ const ATCRef = () => {
                   type="lookup"
                   value={
                     form.ewtAcct
-                      ? `${form.ewtAcct}${form.ewtAcctName ? ` - ${form.ewtAcctName}` : ""}`
+                      ? `${form.ewtAcct}${
+                          form.ewtAcctName ? ` - ${form.ewtAcctName}` : ""
+                        }`
                       : ""
                   }
                   onLookup={() => setEwtAcctModalOpen(true)}
@@ -577,7 +745,9 @@ const ATCRef = () => {
                   type="lookup"
                   value={
                     form.cwtAcct
-                      ? `${form.cwtAcct}${form.cwtAcctName ? ` - ${form.cwtAcctName}` : ""}`
+                      ? `${form.cwtAcct}${
+                          form.cwtAcctName ? ` - ${form.cwtAcctName}` : ""
+                        }`
                       : ""
                   }
                   onLookup={() => setCwtAcctModalOpen(true)}
@@ -591,7 +761,9 @@ const ATCRef = () => {
                   type="lookup"
                   value={
                     form.clAcct
-                      ? `${form.clAcct}${form.clAcctName ? ` - ${form.clAcctName}` : ""}`
+                      ? `${form.clAcct}${
+                          form.clAcctName ? ` - ${form.clAcctName}` : ""
+                        }`
                       : ""
                   }
                   onLookup={() => setClAcctModalOpen(true)}
@@ -626,10 +798,10 @@ const ATCRef = () => {
 
       <SearchCOAMast
         isOpen={isEwtAcctModalOpen}
-        onClose={(v) => {
-          if (v) {
-            setField("ewtAcct", v.acctCode || "");
-            setField("ewtAcctName", v.acctName || "");
+        onClose={(value) => {
+          if (value) {
+            setField("ewtAcct", value?.acctCode || "");
+            setField("ewtAcctName", value?.acctName || "");
           }
           setEwtAcctModalOpen(false);
         }}
@@ -637,10 +809,10 @@ const ATCRef = () => {
 
       <SearchCOAMast
         isOpen={isCwtAcctModalOpen}
-        onClose={(v) => {
-          if (v) {
-            setField("cwtAcct", v.acctCode || "");
-            setField("cwtAcctName", v.acctName || "");
+        onClose={(value) => {
+          if (value) {
+            setField("cwtAcct", value?.acctCode || "");
+            setField("cwtAcctName", value?.acctName || "");
           }
           setCwtAcctModalOpen(false);
         }}
@@ -648,10 +820,10 @@ const ATCRef = () => {
 
       <SearchCOAMast
         isOpen={isClAcctModalOpen}
-        onClose={(v) => {
-          if (v) {
-            setField("clAcct", v.acctCode || "");
-            setField("clAcctName", v.acctName || "");
+        onClose={(value) => {
+          if (value) {
+            setField("clAcct", value?.acctCode || "");
+            setField("clAcctName", value?.acctName || "");
           }
           setClAcctModalOpen(false);
         }}

@@ -1527,7 +1527,7 @@ const renderMobileCard = (row, idx) => {
         )}
 
         {/* TABLE / CARD VIEW */}
-        <div className="global-tran-table-main-sub-div-ui flex flex-col flex-1 min-h-[330px]">
+        <div className="global-tran-table-main-sub-div-ui flex flex-col flex-1 min-h-[481px] relative">
           {isLoadingColumns ? (
             <TableLoader />
           ) : useCardView ? (

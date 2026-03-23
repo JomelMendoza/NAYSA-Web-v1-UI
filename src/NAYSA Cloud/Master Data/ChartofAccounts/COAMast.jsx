@@ -170,7 +170,7 @@ const COAMast = () => {
       ...INITIAL_FORM,
       ...row,
       classCode: row.classCode,
-      className: classNameFromRow || classNameFromDropdown,  // ✅ important
+      className: classNameFromRow || classNameFromDropdown,
     });
 
     setRegistrationInfo({

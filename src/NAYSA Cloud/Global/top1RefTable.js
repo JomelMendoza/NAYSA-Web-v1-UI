@@ -545,14 +545,13 @@ export const useTopPayTermRow = async (paytermCode) => {
 
 export async function useTopDocDropDownAll() {
   try {
-    const response = await postRequest("getHSDropdownAll", {}); 
+    // Change postRequest to fetchData to avoid the 405 Method Not Allowed error
+    const response = await fetchData("getHSDropdownAll"); 
     
     if (!response || !response.success || !response.data || !Array.isArray(response.data)) {
       return [];
     }
 
-    // This version joins the first column of every row, 
-    // even if the column name isn't exactly "result"
     const fullJsonString = response.data
       .map(row => Object.values(row)[0]) 
       .join("");

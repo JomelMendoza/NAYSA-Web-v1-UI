@@ -17,8 +17,7 @@ import {
 // ✅ Per-reference JSX (new)
 import PayTermRef from "@/NAYSA Cloud/Master Data/CustMastTabs/ReferenceCodes/PayTermRef";
 import BillTermRef from "@/NAYSA Cloud/Master Data/CustMastTabs/ReferenceCodes/BillTermRef";
-import { SalesRep } from "@/NAYSA Cloud/Master Data/CustMastTabs/ReferenceCodes/SalesRep";
-
+import SalesRep from "@/NAYSA Cloud/Reference File/SalesRep.jsx";
 /* ===================== UI helpers ===================== */
 const SectionHeader = ({ title, subtitle }) => (
   <div className="mb-3">
@@ -42,7 +41,7 @@ const ReferenceCodesTab = forwardRef(({ variant = "customer" }, ref) => {
   const refTabs = useMemo(() => {     
     // Customer = full list
     const full = [
-      { id: "salesrep", label: "Sales Rep Codes", icon: faUserTie },
+      { id: "salesrep", label: "Agent Codes", icon: faUserTie },
       { id: "zone", label: "Zone Codes", icon: faMapMarkedAlt },
       { id: "area", label: "Area Codes", icon: faMapPin },
       { id: "custtype", label: "Customer Types", icon: faUsers },
