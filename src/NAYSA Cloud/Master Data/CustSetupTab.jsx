@@ -638,81 +638,6 @@ const CustSetupTab = forwardRef(
                     disabled={true}
                   />
                 </div>
-<<<<<<< HEAD
-
-                <div className="mt-6">
-                  <SectionHeader title="PRINTING INFORMATION" />
-                </div>
-
-                <div className="space-y-3">
-                  <FieldRenderer
-                    label="Customer Remarks"
-                    type="textarea"
-                    value={form?.customerRemarks || ""}
-                    onChange={(v) =>
-                      onChangeForm({ customerRemarks: getValue(v) })
-                    }
-                    readOnly={isReadOnly}
-                    disabled={isDisabled}
-                  />
-
-                  <FieldRenderer
-                    label="Customized DR Form"
-                    type="text"
-                    value={form?.customizedDrForm || ""}
-                    onChange={(v) =>
-                      onChangeForm({ customizedDrForm: getValue(v) })
-                    }
-                    readOnly={isReadOnly}
-                    disabled={isDisabled}
-                  />
-
-                  <FieldRenderer
-                    label="Customized SI Form"
-                    type="text"
-                    value={form?.customizedSiForm || ""}
-                    onChange={(v) =>
-                      onChangeForm({ customizedSiForm: getValue(v) })
-                    }
-                    readOnly={isReadOnly}
-                    disabled={isDisabled}
-                  />
-
-                  <FieldRenderer
-                    label="Customized DRC Form"
-                    type="text"
-                    value={form?.customizedDrcForm || ""}
-                    onChange={(v) =>
-                      onChangeForm({ customizedDrcForm: getValue(v) })
-                    }
-                    readOnly={isReadOnly}
-                    disabled={isDisabled}
-                  />
-
-                  <FieldRenderer
-                    label="Customized BS Form"
-                    type="text"
-                    value={form?.customizedBsForm || ""}
-                    onChange={(v) =>
-                      onChangeForm({ customizedBsForm: getValue(v) })
-                    }
-                    readOnly={isReadOnly}
-                    disabled={isDisabled}
-                  />
-
-                  <FieldRenderer
-                    label="Customized SVI Form"
-                    type="text"
-                    value={form?.customizedSviForm || ""}
-                    onChange={(v) =>
-                      onChangeForm({ customizedSviForm: getValue(v) })
-                    }
-                    readOnly={isReadOnly}
-                    disabled={isDisabled}
-                  />
-                </div>
-=======
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
               </>
             )}
 
@@ -777,13 +702,8 @@ const CustSetupTab = forwardRef(
                   />
                 </div>
 
-<<<<<<< HEAD
-                <div className="mt-6">
-                  <SectionHeader title="SHIPMENT INFORMATION" />
-=======
                 {/* <div className="mt-6">
                   <SectionHeader title="SUPPLEMENTARY INFORMATION" />
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
                 </div>
 
                 <div className="space-y-3">
@@ -840,13 +760,8 @@ const CustSetupTab = forwardRef(
                     }
                     readOnly={isReadOnly}
                     disabled={isDisabled}
-<<<<<<< HEAD
-                  />
-                </div>
-=======
                   /> */}
                 {/* </div> */}
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
               </>
             )}
           </Card>

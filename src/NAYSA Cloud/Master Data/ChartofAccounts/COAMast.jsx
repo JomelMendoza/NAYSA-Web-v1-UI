@@ -12,16 +12,10 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPlus, faSave, faUndo, faEdit, faTrashAlt, faInfoCircle, faChevronDown, faFilePdf, faVideo } from "@fortawesome/free-solid-svg-icons";
 import { reftables, reftablesPDFGuide, reftablesVideoGuide } from "@/NAYSA Cloud/Global/reftable";
 import { useTopDocDropDown } from "@/NAYSA Cloud/Global/top1RefTable";
-<<<<<<< HEAD
-import { useSwalErrorAlert, useSwalSuccessAlert, useSwalErrorAlertAPI, useSwalDeleteConfirm, useSwalDeleteRecord } from "@/NAYSA Cloud/Global/behavior";
-import { useFieldLenghtCheck, useGetFieldLength,} from '@/NAYSA Cloud/Global/procedure';
-import { Plus, Trash2 } from "lucide-react";
-=======
 import { useSwalErrorAlert, useSwalSuccessAlert, useSwalErrorAlertAPI, useSwalDeleteConfirm, useSwalDeleteRecord } from "@/NAYSA Cloud/Global/behavior.jsx";
 import { useFieldLenghtCheck, useGetFieldLength,} from '@/NAYSA Cloud/Global/procedure';
 import { Plus, Trash2 } from "lucide-react";
 import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 
 // UI Helpers
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer";
@@ -209,40 +203,6 @@ const { mutate: deleteCOA, isLoading: isDeleting } = useMutation({
 
 const handleDelete = async (row) => {
   try {
-<<<<<<< HEAD
-    setIsLoading(true); // Ensure you have a general loading state or use the mutation's state
-    const payload = {
-      json_data: {
-        acctCode: row.acctCode 
-      }
-    };
-
-    // 1. Check if used in other tables via SPROC
-    const response = await apiClient.post("/checkInUsedCOA", payload);    
-    const sqlRow = response?.data?.data?.[0];
-    const rawJsonString = sqlRow?.result || Object.values(sqlRow || {})[0];  
-    const parsedData = JSON.parse(rawJsonString || '{"result":"0"}');
-
-    if (parsedData.result === "1") {
-      setIsLoading(false);
-      return useSwalErrorAlertAPI(
-        `Cannot Delete Account Code: ${row.acctCode}`, 
-        `Code was already used.`
-      );
-    }
-
-    // 2. Confirmations
-    const confirm = await useSwalDeleteConfirm(
-      "Confirm Delete", 
-      `Are you sure you want to delete Code: ${row.acctCode}?`
-    );
-
-    if (confirm.isConfirmed) {
-      deleteCOA(payload); 
-    }
-  } catch (error) {
-    useSwalErrorAlertAPI("System Error", error);
-=======
     if (!row?.acctCode) {
       return useSwalErrorAlertAPI("Delete Error", "No account code found.");
     }
@@ -292,7 +252,6 @@ const handleDelete = async (row) => {
       "System Error",
       error?.response?.data?.message || error?.message || "Delete failed."
     );
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
   } finally {
     setIsLoading(false);
   }
@@ -346,12 +305,7 @@ const columns = useMemo(() => [
             handleEdit(row);
           }
         }}
-<<<<<<< HEAD
-        className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-blue-50 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-colors text-xs"
-        title="Edit"
-=======
         className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-blue-50 border border-blue-100 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-colors text-xs"title="Edit"
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
       >
         <FontAwesomeIcon icon={faEdit} />
         <span className="md:hidden">Edit</span>
@@ -363,17 +317,10 @@ const columns = useMemo(() => [
           if (isMobile) {
             openMobileActionSheet(row);
           } else {
-<<<<<<< HEAD
-            handleEdit(row);
-          }
-        }}
-        className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-red-50 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors text-xs"
-=======
             handleDelete(row);
           }
         }}
         className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-red-50 border border-red-100 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors text-xs"
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
         title="Delete"
       >
         <FontAwesomeIcon icon={faTrashAlt} />
@@ -508,71 +455,10 @@ const columns = useMemo(() => [
 
   return (
     <div className="global-ref-main-div-ui">
-<<<<<<< HEAD
-    {(isDropdownLoading || isListLoading || isSaving || isDeleting) && (
-      <div className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center px-4">
-        <div
-          className="
-            w-full max-w-xs sm:max-w-sm
-            rounded-3xl border border-white/20
-            bg-white/95 dark:bg-gray-900/95
-            shadow-[0_20px_60px_rgba(0,0,0,0.25)]
-            px-6 py-7 sm:px-8 sm:py-8
-            flex flex-col items-center text-center
-          "
-        >
-          {/* Spinner */}
-          <div className="relative mb-5">
-            <div className="w-16 h-16 rounded-full border-4 border-blue-100 dark:border-gray-700" />
-            <div className="absolute inset-0 w-16 h-16 rounded-full border-4 border-blue-600 border-t-transparent animate-spin" />
-            <div className="absolute inset-[10px] rounded-full bg-blue-50 dark:bg-gray-800" />
-          </div>
-
-          {/* Main text */}
-          <div className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-100">
-            {isSaving
-              ? "Saving record"
-              : isDeleting
-              ? "Deleting record"
-              : "Loading. Please wait"}
-            <span className="inline-flex ml-1">
-              <span className="animate-bounce [animation-delay:-0.3s]">.</span>
-              <span className="animate-bounce [animation-delay:-0.15s]">.</span>
-              <span className="animate-bounce">.</span>
-            </span>
-          </div>
-
-          {/* Sub text */}
-          {/* <div className="mt-2 text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-            {isSaving
-              ? "Please wait while your changes are being saved."
-              : isDeleting
-              ? "Please wait while the selected record is being removed."
-              : "Please wait . . ."}
-          </div> */}
-
-          {/* Progress bar effect */}
-          <div className="mt-5 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-            <div className="h-full w-1/2 rounded-full bg-blue-600 animate-[loadingBar_1.2s_ease-in-out_infinite]" />
-          </div>
-        </div>
-
-        <style>
-          {`
-            @keyframes loadingBar {
-              0% { transform: translateX(-100%); }
-              100% { transform: translateX(300%); }
-            }
-          `}
-        </style>
-      </div>
-    )}
-=======
       
           {/* {(isDropdownLoading || isListLoading || isDeleting) && <LoadingSpinner />} */}
     {(isDropdownLoading || isListLoading || isSaving || isDeleting) && <LoadingSpinner />}
     
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 
       {/* Lookup Modals */}
       <SearchCOAClassRef isOpen={modals.coaClass} onClose={(v) => { toggleModal("coaClass", false); if(v) updateForm({ classCode: v.classCode, className: v.className }) }} />
@@ -905,18 +791,6 @@ const columns = useMemo(() => [
           <FontAwesomeIcon icon={faEdit} />
           Edit
         </button>
-<<<<<<< HEAD
-
-        <button
-          onClick={() => {
-            handleDelete(selectedMobileRow);
-            closeMobileActionSheet();
-          }}
-          className="w-full flex items-center justify-center gap-2 rounded-lg bg-red-50 text-red-600 py-3 text-sm font-medium hover:bg-red-600 hover:text-white transition-colors"
-        >
-          <FontAwesomeIcon icon={faTrashAlt} />
-          Delete
-=======
         
         <button
           onClick={(e) => {
@@ -932,7 +806,6 @@ const columns = useMemo(() => [
         >
           <FontAwesomeIcon icon={faTrashAlt} />
           <span className="md:hidden">Delete</span>
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
         </button>
 
         <button

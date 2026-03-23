@@ -1,13 +1,3 @@
-<<<<<<< HEAD
-import React from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faChartSimple } from "@fortawesome/free-solid-svg-icons";
-
-function IncomeStatementYTDReport({ view, tabConfig, SearchGlobalReportTable, NoRecordsState }) {
-  if (!view.hasLoaded) {
-    return (
-      <div className="p-8 text-sm text-gray-500 flex items-center gap-2">
-=======
 
 
 import React, { useMemo, useState, useCallback } from "react";
@@ -94,7 +84,6 @@ function IncomeStatementYTDReport({
   if (!view?.hasLoaded) {
     return (
       <div className="flex items-center gap-2 p-8 text-sm text-gray-500">
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
         <FontAwesomeIcon icon={faChartSimple} className="text-blue-300" />
         <span>
           Click <b>Filter</b> then <b>Apply Filters</b> to load <b>{tabConfig.label}</b>.
@@ -103,11 +92,7 @@ function IncomeStatementYTDReport({
     );
   }
 
-<<<<<<< HEAD
-  if (view.isEmpty) {
-=======
   if (view?.isEmpty) {
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
     return (
       <NoRecordsState
         title="No records found"
@@ -117,24 +102,6 @@ function IncomeStatementYTDReport({
     );
   }
 
-<<<<<<< HEAD
-  return (
-    <SearchGlobalReportTable
-      key={`incStatementYTD-${view.loadedAt || "idle"}`}
-      columns={view.cols}
-      data={view.rows}
-      itemsPerPage={50}
-      rightActionLabel={view.rightActionLabel || "View"}
-      onRowAction={(row) => {
-        if (!row?.pathUrl) return;
-        const url = `${window.location.origin}${row.pathUrl}`;
-        window.open(url, "_blank", "noopener,noreferrer");
-      }}
-    />
-  );
-}
-
-=======
   const safePeriods = periods.length > 0 ? periods : ["CURRENT"];
   const gridTemplateColumns = `minmax(420px, 1.5fr) 88px ${safePeriods
     .map(() => "minmax(130px, 1fr)")
@@ -672,18 +639,12 @@ function getTypeMeta(node) {
   };
 }
 
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 IncomeStatementYTDReport.meta = {
   key: "incStatementYTD",
   label: "Income Statement YTD",
   icon: faChartSimple,
-<<<<<<< HEAD
-  filters: ["Branch", "Cut Off", "RC Code", "Currency"],
-  endpoint: "getGLINQ_IncomeStmtYTD",
-=======
   filters: ["Branch", "Cut Off", "RC Code", "Currency", "Compare Years"],
   endpoint: "getBSIS_YTD",
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 };
 
 IncomeStatementYTDReport.buildPayload = (f) => ({
@@ -691,10 +652,7 @@ IncomeStatementYTDReport.buildPayload = (f) => ({
   cutoffCode: f.cutoffCode || "",
   rcCode: f.rcCode || "",
   currCode: f.currCode || "PHP",
-<<<<<<< HEAD
-=======
   compareYears: f.compareYears || 1,
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 });
 
 IncomeStatementYTDReport.buildJsonData = (payload) => ({

@@ -702,9 +702,6 @@ body {
 }
 
 .toast-title { font-weight:700; font-size:10px; color:#111827;}
-<<<<<<< HEAD
-@media (min-width: 768px) { .toast-title { font-size:14px; } } /* md */
-=======
 @media (min-width: 768px) { .toast-title { font-size:14px; } } /* md */
 
 
@@ -1508,4 +1505,3 @@ body {
 }
 
 
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c

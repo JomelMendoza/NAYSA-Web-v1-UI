@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-import React, { useEffect, useState, useMemo, useRef } from "react";
-=======
 // import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 // import {
 //   BrowserRouter as Router,
@@ -337,7 +334,6 @@ import React, { useEffect, useState, useMemo, useRef } from "react";
 
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 import {
   BrowserRouter as Router,
   Routes,
@@ -347,21 +343,10 @@ import {
   useParams,
   useLocation,
 } from "react-router-dom";
-<<<<<<< HEAD
-
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { pageRegistry } from "./pageRegistry";
-
-import { Toaster, toast } from "sonner";
-import ErrorBoundary from "@/NAYSA Cloud/Components/ErrorBoundary.jsx";
-
-// API helpers (sessionStorage-based tenant, cookie auth)
-=======
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { pageRegistry } from "./pageRegistry.jsx";
 import ErrorBoundary from "./NAYSA Cloud/Components/ErrorBoundary";
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 import { fetchData, getTenant } from "./NAYSA Cloud/Configuration/BaseURL.jsx";
 import Navbar from "./NAYSA Cloud/Components/Navbar";
 import Sidebar from "./NAYSA Cloud/Components/Sidebar";
@@ -369,29 +354,6 @@ import { ResetProvider } from "./NAYSA Cloud/Components/ResetContext";
 import Login from "./NAYSA Cloud/Authentication/Login.jsx";
 import Register from "./NAYSA Cloud/Authentication/Register.jsx";
 import Dashboard1 from "./NAYSA Cloud/Components/Dashboard1.jsx";
-<<<<<<< HEAD
-import { useAuth } from "./NAYSA Cloud/Authentication/AuthContext.jsx";
-import AuthProvider from "./NAYSA Cloud/Authentication/AuthContext.jsx";
-
-import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
-
-/* -------------------- React Query Client -------------------- */
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      staleTime: 30_000,
-      refetchOnWindowFocus: false,
-    },
-    mutations: {
-      retry: 0,
-    },
-  },
-});
-
-/* -------------------- Universal Bypass Component -------------------- */
-const UniversalRegistryRoute = ({ routeRows }) => {
-=======
 import ChangePassword from "./NAYSA Cloud/Authentication/ChangePassword.jsx";
 import AuthProvider, { useAuth } from "./NAYSA Cloud/Authentication/AuthContext.jsx";
 import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
@@ -400,7 +362,6 @@ const queryClient = new QueryClient();
 
 /* -------------------- Universal Registry Route (The Gatekeeper) -------------------- */
 const UniversalRegistryRoute = ({ routeRows, loadingMenu }) => {
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
   const location = useLocation();
   const { componentKey: paramKey } = useParams();
   const queryParams = new URLSearchParams(location.search);
@@ -409,28 +370,17 @@ const UniversalRegistryRoute = ({ routeRows, loadingMenu }) => {
   const matchingComponentKey = useMemo(() => {
     if (paramKey && pageRegistry[paramKey]) return paramKey;
 
-<<<<<<< HEAD
-    const dbMatch = routeRows.find((r) => {
-      const dbPath = r.path?.startsWith("/") ? r.path : `/${r.path}`;
-      return dbPath === location.pathname;
-    });
-
-=======
     const currentPath = location.pathname.replace(/\/$/, "") || "/";
     const dbMatch = routeRows.find((r) => {
       if (!r.path) return false;
       const dbPath = (r.path.startsWith("/") ? r.path : `/${r.path}`).replace(/\/$/, "");
       return dbPath === currentPath;
     });
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
     return dbMatch ? dbMatch.componentKey : null;
   }, [location.pathname, paramKey, routeRows]);
 
   const Component = matchingComponentKey ? pageRegistry[matchingComponentKey] : null;
 
-<<<<<<< HEAD
-  if (!Component || !isViewMode) {
-=======
   if (loadingMenu && !Component) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
@@ -445,17 +395,12 @@ const UniversalRegistryRoute = ({ routeRows, loadingMenu }) => {
   const isAuthorized = routeRows.some((r) => r.componentKey === matchingComponentKey);
 
   if (!Component || (!isAuthorized && !isViewMode)) {
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
     return <Navigate to="/" replace />;
   }
 
   return (
     <ErrorBoundary>
-<<<<<<< HEAD
-      <Component key={`${matchingComponentKey}-view`} />
-=======
       <Component key={matchingComponentKey} />
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
     </ErrorBoundary>
   );
 };
@@ -486,43 +431,6 @@ const ModalHost = ({ modalKey, onClose }) => {
 /* -------------------- App Content -------------------- */
 const AppContent = () => {
   const { user, loading, logout } = useAuth();
-<<<<<<< HEAD
-
-  const [menuItems, setMenuItems] = useState([]);
-  const [routeRows, setRouteRows] = useState([]);
-  const [loadingMenu, setLoadingMenu] = useState(true);
-  const [routesLoaded, setRoutesLoaded] = useState(false);
-
-  const [activeModalKey, setActiveModalKey] = useState(null);
-  const menuFetchedRef = useRef(false);
-
-  const navigate = useNavigate();
-  const normPath = (p = "") => (p.startsWith("/") ? p : `/${p}`);
-
-  const toggleSidebar = () => setIsSidebarVisible((prev) => !prev);
-  const openModal = (componentKey) => setActiveModalKey(componentKey);
-
-  const handleCloseModal = () => {
-    setActiveModalKey(null);
-    navigate("/", { replace: true });
-  };
-
-  const handleLogout = async () => {
-    const logoutPromise = logout(); // Start the logout
-    
-    
-    toast.promise(logoutPromise, {
-      loading: 'Logging out...',
-      success: () => {
-        setIsSidebarVisible(false);
-        menuFetchedRef.current = false;
-        navigate("/", { replace: true });
-        return 'Logged out successfully';
-      },
-      error: 'Logout failed',
-    });
-  };
-=======
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -562,22 +470,11 @@ const AppContent = () => {
     await logout();
     navigate("/", { replace: true });
   }, [logout, resetAppData, navigate]);
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 
   useEffect(() => {
     let alive = true;
     const tenant = getTenant();
 
-<<<<<<< HEAD
-    if (loading || !user || !tenant || menuFetchedRef.current) return;
-
-    (async () => {
-      try {
-        setLoadingMenu(true);
-        const [menuResp, routesResp] = await Promise.all([
-          fetchData("menu-items", { USER_CODE: user?.USER_CODE }),
-          fetchData("menu-routes", { USER_CODE: user?.USER_CODE }),
-=======
     if (!user) {
       resetAppData();
       return;
@@ -592,20 +489,10 @@ const AppContent = () => {
         const [menuResp, routesResp] = await Promise.all([
           fetchData("menu-items", { USER_CODE: user.USER_CODE }),
           fetchData("menu-routes", { USER_CODE: user.USER_CODE }),
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
         ]);
 
         if (!alive) return;
 
-<<<<<<< HEAD
-        setMenuItems(menuResp?.menuItems ?? menuResp?.data ?? []);
-        setRouteRows(routesResp?.routes ?? routesResp?.data ?? []);
-        setRoutesLoaded(true);
-        menuFetchedRef.current = true;
-      } catch (e) {
-        console.error("[MENU LOAD ERROR]", e);
-        toast.error("Failed to load application menu");
-=======
         const mData = menuResp?.menuItems ?? menuResp?.data ?? [];
         const rData = routesResp?.routes ?? routesResp?.data ?? [];
 
@@ -616,32 +503,21 @@ const AppContent = () => {
         menuFetchedRef.current = user.USER_CODE;
       } catch (e) {
         console.error("Metadata Fetch Error:", e);
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
       } finally {
         if (alive) setLoadingMenu(false);
       }
     })();
 
-<<<<<<< HEAD
-    return () => { alive = false; };
-  }, [loading, user]);
-=======
     return () => {
       alive = false;
     };
   }, [user, loading, resetAppData, routeRows.length]);
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 
   useEffect(() => {
     document.body.style.overflow = activeModalKey ? "hidden" : "auto";
     return () => { document.body.style.overflow = "auto"; };
   }, [activeModalKey]);
 
-<<<<<<< HEAD
-  if (loading) {
-    return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/30 dark:bg-black/30 backdrop-blur-md">
-=======
   // ✅ open modal only after route becomes "/"
   useEffect(() => {
     if (pendingModalKey && location.pathname === "/") {
@@ -714,7 +590,6 @@ const AppContent = () => {
   if (loading) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-white z-[9999]">
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
         <LoadingSpinner />
       </div>
     );
@@ -723,28 +598,18 @@ const AppContent = () => {
   if (!user) {
     return (
       <Routes>
-<<<<<<< HEAD
-        <Route path="/" element={<Login onSwitchToRegister={() => navigate("/register")} />} />
-        <Route path="/register" element={<Register onRegister={() => navigate("/")} onSwitchToLogin={() => navigate("/")} />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-=======
         <Route path="/register" element={<Register />} />
         <Route path="/change-password" element={<ChangePassword />} />
         <Route
           path="*"
           element={<Login onSwitchToRegister={() => navigate("/register")} />}
         />
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
       </Routes>
     );
   }
 
   return (
-<<<<<<< HEAD
-    <div className="relative min-h-screen flex flex-col bg-gray-100 font-roboto dark:bg-black">
-=======
     <div className="relative min-h-screen flex flex-col bg-gray-50 dark:bg-black font-roboto overflow-hidden">
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
       <div className="sticky top-0 z-40">
         <Navbar
           onMenuClick={() => setIsSidebarVisible(!isSidebarVisible)}
@@ -759,49 +624,6 @@ const AppContent = () => {
             onNavigate={() => setIsSidebarVisible(false)}
             onOpenModal={handleOpenModalFromMenu}
           />
-<<<<<<< HEAD
-          <div className="flex-1 bg-black/50" onClick={toggleSidebar} aria-hidden />
-        </div>
-      )}
-
-      <div className="flex-1 p-4 overflow-y-auto">
-        {loadingMenu && !routesLoaded && (
-          <div className="fixed inset-0 z-[70] bg-black/20 backdrop-blur-sm flex items-center justify-center">
-            <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-2xl flex flex-col items-center gap-4">
-              <LoadingSpinner />
-              <p className="text-sm text-slate-500">Preparing your workspace...</p>
-            </div>
-          </div>
-        )}
-
-        <Routes>
-          <Route path="/" element={<Dashboard1 user={user} />} />
-          <Route path="/page/:componentKey" element={<UniversalRegistryRoute routeRows={routeRows} />} />
-          
-          {routeRows
-            ?.filter((r) => r.path && r.componentKey && !r.isModal)
-            .map((route) => {
-              const Cmp = pageRegistry[route.componentKey];
-              if (!Cmp) return null;
-              return (
-                <Route
-                  key={route.code || route.path}
-                  path={normPath(route.path)}
-                  element={
-                    <ErrorBoundary>
-                      <Cmp />
-                    </ErrorBoundary>
-                  }
-                />
-              );
-            })}
-
-          <Route path="*" element={<UniversalRegistryRoute routeRows={routeRows} />} />
-        </Routes>
-      </div>
-
-      <ModalHost modalKey={activeModalKey} onClose={handleCloseModal} />
-=======
           <div
             className="flex-1 bg-black/40 backdrop-blur-sm"
             onClick={() => setIsSidebarVisible(false)}
@@ -850,7 +672,6 @@ const AppContent = () => {
         modalKey={activeModalKey}
         onClose={() => setActiveModalKey(null)}
       />
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
     </div>
   );
 };
@@ -861,16 +682,6 @@ const App = () => (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <ResetProvider>
-<<<<<<< HEAD
-          <Toaster 
-            position="top-right" 
-            richColors 
-            expand={true} 
-            closeButton
-            theme="system"
-          />
-=======
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
           <AppContent />
         </ResetProvider>
       </AuthProvider>
@@ -878,9 +689,6 @@ const App = () => (
   </Router>
 );
 
-<<<<<<< HEAD
-export default App;
-=======
 
 export default App;
 
@@ -1624,4 +1432,3 @@ export default App;
 
 
 
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c

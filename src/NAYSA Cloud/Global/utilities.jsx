@@ -1,11 +1,3 @@
-<<<<<<< HEAD
-import React from 'react';
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faSpinner} from "@fortawesome/free-solid-svg-icons";
-
-
-=======
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 export function LoadingSpinner() {
   return (
     /* Change 'absolute' to 'fixed' to center on the screen regardless of parent layout */

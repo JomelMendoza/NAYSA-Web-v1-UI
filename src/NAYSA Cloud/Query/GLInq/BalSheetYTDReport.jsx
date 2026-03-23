@@ -1,13 +1,3 @@
-<<<<<<< HEAD
-import React from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faMoneyBillTrendUp } from "@fortawesome/free-solid-svg-icons";
-
-function BalSheetYTDReport({ view, tabConfig, SearchGlobalReportTable, NoRecordsState }) {
-  if (!view.hasLoaded) {
-    return (
-      <div className="p-8 text-sm text-gray-500 flex items-center gap-2">
-=======
 
 // import React, { useMemo, useState, useCallback } from "react";
 // import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -763,7 +753,6 @@ function BalSheetYTDReport({
   if (!view?.hasLoaded) {
     return (
       <div className="flex items-center gap-2 p-6 text-sm text-gray-500">
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
         <FontAwesomeIcon icon={faMoneyBillTrendUp} className="text-blue-300" />
         <span>
           Click <b>Filter</b> then <b>Apply Filters</b> to load <b>{tabConfig.label}</b>.
@@ -772,11 +761,7 @@ function BalSheetYTDReport({
     );
   }
 
-<<<<<<< HEAD
-  if (view.isEmpty) {
-=======
   if (view?.isEmpty) {
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
     return (
       <NoRecordsState
         title="No records found"
@@ -786,24 +771,6 @@ function BalSheetYTDReport({
     );
   }
 
-<<<<<<< HEAD
-  return (
-    <SearchGlobalReportTable
-      key={`balSheetYTD-${view.loadedAt || "idle"}`}
-      columns={view.cols}
-      data={view.rows}
-      itemsPerPage={50}
-      rightActionLabel={view.rightActionLabel || "View"}
-      onRowAction={(row) => {
-        if (!row?.pathUrl) return;
-        const url = `${window.location.origin}${row.pathUrl}`;
-        window.open(url, "_blank", "noopener,noreferrer");
-      }}
-    />
-  );
-}
-
-=======
   const safePeriods = periods.length > 0 ? periods : ["CURRENT"];
   const gridTemplateColumns = `minmax(320px, 1.6fr) 88px ${safePeriods
     .map(() => "minmax(130px, 1fr)")
@@ -1529,18 +1496,12 @@ function getTypeMeta(node) {
   };
 }
 
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 BalSheetYTDReport.meta = {
   key: "balSheetYTD",
   label: "Balance Sheet YTD",
   icon: faMoneyBillTrendUp,
-<<<<<<< HEAD
-  filters: ["Branch", "Cut Off", "RC Code", "Currency"],
-  endpoint: "getGLINQ_BalSheetYTD",
-=======
   filters: ["Branch", "Cut Off", "RC Code", "Currency", "Compare Years"],
   endpoint: "getBSIS_YTD",
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 };
 
 BalSheetYTDReport.buildPayload = (f) => ({
@@ -1548,10 +1509,7 @@ BalSheetYTDReport.buildPayload = (f) => ({
   cutoffCode: f.cutoffCode || "",
   rcCode: f.rcCode || "",
   currCode: f.currCode || "PHP",
-<<<<<<< HEAD
-=======
   compareYears: f.compareYears || 1,
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 });
 
 BalSheetYTDReport.buildJsonData = (payload) => ({
@@ -1562,9 +1520,5 @@ BalSheetYTDReport.buildJsonData = (payload) => ({
   currCode: payload.currCode || "PHP",
 });
 
-<<<<<<< HEAD
-export default BalSheetYTDReport;
-=======
 export default BalSheetYTDReport;
 
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
