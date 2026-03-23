@@ -2155,6 +2155,7 @@ BalSheetYTDReport.buildPayload = (f) => ({
   rcCode: f.rcCode || "",
   currCode: f.currCode || "PHP",
   compareYears: f.compareYears || 1,
+  userCode: f.userCode || "",
 });
 
 BalSheetYTDReport.buildJsonData = (payload) => ({
@@ -2163,6 +2164,7 @@ BalSheetYTDReport.buildJsonData = (payload) => ({
   cutoffCode: payload.cutoffCode || "",
   rcCode: payload.rcCode || "",
   currCode: payload.currCode || "PHP",
+  userCode: payload.userCode || "",
 });
 
 export default BalSheetYTDReport;

@@ -24,6 +24,11 @@ import {
   useTopAccountRow,
   useTopSLRow,
 } from "@/NAYSA Cloud/Global/top1RefTable";
+
+import {
+  useHandlePrintQuery,
+} from '@/NAYSA Cloud/Global/report';
+
 import { useSelectedHSColConfig } from "@/NAYSA Cloud/Global/selectedData";
 import { fetchData } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
@@ -438,14 +443,16 @@ export default function GLINQ() {
                 ...payload,
                 cutoffCode: periodCode,
                 compareYears,
+                userCode:currentUserRow.userCode,
               });
-
+            
               return fetchData(endpoint, {
                 json_data: { json_data: requestJson },
-              });
+              });       
             })
           ),
         ]);
+
 
         const colsArray = Array.isArray(colsResp) ? colsResp : [];
         const rowsByPeriod = {};
@@ -860,7 +867,26 @@ const jumpToGLInquiryFromBS = useCallback(
     setIsMobileNavOpen(false);
   }, []);
 
-  const handlePrint = useCallback(() => window.print(), []);
+ 
+
+  const handlePrint = useCallback(() => {
+    if (activeTab === "balSheetYTD") {
+      useHandlePrintQuery("BSYTD.rpt", currentUserRow?.userCode);
+      return;
+    }
+
+    if (activeTab === "incStatementYTD") {
+      useHandlePrintQuery("ISYTD.rpt", currentUserRow?.userCode);
+      return;
+    }
+
+    window.print();
+  }, [activeTab, currentUserRow?.userCode]);
+
+
+
+
+  
   const handleFind = useCallback(() => setShowFilterModal(true), []);
   const handleApplyFilters = useCallback(async () => {
     setShowFilterModal(false);

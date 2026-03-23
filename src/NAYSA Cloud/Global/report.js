@@ -65,6 +65,8 @@ export function injectLoadingSpinner(printWindow) {
 
 
 
+
+
 export async function useHandlePrint(documentID, docCode, printMode, userCode) {
   try {
     const printWindow = window.open("", "_blank");
@@ -94,6 +96,41 @@ export async function useHandlePrint(documentID, docCode, printMode, userCode) {
     console.error("Error printing report:", error);
   }
 }
+
+
+
+
+
+
+export async function useHandlePrintQuery(formName, userCode) {
+  try {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      throw new Error("Popup blocked — please allow popups for this site.");
+    }
+
+    injectLoadingSpinner(printWindow);
+   
+    if (!formName) {
+      throw new Error("Report Name not defined");
+    }
+
+    const payload = { formName ,userCode};
+    console.log(payload)
+    const pdfBlob = await postPdfRequest("/printQuery", payload);
+
+    if (!(pdfBlob instanceof Blob) || pdfBlob.type !== "application/pdf") {
+      throw new Error("Expected a PDF file but received something else.");
+    }
+
+    const fileURL = URL.createObjectURL(pdfBlob);
+    printWindow.location.href = fileURL;
+
+  } catch (error) {
+    console.error("Error printing report:", error);
+  }
+}
+
 
 
 

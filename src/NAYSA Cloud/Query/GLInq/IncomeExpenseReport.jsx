@@ -64,6 +64,7 @@ IncomeExpenseReport.buildPayload = (f) => ({
   cutoffEnd: f.cutoffEndCode || "",
   rcCodeStart: f.rcCodeStart || "",
   rcCodeEnd: f.rcCodeEnd || "",
+  
 });
 
 IncomeExpenseReport.buildJsonData = (payload) => ({

@@ -77,7 +77,6 @@ const emptyForm = {
   vendZip: "",
   vendTin: "",
 
-  // mirror for CU mapping used by PayeeSetupTab
   custCode: "",
   custName: "",
   custTin: "",
@@ -123,7 +122,6 @@ const VendMast = () => {
   const [isAttachOpen, setIsAttachOpen] = useState(false);
   const [attachmentRows, setAttachmentRows] = useState([]);
 
-  // Master list
   const [subsidiaryType, setSubsidiaryType] = useState("");
   const [masterFilters, setMasterFilters] = useState({});
   const [masterAllRows, setMasterAllRows] = useState([]);
@@ -142,7 +140,6 @@ const VendMast = () => {
         json_data: { vendCode: String(vendCode || "").trim() },
       }),
     };
-
     const res = await apiClient.post("/checkDuplicatePayee", payload);
     const rows = res?.data?.data || [];
     return Number(rows?.[0]?.result ?? 0) === 1;
@@ -154,7 +151,6 @@ const VendMast = () => {
         json_data: { vendCode: String(vendCode || "").trim() },
       }),
     };
-
     const res = await apiClient.post("/checkInUsedPayee", payload);
     const rows = res?.data?.data || [];
     return Number(rows?.[0]?.result ?? 0) === 1;
@@ -172,9 +168,7 @@ const VendMast = () => {
         data[0].errorcount !== undefined ||
         data[0].errormsg !== undefined)
     ) {
-      const errorCount = Number(
-        data[0].errorCount ?? data[0].errorcount ?? 0
-      );
+      const errorCount = Number(data[0].errorCount ?? data[0].errorcount ?? 0);
       const errorMsg = String(data[0].errorMsg ?? data[0].errormsg ?? "");
       return { errorCount, errorMsg };
     }
@@ -435,106 +429,6 @@ const VendMast = () => {
     }
   };
 
-  // const upsertVendor = async () => {
-  //   const code = String(form?.vendCode || form?.custCode || "").trim();
-
-  //   setIsLoading(true);
-  //   try {
-  //     const jsonData = {
-  //       json_data: {
-  //         action: selectedVendCode ? "edit" : "add",
-
-  //         vendCode: code,
-  //         vendName: form.vendName || form.custName || "",
-  //         businessName: form.businessName || "",
-
-  //         firstName: form.firstName || "",
-  //         middleName: form.middleName || "",
-  //         lastName: form.lastName || "",
-
-  //         taxClass: form.taxClass || "",
-
-  //         vendAddr1: form.vendAddr1 || "",
-  //         vendAddr2: form.vendAddr2 || "",
-  //         vendAddr3: form.vendAddr3 || "",
-  //         vendZip: form.vendZip || "",
-  //         vendTin: form.vendTin || form.custTin || "",
-
-  //         branchCode: form.branchCode || "",
-  //         vendContact: form.vendContact || "",
-  //         vendPosition: form.vendPosition || "",
-  //         vendTelno: form.vendTelno || "",
-  //         vendMobileno: form.vendMobileno || "",
-  //         vendEmail: form.vendEmail || "",
-
-  //         source: form.source || "",
-  //         currCode: form.currCode || "",
-  //         vatCode: form.vatCode || "",
-  //         atcCode: form.atcCode || "",
-  //         paytermCode: form.paytermCode || "",
-
-  //         acctCode: form.acctCode || "",
-  //         sltypeCode: normalizeSlType(form.sltypeCode),
-  //         active: form.active || "Y",
-  //         oldCode: form.oldCode || "",
-  //         userCode,
-  //       },
-  //     };
-
-  //     const payload = {
-  //       json_data: JSON.stringify(jsonData),
-  //     };
-
-  //     console.log("upsert payload", payload);
-
-  //     const res = await apiClient.post("/upsertPayee", payload);
-
-  //     const rows = res?.data?.data || [];
-  //     const r0 = rows[0] || {};
-
-  //     const errorCount = Number(r0.errorcount ?? r0.errorCount ?? 0);
-  //     const errorMsg = String(r0.errormsg ?? r0.errorMsg ?? "");
-
-  //     if (errorCount > 0) {
-  //       await useSwalValidationAlert({
-  //         icon: "error",
-  //         title: "Missing Required Field(s)",
-  //         message: errorMsg,
-  //       });
-  //       return;
-  //     }
-
-  //     await useSwalSuccessAlert("Success!", "Payee saved successfully.");
-  //     const code = variables?._meta?.code || "";
-  //     setSelectedVendCode(code);
-  //     pushRecent(code);
-  //     setIsEditing(false);
-  //     await queryClient.invalidateQueries({ queryKey: ["payeeList"] });
-  //     await fetchVendorByCode(code);
-
-  //     const sprocErr = extractSprocError(e?.response);
-  //     if (sprocErr?.errorMsg) {
-  //       await useSwalValidationAlert({
-  //         icon: "error",
-  //         title: "Missing Required Field(s)",
-  //         message: String(sprocErr.errorMsg),
-  //       });
-  //       return;
-  //     }
-
-  //     const msg =
-  //       e?.response?.data?.message ||
-  //       e?.response?.data?.error ||
-  //       e?.response?.data?.msg ||
-  //       e?.message ||
-  //       "Failed to save payee.";
-
-  //     await useSwalErrorAlert("Save Failed", msg);
-  //   } finally {
-  //     setIsLoading(false);
-  //   }
-  // };
-
   const upsertVendor = async () => {
     const code = String(form?.vendCode || form?.custCode || "").trim();
 
@@ -737,46 +631,125 @@ const VendMast = () => {
       String(form?.vendCode || form?.custCode || "").trim() && !form.__isNew;
 
     return [
-      { key: "add", label: "Add", icon: faPlus, onClick: handleAdd, disabled: isLoading },
-      { key: "edit", label: "Edit", icon: faPenToSquare, onClick: handleEdit, disabled: isLoading },
-      { key: "save", label: "Save", icon: faSave, onClick: upsertVendor, disabled: isLoading || !isEditing },
-      { key: "reset", label: "Reset", icon: faUndo, onClick: handleResetSetup, disabled: isLoading },
-      { key: "attach", label: "Attach File", icon: faPaperclip, onClick: handleOpenAttach, disabled: isLoading, variant: "ghost" },
-      { key: "delete", label: "Delete", icon: faTrash, onClick: deleteVendor, disabled: isLoading || isEditing || !hasRecord, variant: "danger" },
+      {
+        key: "add",
+        label: <span className="sm:inline ml-1">Add</span>,
+        icon: faPlus,
+        onClick: handleAdd,
+        disabled: isLoading,
+        className:
+          "flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
+      },
+      {
+        key: "save",
+        label: <span className="sm:inline ml-1">Save</span>,
+        icon: faSave,
+        onClick: upsertVendor,
+        disabled: isLoading || !isEditing,
+        className: `flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md transition-all ${
+          isLoading || !isEditing
+            ? "bg-blue-500 opacity-50 cursor-not-allowed text-white"
+            : "bg-blue-600 text-white hover:bg-blue-700"
+        }`,
+      },
+      {
+        key: "reset",
+        label: <span className="sm:inline ml-1">Reset</span>,
+        icon: faUndo,
+        onClick: handleResetSetup,
+        disabled: isLoading,
+        className:
+          "flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
+      },
+      {
+        key: "edit",
+        label: <span className="sm:inline ml-1">Edit</span>,
+        icon: faPenToSquare,
+        onClick: handleEdit,
+        disabled: isLoading,
+        className:
+          "flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
+      },
+      {
+        key: "attach",
+        label: <span className="sm:inline ml-1">Attach File</span>,
+        icon: faPaperclip,
+        onClick: handleOpenAttach,
+        disabled: isLoading,
+        className:
+          "flex items-center justify-center h-7 w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
+      },
+      {
+        key: "delete",
+        label: <span className="sm:inline ml-1">Delete</span>,
+        icon: faTrash,
+        onClick: deleteVendor,
+        disabled: isLoading || isEditing || !hasRecord,
+        className: `flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md transition-all ${
+          isLoading || isEditing || !hasRecord
+            ? "bg-red-400 opacity-50 cursor-not-allowed text-white"
+            : "bg-red-500 text-white hover:bg-red-600"
+        }`,
+      },
     ];
   }, [activeTab, isLoading, isEditing, form]);
 
   return (
-    <div className="global-ref-main-div-ui mt-24">
-      <div className="fixed mt-4 top-14 left-6 right-6 z-30 global-ref-header-ui flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <h1 className="global-ref-headertext-ui">Payee Master Data</h1>
-        </div>
+    <div className="global-ref-main-div-ui">
 
-        <div className="flex flex-wrap gap-1 overflow-x-hidden">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setActiveTab(t.id)}
-              className={`flex items-center px-3 py-2 rounded-md text-xs md:text-sm font-bold transition-colors duration-200 mr-1 ${activeTab === t.id
-                ? "bg-blue-100 text-blue-700"
-                : "text-gray-600 hover:bg-gray-100 hover:text-blue-700"
-                }`}
-            >
-              <FontAwesomeIcon icon={t.icon} className="w-4 h-4 mr-2" />
-              <span className="whitespace-nowrap">{t.label}</span>
-            </button>
-          ))}
-        </div>
+      {/* ── HEADER — mirrors COAMast layout exactly ─────────────────────── */}
+      <div className="global-ref-header-ui">
+        <div className="w-full flex flex-col gap-3 md:grid md:grid-cols-3 md:items-center md:gap-0">
 
-        <div className="flex gap-2 justify-center text-xs items-center">
-          {!!headerButtons.length && <ButtonBar buttons={headerButtons} />}
+          {/* 1) Title */}
+          <div className="w-full md:w-auto md:justify-start flex">
+            <h1 className="global-ref-headertext-ui w-full md:w-auto truncate text-center md:text-left">
+              {activeTab === "setup" && "Payee Master Data"}
+              {activeTab === "master" && "Payee Master Data"}
+              {activeTab === "ref" && "Reference Codes"}
+            </h1>
+          </div>
+
+          {/* 2) Tabs — same pill style as COAMast */}
+          <div className="w-full md:justify-center flex">
+            <div className="w-full md:w-auto">
+              <div className="flex flex-nowrap overflow-x-auto no-scrollbar border-b border-blue-300 dark:border-gray-700">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`shrink-0 whitespace-nowrap px-3 py-1 sm:py-2 sm:px-4 text-[10px] sm:text-[13px] font-bold transition-all border-b-2 rounded-md
+                      ${activeTab === tab.id
+                        ? "border-blue-700 text-blue-700 bg-blue-50/50"
+                        : "border-transparent text-gray-500 hover:text-blue-500"
+                      }`}
+                  >
+                    <FontAwesomeIcon icon={tab.icon} className="mr-1.5" />
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* 3) Buttons — same size/style as COAMast */}
+          <div className="w-full md:w-auto flex md:justify-end">
+            <div className="w-full md:w-auto flex items-center justify-center md:justify-end gap-2 flex-wrap">
+              {!!headerButtons.length && (
+                <div className="flex flex-wrap justify-center md:justify-end gap-2">
+                  <ButtonBar buttons={headerButtons} />
+                </div>
+              )}
+            </div>
+          </div>
+
         </div>
       </div>
+      {/* ─────────────────────────────────────────────────────────────────── */}
 
       <div
-        className="global-tran-tab-div-ui mt-5"
+        className="global-tran-tab-div-ui mt-40 sm:mt-24"
         style={{ minHeight: "calc(100vh - 170px)" }}
       >
         {activeTab === "setup" && (
