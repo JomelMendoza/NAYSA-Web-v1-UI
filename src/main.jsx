@@ -28,6 +28,12 @@ const queryClient = new QueryClient({
   },
 });
 
+console.log(
+  `%c NAYSA Financials %c Build: ${__APP_VERSION__} `,
+  'color: white; background: #1e40af; padding: 5px 10px; border-radius: 5px 0 0 5px; font-weight: bold;',
+  'color: #1e40af; background: #f3f4f6; padding: 5px 10px; border-radius: 0 5px 5px 0; border: 1px solid #1e40af;'
+);
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     {/* 2. Wrap the app with the Provider */}
