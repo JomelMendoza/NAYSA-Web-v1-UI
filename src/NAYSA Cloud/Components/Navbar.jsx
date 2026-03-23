@@ -89,9 +89,9 @@
 
 import React, { useState, useEffect } from "react";
 import { Bell, BookOpen, Menu } from "lucide-react";
-import { FiSun, FiMoon } from 'react-icons/fi';
-import Swal from "sweetalert2"; 
+import { FiSun, FiMoon } from "react-icons/fi";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
+import { useSwalDeleteConfirm } from "../Global/behavior";
 
 const Navbar = ({ onMenuClick, onLogout }) => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -123,50 +123,22 @@ const Navbar = ({ onMenuClick, onLogout }) => {
     };
 
     const handleLogoutClick = async () => {
-        setIsDropdownOpen(false);
+  setIsDropdownOpen(false);
 
-        let timerInterval;
-        Swal.fire({
-            title: "Confirm Logout",
-            html: "Logging out automatically in <b>10</b> seconds...",
-            icon: "warning",
-            timer: 10000,
-            timerProgressBar: true,
-            showCancelButton: true,
-            confirmButtonColor: "#3085d6",
-            cancelButtonColor: "#d33",
-            confirmButtonText: "Yes, logout!",
-            cancelButtonText: "No",
-            // Making buttons equal width via custom class
-            customClass: {
-                confirmButton: 'min-w-[120px]',
-                cancelButton: 'min-w-[120px]'
-            },
-            didOpen: () => {
-                const b = Swal.getHtmlContainer().querySelector('b');
-                timerInterval = setInterval(() => {
-                    const secondsLeft = Math.ceil(Swal.getTimerLeft() / 1000);
-                    b.textContent = secondsLeft;
-                }, 100);
-            },
-            willClose: () => {
-                clearInterval(timerInterval);
-            }
-        }).then(async (result) => {
-            /* LOGIC: 
-               1. result.isConfirmed -> User clicked "Yes"
-               2. result.dismiss === Swal.DismissReason.timer -> 5 seconds passed without clicking "No"
-            */
-            if (result.isConfirmed || result.dismiss === Swal.DismissReason.timer) {
-                if (onLogout) {
-                    await onLogout();
-                }
-            } else if (result.dismiss === Swal.DismissReason.cancel) {
-                // User explicitly clicked "No"
-                console.log("Logout cancelled by user.");
-            }
-        });
-    };
+  try {
+    const result = await useSwalDeleteConfirm(
+      "Confirm Logout",
+      "Are you sure you want to logout?",
+      "Yes, logout!"
+    );
+
+    if (result?.isConfirmed && onLogout) {
+      await onLogout();
+    }
+  } catch (error) {
+    console.error("Logout confirmation failed:", error);
+  }
+};
 
     return (
         <div className="fixed top-0 left-0 w-full z-40 bg-white dark:bg-gray-900 border-b dark:border-gray-800">
