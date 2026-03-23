@@ -1,306 +1,253 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTimes, faSort, faSortUp, faSortDown, faSpinner } from '@fortawesome/free-solid-svg-icons'; // Added faSpinner
+import { 
+    faTimes, faSpinner, faSyncAlt, faCheck, faSort, 
+    faChevronLeft, faChevronRight, faSearch, faEraser 
+} from '@fortawesome/free-solid-svg-icons';
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 
+// Simple debounce hook to prevent excessive filtering
+function useDebounce(value, delay) {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+    useEffect(() => {
+        const handler = setTimeout(() => setDebouncedValue(value), delay);
+        return () => clearTimeout(handler);
+    }, [value, delay]);
+    return debouncedValue;
+}
 
 const COAMastLookupModal = ({ isOpen, onClose, source, customParam }) => {
-    const [accounts, setAccounts] = useState([]);
-    const [filtered, setFiltered] = useState([]);
     const [filters, setFilters] = useState({ acctCode: '', acctName: '', acctBalance: '', reqSL: '', reqRC: '' });
-    const [loading, setLoading] = useState(false);
     const [sortConfig, setSortConfig] = useState({ key: '', direction: 'asc' });
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 50;
 
-   
+    const hasActiveFilters = Object.values(filters).some(val => val !== '');
+    const resetFilters = () => setFilters({ acctCode: '', acctName: '', acctBalance: '', reqSL: '', reqRC: '' });
+
+    const debouncedFilters = useDebounce(filters, 300);
+
     useEffect(() => {
-        if (!isOpen) {
-            // Reset state when modal closes
-            setAccounts([]);
-            setFiltered([]);
-            setFilters({ acctCode: "", acctName: "", acctBalance: "", reqSL: "", reqRC: "" });
-            setSortConfig({ key: "", direction: "asc" });
-            return; // Exit early if not open
-        }
+        setCurrentPage(1);
+    }, [debouncedFilters]);
 
-        const fetchCOA = async () => {
-            setLoading(true);
-
-            try {
+    // 1. Fetching with Polling & Auto-Sync
+    const { 
+        data: accounts = [], 
+        isLoading, 
+        isFetching, 
+        refetch 
+    } = useQuery({
+        queryKey: ['lookupCOA', customParam],
+        queryFn: async () => {
             let paramToSend = customParam === "apv_hd" ? "APGL" : customParam;
-
             const { data: result } = await apiClient.post("/lookupCOA", {
                 PARAMS: JSON.stringify({
-                search: paramToSend || "",
-                page: 1,         // still fixed
-                pageSize: 100,   // fetch more data initially
+                    search: paramToSend || "",
+                    page: 1,
+                    pageSize: 1000, 
                 }),
             });
+            const rawData = result?.data?.[0]?.result || "[]";
+            return Array.isArray(rawData) ? rawData : JSON.parse(rawData);
+        },
+        enabled: isOpen,
+        staleTime: 1000 * 60 * 5, 
+        refetchInterval: 1000 * 30, // 🔄 AUTO-REFRESH: Every 30 seconds (longer for large datasets)
+        refetchIntervalInBackground: false,
+        placeholderData: keepPreviousData, 
+    });
 
-            const accountData =
-                Array.isArray(result?.data) && result.data[0]?.result
-                ? JSON.parse(result.data[0].result)
-                : [];
+    const filteredAndSorted = useMemo(() => {
+        if (!accounts.length) return [];
+        
+        let result = accounts.filter(item => {
+            return (
+                (item.acctCode || '').toLowerCase().includes(debouncedFilters.acctCode.toLowerCase()) &&
+                (item.acctName || '').toLowerCase().includes(debouncedFilters.acctName.toLowerCase()) &&
+                (item.acctBalance || '').toLowerCase().includes(debouncedFilters.acctBalance.toLowerCase()) &&
+                (item.reqSL || '').toLowerCase().includes(debouncedFilters.reqSL.toLowerCase()) &&
+                (item.reqRC || '').toLowerCase().includes(debouncedFilters.reqRC.toLowerCase())
+            );
+        });
 
-            setAccounts(accountData);
-            setFiltered(accountData);
-            } catch (err) {
-            console.error("Failed to fetch Chart of Accounts:", err);
-            setAccounts([]);
-            setFiltered([]);
-            } finally {
-            setLoading(false);
-            }
-        };
-
-        fetchCOA();
-        }, [isOpen, customParam]);
-
-
-
-    useEffect(() => {
-        let currentFiltered = [...accounts];
-
-        // Apply filters
-        currentFiltered = currentFiltered.filter(item =>
-            (item.acctCode || '').toLowerCase().includes((filters.acctCode || '').toLowerCase()) &&
-            (item.acctName || '').toLowerCase().includes((filters.acctName || '').toLowerCase()) &&
-            (item.acctBalance || '').toLowerCase().includes((filters.acctBalance || '').toLowerCase()) &&
-            (item.reqSL || '').toLowerCase().includes((filters.reqSL || '').toLowerCase()) &&
-            (item.reqRC || '').toLowerCase().includes((filters.reqRC || '').toLowerCase())
-        );
-
-        // Apply sorting
         if (sortConfig.key) {
-            currentFiltered.sort((a, b) => {
-                const aValue = a[sortConfig.key];
-                const bValue = b[sortConfig.key];
-
-                if (aValue < bValue) {
-                    return sortConfig.direction === 'asc' ? -1 : 1;
-                }
-                if (aValue > bValue) {
-                    return sortConfig.direction === 'asc' ? 1 : -1;
-                }
-                return 0;
+            result.sort((a, b) => {
+                const aVal = String(a[sortConfig.key] ?? '');
+                const bVal = String(b[sortConfig.key] ?? '');
+                return sortConfig.direction === 'asc' 
+                    ? aVal.localeCompare(bVal, undefined, { numeric: true }) 
+                    : bVal.localeCompare(aVal, undefined, { numeric: true });
             });
         }
-        setFiltered(currentFiltered);
-    }, [filters, accounts, sortConfig]); // Re-run when filters, accounts, or sortConfig change
+        return result;
+    }, [accounts, debouncedFilters, sortConfig]);
+
+    const paginatedData = useMemo(() => {
+        const startIndex = (currentPage - 1) * pageSize;
+        return filteredAndSorted.slice(startIndex, startIndex + pageSize);
+    }, [filteredAndSorted, currentPage]);
+
+    const totalPages = Math.ceil(filteredAndSorted.length / pageSize);
 
     const handleApply = (coa) => {
-        const accountData = {
+        onClose({
             acctCode: coa.acctCode,
             acctName: coa.acctName,
             rcReq: coa.reqRC,
             slReq: coa.reqSL
-        };
-        onClose(accountData, source);
-    };
-
-    const handleFilterChange = (e, key) => {
-        setFilters({ ...filters, [key]: e.target.value });
+        }, source);
     };
 
     const handleSort = (key) => {
-        let direction = 'asc';
-        if (sortConfig.key === key && sortConfig.direction === 'asc') {
-            direction = 'desc';
-        }
-        setSortConfig({ key, direction });
-    };
-
-    const renderSortIcon = (column) => {
-        if (sortConfig.key === column) {
-            return sortConfig.direction === 'asc' ? <FontAwesomeIcon icon={faSortUp} className="ml-1 text-blue-500" /> : <FontAwesomeIcon icon={faSortDown} className="ml-1 text-blue-500" />;
-        }
-        return <FontAwesomeIcon icon={faSort} className="ml-1 text-gray-400" />;
+        setSortConfig(prev => ({
+            key,
+            direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+        }));
     };
 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 sm:p-6 lg:p-8 animate-fade-in">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] flex flex-col relative overflow-hidden transform scale-95 animate-scale-in">
-                {/* Close Icon */}
-                <button
-                    onClick={() => onClose(null, source)} // Pass source back if modal needs it for context
-                    className="absolute top-3 right-3 text-blue-500 hover:text-blue-700 transition duration-200 focus:outline-none p-1 rounded-full hover:bg-blue-100"
-                    aria-label="Close modal"
-                >
-                    <FontAwesomeIcon icon={faTimes} size="lg" />
-                </button>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4 animate-fade-in">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[75vh] flex flex-col relative overflow-hidden transform animate-scale-in border border-slate-200">
+                
+                {/* Header */}
+                <div className="flex items-center justify-between p-4  border-b bg-slate-100">
+                    <div className="flex items-center gap-3">
+                        <div className="relative">
+                            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-tight">Chart of Accounts</h2>
+                            <div className="absolute -top-1 -right-4 flex h-2 w-2">
+                                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 ${isFetching ? 'block' : 'hidden'}`}></span>
+                                <span className={`relative inline-flex rounded-full h-2 w-2 bg-blue-500 ${isFetching ? 'block' : 'hidden'}`}></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {hasActiveFilters && (
+                            <button 
+                                onClick={resetFilters}
+                                className="px-2 py-1 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded transition-all flex items-center gap-1.5"
+                            >
+                                <FontAwesomeIcon icon={faEraser} />
+                                CLEAR
+                            </button>
+                        )}
+                        <button onClick={() => refetch()} className="p-2 text-slate-400 hover:text-blue-600 transition-colors">
+                            <FontAwesomeIcon icon={faSyncAlt} size="sm" spin={isFetching} />
+                        </button>
+                        <button onClick={() => onClose(null, source)} className="p-2 text-slate-400 hover:text-red-600 transition-colors">
+                            <FontAwesomeIcon icon={faTimes} size="lg" />
+                        </button>
+                    </div>
+                </div>
 
-                <h2 className="text-sm font-semibold text-blue-800 p-3 border-b border-gray-100">Select Account</h2>
-
-                <div className="flex-grow overflow-hidden"> {/* Use flex-grow and overflow-hidden */}
-                    {loading ? (
-                        <div className="flex items-center justify-center h-full min-h-[200px] text-blue-500">
-                            <FontAwesomeIcon icon={faSpinner} spin size="2x" className="mr-3" />
-                            <span>Loading accounts...</span>
+                {/* Main Table */}
+                <div className="flex-grow overflow-auto custom-scrollbar bg-white">
+                    {isLoading ? (
+                        <div className="flex flex-col items-center justify-center h-64 text-slate-400">
+                            <FontAwesomeIcon icon={faSpinner} spin size="2x" className="mb-4 text-blue-500" />
+                            <p className="text-sm">Loading ledger data...</p>
                         </div>
                     ) : (
-                        <div className="overflow-auto max-h-[calc(90vh-160px)] custom-scrollbar"> {/* Dynamic height and custom scrollbar */}
-                            <table className="min-w-full divide-y divide-gray-100">
-                                <thead className="bg-gray-100 sticky top-0 z-10 shadow-sm">
+                        <table className="min-w-full border-separate border-spacing-0">
+                            <thead className="sticky top-0 z-10 bg-slate-200">
+                                <tr>
+                                    {[
+                                        { label: 'Account Code', key: 'acctCode' },
+                                        { label: 'Account Name', key: 'acctName' },
+                                        { label: 'Balance', key: 'acctBalance' },
+                                        { label: 'Required SL?', key: 'reqSL' },
+                                        { label: 'Required RC?', key: 'reqRC' }
+                                    ].map((col) => (
+                                        <th key={col.key} className="px-4 py-3 text-left border-b border-slate-200">
+                                            <div onClick={() => handleSort(col.key)} className="flex items-center gap-1 cursor-pointer group mb-1.5">
+                                                <label className="text-[12px] font-black text-slate-500 uppercase tracking-wider cursor-pointer group-hover:text-blue-600 transition-colors">
+                                                    {col.label}
+                                                </label>
+                                                <FontAwesomeIcon 
+                                                    icon={faSort} 
+                                                    className={`text-[9px] ${sortConfig.key === col.key ? 'text-blue-500' : 'opacity-20'}`} 
+                                                />
+                                            </div>
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    value={filters[col.key]}
+                                                    onChange={(e) => setFilters(prev => ({ ...prev, [col.key]: e.target.value }))}
+                                                    placeholder="Filter..."
+                                                    className="w-full pl-7 pr-2 py-1.5 text-xs font-normal border border-slate-200 rounded bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                                                />
+                                                <FontAwesomeIcon icon={faSearch} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-300 text-[9px]" />
+                                            </div>
+                                        </th>
+                                    ))}
+                                    <th className="border-b border-slate-200 w-15"></th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 h-5">
+                                {paginatedData.length > 0 ? paginatedData.map((coa, index) => (
+                                    <tr 
+                                        key={coa.acctCode || index} 
+                                        onClick={() => handleApply(coa)} 
+                                        className="group hover:bg-blue-50 cursor-pointer transition-colors"
+                                    >
+                                        <td className="px-4 py-2 text-xs font-bold text-slate-600 w-[140px]">{coa.acctCode}</td>
+                                        <td className="px-4 py-2 text-xs text-slate-600 font-medium w-[330px]">{coa.acctName}</td>
+                                        <td className="px-4 py-2 text-xs text-slate-500 w-[140px]">{coa.acctBalance}</td>
+                                        <td className="px-4 py-2 text-xs text-slate-500 w-[140px]">{coa.reqSL}</td>
+                                        <td className="px-4 py-2 text-xs text-slate-500 w-[140px]">{coa.reqRC}</td>
+                                        
+                                    </tr>
+                                )) : (
                                     <tr>
-                                        {/* Headers with Sort */}
-                                        <th
-                                            className="px-4 py-2 text-left text-xs font-bold text-blue-900 tracking-wider cursor-pointer hover:bg-blue-100 transition-colors duration-200"
-                                            onClick={() => handleSort('acctCode')}
-                                        >
-                                            Account Code {renderSortIcon('acctCode')}
-                                        </th>
-                                        <th
-                                            className="px-4 py-2 text-left text-xs font-bold text-blue-900 tracking-wider cursor-pointer hover:bg-blue-100 transition-colors duration-200"
-                                            onClick={() => handleSort('acctName')}
-                                        >
-                                            Account Name {renderSortIcon('acctName')}
-                                        </th>
-                                        <th
-                                            className="px-4 py-2 text-left text-xs font-bold text-blue-900 tracking-wider cursor-pointer hover:bg-blue-100 transition-colors duration-200"
-                                            onClick={() => handleSort('acctBalance')}
-                                        >
-                                            Normal Balance {renderSortIcon('acctBalance')}
-                                        </th>
-                                        <th
-                                            className="px-4 py-2 text-left text-xs font-bold text-blue-900 tracking-wider cursor-pointer hover:bg-blue-100 transition-colors duration-200"
-                                            onClick={() => handleSort('reqSL')}
-                                        >
-                                            Required SL? {renderSortIcon('reqSL')}
-                                        </th>
-                                        <th
-                                            className="px-4 py-2 text-left text-xs font-bold text-blue-900 tracking-wider cursor-pointer hover:bg-blue-100 transition-colors duration-200"
-                                            onClick={() => handleSort('reqRC')}
-                                        >
-                                            Required RC? {renderSortIcon('reqRC')}
-                                        </th>
-                                        <th className="px-4 py-2 text-left text-xs font-bold text-blue-900 tracking-wider">
-                                            Action
-                                        </th>
+                                        <td colSpan="6" className="px-4 py-20 text-center text-slate-400 italic text-sm">
+                                            No matching accounts found.
+                                        </td>
                                     </tr>
-                                    {/* Filter Row */}
-                                    <tr className="bg-gray-100">
-                                        <th className="px-3 py-1">
-                                            <input
-                                                type="text"
-                                                value={filters.acctCode}
-                                                onChange={(e) => handleFilterChange(e, 'acctCode')}
-                                                placeholder="Filter..."
-                                                className="block w-full px-2 py-1 text-xs text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                            />
-                                        </th>
-                                        <th className="px-3 py-1">
-                                            <input
-                                                type="text"
-                                                value={filters.acctName}
-                                                onChange={(e) => handleFilterChange(e, 'acctName')}
-                                                placeholder="Filter..."
-                                                className="block w-full px-2 py-1 text-xs text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                            />
-                                        </th>
-                                        <th className="px-3 py-1">
-                                            <input
-                                                type="text"
-                                                value={filters.acctBalance}
-                                                onChange={(e) => handleFilterChange(e, 'acctBalance')}
-                                                placeholder="Filter..."
-                                                className="block w-full px-2 py-1 text-xs text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                            />
-                                        </th>
-                                        <th className="px-3 py-1">
-                                            <input
-                                                type="text"
-                                                value={filters.reqSL}
-                                                onChange={(e) => handleFilterChange(e, 'reqSL')}
-                                                placeholder="Filter..."
-                                                className="block w-full px-2 py-1 text-xs text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                            />
-                                        </th>
-                                        <th className="px-3 py-1">
-                                            <input
-                                                type="text"
-                                                value={filters.reqRC}
-                                                onChange={(e) => handleFilterChange(e, 'reqRC')}
-                                                placeholder="Filter..."
-                                                className="block w-full px-2 py-1 text-xs text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                            />
-                                        </th>
-                                        <th className="px-3 py-1"></th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {filtered.length > 0 ? (
-                                        filtered.map((coa, index) => (
-                                            <tr key={index}
-                                                className="hover:bg-blue-50 transition-colors duration-150 cursor-pointer text-xs"
-                                                onClick={() => handleApply(coa)} // Allow clicking row to apply
-                                            >
-                                                <td className="px-4 py-1 whitespace-nowrap">{coa.acctCode}</td>
-                                                <td className="px-4 py-1 whitespace-nowrap">{coa.acctName}</td>
-                                                <td className="px-4 py-1 whitespace-nowrap">{coa.acctBalance}</td>
-                                                <td className="px-4 py-1 whitespace-nowrap">{coa.reqSL}</td>
-                                                <td className="px-4 py-1 whitespace-nowrap">{coa.reqRC}</td>
-                                                <td className="px-4 py-1 whitespace-nowrap">
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); handleApply(coa); }} // Stop propagation to prevent row click
-                                                        className="px-6 py-1 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-150"
-                                                    >
-                                                        Apply
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    ) : (
-                                        <tr>
-                                            <td colSpan="6" className="px-4 py-6 text-center text-gray-500 text-lg">
-                                                No matching accounts found.
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
+                                )}
+                            </tbody>
+                        </table>
                     )}
                 </div>
 
-                <div className="p-4 border-t border-gray-200 bg-gray-50 text-right text-xs text-gray-600">
-                    Showing <span className="font-semibold">{filtered.length}</span> of <span className="font-semibold">{accounts.length}</span> entries
+                {/* Footer */}
+                <div className="p-3 px-4 border-t bg-slate-50 flex items-center justify-between">
+                    <div className="flex flex-col">
+                        <span className="text-[12px] text-slate-500 font-medium">
+                            Total Records: {filteredAndSorted.length}
+                        </span>
+                        {isFetching && (
+                            <span className="text-[9px] text-blue-500 animate-pulse font-bold flex items-center gap-1 uppercase">
+                                <div className="w-1 h-1 bg-blue-500 rounded-full"></div> Syncing Ledger...
+                            </span>
+                        )}
+                    </div>
+                    
+                    {totalPages > 1 && (
+                        <div className="flex items-center gap-2">
+                            <button 
+                                disabled={currentPage === 1}
+                                onClick={() => setCurrentPage(p => p - 1)}
+                                className="w-8 h-8 flex items-center justify-center bg-white border rounded shadow-sm hover:bg-slate-50 disabled:opacity-30 transition-all"
+                            >
+                                <FontAwesomeIcon icon={faChevronLeft} size="xs" />
+                            </button>
+                            <span className="text-xs font-semibold px-2 min-w-[80px] text-center">
+                                {currentPage} / {totalPages}
+                            </span>
+                            <button 
+                                disabled={currentPage === totalPages}
+                                onClick={() => setCurrentPage(p => p + 1)}
+                                className="w-8 h-8 flex items-center justify-center bg-white border rounded shadow-sm hover:bg-slate-50 disabled:opacity-30 transition-all"
+                            >
+                                <FontAwesomeIcon icon={faChevronRight} size="xs" />
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
-
-            {/* Tailwind CSS Animations (add to your CSS file or a style block if not globally available) */}
-            <style jsx="true">{`
-                @keyframes fade-in {
-                    from { opacity: 0; }
-                    to { opacity: 1; }
-                }
-                @keyframes scale-in {
-                    from { transform: scale(0.95); opacity: 0; }
-                    to { transform: scale(1); opacity: 1; }
-                }
-                .animate-fade-in {
-                    animation: fade-in 0.2s ease-out forwards;
-                }
-                .animate-scale-in {
-                    animation: scale-in 0.3s ease-out forwards;
-                }
-                /* Custom Scrollbar */
-                .custom-scrollbar::-webkit-scrollbar {
-                    width: 8px;
-                    height: 8px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-track {
-                    background: #f1f1f1;
-                    border-radius: 10px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background: #888;
-                    border-radius: 10px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-                    background: #555;
-                }
-            `}</style>
         </div>
     );
 };

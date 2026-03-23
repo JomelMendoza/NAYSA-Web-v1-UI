@@ -1,5 +1,4 @@
-
-import { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -7,10 +6,14 @@ import {
   Navigate,
   useNavigate,
   useParams,
+  useLocation,
 } from "react-router-dom";
 
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { pageRegistry } from "./pageRegistry";
-import AllTranHistory from "@/NAYSA Cloud/Lookup/SearchGlobalTranHistory.jsx";
+
+import { Toaster, toast } from "sonner";
+import ErrorBoundary from "@/NAYSA Cloud/Components/ErrorBoundary.jsx";
 
 // API helpers (sessionStorage-based tenant, cookie auth)
 import { fetchData, getTenant } from "./NAYSA Cloud/Configuration/BaseURL.jsx";
@@ -23,17 +26,63 @@ import Login from "./NAYSA Cloud/Authentication/Login.jsx";
 import Register from "./NAYSA Cloud/Authentication/Register.jsx";
 import Dashboard1 from "./NAYSA Cloud/Components/Dashboard1.jsx";
 import { useAuth } from "./NAYSA Cloud/Authentication/AuthContext.jsx";
+import AuthProvider from "./NAYSA Cloud/Authentication/AuthContext.jsx";
+
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
+
+/* -------------------- React Query Client -------------------- */
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
+    mutations: {
+      retry: 0,
+    },
+  },
+});
+
+/* -------------------- Universal Bypass Component -------------------- */
+const UniversalRegistryRoute = ({ routeRows }) => {
+  const location = useLocation();
+  const { componentKey: paramKey } = useParams();
+  const queryParams = new URLSearchParams(location.search);
+  const isViewMode = queryParams.get("viewDocument") === "true";
+
+  const matchingComponentKey = useMemo(() => {
+    if (paramKey && pageRegistry[paramKey]) return paramKey;
+
+    const dbMatch = routeRows.find((r) => {
+      const dbPath = r.path?.startsWith("/") ? r.path : `/${r.path}`;
+      return dbPath === location.pathname;
+    });
+
+    return dbMatch ? dbMatch.componentKey : null;
+  }, [location.pathname, paramKey, routeRows]);
+
+  const Component = matchingComponentKey ? pageRegistry[matchingComponentKey] : null;
+
+  if (!Component || !isViewMode) {
+    return <Navigate to="/" replace />;
+  }
+
+  return (
+    <ErrorBoundary>
+      <Component key={`${matchingComponentKey}-view`} />
+    </ErrorBoundary>
+  );
+};
 
 /* -------------------- Modal Host -------------------- */
 const ModalHost = ({ modalKey, onClose }) => {
   const { user } = useAuth();
-
   if (!modalKey) return null;
+
   const Cmp = pageRegistry[modalKey];
-  if (!Cmp) {
-    console.warn("[ModalHost] No component found for key:", modalKey);
-    return null;
-  }
+  if (!Cmp) return null;
+
   return (
     <div
       className="fixed inset-0 z-[999] bg-black/50 flex items-center justify-center p-4"
@@ -53,192 +102,102 @@ const ModalHost = ({ modalKey, onClose }) => {
 const AppContent = () => {
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const { user, loading, logout } = useAuth();
+
   const [menuItems, setMenuItems] = useState([]);
   const [routeRows, setRouteRows] = useState([]);
   const [loadingMenu, setLoadingMenu] = useState(true);
   const [routesLoaded, setRoutesLoaded] = useState(false);
+
   const [activeModalKey, setActiveModalKey] = useState(null);
-  const routesHydrating = loadingMenu;
-  const normPath = (p = "") => (p.startsWith("/") ? p : `/${p}`);
+  const menuFetchedRef = useRef(false);
+
   const navigate = useNavigate();
+  const normPath = (p = "") => (p.startsWith("/") ? p : `/${p}`);
 
   const toggleSidebar = () => setIsSidebarVisible((prev) => !prev);
   const openModal = (componentKey) => setActiveModalKey(componentKey);
+
   const handleCloseModal = () => {
     setActiveModalKey(null);
-    navigate("/", { replace: true, state: {} });
-  };
-
-
-  const handleLogout = async () => {
-    // Delegate to AuthContext (will call /api/logout, broadcast, clear per-tab state)
-    await logout();
-    setIsSidebarVisible(false);
     navigate("/", { replace: true });
   };
 
-  
-  // Renders any component from pageRegistry by URL key
-  const RegistryRoute = () => {
-    const { componentKey } = useParams();
-    const Cmp = pageRegistry[componentKey];
-    if (!Cmp) return <Navigate to="/" replace />;
-    return <Cmp />;
+  const handleLogout = async () => {
+    const logoutPromise = logout(); // Start the logout
+    
+    
+    toast.promise(logoutPromise, {
+      loading: 'Logging out...',
+      success: () => {
+        setIsSidebarVisible(false);
+        menuFetchedRef.current = false;
+        navigate("/", { replace: true });
+        return 'Logged out successfully';
+      },
+      error: 'Logout failed',
+    });
   };
-  
-
-  /* -------- Load menu + routes when user & tenant are present -------- */
-  // useEffect(() => {
-  //   let alive = true;
-  //   const tenant = getTenant();
-
-  //   if (loading || !user || !tenant) {
-  //     setMenuItems([]);
-  //     setRouteRows([]);
-  //     return;
-  //   }
-
-  //   (async () => {
-  //     try {
-  //       setLoadingMenu(true);
-
-  //       const [menuResp, routesResp] = await Promise.all([
-  //         fetchData("menu-items", { USER_CODE: user?.USER_CODE }),
-  //         fetchData("menu-routes", { USER_CODE: user?.USER_CODE }),
-  //       ]);
-
-  //       if (!alive) return;
-
-  //       setMenuItems(
-  //         menuResp?.menuItems ??
-  //           menuResp?.data ??
-  //           (Array.isArray(menuResp) ? menuResp : [])
-  //       );
-  //       setRouteRows(
-  //         routesResp?.routes ??
-  //           routesResp?.data ??
-  //           (Array.isArray(routesResp) ? routesResp : [])
-  //       );
-  //        setRoutesLoaded(true); 
-  //     } catch (e) {
-  //       if (!alive) return;
-  //       console.error("[App] Failed to load menu/routes:", e);
-  //       setMenuItems([]);
-  //       setRouteRows([]);
-  //       setRoutesLoaded(true);
-  //     } finally {
-  //       if (alive) setLoadingMenu(false);
-  //     }
-  //   })();
-  //   return () => {
-  //     alive = false;
-  //   };
-  // }, [loading, user]);
-
-
 
   useEffect(() => {
-  let alive = true;
-  const tenant = getTenant();
+    let alive = true;
+    const tenant = getTenant();
 
-  console.log("MENU DEBUG", {
-    tenant,
-    user,
-    loading,
-  });
+    if (loading || !user || !tenant || menuFetchedRef.current) return;
 
-  if (loading || !user || !tenant) return;
+    (async () => {
+      try {
+        setLoadingMenu(true);
+        const [menuResp, routesResp] = await Promise.all([
+          fetchData("menu-items", { USER_CODE: user?.USER_CODE }),
+          fetchData("menu-routes", { USER_CODE: user?.USER_CODE }),
+        ]);
 
-  (async () => {
-    try {
-      setLoadingMenu(true);
+        if (!alive) return;
 
-      const [menuResp, routesResp] = await Promise.all([
-        fetchData("menu-items", { USER_CODE: user?.USER_CODE }),
-        fetchData("menu-routes", { USER_CODE: user?.USER_CODE }),
-      ]);
+        setMenuItems(menuResp?.menuItems ?? menuResp?.data ?? []);
+        setRouteRows(routesResp?.routes ?? routesResp?.data ?? []);
+        setRoutesLoaded(true);
+        menuFetchedRef.current = true;
+      } catch (e) {
+        console.error("[MENU LOAD ERROR]", e);
+        toast.error("Failed to load application menu");
+      } finally {
+        if (alive) setLoadingMenu(false);
+      }
+    })();
 
-      console.log("MENU RESP RAW:", menuResp);
-      console.log("ROUTES RESP RAW:", routesResp);
+    return () => { alive = false; };
+  }, [loading, user]);
 
-      if (!alive) return;
-
-      setMenuItems(menuResp?.menuItems ?? menuResp?.data ?? []);
-      setRouteRows(routesResp?.routes ?? routesResp?.data ?? []);
-      setRoutesLoaded(true);
-    } catch (e) {
-      // console.error("[App] Failed to load menu/routes:", e);
-      // setRoutesLoaded(true);
-        console.error("[MENU LOAD ERROR]", {
-        message: e?.message,
-        status: e?.response?.status,
-        data: e?.response?.data,
-        url: e?.config?.baseURL + e?.config?.url,
-        headers: e?.config?.headers,
-        
-      });
-    } finally {
-      if (alive) setLoadingMenu(false);
-    }
-  })();
-
-  return () => {
-    alive = false;
-  };
-}, [loading, user]);
-
-
-
-  /* -------- Lock body scroll when a modal is open -------- */
   useEffect(() => {
     document.body.style.overflow = activeModalKey ? "hidden" : "auto";
-    return () => {
-      document.body.style.overflow = "auto";
-    };
+    return () => { document.body.style.overflow = "auto"; };
   }, [activeModalKey]);
 
-  /* -------- Block UI until AuthProvider finishes bootstrap -------- */
   if (loading) {
     return (
-      <div className="min-h-screen grid place-items-center">
-        <div className="bg-white dark:bg-gray-900 rounded-xl px-6 py-4 shadow">
-          Initializing…
-        </div>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/30 dark:bg-black/30 backdrop-blur-md">
+        <LoadingSpinner />
       </div>
     );
   }
 
-  /* -------- Auth pages (no navbar/sidebar) -------- */
   if (!user) {
     return (
       <Routes>
-        <Route
-          path="/"
-          element={<Login onSwitchToRegister={() => navigate("/register")} />}
-        />
-        <Route
-          path="/register"
-          element={
-            <Register
-              onRegister={() => navigate("/")}
-              onSwitchToLogin={() => navigate("/")}
-            />
-          }
-        />
+        <Route path="/" element={<Login onSwitchToRegister={() => navigate("/register")} />} />
+        <Route path="/register" element={<Register onRegister={() => navigate("/")} onSwitchToLogin={() => navigate("/")} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     );
   }
 
-  /* -------- App pages (with navbar + sidebar) -------- */
   return (
     <div className="relative min-h-screen flex flex-col bg-gray-100 font-roboto dark:bg-black">
-      {/* Top navbar */}
       <div className="sticky top-0 z-40">
         <Navbar onMenuClick={toggleSidebar} onLogout={handleLogout} />
       </div>
 
-      {/* Sidebar overlay (mobile) */}
       {isSidebarVisible && (
         <div className="fixed inset-0 z-50 flex">
           <Sidebar
@@ -249,286 +208,69 @@ const AppContent = () => {
               openModal(key);
             }}
           />
-          <div
-            className="flex-1 bg-black/50"
-            onClick={toggleSidebar}
-            aria-hidden
-          />
+          <div className="flex-1 bg-black/50" onClick={toggleSidebar} aria-hidden />
         </div>
       )}
 
-      {/* Routed pages */}
       <div className="flex-1 p-4 overflow-y-auto">
-        {/* Lightweight overlay while loading menus */}
-        {loadingMenu && (
-          <div className="fixed inset-0 z-[70] bg-black/10 backdrop-blur-sm flex items-center justify-center">
-            <div className="bg-white dark:bg-gray-800 rounded-xl px-6 py-4 shadow-xl">
-              Loading menu…
+        {loadingMenu && !routesLoaded && (
+          <div className="fixed inset-0 z-[70] bg-black/20 backdrop-blur-sm flex items-center justify-center">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-2xl flex flex-col items-center gap-4">
+              <LoadingSpinner />
+              <p className="text-sm text-slate-500">Preparing your workspace...</p>
             </div>
           </div>
         )}
 
         <Routes>
-          <Route path="/" element={<Dashboard1 user={user} />} />      
+          <Route path="/" element={<Dashboard1 user={user} />} />
+          <Route path="/page/:componentKey" element={<UniversalRegistryRoute routeRows={routeRows} />} />
+          
+          {routeRows
+            ?.filter((r) => r.path && r.componentKey && !r.isModal)
+            .map((route) => {
+              const Cmp = pageRegistry[route.componentKey];
+              if (!Cmp) return null;
+              return (
+                <Route
+                  key={route.code || route.path}
+                  path={normPath(route.path)}
+                  element={
+                    <ErrorBoundary>
+                      <Cmp />
+                    </ErrorBoundary>
+                  }
+                />
+              );
+            })}
 
-
-          {/* generic registry route */}
-          <Route path="/page/:componentKey" element={<RegistryRoute />} />
-          {/* <Route path="/AllTranHistory" element={<AllTranHistory />} /> */}
-
-            {routeRows
-              ?.filter((r) => r.path && r.componentKey && !r.isModal)
-              .map(({ code, path, componentKey }) => {
-                const Cmp = pageRegistry[componentKey];
-                if (!Cmp) {
-                  console.warn("[App] No page component for key:", componentKey, "path:", path);
-                  return null;
-                }
-                return <Route key={code ?? path} path={normPath(path)} element={<Cmp />} />;
-              })}
-
-          {/* Fallback: go home */}
-          {routesLoaded && <Route path="*" element={<Navigate to="/" replace />} />}
+          <Route path="*" element={<UniversalRegistryRoute routeRows={routeRows} />} />
         </Routes>
       </div>
 
-      {/* Modal host */}
       <ModalHost modalKey={activeModalKey} onClose={handleCloseModal} />
     </div>
   );
 };
 
 /* -------------------- App Root -------------------- */
-import AuthProvider from "./NAYSA Cloud/Authentication/AuthContext.jsx";
 const App = () => (
   <Router>
-    <AuthProvider>
-      <ResetProvider>
-        <AppContent />
-      </ResetProvider>
-    </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <ResetProvider>
+          <Toaster 
+            position="top-right" 
+            richColors 
+            expand={true} 
+            closeButton
+            theme="system"
+          />
+          <AppContent />
+        </ResetProvider>
+      </AuthProvider>
+    </QueryClientProvider>
   </Router>
 );
 
 export default App;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
