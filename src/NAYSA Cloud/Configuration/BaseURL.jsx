@@ -543,3 +543,103 @@ export const postPdfRequest = async (endpoint, body = {}) => {
   });
   return data; // Blob
 };
+
+
+
+
+
+/* ───────── Biometric / WebAuthn helpers ───────── */
+
+export const bioRegisterOptions = async (userCode, config = {}) => {
+  const { data } = await apiClient.post(
+    "/user-bio/register/options",
+    { userCode },
+    config
+  );
+  return data;
+};
+
+export const bioRegisterVerify = async (payload, config = {}) => {
+  const normalizedPayload = {
+    userCode: payload?.userCode ?? payload?.USER_CODE ?? "",
+    credential: payload?.credential ?? null,
+  };
+
+  const { data } = await apiClient.post(
+    "/user-bio/register/verify",
+    normalizedPayload,
+    config
+  );
+  return data;
+};
+
+export const bioLoginOptions = async (userCode, config = {}) => {
+  const { data } = await apiClient.post(
+    "/user-bio/login/options",
+    { userCode },
+    config
+  );
+  return data;
+};
+
+export const bioLoginVerify = async (payload, config = {}) => {
+  const normalizedPayload = {
+    userCode: payload?.userCode ?? payload?.USER_CODE ?? "",
+    credential: payload?.credential ?? null,
+  };
+
+  const { data } = await apiClient.post(
+    "/user-bio/login/verify",
+    normalizedPayload,
+    config
+  );
+  return data;
+};
+
+export const bioList = async (userCode, config = {}) => {
+  const { data } = await apiClient.get(
+    `/user-bio/list/${encodeURIComponent(userCode)}`,
+    config
+  );
+  return data;
+};
+
+export const bioDeactivate = async (id, config = {}) => {
+  const { data } = await apiClient.post(
+    "/user-bio/deactivate",
+    { id },
+    config
+  );
+  return data;
+};
+
+export const bioDelete = async (id, config = {}) => {
+  const { data } = await apiClient.post(
+    "/user-bio/delete",
+    { id },
+    config
+  );
+  return data;
+};
+
+export const bioLoginOptionsPasswordless = async (config = {}) => {
+  const { data } = await apiClient.post(
+    "/user-bio/login/options-passwordless",
+    {},
+    config
+  );
+  return data;
+};
+
+export const bioLoginVerifyPasswordless = async (payload, config = {}) => {
+  const normalizedPayload = {
+    credential: payload?.credential ?? null,
+  };
+
+  const { data } = await apiClient.post(
+    "/user-bio/login/verify-passwordless",
+    normalizedPayload,
+    config
+  );
+  return data;
+};
