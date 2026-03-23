@@ -176,7 +176,7 @@ const CutoffRef = () => {
           "Error",
           response?.data?.message ||
             response?.data?.data?.message ||
-            "Failed to save Account.",
+            "Failed to save Cut Off.",
         );
         resetForm(); // ✅ reset on failure
         return;
@@ -185,7 +185,7 @@ const CutoffRef = () => {
 
       // ✅ success path
       queryClient.invalidateQueries({ queryKey: ["cutoffList"] });
-      useSwalSuccessAlert("Success!", "Account saved successfully!");
+      useSwalSuccessAlert("Success!", "Cut Off saved successfully!");
       resetForm();
     },
 
