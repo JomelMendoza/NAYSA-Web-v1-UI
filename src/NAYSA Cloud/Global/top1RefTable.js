@@ -189,6 +189,7 @@ export async function useTopVatAmount(vatCode, grossAmt) {
   try {
     const response = await fetchData("getVat", { VAT_CODE: vatCode });
     if (!response.success) return 0;
+    console.log(response)
 
     const [result] = JSON.parse(response.data[0].result);
     if (!result) return 0;
@@ -207,7 +208,7 @@ export async function useTopATCRow(atcCode) {
   if (!atcCode) return null;
 
   try {
-    const response = await fetchData("getATC", { ATC_CODE: atcCode });
+    const response = await fetchData("getATC", { atcCode: atcCode });
     if (response.success) {
       const responseData = JSON.parse(response.data[0].result);
       return responseData.length > 0 ? responseData[0] : null;
@@ -223,7 +224,7 @@ export async function useTopATCAmount(atcCode, netAmount) {
   if (!atcCode || netAmount === 0) return 0;
 
   try {
-    const res = await fetchData("getATC", { ATC_CODE: atcCode });
+    const res = await fetchData("getATC", { atcCode: atcCode });
     if (!res.success) return 0;
 
     const [row] = JSON.parse(res.data[0].result);
@@ -241,7 +242,7 @@ export async function useTopBillCodeRow(billCode) {
   if (!billCode) return null;
 
   try {
-    const response = await fetchData("getBillcode", { BILL_CODE: billCode });
+    const response = await fetchData("getBillcode", { billCode: billCode });
     if (response.success) {
       const responseData = JSON.parse(response.data[0].result);
       return responseData.length > 0 ? responseData[0] : null;
@@ -512,3 +513,32 @@ export const useTopPayTermRow = async (paytermCode) => {
 };
 
 
+
+
+export async function useTopDocDropDownAll() {
+  try {
+    const response = await postRequest("getHSDropdownAll", {}); 
+    
+    if (!response || !response.success || !response.data || !Array.isArray(response.data)) {
+      return [];
+    }
+
+    // This version joins the first column of every row, 
+    // even if the column name isn't exactly "result"
+    const fullJsonString = response.data
+      .map(row => Object.values(row)[0]) 
+      .join("");
+
+    if (!fullJsonString) return [];
+
+    try {
+      const parsedData = JSON.parse(fullJsonString);
+      return Array.isArray(parsedData) ? parsedData : [];
+    } catch (parseError) {
+      console.error("Parse Error: Invalid JSON string");
+      return [];
+    }
+  } catch (error) {
+    return [];
+  }
+}

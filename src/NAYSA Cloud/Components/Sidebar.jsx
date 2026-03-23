@@ -1,6 +1,7 @@
 
-import React, { useEffect, useMemo, useState } from "react";
-import { NavLink  } from "react-router-dom";
+import React, { useState, useEffect, useMemo } from "react";
+import { NavLink } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { fetchData } from "@/NAYSA Cloud/Configuration/BaseURL";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 import {
@@ -12,185 +13,268 @@ import {
   FiDollarSign,
   FiGlobe,
   FiShield,
-  FiSearch,
   FiSun,
   FiMoon,
   FiBox,
   FiShoppingCart,
-  FiFileText,
-  FiList,
-  FiCircle
+  FiSearch,
+  FiCheckCircle,
+  FiLayers,
 } from "react-icons/fi";
 
 const iconMap = {
-  "Dashboard": FiHome,
+  Dashboard: FiHome,
   "General Ledger": FiBook,
   "Accounts Payable": FiCreditCard,
   "Accounts Receivable": FiDollarSign,
   "Global Reference": FiGlobe,
   "Application Security": FiShield,
-  "Purchasing": FiShoppingCart,
-  "Inventory": FiBox
+  Purchasing: FiShoppingCart,
+  Inventory: FiBox,
 };
 
 const highlightText = (text, searchTerm) => {
   if (!searchTerm) return text;
   const safe = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const regex = new RegExp(`(${safe})`, "gi");
-  return String(text).split(regex).map((part, i) =>
-    regex.test(part)
-      ? <mark key={i} className="bg-yellow-300 dark:bg-yellow-600 rounded px-1">{part}</mark>
-      : part
-  );
+
+  return String(text)
+    .split(regex)
+    .map((part, i) =>
+      regex.test(part) ? (
+        <mark
+          key={i}
+          className="bg-yellow-300/80 dark:bg-yellow-500/60 text-inherit rounded px-1"
+        >
+          {part}
+        </mark>
+      ) : (
+        part
+      )
+    );
 };
 
 const anyDescendantMatches = (node, lcTerm) => {
   if (!node) return false;
   if ((node.name || "").toLowerCase().includes(lcTerm)) return true;
-  if (Array.isArray(node.subMenu)) {
-    return node.subMenu.some((child) => anyDescendantMatches(child, lcTerm));
-  }
-  return false;
+  return Array.isArray(node.subMenu)
+    ? node.subMenu.some((child) => anyDescendantMatches(child, lcTerm))
+    : false;
 };
 
-const MenuItem = ({ item, level = 0, searchTerm, onNavigate, onOpenModal }) => {
+const getLevelClasses = (level) => {
+  if (level === 0) return "pl-3";
+  if (level === 1) return "pl-8";
+  if (level === 2) return "pl-12";
+  return "pl-16";
+};
+
+const MenuItem = ({
+  item,
+  level = 0,
+  searchTerm,
+  onNavigate,
+  onOpenModal,
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
 
   const hasSubMenu = Array.isArray(item?.subMenu) && item.subMenu.length > 0;
   const Icon = level === 0 ? iconMap[item?.name] : null;
-  const ChevronIcon = hasSubMenu ? (isOpen ? FiChevronDown : FiChevronRight) : null;
-  const isPost = /finalize/i.test(item?.name ?? "");
+
+  const itemName = item?.name || "";
+  const isSpecialBlue = /(post|finalize)/i.test(itemName);
 
   useEffect(() => {
     const lc = (searchTerm || "").toLowerCase();
+
     if (!lc) {
       setIsVisible(true);
       setIsOpen(false);
       return;
     }
-    const matches = (item?.name || "").toLowerCase().includes(lc);
+
+    const matches = itemName.toLowerCase().includes(lc);
     const descendant = hasSubMenu && anyDescendantMatches(item, lc);
+
     setIsVisible(matches || descendant);
+
     if (descendant) setIsOpen(true);
-  }, [searchTerm, item, hasSubMenu]);
+  }, [searchTerm, itemName, item, hasSubMenu]);
 
   if (!isVisible) return null;
 
-  const paddingLeft = level === 0 ? "pl-3" : level === 1 ? "pl-8" : "pl-12";
+  const baseTextColor =
+    level === 0
+      ? isSpecialBlue
+        ? "text-blue-700 dark:text-blue-400"
+        : "text-slate-800 dark:text-slate-100"
+      : isSpecialBlue
+      ? "text-blue-700 dark:text-blue-400"
+      : "text-slate-700 dark:text-slate-200";
 
-  const rowBase =
-    `flex items-center justify-between py-2 px-3 rounded-xl transition-all duration-200 group hover:scale-[1.02] ${paddingLeft} ` +
-    (level === 0
-      ? "text-gray-700 dark:text-gray-200 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 dark:hover:from-gray-800 dark:hover:to-gray-700 hover:shadow-lg"
-      : level === 1
-      ? "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50"
-      : "text-gray-500 dark:text-gray-400 hover:bg-gray-25 dark:hover:bg-gray-800/30");
+  const hoverBg =
+    level === 0
+      ? "hover:bg-gradient-to-r hover:from-blue-50 hover:to-slate-50 dark:hover:from-blue-950/40 dark:hover:to-slate-800/40"
+      : "hover:bg-slate-50 dark:hover:bg-slate-800/60";
+
+  const activeBg =
+    "bg-gradient-to-r from-blue-100 to-sky-50 dark:from-blue-900/40 dark:to-slate-800/80";
+
+  const rowBase = `
+    relative
+    flex items-center justify-between
+    py-2 px-1
+    rounded-xl
+    transition-all duration-300 ease-out
+    group
+    ${getLevelClasses(level)}
+    ${hoverBg}
+    hover:translate-x-[3px] hover:shadow-sm
+    active:scale-[0.99]
+  `;
 
   const label = (
-    <div className="flex items-center space-x-3 flex-1 min-w-0">
-      {level === 0 && Icon && (
-        <Icon
-          className={`text-xl flex-shrink-0 transition-colors duration-200 ${
-            isOpen ? "text-blue-600 dark:text-blue-400" : "text-gray-500 dark:text-gray-400"
-          } group-hover:text-blue-600 dark:group-hover:text-blue-400`}
-        />
-      )}
-      {level > 0 && (
+    <div className="flex items-center gap-2 flex-1 min-w-0">
+      {level === 0 && (
         <div
-          className={`w-2 h-2 rounded-full flex-shrink-0 transition-colors duration-200 ${
-            level === 1 ? "bg-blue-300 dark:bg-blue-600" : "bg-gray-300 dark:bg-gray-600"
-          } group-hover:bg-blue-400 dark:group-hover:bg-blue-500`}
-        />
+          className={`flex items-center justify-center w-9 h-9 rounded-xl shrink-0 transition-all duration-300 ease-out
+          ${
+            isOpen
+              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 scale-[1.03]"
+              : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300 group-hover:bg-white dark:group-hover:bg-slate-700 group-hover:scale-[1.03]"
+          }`}
+        >
+          {Icon ? <Icon className="text-[18px]" /> : <FiLayers className="text-[18px]" />}
+        </div>
       )}
+
+      {level > 0 && (
+        isSpecialBlue ? (
+          <FiCheckCircle className="text-blue-600 dark:text-blue-400 shrink-0 text-[14px] transition-transform duration-300 group-hover:scale-110" />
+        ) : (
+          <span className="w-2 h-2 rounded-full shrink-0 bg-slate-300 dark:bg-slate-600 transition-all duration-300 group-hover:scale-125 group-hover:bg-blue-400 dark:group-hover:bg-blue-400" />
+        )
+      )}
+
       <span
-        className={`truncate transition-colors duration-200 ${
-          level === 0 ? "font-semibold text-sm" : level === 1 ? "text-sm" : "text-xs" +
-          (isPost ? " text-blue-600 dark:text-blue-400" : "")
-        }`}
+        className={`truncate text-xs sm:text-sm font-medium ${baseTextColor} transition-colors duration-300`}
+        title={itemName}
       >
-        {highlightText(item?.name || "", searchTerm)}
+        {highlightText(itemName, searchTerm)}
       </span>
+
+      {isSpecialBlue && !hasSubMenu && level === 0 && (
+        <FiCheckCircle className="text-blue-600 dark:text-blue-400 shrink-0 transition-transform duration-300 group-hover:scale-110" />
+      )}
     </div>
   );
 
-  // Parent node
   if (hasSubMenu) {
     return (
-      <li key={item?.code || item?.name}>
-        <div
-          className={rowBase + " cursor-pointer"}
-          onClick={() => setIsOpen((o) => !o)}
-          role="button"
-          aria-expanded={isOpen}
-          aria-controls={`submenu-${(item?.name || "").replace(/\s/g, "-")}`}
+      <li className="mb-1">
+        <button
+          type="button"
+          className={`${rowBase} w-full cursor-pointer`}
+          onClick={() => setIsOpen((prev) => !prev)}
         >
+          <span
+            className={`absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-blue-500 transition-all duration-300 ${
+              isOpen ? "opacity-100 scale-y-100" : "opacity-0 scale-y-50"
+            }`}
+          />
           {label}
-          {ChevronIcon && (
-            <ChevronIcon
-              className={`text-gray-400 dark:text-gray-500 transition-all duration-200 flex-shrink-0 ${
-                isOpen ? "rotate-0 text-blue-600 dark:text-blue-400" : "group-hover:text-blue-600 dark:group-hover:text-blue-400"
-              }`}
-            />
-          )}
-        </div>
+          <div
+            className={`shrink-0 ml-0 rounded-lg p-1 transition-all duration-300 ${
+              isOpen
+                ? "bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300"
+                : "text-slate-400 dark:text-slate-500 group-hover:bg-white dark:group-hover:bg-slate-700"
+            }`}
+          >
+            {isOpen ? (
+              <FiChevronDown className="transition-transform duration-300" />
+            ) : (
+              <FiChevronRight className="transition-transform duration-300 group-hover:translate-x-[1px]" />
+            )}
+          </div>
+        </button>
 
         <div
-          className={`overflow-hidden transition-all duration-300 ease-out ${
-            isOpen ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"
+          className={`grid transition-all duration-300 ease-in-out ${
+            isOpen ? "grid-rows-[1fr] opacity-100 mt-1" : "grid-rows-[0fr] opacity-0"
           }`}
         >
-          <ul className="mt-1 space-y-1">
-            {item.subMenu.map((sub, i) => (
-              <MenuItem
-                key={(sub.code || sub.name || "k") + i}
-                item={sub}
-                level={level + 1}
-                searchTerm={searchTerm}
-                onNavigate={onNavigate}
-                onOpenModal={onOpenModal}
-              />
-            ))}
-          </ul>
+          <div className="overflow-hidden">
+            <ul className="space-y-1 border-l border-slate-200 dark:border-slate-700 ml-2 pl-0.5">
+              {item.subMenu.map((sub, i) => (
+                <div
+                  key={i}
+                  className={`transition-all duration-300 ${
+                    isOpen ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"
+                  }`}
+                  style={{ transitionDelay: isOpen ? `${Math.min(i * 35, 180)}ms` : "0ms" }}
+                >
+                  <MenuItem
+                    item={sub}
+                    level={level + 1}
+                    searchTerm={searchTerm}
+                    onNavigate={onNavigate}
+                    onOpenModal={onOpenModal}
+                  />
+                </div>
+              ))}
+            </ul>
+          </div>
         </div>
       </li>
     );
   }
 
-
-  const isModal = !!item?.isModal;
-  if (isModal) {
+  if (item?.isModal) {
     return (
-      <li key={item?.code || item?.name}>
+      <li className="mb-1">
         <button
           type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenModal?.(item?.componentKey); 
-            onNavigate?.();                    
+          onClick={() => {
+            onNavigate?.();
+            onOpenModal?.(item?.componentKey || item);
           }}
-          className={rowBase + " w-full text-left cursor-pointer"}
+          className={`${rowBase} w-full text-left`}
         >
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-blue-500 opacity-0 transition-all duration-300 group-hover:opacity-100 group-hover:scale-y-100 scale-y-50" />
           {label}
         </button>
       </li>
     );
   }
 
-  // Normal route
   return (
-    <li key={item?.code || item?.name}>
+    <li className="mb-1">
       <NavLink
-        to={item?.path}
-        end
-        onClick={() => onNavigate?.()}
+        to={item?.path || "#"}
+        onClick={() => {
+          onNavigate?.();
+          if (item?.onOpenModal) onOpenModal?.(item);
+        }}
         className={({ isActive }) =>
-          rowBase +
-          " block cursor-pointer " +
-          (isActive ? " ring-1 ring-blue-500/40 bg-blue-50 dark:bg-gray-800/40" : "")
+          `${rowBase} ${isActive ? activeBg : ""} ${
+            isActive ? "shadow-sm" : ""
+          }`
         }
       >
-        {label}
+        {({ isActive }) => (
+          <div className="flex items-center justify-between w-full min-w-0">
+            <span
+              className={`absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-blue-500 transition-all duration-300 ${
+                isActive ? "opacity-100 scale-y-100" : "opacity-0 scale-y-50 group-hover:opacity-100"
+              }`}
+            />
+            <div className="flex-1 min-w-0">{label}</div>
+            {isActive && (
+              <span className="ml-2 w-2.5 h-2.5 rounded-full bg-blue-600 dark:bg-blue-400 shrink-0 animate-pulse" />
+            )}
+          </div>
+        )}
       </NavLink>
     </li>
   );
@@ -201,114 +285,101 @@ const Sidebar = ({ menuItems = null, onNavigate, onOpenModal }) => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const { user } = useAuth();
 
-  // internal fetch (only if menuItems prop not provided)
-  const [fetched, setFetched] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (menuItems && Array.isArray(menuItems) && menuItems.length > 0) return;
-
-    let alive = true;
-    (async () => {
-      try {
-        setLoading(true);
-        setError("");
-        const res = await fetchData("menu-items",{ USER_CODE: user?.USER_CODE}); // GET /api/menu-items
-        if (!alive) return;
-        setFetched(res?.menuItems ?? []);
-      } catch (e) {
-        if (!alive) return;
-        console.error("[Sidebar] menu fetch failed:", e);
-        setError("Failed to load menu");
-        setFetched([]);
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-
-    return () => { alive = false; };
-  }, [menuItems]);
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["sidebarMenu", user?.USER_CODE],
+    queryFn: () => fetchData("menu-items", { USER_CODE: user?.USER_CODE }),
+    enabled: !!user?.USER_CODE && (!menuItems || menuItems.length === 0),
+    staleTime: 1000 * 60 * 5,
+  });
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDarkMode);
+    return () => document.documentElement.classList.remove("dark");
   }, [isDarkMode]);
 
-  const items = useMemo(() => {
-    if (menuItems && Array.isArray(menuItems) && menuItems.length > 0) return menuItems;
-    return fetched;
-  }, [menuItems, fetched]);
+  const items =
+    menuItems && menuItems.length > 0 ? menuItems : data?.menuItems ?? [];
+
+  const filteredCount = useMemo(() => {
+    if (!searchTerm) return items.length;
+    return items.filter((item) =>
+      anyDescendantMatches(item, searchTerm.toLowerCase())
+    ).length;
+  }, [items, searchTerm]);
 
   return (
-    <div className="sidebar flex flex-col h-screen w-80 bg-white dark:bg-gray-900 shadow-2xl">
-      {/* Header */}
-      <div className="flex-shrink-0 p-2 flex items-center justify-between border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center">
-          <img
-            src="naysa_logo.png"
-            className="w-[80px] h-[50px] mb-1 object-contain"
-            alt="Naysa Logo"
-          />
-          <span className="text-blue-900 cursor-pointer dark:text-white text-lg font-bold">
-            Financials
-          </span>
+    <div className="sidebar flex flex-col h-screen w-100 bg-white dark:bg-gray-900 shadow-2xl border-r border-slate-200 dark:border-slate-800">
+      <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-800 bg-gradient-to-r from-blue-50 via-white to-sky-50 dark:from-slate-900 dark:via-gray-900 dark:to-slate-900">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <img
+              src="/naysa_logo.png"
+              className="w-[54px] h-[40px] object-contain transition-transform duration-300 hover:scale-105"
+              alt="Naysa Logo"
+            />
+
+            <div className="min-w-0">
+              <div className="mt-1 font-bold text-blue-800 dark:text-blue-300 truncate">
+                Financials
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsDarkMode(!isDarkMode)}
+            className="w-10 h-10 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-300 hover:scale-105 active:scale-95"
+          >
+            {isDarkMode ? <FiSun /> : <FiMoon />}
+          </button>
         </div>
-        <button
-          onClick={() => setIsDarkMode((v) => !v)}
-          className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200"
-          aria-label="Toggle dark mode"
-        >
-          {isDarkMode ? <FiSun className="text-lg" /> : <FiMoon className="text-lg" />}
-        </button>
       </div>
 
-      {/* Search */}
-      <div className="flex-shrink-0 p-4">
+      <div className="p-2 border-b border-slate-200 dark:border-slate-800">
         <div className="relative">
-          <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500" />
+          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 transition-colors duration-300" />
           <input
-            type="text"
-            placeholder="Search menu..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+            placeholder="Search menu..."
+            className="w-full pl-10 pr-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 focus:shadow-sm"
           />
         </div>
+
+        {/* <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          {searchTerm
+            ? `${filteredCount} matching menu group${filteredCount !== 1 ? "s" : ""}`
+            : `${items.length} menu group${items.length !== 1 ? "s" : ""}`}
+        </div> */}
       </div>
 
-      {/* Menu list */}
-      <div className="flex-1 overflow-y-auto px-4 py-2">
-        {loading ? (
-          <div className="text-sm text-gray-500 dark:text-gray-400">Loading menu…</div>
+      <div className="flex-1 overflow-y-auto px-2 py-2 custom-scrollbar">
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-12 text-slate-500 dark:text-slate-400 animate-in fade-in duration-300">
+            <div className="w-10 h-10 rounded-full border-4 border-slate-200 dark:border-slate-700 border-t-blue-600 animate-spin mb-3" />
+            <span className="text-sm font-medium">Loading menu...</span>
+          </div>
         ) : error ? (
-          <div className="text-sm text-red-600">{error}</div>
+          <div className="mx-2 mt-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4 text-sm text-red-700 dark:text-red-300 animate-in fade-in duration-300">
+            Error loading menu
+          </div>
+        ) : items.length === 0 ? (
+          <div className="mx-2 mt-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4 text-sm text-slate-500 dark:text-slate-400 animate-in fade-in duration-300">
+            No menu available.
+          </div>
         ) : (
-          <nav>
-            <ul className="space-y-1">
-              {Array.isArray(items) && items.length > 0 ? (
-                items.map((item, idx) => (
-                  <MenuItem
-                    key={(item.code || item.name || "root") + idx}
-                    item={item}
-                    level={0}
-                    searchTerm={searchTerm}
-                    onNavigate={onNavigate}
-                    onOpenModal={onOpenModal}
-                  />
-                ))
-              ) : (
-                <li className="text-sm text-gray-500 dark:text-gray-400">No menu items</li>
-              )}
-            </ul>
-          </nav>
+          <ul className="space-y-1 text-xs font-medium animate-in fade-in slide-in-from-left-1 duration-300">
+            {items.map((item, idx) => (
+              <MenuItem
+                key={idx}
+                item={item}
+                searchTerm={searchTerm}
+                onNavigate={onNavigate}
+                onOpenModal={onOpenModal}
+              />
+            ))}
+          </ul>
         )}
-      </div>
-
-      {/* Footer */}
-      <div className="flex-shrink-0 p-4 border-t border-gray-200 dark:border-gray-700">
-        <div className="text-xs text-gray-500 dark:text-gray-400 text-center">
-          © 2025 NAYSA-Solutions Inc.
-        </div>
       </div>
     </div>
   );

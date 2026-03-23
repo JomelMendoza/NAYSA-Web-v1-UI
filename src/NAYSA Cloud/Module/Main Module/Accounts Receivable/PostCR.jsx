@@ -4,9 +4,7 @@ import { useSelectedHSColConfig } from '@/NAYSA Cloud/Global/selectedData';
 import  GlobalGLPostingModalv1 from "../../../Lookup/SearchGlobalGLPostingv1.jsx";
 import { useSwalValidationAlert } from '@/NAYSA Cloud/Global/behavior';
 import { useHandlePostTran } from '@/NAYSA Cloud/Global/procedure';
-import ReactDOM from 'react-dom';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSpinner } from '@fortawesome/free-solid-svg-icons';
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
 
 const PostCR = ({ isOpen, onClose,userCode }) => {
@@ -93,11 +91,14 @@ const handleViewDocument = (row) => {
     return;
   }
 
-  const SVI_VIEW_URL = "/tran-ar-crtran";
-  const url =
-    `${window.location.origin}${SVI_VIEW_URL}` +
-    `?crNo=${encodeURIComponent(docNo)}&branchCode=${encodeURIComponent(branchCode)}`;
-    window.open(url, "_blank", "noopener,noreferrer");
+ const SVI_VIEW_URL = "/page/CR";
+const url =
+  `${window.location.origin}${SVI_VIEW_URL}` +
+  `?crNo=${encodeURIComponent(docNo)}` +
+  `&branchCode=${encodeURIComponent(branchCode)}` +
+  `&viewDocument=true`;
+
+window.open(url, "_blank", "noopener,noreferrer");
 };
 
 
@@ -120,18 +121,8 @@ return (
       />
     )}
 
-    {/* Always allow the overlay to render while loading (no modalReady / isOpen gate) */}
-    {ReactDOM.createPortal(
-      loading ? (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/80 backdrop-blur-sm">
-          <div className="flex flex-col items-center text-blue-600">
-            <FontAwesomeIcon icon={faSpinner} spin size="2x" className="mb-3" />
-            <span className="text-sm font-medium tracking-wide">Please wait…</span>
-          </div>
-        </div>
-      ) : null,
-      document.body
-    )}
+     {loading && <LoadingSpinner />}
+   
   </>
 );
 };

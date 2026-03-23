@@ -23,6 +23,7 @@ import Swal from "sweetalert2";
 import {
   useTopUserRow,
   useTopCompanyRow,
+  useTopDocDropDownAll,
 } from '@/NAYSA Cloud/Global/top1RefTable';
 
 
@@ -99,13 +100,14 @@ const readCachedUser = () => {
 /* ---------------- Helpers using your existing library style ---------------- */
 
 export default function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => readCachedUser());
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // ---- NEW: static data loaded once per session ----
   const [refsLoading, setRefsLoading] = useState(false);
   const [refsLoaded, setRefsLoaded] = useState(false);
   const [companyInfo, setCompanyInfo] = useState(null);
+  const [allDropDown, setallDropDown] = useState(null);
   const [currentUserRow, setCurrentUserRow] = useState(null);
   const [currentMenu, setCurrentMenu] = useState(null);
 
@@ -119,40 +121,106 @@ export default function AuthProvider({ children }) {
   const bcRef = useRef(null);
 
   /* ---------------- Hard logout (local) ---------------- */
-  const hardLogout = useCallback(() => {
-    setUser(null);
-    cacheUser(null);
-    markAuthReady(false);
+ const hardLogout = useCallback(() => {
+  setUser(null);
 
-    // Clear static refs as well
-    setCompanyInfo(null);
-    setCurrentUserRow(null);
-    setCurrentMenu(null)
-    setRefsLoaded(false);
-    setRefsLoading(false);
-  }, []);
+  try {
+    localStorage.removeItem("naysa_user");
+    sessionStorage.removeItem("menuItems");
+    sessionStorage.removeItem("routeRows");
+  } catch {}
+
+  cacheUser(null);
+  markAuthReady(false);
+
+  setCompanyInfo(null);
+  setallDropDown(null);
+  setCurrentUserRow(null);
+  setCurrentMenu(null);
+  setRefsLoaded(false);
+  setRefsLoading(false);
+
+  lastActivity.current = Date.now();
+
+  if (idleTimer.current) clearTimeout(idleTimer.current);
+  if (remoteHbTimer.current) clearTimeout(remoteHbTimer.current);
+  if (expireHbTimer.current) clearTimeout(expireHbTimer.current);
+}, []);
 
   /* ---------------- Unified server-side logout (server → broadcast → local) ---------------- */
+  // const serverLogout = useCallback(
+  //   async (reason = "manual") => {
+  //     if (logoutLatchRef.current) return; // avoid duplicate calls across tabs
+  //     logoutLatchRef.current = true;
+
+  //     // 1) Server first → clears login_active on backend
+  //     try {
+  //       await apiClient.post("/logout");
+  //     } catch {
+  //       // ignore; scheduler still frees stale seats as fallback
+  //     }
+
+  //     // 2) Broadcast to other tabs so they can show their own popup
+  //     try {
+  //       bcRef.current?.postMessage({ type: "logout", reason });
+  //     } catch {}
+
+  //     // 3) Show popup LOCALLY in this (initiating) tab, with auto-close 5s
+  //     const showPopup = document.visibilityState === "visible";
+  //     if (showPopup) {
+  //       const msg =
+  //         reason === "idle"
+  //           ? {
+  //               icon: "warning",
+  //               title: "Signed out for inactivity",
+  //               text: "You were inactive and have been signed out. Please sign in again.",
+  //             }
+  //           : reason === "expired"
+  //           ? {
+  //               icon: "warning",
+  //               title: "Session expired",
+  //               text: "Your session expired. Please sign in again.",
+  //             }
+  //           : reason === "remote"
+  //           ? {
+  //               icon: "info",
+  //               title: "Signed out",
+  //               text:
+  //                 "Your account was signed in elsewhere or the server ended the session.",
+  //             }
+  //           : {
+  //               icon: "warning",
+  //               title: "Session ended",
+  //               text: "Your session has ended. Please sign in again.",
+  //             };
+
+  //       try {
+  //         await Swal.fire({
+  //           ...msg,
+  //           timer: 3000,
+  //           timerProgressBar: true,
+  //           showConfirmButton: false,
+  //           allowOutsideClick: false,
+  //           allowEscapeKey: false,
+  //         });
+  //       } catch {}
+  //     } else {
+  //       // queue a notice to show when the tab regains focus
+  //       pendingLogoutNoticeRef.current = true;
+  //     }
+
+  //     // 4) Finally, clear local state
+  //     hardLogout();
+  //   },
+  //   [hardLogout]
+  // );
+
+
   const serverLogout = useCallback(
-    async (reason = "manual") => {
-      if (logoutLatchRef.current) return; // avoid duplicate calls across tabs
-      logoutLatchRef.current = true;
+      async (reason = "manual") => {
+        if (logoutLatchRef.current) return;
+        logoutLatchRef.current = true;
 
-      // 1) Server first → clears login_active on backend
-      try {
-        await apiClient.post("/logout");
-      } catch {
-        // ignore; scheduler still frees stale seats as fallback
-      }
-
-      // 2) Broadcast to other tabs so they can show their own popup
-      try {
-        bcRef.current?.postMessage({ type: "logout", reason });
-      } catch {}
-
-      // 3) Show popup LOCALLY in this (initiating) tab, with auto-close 5s
-      const showPopup = document.visibilityState === "visible";
-      if (showPopup) {
         const msg =
           reason === "idle"
             ? {
@@ -170,8 +238,7 @@ export default function AuthProvider({ children }) {
             ? {
                 icon: "info",
                 title: "Signed out",
-                text:
-                  "Your account was signed in elsewhere or the server ended the session.",
+                text: "Your account was signed in elsewhere or the server ended the session.",
               }
             : {
                 icon: "warning",
@@ -180,25 +247,38 @@ export default function AuthProvider({ children }) {
               };
 
         try {
-          await Swal.fire({
-            ...msg,
-            timer: 3000,
-            timerProgressBar: true,
-            showConfirmButton: false,
-            allowOutsideClick: false,
-            allowEscapeKey: false,
+          await apiClient.post("/logout", null, {
+            headers: { "X-Skip-Logout-Broadcast": "1" },
           });
-        } catch {}
-      } else {
-        // queue a notice to show when the tab regains focus
-        pendingLogoutNoticeRef.current = true;
-      }
+        } catch (err) {
+          console.warn("Logout API failed, continuing local logout:", err);
+        }
 
-      // 4) Finally, clear local state
-      hardLogout();
-    },
-    [hardLogout]
-  );
+        try {
+          bcRef.current?.postMessage({ type: "logout", reason });
+        } catch {}
+
+        // IMPORTANT: clear local auth immediately
+        hardLogout();
+
+        if (document.visibilityState === "visible") {
+          try {
+            await Swal.fire({
+              ...msg,
+              timer: 3000,
+              timerProgressBar: true,
+              showConfirmButton: false,
+              allowOutsideClick: false,
+              allowEscapeKey: false,
+            });
+          } catch {}
+        } else {
+          pendingLogoutNoticeRef.current = true;
+        }
+      },
+      [hardLogout]
+    );
+
 
   /* ---------------- API logout (manual) ---------------- */
   const logout = useCallback(async () => {
@@ -214,20 +294,23 @@ export default function AuthProvider({ children }) {
     bc.onmessage = async (e) => {
       if (!e?.data?.type) return;
 
-      if (e.data.type === "logout") {
+     if (e.data.type === "logout") {
         if (logoutLatchRef.current) return;
         logoutLatchRef.current = true;
 
         const reason = e.data.reason;
         const showPopup = document.visibilityState === "visible";
 
-        // Ensure DB is updated FIRST by having the leader call /logout
         if (tryAcquireLeader()) {
           try {
-            await apiClient.post("/logout");
+            await apiClient.post("/logout", null, {
+              headers: { "X-Skip-Logout-Broadcast": "1" },
+            });
           } catch {}
           renewLeader();
         }
+
+        hardLogout();
 
         const msg =
           reason === "idle"
@@ -246,8 +329,7 @@ export default function AuthProvider({ children }) {
             ? {
                 icon: "info",
                 title: "Signed out",
-                text:
-                  "Your account was signed in elsewhere or the server ended the session.",
+                text: "Your account was signed in elsewhere or the server ended the session.",
               }
             : {
                 icon: "warning",
@@ -255,24 +337,23 @@ export default function AuthProvider({ children }) {
                 text: "Your session has ended. Please sign in again.",
               };
 
-        // Show popup AFTER server call; auto-close in 5 seconds
         if (showPopup) {
-          await Swal.fire({
-            ...msg,
-            timer: 3000,
-            timerProgressBar: true,
-            showConfirmButton: false,
-            allowOutsideClick: false,
-            allowEscapeKey: false,
-          });
+          try {
+            await Swal.fire({
+              ...msg,
+              timer: 3000,
+              timerProgressBar: true,
+              showConfirmButton: false,
+              allowOutsideClick: false,
+              allowEscapeKey: false,
+            });
+          } catch {}
         } else {
           pendingLogoutNoticeRef.current = true;
         }
 
-        hardLogout();
         return;
       }
-
       if (e.data.type === "tenant-changed" && e.data.code) {
         const incoming = String(e.data.code || "");
         const current = String(getTenant() || "");
@@ -321,15 +402,17 @@ export default function AuthProvider({ children }) {
     try {
       setRefsLoading(true);
 
-      const [companyRow, userRow,currentMenu] = await Promise.all([
+      const [companyRow, userRow,dropDown,currentMenu] = await Promise.all([
         useTopCompanyRow(),
         useTopUserRow(user.USER_CODE),
+        useTopDocDropDownAll(),
         fetchData("menu-items",{ USER_CODE: user?.USER_CODE})
       ]);
 
       setCompanyInfo(companyRow ?? null);
       setCurrentUserRow(userRow ?? null);
       setCurrentMenu(currentMenu ?? null)
+      setallDropDown(dropDown ?? null)
 
       setRefsLoaded(true);
     } catch (err) {
@@ -346,11 +429,19 @@ export default function AuthProvider({ children }) {
   /* ---------------- On-focus/visible: queued popup + light check ---------------- */
   useEffect(() => {
     let t = null;
-    const check = async () => {
-      try {
-        await apiClient.get("/me"); // 401/419 -> interceptor broadcasts
-      } catch {}
-    };
+   const check = async () => {
+  try {
+    await apiClient.get("/me", {
+      withCredentials: true,
+      headers: { "X-Use-Credentials": "1" },
+    });
+  } catch (err) {
+    const status = err?.response?.status;
+    if (status === 401 || status === 403 || status === 419) {
+      await serverLogout("remote");
+    }
+  }
+};
     const onFocus = () => {
       if (document.visibilityState !== "visible") return;
       clearTimeout(t);
@@ -379,7 +470,7 @@ export default function AuthProvider({ children }) {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onFocus);
     };
-  }, []);
+  }, [serverLogout]);
 
   /* ---------------- Activity tracking (per tab) ---------------- */
   useEffect(() => {
@@ -506,6 +597,17 @@ export default function AuthProvider({ children }) {
     []
   );
 
+
+
+  const getAllDropDown = useCallback((columnName, docCode) => {
+    return (allDropDown || []).filter(item => 
+        item.DROPDOWN_COLUMN === columnName && 
+        item.DOC_CODE === docCode
+    );
+  }, [allDropDown]);
+
+
+
   return (
     <AuthContext.Provider
       value={{
@@ -517,6 +619,7 @@ export default function AuthProvider({ children }) {
 
         // Expose static company/user info
         companyInfo,
+        getAllDropDown,
         currentUserRow,
         refsLoading,
         refsLoaded,

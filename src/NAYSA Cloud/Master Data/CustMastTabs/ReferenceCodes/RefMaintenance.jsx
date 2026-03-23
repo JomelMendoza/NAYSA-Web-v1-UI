@@ -24,7 +24,7 @@ import {
   useSwalDeleteRecord,
   useSwalshowSave,
   useSwalValidationAlert,
-} from "@/NAYSA Cloud/Global/behavior";
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 
 /* ---------- Small UI helpers ---------- */
 const SectionHeader = ({ title }) => (

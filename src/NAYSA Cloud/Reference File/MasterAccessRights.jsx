@@ -27,7 +27,7 @@ import {
   useSwalSuccessAlert,
   useSwalWarningAlert,
   useSwalErrorAlert,
-} from "@/NAYSA Cloud/Global/behavior";
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 
 /** Loading spinner (same as your global style) */
 const LoadingSpinner = () => (

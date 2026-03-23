@@ -68,7 +68,11 @@ const RegistrationInfo = ({ data = {}, layout = "stacked", showHeader = true }) 
   );
 
   return (
+<<<<<<< HEAD
     <div className={`bg-white p-4 rounded-lg border shadow-sm h-full flex flex-col gap-4 ${layout === 'minimize' ? 'max-w-2xl' : ''}`}>
+=======
+    <div className={`bg-white p-3 rounded-lg border shadow-sm h-full flex flex-col gap-3 ${layout === 'minimize' ? 'max-w-2xl' : ''}`}>
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
       {showHeader && (
         <h3 className="text-[10px] font-bold text-slate-500 tracking-widest border-b pb-2 uppercase">
           Registration Information

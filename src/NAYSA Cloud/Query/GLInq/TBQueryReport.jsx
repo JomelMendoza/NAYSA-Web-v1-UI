@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // import React from "react";
 // import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 // import { faBalanceScale } from "@fortawesome/free-solid-svg-icons";
@@ -67,6 +68,8 @@
 
 // export default TBQueryReport;
 
+=======
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 
 
 import React from "react";

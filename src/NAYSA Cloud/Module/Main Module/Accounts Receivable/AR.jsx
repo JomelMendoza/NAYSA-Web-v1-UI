@@ -1,6 +1,7 @@
 import { useState, useEffect,useRef,useCallback } from "react";
 import Swal from 'sweetalert2';
-import { useNavigate } from "react-router-dom";
+import { useNavigate,useLocation  } from "react-router-dom";
+
 
 // UI
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -48,7 +49,6 @@ import {
   useTopHSOption,
   useTopCompanyRow,
   useTopDocControlRow,
-  useTopDocDropDown,
   useTopBankMastRow,
 } from '@/NAYSA Cloud/Global/top1RefTable';
 
@@ -73,6 +73,8 @@ import {
   useUpdateRowEditEntries,
   useFetchTranData,
   useHandleCancel,
+  useFieldLenghtCheck,
+  useGetFieldLength,
 } from '@/NAYSA Cloud/Global/procedure';
 
 
@@ -85,8 +87,11 @@ import {
   formatNumber,
   parseFormattedNumber,
   useSwalshowSaveSuccessDialog,
+  useSwalvalidateRequiredFields
 } from '@/NAYSA Cloud/Global/behavior';
 
+
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
 // Header
 import Header from '@/NAYSA Cloud/Components/Header';
@@ -94,16 +99,31 @@ import { faAdd } from "@fortawesome/free-solid-svg-icons/faAdd";
 
 
 const AR = () => {
+
    const loadedFromUrlRef = useRef(false);
-   const navigate = useNavigate();
-   const [topTab, setTopTab] = useState("details"); // "details" | "history"
-   const { resetFlag } = useReset();
-   const { user } = useAuth();
-   const [state, setState] = useState({
+  const navigate = useNavigate();
+  const location = useLocation(); 
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded } = useAuth();
+  const [isViewDocument, setIsViewDocument] = useState(false);
+  useEffect(() => {
+    const p = new URLSearchParams(location.search);
+    if (p.get("viewDocument") === "true") {
+      setIsViewDocument(true);
+    }
+    }, []); 
+  const isViewDocumentUrl = isViewDocument;
+
+
+
+  const [topTab, setTopTab] = useState("details"); // "details" | "history"
+  const { user } = useAuth();
+  const { resetFlag } = useReset();
+  const [state, setState] = useState({
+
 
     // HS Option
     glCurrMode:"M",
-    glCurrDefault:"PHP",
+    glCurrDefault:companyInfo?.currCode||"",
     withCurr2:false,
     withCurr3:false,
     glCurrGlobal1:"",
@@ -136,9 +156,9 @@ const AR = () => {
     isFetchDisabled: false,
 
 
-
-    branchCode: "HO",
-    branchName: "Head Office",
+    branchCode: currentUserRow?.branchCode||"",
+    branchName: currentUserRow?.branchName||"",
+    
     
     // Vendor information
     custCode: "",
@@ -148,13 +168,14 @@ const AR = () => {
 
     
     // Currency information
-    currCode: "",
-    currName: "",
-    currRate: "",
-    defaultCurrRate:"1.000000",
+    currCode: companyInfo?.currCode||"",
+    currName: companyInfo?.currName||"",
+    currRate: formatNumber(companyInfo?.currRate||1,6),
+    defaultCurrRate:formatNumber(companyInfo?.currRate||1,6),
 
 
     //Other Header Info
+    tblFieldArray :[],
     prcNo:"",
     arTypes :[],
     paymentTypes:[],
@@ -175,7 +196,8 @@ const AR = () => {
     selectedPayType : "AR01",
     selectedCheckType:"AR21",
 
-    userCode: user.USER_CODE, 
+    userCode: currentUserRow?.userCode||"", 
+
 
     //Detail 1-2
     detailRows  :[],
@@ -291,6 +313,7 @@ const AR = () => {
 
 
   // Transaction details
+  tblFieldArray,
   detailRows,
   detailRowsGL,
   globalLookupRow,
@@ -349,7 +372,7 @@ const AR = () => {
     CLOSED: "global-tran-stat-text-closed-ui",
   };
   const statusColor = statusMap[displayStatus] || "";
-  const isFormDisabled = ["FINALIZED", "CANCELLED", "CLOSED"].includes(displayStatus);
+  const isFormDisabled = isViewDocumentUrl || ["FINALIZED", "CANCELLED", "CLOSED"].includes(displayStatus);
   
 
   //Variables
@@ -443,11 +466,16 @@ useEffect(() => {
 
 
 
-  useEffect(() => {
-    handleReset();
-    loadCompanyData(); 
-  }, []);
+ 
+const isInitialMount = useRef(true);
 
+useEffect(() => {
+  if (isInitialMount.current) {
+    handleReset();
+    loadCompanyData();
+    isInitialMount.current = false;
+  }
+}, []);
 
   
     useEffect(() => {
@@ -459,18 +487,6 @@ useEffect(() => {
     }, []);
   
   
-  
-
-
-  const LoadingSpinner = () => (
-    <div className="global-tran-spinner-main-div-ui">
-      <div className="global-tran-spinner-sub-div-ui">
-        <FontAwesomeIcon icon={faSpinner} spin size="2x" className="text-blue-500 mb-2" />
-        <p>Please wait...</p>
-      </div>
-    </div>
-  );
-
 
   
 
@@ -489,20 +505,58 @@ useEffect(() => {
   };
 
 
+useEffect(() => {
+  if (!refsLoaded) return;
+
+  // Fetch all dropdown data synchronously
+  const crTran = getAllDropDown("ARTRAN_TYPE", docType);
+  const crType = getAllDropDown("AR_TYPE", docType);
+  const crCheck = getAllDropDown("ARCHECK_TYPE", docType);
+
+  // Initialize an object to batch updates
+  const updates = {};
+
+  if (crTran.length > 0) {
+    updates.arTypes = crTran;
+    updates.selectedARType = "AR11";
+  }
+
+  if (crType.length > 0) {
+    updates.paymentTypes = crType;
+    updates.selectedPayType = "AR01";
+  }
+
+  if (crCheck.length > 0) {
+    updates.checkTypes = crCheck;
+    updates.selectedCheckType = "AR21";
+  }
+
+  // Only trigger updateState if we found valid data
+  if (Object.keys(updates).length > 0) {
+    updateState(updates);
+  }
+}, [docType, refsLoaded]);
+
+
 
   const handleReset = () => { 
       updateState({
 
-      branchCode: "HO",
-      branchName: "Head Office",
-      userCode: user.USER_CODE, 
+      branchCode: currentUserRow?.branchCode||"",
+      branchName: currentUserRow?.branchName||"",
+      userCode:currentUserRow?.userCode||"",
       documentDate:useGetCurrentDay(),
+      currCode:companyInfo?.currCode||"",
+      currName:companyInfo?.currName||"",
+      currRate:formatNumber(companyInfo?.currRate||1,6) ,
       
       refDocNo1: "",
       refDocNo2:"",
       checkDate:null,
       remarks:"",
-
+      checkNo:"",
+      bank:"",
+      
       custName:"",
       custCode:"",
       chainCode:"",
@@ -536,24 +590,7 @@ useEffect(() => {
     updateState({isLoading:true})
 
     try {
-      // 🔹 1. Run these in parallel since they don’t depend on each other
-      const [crTran, crType, crCheck] = await Promise.all([
-        useTopDocDropDown(docType, "ARTRAN_TYPE"),
-        useTopDocDropDown(docType, "AR_TYPE"),
-        useTopDocDropDown(docType, "ARCHECK_TYPE"),
-      ]);
-
-      if (crTran) {
-        updateState({ arTypes: crTran, selectedARType: "AR11" });
-      }
-      if (crType) {
-        updateState({ paymentTypes: crType, selectedPayType: "AR01" });
-      }
-      if (crCheck) {
-        updateState({ checkTypes: crCheck, selectedCheckType: "AR21" });
-      }
-
-
+    
 
       // 🔹 2. Document row (independent)
       const docRow = await useTopDocControlRow(docType);
@@ -604,6 +641,18 @@ useEffect(() => {
           });
         }
       }
+
+
+  
+     const tbls = 'ar_hd,ar_dt1,ar_dt2'
+     const hdtblcol_result = await useFieldLenghtCheck(tbls);
+     if (hdtblcol_result){
+       updateState({tblFieldArray :hdtblcol_result })
+     }
+        
+
+
+
     } catch (err) {
       console.error("Error fetching data:", err);
     }
@@ -691,10 +740,14 @@ const fetchTranData = async (documentNo, branchCode,direction="") => {
       documentID: data.arId,
       documentNo: data.arNo,
       branchCode: data.branchCode,
+      branchName: data.branchName,
       documentDate: useFormatToDate(data.arDate),
       selectedARType: data.artranType,
       selectedPayType:data.paymentType,
       selectedCheckType:data.ckType,
+      depBankCode:data.depBankCode,
+      depAcctName:data.depAcctName,
+      depAcctNo:data.depAcctNo,
       chainCode: data.chainCode,
       chainName: data.chainName,
       custCode: data.custCode,
@@ -925,6 +978,16 @@ const handleCurrRateNoBlur = (e) => {
 
 
   const handleAddRow = async () => {
+ 
+
+ const fieldsToCheck = {
+          "Header : Customer or Chain": custCode || chainCode,
+        };
+        const isValid = useSwalvalidateRequiredFields(fieldsToCheck, "Add Invoice");
+        if (!isValid) return;
+    
+    
+
 
     if(selectedARType ==="AR11" ) {
       await handleOpenARBalance();
@@ -1125,33 +1188,36 @@ const handleCopy = async () => {
 
 
 
-   
-   //  ** View Document and Transaction History Retrieval ***
-    const cleanUrl = useCallback(() => {
-       navigate(location.pathname, { replace: true });
-     }, [navigate, location.pathname]);
-   
-   
-     const handleHistoryRowPick = useCallback((row) => {
-       const docNo = row?.docNo;
-       const branchCode = row?.branchCode;
-       if (!docNo || !branchCode) return;
-       fetchTranData(docNo, branchCode);
-       setTopTab("details");
-     });
-   
-   
-     useEffect(() => {
-       const params = new URLSearchParams(location.search);
-       const docNo = params.get("arNo");         
-       const branchCode = params.get("branchCode");    
-       
-       if (!loadedFromUrlRef.current && docNo && branchCode) {
-         loadedFromUrlRef.current = true;
-         handleHistoryRowPick({ docNo, branchCode });
-         cleanUrl();
-       }
-     }, [location.search, handleHistoryRowPick, cleanUrl]);
+     
+//  ** View Document and Transaction History Retrieval ***
+const cleanUrl = useCallback(() => {
+  window.history.replaceState({}, "", window.location.origin);
+}, []);
+
+const handleHistoryRowPick = useCallback(
+  async (row) => {
+    const docNo = row?.docNo;
+    const branchCode = row?.branchCode;
+    if (!docNo || !branchCode) return;
+
+    await fetchTranData(docNo, branchCode); 
+    setTopTab("details");
+    cleanUrl(); // 
+  },
+  [fetchTranData, cleanUrl]
+);
+
+
+useEffect(() => {
+  const params = new URLSearchParams(location.search);
+  const docNo = params.get("arNo");
+  const branchCode = params.get("branchCode");
+
+  if (!loadedFromUrlRef.current && docNo && branchCode) {
+    loadedFromUrlRef.current = true;
+    handleHistoryRowPick({ docNo, branchCode });
+  }
+}, [location.search, handleHistoryRowPick]);
    
 
 
@@ -1901,6 +1967,7 @@ const handleCloseBranchModal = (selectedBranch) => {
               activeTopTab={topTab} 
               showActions={topTab === "details"} 
               showBIRForm={false}      
+              isViewDocument={isViewDocument}  
               onDetails={() => setTopTab("details")}
               onHistory={() => setTopTab("history")}
               disableRouteNavigation={true}         
@@ -1910,44 +1977,39 @@ const handleCloseBranchModal = (selectedBranch) => {
             />
       </div>
 
-  <div className={topTab === "details" ? "" : "hidden"}>
+      <div className={topTab === "details" ? "" : "hidden"}>
 
+        
           {/* Page title and subheading */} 
-
-          {/* Header Section */}
-          <div className="global-tran-header-ui">
-
-            <div className="global-tran-headertext-div-ui">
+          <div className={`global-tran-header-ui ${isViewDocument ? "max-md:!mt-12 max-md:!pt-2 max-md:!pb-2" : ""}`}>
+            <div className={`global-tran-headertext-div-ui ${isViewDocument ? "max-md:!mb-1" : ""}`}>
               <h1 className="global-tran-headertext-ui">{documentTitle}</h1>
             </div>
-
-            <div className="global-tran-headerstat-div-ui">
+            <div className={`global-tran-headerstat-div-ui ${isViewDocument ? "max-md:!mt-0" : ""}`}>
               <div>
                 <p className="global-tran-headerstat-text-ui">Transaction Status</p>
                 <h1 className={`global-tran-stat-text-ui ${statusColor}`}>{displayStatus}</h1>
               </div>
             </div>
-
           </div>
 
-
-    {/* Form Layout with Tabs */}
-    <div className="global-tran-header-div-ui">
-
-        {/* Tab Navigation */}
-        <div className="global-tran-header-tab-div-ui">
-            <button
+          {/* Form Layout with Tabs */}
+          <div className={`global-tran-header-div-ui ${isViewDocument ? "max-md:!mt-10 max-md:!pt-0 max-md:!pb-0" : ""}`}>
+            {/* Tab Navigation */}
+            <div className={`global-tran-header-tab-div-ui ${isViewDocument ? "max-md:!mt-0 max-md:!pt-0 max-md:!pb-4 max-md:!mb-4 max-md:!justify-start max-md:!text-left" : ""}`}>
+              <button
                 className={`global-tran-tab-padding-ui ${
-                    activeTab === 'basic'
-                    ? 'global-tran-tab-text_active-ui'
-                    : 'global-tran-tab-text_inactive-ui'
+                  activeTab === "basic"
+                    ? "global-tran-tab-text_active-ui"
+                    : "global-tran-tab-text_inactive-ui"
                 }`}
-                onClick={() => setActiveTab('basic')}
-            >
+                onClick={() => setActiveTab("basic")}
+              >
                 Basic Information
-            </button>
-            {/* Provision for Other Tabs */}
-        </div>
+              </button>
+              {/* Provision for Other Tabs */}
+            </div>
+                  
 
         {/* SVI Header Form Section - Main Grid Container */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 rounded-lg relative items-stretch" id="svi_hd">
@@ -2095,7 +2157,7 @@ const handleCloseBranchModal = (selectedBranch) => {
 
                     {/* Customer Name Display - Make this wider */}
                     <div className="relative w-full md:w-6/6 lg:w-4/4"> {/* Added width classes here */}
-                        <input type="text" id="chainName" placeholder=" " value={chainName} className="peer global-tran-textbox-ui"/>
+                        <input type="text" id="chainName" placeholder=" " value={chainName} readOnly className="peer global-tran-textbox-ui"/>
                         <label htmlFor="chainName"className="global-tran-floating-label">
                             <span className="global-tran-asterisk-ui"> * </span>Chain Name
                         </label>
@@ -2131,7 +2193,7 @@ const handleCloseBranchModal = (selectedBranch) => {
 
                     {/* Customer Name Display - Make this wider */}
                     <div className="relative w-full md:w-6/6 lg:w-4/4"> {/* Added width classes here */}
-                        <input type="text" id="custName" placeholder=" " value={custName} className="peer global-tran-textbox-ui"/>
+                        <input type="text" id="custName" placeholder=" " value={custName} readOnly className="peer global-tran-textbox-ui"/>
                         <label htmlFor="custName"className="global-tran-floating-label">
                             <span className="global-tran-asterisk-ui"> * </span>Customer Name
                         </label>
@@ -2287,6 +2349,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                             className="peer global-tran-textbox-remarks-ui pt-2"
                             value={remarks}
                             onChange={(e) => updateState({ remarks: e.target.value })}
+                            maxLength={useGetFieldLength(tblFieldArray, "remarks")} 
                             disabled={isFormDisabled} 
                         />
                         <label
@@ -2395,6 +2458,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                               value={checkNo} placeholder=" " 
                               onChange={(e) => updateState({ checkNo: e.target.value })} 
                               className="peer global-tran-textbox-ui " 
+                              maxLength={useGetFieldLength(tblFieldArray, "check_no")} 
                               disabled={handleFieldBehavior("disableOnNonCheckPay")} 
                           />
                         <label htmlFor="checkNo" className="global-tran-floating-label">Check No</label>
@@ -2417,6 +2481,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                               value={bank} 
                               placeholder=" " 
                               onChange={(e) => updateState({ bank: e.target.value })} 
+                              maxLength={useGetFieldLength(tblFieldArray, "bank")} 
                               className="peer global-tran-textbox-ui " 
                               disabled={handleFieldBehavior("disableOnNonCheckPay")}  
                             />
@@ -2428,6 +2493,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                               value={refDocNo1} 
                               placeholder=" " 
                               onChange={(e) => updateState({ refDocNo1: e.target.value })} 
+                              maxLength={useGetFieldLength(tblFieldArray, "refar_no1")} 
                               className="peer global-tran-textbox-ui " 
                               disabled={isFormDisabled} />
                         <label htmlFor="refDocNo1" className="global-tran-floating-label">Ref Doc No. 1</label>
@@ -2439,6 +2505,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                               value={refDocNo2} 
                               placeholder=" " 
                               onChange={(e) => updateState({ refDocNo2: e.target.value })}  
+                              maxLength={useGetFieldLength(tblFieldArray, "refar_no2")} 
                               className="peer global-tran-textbox-ui" 
                               disabled={isFormDisabled} />
                         <label htmlFor="refDocNo2" className="global-tran-floating-label">Ref Doc No. 2</label>
@@ -2544,10 +2611,13 @@ const handleCloseBranchModal = (selectedBranch) => {
 
               
               {/* With 2307 */}
-              <td className="global-tran-td-ui" hidden={handleFieldBehavior("hiddenDetailAdvaces")} >
+             <td className="global-tran-td-ui" hidden={handleFieldBehavior("hiddenDetailAdvaces")} >
                               <select
                                 className="w-[50px] global-tran-td-inputclass-ui"
-                                value={""}
+                                value={row.w2307 || ""}
+                                disabled={isFormDisabled}
+                                onChange={(e) => handleDetailChange(index, 'w2307', e.target.value)}
+                               
                               >
                                 <option value=""></option>
                                 <option value="Y">Yes</option>
@@ -2562,7 +2632,8 @@ const handleCloseBranchModal = (selectedBranch) => {
                     className="w-[100px] global-tran-td-inputclass-ui"
                     value={row.siNo || ""}
                     onChange={(e) => handleDetailChange(index, 'siNo', e.target.value)}
-                    readOnly={row.groupId !== null && row.groupId !== ""}
+                    maxLength={useGetFieldLength(tblFieldArray, "si_no")} 
+                    readOnly={(row.groupId !== null && row.groupId !== "") || isFormDisabled}
                   />
                 </td>
                 
@@ -2574,7 +2645,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                       className="w-[100px] global-tran-td-inputclass-ui"
                       value={row.siDate || ""}
                       onChange={(e) => handleDetailChange(index, 'siDate', e.target.value)}
-                      readOnly={row.groupId !== null && row.groupId !== ""}
+                      readOnly={(row.groupId !== null && row.groupId !== "") || isFormDisabled}
                     />
                 </td>
 
@@ -2586,7 +2657,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                     type="text"
                     className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
                     value={formatNumber(parseFormattedNumber(row.siAmount)) || formatNumber(parseFormattedNumber(row.siAmount)) || ""}
-                    readOnly={row.groupId !== null && row.groupId !== ""}
+                    readOnly={(row.groupId !== null && row.groupId !== "") || isFormDisabled}
                   />
                 </td>
 
@@ -2598,6 +2669,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                         type="text"
                         className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
                         value={row.appliedAmount || ""}
+                        disabled={isFormDisabled} 
                         // onChange={(e) => {
                         //     const inputValue = e.target.value;
                         //     const sanitizedValue = inputValue.replace(/[^0-9.]/g, '');
@@ -2763,6 +2835,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                   <input
                     type="text"
                     className="w-[100px] global-tran-td-inputclass-ui"
+                    disabled={isFormDisabled} 
                     value={row.bank || ""}
                     onChange={(e) => handleDetailChange(index, 'bank', e.target.value)}
                   />
@@ -2775,6 +2848,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                   <input
                     type="text"
                     className="w-[100px] global-tran-td-inputclass-ui"
+                    disabled={isFormDisabled} 
                     value={row.checkNo || ""}
                     onChange={(e) => handleDetailChange(index, 'checkNo', e.target.value)}
                   />
@@ -2788,6 +2862,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                       type="date"
                       className="w-[100px] global-tran-td-inputclass-ui"
                       value={row.checkDate || ""}
+                      disabled={isFormDisabled} 
                       onChange={(e) => handleDetailChangeGL(index, 'checkDate', e.target.value)}
                     />
                 </td>
@@ -3155,6 +3230,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                             type="text"
                             className="w-[300px] global-tran-td-inputclass-ui"
                             value={row.particular || ""}
+                            readOnly
                             onChange={(e) => handleDetailChange(index, 'particular', e.target.value)}
                           />
                     </td>
@@ -3232,6 +3308,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                       type="text"
                       className="w-[200px] global-tran-td-inputclass-ui"
                       value={row.atcName || ""}
+                      readOnly
                       onChange={(e) => handleDetailChange(index, 'atcName', e.target.value)}
                     />
                   </td>
@@ -3244,6 +3321,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                       type="text"
                       className="w-[120px] global-tran-td-inputclass-ui text-right"
                       value={row.debit || ""}
+                      disabled={isFormDisabled} 
                       onChange={(e) => {
                             const inputValue = e.target.value;
                             const sanitizedValue = inputValue.replace(/[^0-9.]/g, '');
@@ -3272,6 +3350,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                       type="text"
                       className="w-[120px] global-tran-td-inputclass-ui text-right"
                       value={row.credit || ""}
+                      disabled={isFormDisabled} 
                       onChange={(e) => {
                             const inputValue = e.target.value;
                             const sanitizedValue = inputValue.replace(/[^0-9.]/g, '');
@@ -3298,6 +3377,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                       type="text"
                       className="w-[120px] global-tran-td-inputclass-ui text-right"
                       value={row.debitFx1 || ""}
+                      disabled={isFormDisabled} 
                       onChange={(e) => {
                             const inputValue = e.target.value;
                             const sanitizedValue = inputValue.replace(/[^0-9.]/g, '');
@@ -3323,6 +3403,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                       type="text"
                       className="w-[120px] global-tran-td-inputclass-ui text-right"
                       value={row.creditFx1 || ""}
+                      disabled={isFormDisabled} 
                       onChange={(e) => {
                             const inputValue = e.target.value;
                             const sanitizedValue = inputValue.replace(/[^0-9.]/g, '');
@@ -3349,6 +3430,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                       type="text"
                       className="w-[120px] global-tran-td-inputclass-ui text-right"
                       value={row.debitFx2 || ""}
+                      disabled={isFormDisabled} 
                       onChange={(e) => {
                             const inputValue = e.target.value;
                             const sanitizedValue = inputValue.replace(/[^0-9.]/g, '');
@@ -3374,6 +3456,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                       type="text"
                       className="w-[120px] global-tran-td-inputclass-ui text-right"
                       value={row.creditFx2 || ""}
+                      disabled={isFormDisabled} 
                       onChange={(e) => {
                             const inputValue = e.target.value;
                             const sanitizedValue = inputValue.replace(/[^0-9.]/g, '');
@@ -3399,7 +3482,8 @@ const handleCloseBranchModal = (selectedBranch) => {
                       type="text"
                       className="w-[100px] global-tran-td-inputclass-ui"
                       value={row.slRefNo || ""}
-                      maxLength={25}
+                      maxLength={useGetFieldLength(tblFieldArray, "slref_no")}
+                      disabled={isFormDisabled} 
                       onChange={(e) => handleDetailChangeGL(index, 'slRefNo', e.target.value)}
                     />
                   </td>
@@ -3408,6 +3492,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                       type="date"
                       className="w-[100px] global-tran-td-inputclass-ui"
                       value={row.slRefDate || ""}
+                       disabled={isFormDisabled} 
                       onChange={(e) => handleDetailChangeGL(index, 'slRefDate', e.target.value)}
                     />
 
@@ -3417,6 +3502,8 @@ const handleCloseBranchModal = (selectedBranch) => {
                       type="text"
                       className="w-[100px] global-tran-td-inputclass-ui"
                       value={row.remarks || ""}
+                      disabled={isFormDisabled}
+                      maxLength={useGetFieldLength(tblFieldArray, "remarks")}  
                       onChange={(e) => handleDetailChangeGL(index, 'remarks', e.target.value)}
                     />
                 </td>
@@ -3697,26 +3784,27 @@ const handleCloseBranchModal = (selectedBranch) => {
 
 
   <div className={topTab === "history" ? "" : "hidden"}>
-      <AllTranHistory
-        showHeader={false}
-        endpoint="/getARHistory"
-        cacheKey={`AR:${state.branchCode || ""}:${state.docNo || ""}`}  // ✅ per-transaction
-        activeTabKey="AR_Summary"
-        branchCode={state.branchCode}
-        startDate={state.fromDate}
-        endDate={state.toDate}
-        status={(() => {
-            const s = (state.status || "").toUpperCase();
-            if (s === "FINALIZED") return "F";
-            if (s === "CANCELLED") return "X";
-            if (s === "CLOSED")    return "C";
-            if (s === "OPEN")      return "";
-            return "All";
-          })()}
-          onRowDoubleClick={handleHistoryRowPick}
-          historyExportName={`${documentTitle} History`} 
-    />
-  </div>
+  <AllTranHistory
+    showHeader={false}
+    isActive={topTab === "history"}
+    endpoint="/getARHistory"
+    cacheKey={`AR:${state.branchCode || ""}:${state.fromDate || ""}:${state.toDate || ""}`}
+    activeTabKey="AR_Summary"
+    branchCode={state.branchCode}
+    startDate={state.fromDate}
+    endDate={state.toDate}
+    status={(() => {
+      const s = (state.status || "").toUpperCase();
+      if (s === "FINALIZED") return "F";
+      if (s === "CANCELLED") return "X";
+      if (s === "CLOSED") return "C";
+      if (s === "OPEN") return "";
+      return "All";
+    })()}
+    onRowDoubleClick={handleHistoryRowPick}
+    historyExportName={`${documentTitle} History`}
+  />
+</div>
 
 
 </div>

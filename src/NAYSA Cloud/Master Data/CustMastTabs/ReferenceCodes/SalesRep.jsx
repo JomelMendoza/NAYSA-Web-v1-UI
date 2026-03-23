@@ -12,7 +12,11 @@ import {
   useSwalValidationAlert, 
   useSwalDeleteRecord, 
   useSwalshowSave 
+<<<<<<< HEAD
 } from "@/NAYSA Cloud/Global/behavior";
+=======
+} from "@/NAYSA Cloud/Global/behavior.jsx";
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 import Swal from "sweetalert2";
  
 // Helper function to extract rows from response

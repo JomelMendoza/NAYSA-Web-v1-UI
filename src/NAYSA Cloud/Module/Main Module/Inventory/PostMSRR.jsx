@@ -3,7 +3,7 @@ import { fetchDataJson } from "../../../Configuration/BaseURL.jsx";
 import { useSelectedHSColConfig } from "@/NAYSA Cloud/Global/selectedData";
 import GlobalGLPostingModalv1 from "../../../Lookup/SearchGlobalGLPostingv1.jsx";
 import { useHandlePostTran } from '@/NAYSA Cloud/Global/procedure';
-import { useSwalValidationAlert } from "@/NAYSA Cloud/Global/behavior";
+import { useSwalValidationAlert } from "@/NAYSA Cloud/Global/behavior.jsx";
 import ReactDOM from "react-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSpinner } from "@fortawesome/free-solid-svg-icons";

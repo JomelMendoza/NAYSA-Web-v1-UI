@@ -638,6 +638,7 @@ const CustSetupTab = forwardRef(
                     disabled={true}
                   />
                 </div>
+<<<<<<< HEAD
 
                 <div className="mt-6">
                   <SectionHeader title="PRINTING INFORMATION" />
@@ -710,6 +711,8 @@ const CustSetupTab = forwardRef(
                     disabled={isDisabled}
                   />
                 </div>
+=======
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
               </>
             )}
 
@@ -774,8 +777,13 @@ const CustSetupTab = forwardRef(
                   />
                 </div>
 
+<<<<<<< HEAD
                 <div className="mt-6">
                   <SectionHeader title="SHIPMENT INFORMATION" />
+=======
+                {/* <div className="mt-6">
+                  <SectionHeader title="SUPPLEMENTARY INFORMATION" />
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
                 </div>
 
                 <div className="space-y-3">
@@ -832,8 +840,13 @@ const CustSetupTab = forwardRef(
                     }
                     readOnly={isReadOnly}
                     disabled={isDisabled}
+<<<<<<< HEAD
                   />
                 </div>
+=======
+                  /> */}
+                {/* </div> */}
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
               </>
             )}
           </Card>

@@ -21,6 +21,7 @@ const COAMastLookupModal = ({ isOpen, onClose, source, customParam }) => {
     const [filters, setFilters] = useState({ acctCode: '', acctName: '', acctBalance: '', reqSL: '', reqRC: '' });
     const [sortConfig, setSortConfig] = useState({ key: '', direction: 'asc' });
     const [currentPage, setCurrentPage] = useState(1);
+<<<<<<< HEAD
     const pageSize = 50;
 
     const hasActiveFilters = Object.values(filters).some(val => val !== '');
@@ -28,6 +29,15 @@ const COAMastLookupModal = ({ isOpen, onClose, source, customParam }) => {
 
     const debouncedFilters = useDebounce(filters, 300);
 
+=======
+    const pageSize = 1000;
+
+    const hasActiveFilters = Object.values(filters).some(val => val !== '');
+    const resetFilters = () => setFilters({ acctCode: '', acctName: '', acctBalance: '', reqSL: '', reqRC: '' });
+
+    const debouncedFilters = useDebounce(filters, 300);
+ 
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
     useEffect(() => {
         setCurrentPage(1);
     }, [debouncedFilters]);
@@ -114,10 +124,17 @@ const COAMastLookupModal = ({ isOpen, onClose, source, customParam }) => {
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[75vh] flex flex-col relative overflow-hidden transform animate-scale-in border border-slate-200">
                 
                 {/* Header */}
+<<<<<<< HEAD
                 <div className="flex items-center justify-between p-4  border-b bg-slate-100">
                     <div className="flex items-center gap-3">
                         <div className="relative">
                             <h2 className="text-sm font-bold text-slate-800 uppercase tracking-tight">Chart of Accounts</h2>
+=======
+                <div className="flex items-center justify-between p-2  border-b bg-slate-100">
+                    <div className="flex items-center gap-3">
+                        <div className="relative">
+                            <h2 className="text-md font-bold text-blue-800 tracking-tight propercase pl-2">Select Chart of Accounts</h2>
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
                             <div className="absolute -top-1 -right-4 flex h-2 w-2">
                                 <span className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 ${isFetching ? 'block' : 'hidden'}`}></span>
                                 <span className={`relative inline-flex rounded-full h-2 w-2 bg-blue-500 ${isFetching ? 'block' : 'hidden'}`}></span>
@@ -155,6 +172,7 @@ const COAMastLookupModal = ({ isOpen, onClose, source, customParam }) => {
                             <thead className="sticky top-0 z-10 bg-slate-200">
                                 <tr>
                                     {[
+<<<<<<< HEAD
                                         { label: 'Account Code', key: 'acctCode' },
                                         { label: 'Account Name', key: 'acctName' },
                                         { label: 'Balance', key: 'acctBalance' },
@@ -164,6 +182,17 @@ const COAMastLookupModal = ({ isOpen, onClose, source, customParam }) => {
                                         <th key={col.key} className="px-4 py-3 text-left border-b border-slate-200">
                                             <div onClick={() => handleSort(col.key)} className="flex items-center gap-1 cursor-pointer group mb-1.5">
                                                 <label className="text-[12px] font-black text-slate-500 uppercase tracking-wider cursor-pointer group-hover:text-blue-600 transition-colors">
+=======
+                                        { label: 'Account Code', key: 'acctCode', className: 'block text-[12px] font-bold text-slate-600 propercase mb-1'},
+                                        { label: 'Account Name', key: 'acctName', className: 'block text-[12px] font-bold text-slate-600 propercase mb-1' },
+                                        { label: 'Balance', key: 'acctBalance', className: 'block text-[12px] font-bold text-slate-600 propercase mb-1' },
+                                        { label: 'Required SL?', key: 'reqSL', className: 'block text-[12px] font-bold text-slate-600 propercase mb-1' },
+                                        { label: 'Required RC?', key: 'reqRC', className: 'block text-[12px] font-bold text-slate-600 propercase mb-1' }
+                                    ].map((col) => (
+                                        <th key={col.key} className="px-4 py-2 text-left border-b border-slate-200">
+                                            <div onClick={() => handleSort(col.key)} className="flex items-center gap-1 cursor-pointer group mb-1.5">
+                                                <label className="block text-[12px] font-bold text-slate-600 propercase mb-1">
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
                                                     {col.label}
                                                 </label>
                                                 <FontAwesomeIcon 
@@ -225,6 +254,7 @@ const COAMastLookupModal = ({ isOpen, onClose, source, customParam }) => {
                         )}
                     </div>
                     
+<<<<<<< HEAD
                     {totalPages > 1 && (
                         <div className="flex items-center gap-2">
                             <button 
@@ -246,6 +276,9 @@ const COAMastLookupModal = ({ isOpen, onClose, source, customParam }) => {
                             </button>
                         </div>
                     )}
+=======
+                    
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
                 </div>
             </div>
         </div>

@@ -4,7 +4,7 @@ import { useNavigate,useLocation  } from "react-router-dom";
 
 // UI
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faMagnifyingGlass, faPlus, faMinus, faTrashAlt, faFolderOpen, faSpinner } from "@fortawesome/free-solid-svg-icons";
+import { faMagnifyingGlass, faPlus, faMinus, faTrashAlt, faFolderOpen, faSpinner,faSearch } from "@fortawesome/free-solid-svg-icons";
 
 // Lookup/Modal
 import BranchLookupModal from "../../../Lookup/SearchBranchRef";
@@ -47,7 +47,6 @@ import {
   useTopCurrencyRow,
   useTopHSOption,
   useTopDocControlRow,
-  useTopDocDropDown,
   useTopVatAmount,
   useTopATCAmount,
   useTopBillCodeRow,
@@ -78,6 +77,7 @@ import {
   formatNumber,
   parseFormattedNumber,
   useSwalshowSaveSuccessDialog,
+  useSwalHandleOpenSpecsModal
 } from '@/NAYSA Cloud/Global/behavior';
 
 
@@ -95,7 +95,7 @@ const SVI = () => {
   const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation(); 
-  const { companyInfo, currentUserRow } = useAuth();
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded } = useAuth();
   const [isViewDocument, setIsViewDocument] = useState(false);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
@@ -103,6 +103,7 @@ const SVI = () => {
       setIsViewDocument(true);
     }
     }, []); 
+    
   const isViewDocumentUrl = isViewDocument;
 
 
@@ -115,7 +116,7 @@ const SVI = () => {
 
     // HS Option
     glCurrMode:"M",
-    glCurrDefault:companyInfo.currCode,
+    glCurrDefault:companyInfo?.currCode||"",
     withCurr2:false,
     withCurr3:false,
     glCurrGlobal1:"",
@@ -149,8 +150,8 @@ const SVI = () => {
 
 
 
-    branchCode: currentUserRow.branchCode,
-    branchName: currentUserRow.branchName,
+    branchCode: currentUserRow?.branchCode||"",
+    branchName: currentUserRow?.branchName||"",
     
     // Vendor information
     custCode: "",
@@ -158,10 +159,10 @@ const SVI = () => {
     attention: "",
     
     // Currency information
-    currCode: companyInfo.currCode,
-    currName: companyInfo.currName,
-    currRate: formatNumber(companyInfo.currRate,6),
-    defaultCurrRate:formatNumber(companyInfo.currRate,6),
+    currCode: companyInfo?.currCode||"",
+    currName: companyInfo?.currName||"",
+    currRate: formatNumber(companyInfo?.currRate||1,6),
+    defaultCurrRate:formatNumber(companyInfo?.currRate||1,6),
 
 
     //Other Header Info
@@ -175,7 +176,7 @@ const SVI = () => {
     billtermCode: "",
     billtermName: "",
     selectedSVIType : "REG",
-    userCode: currentUserRow.userCode, 
+    userCode: currentUserRow?.userCode||"", 
 
     //Detail 1-2
     detailRows  :[],
@@ -455,10 +456,15 @@ useEffect(() => {
 
 
 
-  useEffect(() => {
-    loadCompanyData();
+const isInitialMount = useRef(true);
+
+useEffect(() => {
+  if (isInitialMount.current) {
     handleReset();
-  }, []);
+    loadCompanyData();
+    isInitialMount.current = false;
+  }
+}, []);
 
 
 
@@ -472,21 +478,31 @@ useEffect(() => {
   }, []);
 
 
-
+useEffect(() => {
+    if (!refsLoaded) return; 
+    const filteredTypes = getAllDropDown("SVITRAN_TYPE", docType); 
+    if (filteredTypes.length > 0) {
+      updateState({
+        sviTypes: filteredTypes,
+        selectedSVIType: "REG",
+      });
+    }
+}, [docType, refsLoaded]);
 
 
   
   const handleReset = () => {
 
+   
       updateState({
         
-      branchCode: currentUserRow.branchCode,
-      branchName: currentUserRow.branchName,
-      userCode:currentUserRow.userCode,
+      branchCode: currentUserRow?.branchCode||"",
+      branchName: currentUserRow?.branchName||"",
+      userCode:currentUserRow?.userCode||"",
       documentDate:useGetCurrentDay(),
-      currCode:companyInfo.currCode,
-      currName:companyInfo.currName,
-      currRate:formatNumber(companyInfo.currRate,6) ,
+      currCode:companyInfo?.currCode||"",
+      currName:companyInfo?.currName||"",
+      currRate:formatNumber(companyInfo?.currRate||1,6) ,
       refDocNo1: "",
       refDocNo2:"",
       fromDate:null,
@@ -518,21 +534,24 @@ useEffect(() => {
       updateTotalsDisplay (0, 0, 0, 0, 0, 0)
   };
 
-
+   
 
    const loadCompanyData = async () => {
 
     updateState({isLoading:true})
 
     try {
-      // 🔹 1. Run these in parallel since they don’t depend on each other      
-      const data = await useTopDocDropDown(docType,"SVITRAN_TYPE");
-      if(data){
-        updateState({
-         sviTypes: data,
-         selectedSVIType: "REG",
-          });
-        };   
+
+      
+ 
+    // const filteredTypes = getAllDropDown("SVITRAN_TYPE", docType); 
+    // if (filteredTypes.length > 0) {
+    //   updateState({
+    //     sviTypes: filteredTypes,
+    //     selectedSVIType: "REG",
+    //   });
+    // }
+
 
       // 🔹 2. Document row (independent)
       const docRow = await useTopDocControlRow(docType);
@@ -657,6 +676,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       documentID: data.sviId,
       documentNo: data.sviNo,
       branchCode: data.branchCode,
+      branchName:data.branchName,
       documentDate: useFormatToDate(data.sviDate),
       selectedSVIType: data.svitranType,
       custCode: data.custCode,
@@ -1744,46 +1764,41 @@ return (
       </div>
 
 
-    <div className={topTab === "details" ? "" : "hidden"}>
+      <div className={topTab === "details" ? "" : "hidden"}>
 
 
 
       {/* Page title and subheading */} 
-
-      {/* Header Section */}
-  <div className="global-tran-header-ui">
-
-            <div className="global-tran-headertext-div-ui">
-              <h1 className="global-tran-headertext-ui">{documentTitle}</h1>
-            </div>
-
-            <div className="global-tran-headerstat-div-ui">
-              <div>
-                <p className="global-tran-headerstat-text-ui">Transaction Status</p>
-                <h1 className={`global-tran-stat-text-ui ${statusColor}`}>{displayStatus}</h1>
-              </div>
-            </div>
-
-          </div>
-
-
-    {/* Form Layout with Tabs */}
-    <div className="global-tran-header-div-ui">
-
-        {/* Tab Navigation */}
-        <div className="global-tran-header-tab-div-ui">
-            <button
-                className={`global-tran-tab-padding-ui ${
-                    activeTab === 'basic'
-                    ? 'global-tran-tab-text_active-ui'
-                    : 'global-tran-tab-text_inactive-ui'
-                }`}
-                onClick={() => setActiveTab('basic')}
-            >
-                Basic Information
-            </button>
-            {/* Provision for Other Tabs */}
+      <div className={`global-tran-header-ui ${isViewDocument ? "max-md:!mt-12 max-md:!pt-2 max-md:!pb-2" : ""}`}>
+        <div className={`global-tran-headertext-div-ui ${isViewDocument ? "max-md:!mb-1" : ""}`}>
+          <h1 className="global-tran-headertext-ui">{documentTitle}</h1>
         </div>
+        <div className={`global-tran-headerstat-div-ui ${isViewDocument ? "max-md:!mt-0" : ""}`}>
+          <div>
+            <p className="global-tran-headerstat-text-ui">Transaction Status</p>
+            <h1 className={`global-tran-stat-text-ui ${statusColor}`}>{displayStatus}</h1>
+          </div>
+        </div>
+      </div>
+
+      {/* Form Layout with Tabs */}
+      <div className={`global-tran-header-div-ui ${isViewDocument ? "max-md:!mt-10 max-md:!pt-0 max-md:!pb-0" : ""}`}>
+        {/* Tab Navigation */}
+        <div className={`global-tran-header-tab-div-ui ${isViewDocument ? "max-md:!mt-0 max-md:!pt-0 max-md:!pb-4 max-md:!mb-4 max-md:!justify-start max-md:!text-left" : ""}`}>
+          <button
+            className={`global-tran-tab-padding-ui ${
+              activeTab === "basic"
+                ? "global-tran-tab-text_active-ui"
+                : "global-tran-tab-text_inactive-ui"
+            }`}
+            onClick={() => setActiveTab("basic")}
+          >
+            Basic Information
+          </button>
+          {/* Provision for Other Tabs */}
+        </div>
+              
+        
 
         {/* SVI Header Form Section - Main Grid Container */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 rounded-lg relative" id="svi_hd">
@@ -2211,32 +2226,74 @@ return (
               </td>
 
 
-                {/* Description */}
-              <td className="global-tran-td-ui">
+                {/* Description */}           
+                <td className="global-tran-td-ui">
+                <div className="relative flex items-center">
                   <input
                     type="text"
-                    className="w-[100px] global-tran-td-inputclass-ui"
+                    className="w-[300px] global-tran-td-inputclass-ui pr-8"
                     value={row.billName || ""}
+                    onChange={(e) =>
+                      handleDetailChange(index, "billName", e.target.value, false)
+                    }
                     readOnly={isFormDisabled}
-                    onChange={(e) => handleDetailChange(index, 'billName', e.target.value)}
                     maxLength={useGetFieldLength(tblFieldArray, "bill_name")}
                   />
-                </td>
 
-                {/* Specification */}
-              <td className="global-tran-td-ui">
-                <input
-                  type="text"
-                  className="w-[100px] global-tran-td-inputclass-ui"
-                  value={row.sviSpecs || ""}
-                  readOnly={isFormDisabled}
-                  onChange={(e) => handleDetailChange(index, "sviSpecs", e.target.value)}
-                  maxLength={useGetFieldLength(tblFieldArray, "svi_specs")}
-                />
+                  {!isFormDisabled && (
+                    <FontAwesomeIcon
+                      icon={faSearch}
+                      className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                      onClick={() =>
+                        useSwalHandleOpenSpecsModal(
+                          index,
+                          detailRows,
+                          handleDetailChange,
+                          row.billName,
+                          "Description",
+                          "billName",
+                          `Enter Description for ${row.billCode || "this item"}...`
+                        )
+                      }
+                    />
+                  )}
+                </div>
               </td>
 
 
-              
+              <td className="global-tran-td-ui">
+                <div className="relative flex items-center">
+                  <input
+                    type="text"
+                    className="w-[300px] global-tran-td-inputclass-ui pr-8"
+                    value={row.sviSpecs || ""}
+                    onChange={(e) =>
+                      handleDetailChange(index, "sviSpecs", e.target.value, false)
+                    }
+                    readOnly={isFormDisabled}
+                    maxLength={useGetFieldLength(tblFieldArray, "svi_specs")}
+                  />
+
+                  {!isFormDisabled && (
+                    <FontAwesomeIcon
+                      icon={faSearch}
+                      className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                      onClick={() =>
+                        useSwalHandleOpenSpecsModal(
+                          index,
+                          detailRows,
+                          handleDetailChange,
+                          row.sviSpecs,
+                          "Specification",
+                          "sviSpecs",
+                          `Enter specification for ${row.billCode || "this item"}...`
+                        )
+                      }
+                    />
+                  )}
+                </div>
+              </td>
+
 
                 <td className="global-tran-td-ui">
                     <input
@@ -2507,8 +2564,9 @@ return (
                     <input
                       type="text"
                       className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
-                        value={formatNumber(parseFormattedNumber(row.atcAmount)) || formatNumber(parseFormattedNumber(row.atcAmount)) || ""}
-                      onChange={(e) => handleDetailChange(index, 'ewtAmount', e.target.value)}
+                      readOnly
+                      value={formatNumber(parseFormattedNumber(row.atcAmount)) || formatNumber(parseFormattedNumber(row.atcAmount)) || ""}
+                      onChange={(e) => handleDetailChange(index, 'atcAmount', e.target.value)}
                     />
                 </td>
 
@@ -2681,50 +2739,85 @@ return (
     </div>
 
 
+      <div
+    className={`global-tran-tab-footer-total-main-div-ui grid gap-1 ${
+      currRate > 1 ? "grid-cols-3" : "grid-cols-2"
+    }`}
+      >
+        {/* Header Row */}
+        <div></div>
+        <div className="global-tran-tab-footer-total-label-ui text-right">
+          Currency ({glCurrDefault})
+        </div>
+        {currRate > 1 && (
+          <div className="global-tran-tab-footer-total-label-ui text-right">
+            Currency ({currCode})
+          </div>
+        )}
 
-    {/* Totals Section */}
-    <div className="global-tran-tab-footer-total-main-div-ui">
-
-      {/* Total Invoice Amount */}
-      <div className="global-tran-tab-footer-total-div-ui">
-        <label className="global-tran-tab-footer-total-label-ui">
+        {/* Total Invoice Amount */}
+        <div className="global-tran-tab-footer-total-label-ui">
           Total Invoice Amount:
-        </label>
-        <label id="totInvoiceAmount" className="global-tran-tab-footer-total-value-ui">
-          {totals.totalNetAmount}
-        </label>
-      </div>
+        </div>
+        <div id="totInvoiceAmount" className="global-tran-tab-footer-total-value-ui">
+          {currRate === 1
+            ? totals.totalNetAmount
+            : formatNumber( parseFormattedNumber(totals.totalNetAmount)  * currRate)}
+        </div>
+        {currRate > 1 && (
+          <div className="global-tran-tab-footer-total-value-ui">
+            {totals.totalNetAmount}
+          </div>
+        )}
 
-      {/* Total VAT Amount */}
-      <div className="global-tran-tab-footer-total-div-ui">
-        <label className="global-tran-tab-footer-total-label-ui">
+        {/* Total VAT Amount */}
+        <div className="global-tran-tab-footer-total-label-ui">
           Total VAT Amount:
-        </label>
-        <label id="totVATAmount" className="global-tran-tab-footer-total-value-ui">
-          {totals.totalVatAmount}
-        </label>
-      </div>
+        </div>
+        <div id="totVATAmount" className="global-tran-tab-footer-total-value-ui">
+          {currRate === 1
+            ? totals.totalVatAmount
+          : formatNumber( parseFormattedNumber(totals.totalVatAmount)  * currRate)}
+        </div>
+        {currRate > 1 && (
+          <div className="global-tran-tab-footer-total-value-ui">
+            {totals.totalVatAmount}
+          </div>
+        )}
 
-      {/* Total ATC Amount */}
-      <div className="global-tran-tab-footer-total-div-ui">
-        <label className="global-tran-tab-footer-total-label-ui">
+        {/* Total ATC Amount */}
+        <div className="global-tran-tab-footer-total-label-ui">
           Total ATC Amount:
-        </label>
-        <label id="totATCAmount" className="global-tran-tab-footer-total-value-ui">
-          {totals.totalAtcAmount}
-        </label>
+        </div>
+        <div id="totATCAmount" className="global-tran-tab-footer-total-value-ui">
+          {currRate === 1
+            ? totals.totalAtcAmount
+            : formatNumber( parseFormattedNumber(totals.totalAtcAmount)  * currRate)}
+        </div>
+        {currRate > 1 && (
+          <div className="global-tran-tab-footer-total-value-ui">
+            {totals.totalAtcAmount}
+          </div>
+        )}
+
+        {/* Total Amount Due */}
+        <div className="global-tran-tab-footer-total-label-ui">
+          Total Amount Due:
+        </div>
+        <div id="totAmountDue" className="global-tran-tab-footer-total-value-ui">
+          {currRate === 1
+            ? totals.totalAmountDue
+            : formatNumber( parseFormattedNumber(totals.totalAmountDue)  * currRate)}
+        </div>
+        {currRate > 1 && (
+          <div className="global-tran-tab-footer-total-value-ui">
+            {totals.totalAmountDue}
+          </div>
+        )}
       </div>
 
-      {/* Total Payable Amount (Invoice + VAT - ATC) */}
-      <div className="global-tran-tab-footer-total-div-ui">
-        <label className="global-tran-tab-footer-total-label-ui">
-          Total Amount Due:
-        </label>
-        <label id="totAmountDue" className="global-tran-tab-footer-total-value-ui">
-          {totals.totalAmountDue}
-        </label>
-      </div>
-    </div>
+        
+    
     </div>
 
     </div>
@@ -3498,11 +3591,12 @@ return (
     </div>
 
 
-    <div className={topTab === "history" ? "" : "hidden"}>
+
+    {/* <div className={topTab === "history" ? "" : "hidden"}>
       <AllTranHistory
         showHeader={false}
         endpoint="/getSVIHistory"
-        cacheKey={`SVI:${state.branchCode || ""}:${state.docNo || ""}`}  // ✅ per-transaction
+        cacheKey={`SVI:${state.branchCode || ""}:${state.fromDate || ""}:${state.toDate || ""}`}
         activeTabKey="SVI_Summary"
         branchCode={state.branchCode}
         startDate={state.fromDate}
@@ -3518,7 +3612,31 @@ return (
           onRowDoubleClick={handleHistoryRowPick}
           historyExportName={`${documentTitle} History`} 
     />
-  </div>
+  </div> */}
+
+
+  <div className={topTab === "history" ? "" : "hidden"}>
+  <AllTranHistory
+    showHeader={false}
+    isActive={topTab === "history"}
+    endpoint="/getSVIHistory"
+    cacheKey={`SVI:${state.branchCode || ""}:${state.fromDate || ""}:${state.toDate || ""}`}
+    activeTabKey="SVI_Summary"
+    branchCode={state.branchCode}
+    startDate={state.fromDate}
+    endDate={state.toDate}
+    status={(() => {
+      const s = (state.status || "").toUpperCase();
+      if (s === "FINALIZED") return "F";
+      if (s === "CANCELLED") return "X";
+      if (s === "CLOSED") return "C";
+      if (s === "OPEN") return "";
+      return "All";
+    })()}
+    onRowDoubleClick={handleHistoryRowPick}
+    historyExportName={`${documentTitle} History`}
+  />
+</div>
 
 
 </div>

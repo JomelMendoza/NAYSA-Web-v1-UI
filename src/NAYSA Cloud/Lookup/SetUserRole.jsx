@@ -7,7 +7,7 @@ import {
   useSwalErrorAlert,
   useSwalSuccessAlert,
   useSwalWarningAlert,
-} from "@/NAYSA Cloud/Global/behavior";
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 
 export default function UserRoleModal({ isOpen, user, onClose }) {
   const [loading, setLoading] = useState(false);

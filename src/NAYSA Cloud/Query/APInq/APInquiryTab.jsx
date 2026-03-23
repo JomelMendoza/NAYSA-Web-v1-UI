@@ -19,10 +19,11 @@ import {
   useTopBranchRow,
 } from "@/NAYSA Cloud/Global/top1RefTable";
 import { useSelectedHSColConfig } from "@/NAYSA Cloud/Global/selectedData";
-import { formatNumber, parseFormattedNumber } from "@/NAYSA Cloud/Global/behavior";
+import { formatNumber, parseFormattedNumber } from "@/NAYSA Cloud/Global/behavior.jsx";
 import SearchGlobalReportTable from "@/NAYSA Cloud/Lookup/SearchGlobalReportTable.jsx";
 
 const ENDPOINT = "getAPInquiry";
+
 
 /** Light global cache so the tab remembers its UI state across mounts */
 function getGlobalCache() {
@@ -39,14 +40,14 @@ const APInquiryTab = forwardRef(function APInquiryTab({ registerActions }, ref) 
   const hydratedRef = useRef(false);
 
   const [state, setState] = useState({
-    branchCode: "",
-    branchName: "",
+    branchCode: currentUserRow.branchCode,
+    branchName: currentUserRow.branchName,
     vendCode: "",
     vendName: "",
-    startingCutoff: "",
-    startingCutoffName: "",
-    endingCutoff: "",
-    endingCutoffName: "",
+    startingCutoff: companyInfo.cutoffCode,
+    startingCutoffName: companyInfo.cutoffName,
+    endingCutoff: companyInfo.cutoffCode,
+    endingCutoffName: companyInfo.cutoffName,
     arInquiryData: [],
     columnConfig: [],
     beginningBalance: "0.00",
@@ -114,35 +115,7 @@ const APInquiryTab = forwardRef(function APInquiryTab({ registerActions }, ref) 
     return () => { alive = false; };
   }, []);
 
-  // defaults (company/user/branch)
-  const loadAPInqDefault = useCallback(async () => {
-    updateState({ showSpinner: true });
-    try {
-      const [hsCompany, hsUser] = await Promise.all([
-        useTopCompanyRow(),
-        useTopUserRow(user?.USER_CODE),
-      ]);
-      if (hsCompany) {
-        updateState({
-          startingCutoffName: hsCompany.cutoffName,
-          endingCutoffName: hsCompany.cutoffName,
-          startingCutoff: hsCompany.cutoffCode,
-          endingCutoff: hsCompany.cutoffCode,
-        });
-      }
-      if (hsUser) {
-        const hsBranch = await useTopBranchRow(hsUser.branchCode);
-        updateState({
-          branchCode: hsUser.branchCode,
-          branchName: hsBranch?.branchName || hsUser.branchName,
-        });
-      }
-    } catch (err) {
-      console.error("Error loading defaults data:", err);
-    } finally {
-      updateState({ showSpinner: false });
-    }
-  }, [user?.USER_CODE]);
+ 
 
   const handleReset = useCallback(async () => {
     updateState({
@@ -249,13 +222,12 @@ const APInquiryTab = forwardRef(function APInquiryTab({ registerActions }, ref) 
 
       // wait for user, then load defaults once
       if (!user?.USER_CODE) return;
-      await loadAPInqDefault();
       await handleReset();
       hydratedRef.current = true;
     };
     run();
     return () => { cancelled = true; };
-  }, [user?.USER_CODE, loadAPInqDefault, handleReset]);
+  }, [user?.USER_CODE, handleReset]);
 
   // -------- snapshot into cache whenever important things change --------
   useEffect(() => {

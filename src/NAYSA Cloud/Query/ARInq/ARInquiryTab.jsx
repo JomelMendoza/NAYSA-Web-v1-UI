@@ -19,7 +19,7 @@ import {
   useTopBranchRow,
 } from "@/NAYSA Cloud/Global/top1RefTable";
 import { useSelectedHSColConfig } from "@/NAYSA Cloud/Global/selectedData";
-import { formatNumber, parseFormattedNumber } from "@/NAYSA Cloud/Global/behavior";
+import { formatNumber, parseFormattedNumber } from "@/NAYSA Cloud/Global/behavior.jsx";
 import SearchGlobalReportTable from "@/NAYSA Cloud/Lookup/SearchGlobalReportTable.jsx";
 
 const ENDPOINT = "getARInquiry";
@@ -39,14 +39,14 @@ const ARInquiryTab = forwardRef(function ARInquiryTab({ registerActions }, ref) 
   const hydratedRef = useRef(false);
 
   const [state, setState] = useState({
-    branchCode: "",
-    branchName: "",
+    branchCode: currentUserRow.branchCode,
+    branchName: currentUserRow.branchName,
     custCode: "",
     custName: "",
-    startingCutoff: "",
-    startingCutoffName: "",
-    endingCutoff: "",
-    endingCutoffName: "",
+    startingCutoff: companyInfo.cutoffCode,
+    startingCutoffName: companyInfo.cutoffName,
+    endingCutoff: companyInfo.cutoffCode,
+    endingCutoffName: companyInfo.cutoffName,
     arInquiryData: [],
     columnConfig: [],
     beginningBalance: "0.00",
@@ -114,35 +114,7 @@ const ARInquiryTab = forwardRef(function ARInquiryTab({ registerActions }, ref) 
     return () => { alive = false; };
   }, []);
 
-  // defaults (company/user/branch)
-  const loadARInqDefault = useCallback(async () => {
-    updateState({ showSpinner: true });
-    try {
-      const [hsCompany, hsUser] = await Promise.all([
-        useTopCompanyRow(),
-        useTopUserRow(user?.USER_CODE),
-      ]);
-      if (hsCompany) {
-        updateState({
-          startingCutoffName: hsCompany.cutoffName,
-          endingCutoffName: hsCompany.cutoffName,
-          startingCutoff: hsCompany.cutoffCode,
-          endingCutoff: hsCompany.cutoffCode,
-        });
-      }
-      if (hsUser) {
-        const hsBranch = await useTopBranchRow(hsUser.branchCode);
-        updateState({
-          branchCode: hsUser.branchCode,
-          branchName: hsBranch?.branchName || hsUser.branchName,
-        });
-      }
-    } catch (err) {
-      console.error("Error loading defaults data:", err);
-    } finally {
-      updateState({ showSpinner: false });
-    }
-  }, [user?.USER_CODE]);
+ 
 
   const handleReset = useCallback(async () => {
     updateState({
@@ -249,13 +221,12 @@ const ARInquiryTab = forwardRef(function ARInquiryTab({ registerActions }, ref) 
 
       // wait for user, then load defaults once
       if (!user?.USER_CODE) return;
-      await loadARInqDefault();
       await handleReset();
       hydratedRef.current = true;
     };
     run();
     return () => { cancelled = true; };
-  }, [user?.USER_CODE, loadARInqDefault, handleReset]);
+  }, [user?.USER_CODE, handleReset]);
 
   // -------- snapshot into cache whenever important things change --------
   useEffect(() => {

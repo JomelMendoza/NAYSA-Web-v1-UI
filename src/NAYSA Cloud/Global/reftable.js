@@ -1,4 +1,6 @@
-import COAMast from "../Master Data/COAMast";
+import BankMast from "../Master Data/BankMast";
+import COAMast from "../Master Data/ChartofAccounts/COAMast";
+import BillCodeRef from "../Reference File/BillCodeRef";
 import CutoffRef from "../Reference File/CutoffRef";
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 
@@ -9,7 +11,7 @@ import {
   useSwalValidationAlert,
   useSwalDeleteRecord,
   useSwalInfoAlert,
-} from "@/NAYSA Cloud/Global/behavior";
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 
 export const reftables = {
 
@@ -23,6 +25,8 @@ export const reftables = {
     Currency: "Currency Codes",
     COAMast: "Chart of Accounts",
     UserUpdate: "Update User",
+    BankMast: "Bank Master Data",
+    BillCode: "Bill Codes",
 
     // Accounts Payable Module
     APV: "Accounts Payable Voucher Transaction",
@@ -62,6 +66,9 @@ export const reftables = {
     CR: "Collection Receipt Transaction",
     SOA: "Statement of Account Transaction",
 
+    
+    COAMast: "https://www.youtube.com/watch?v=NfiO76wxs9U",
+
   };
 
   export const reftablesPDFGuide = {
@@ -83,9 +90,13 @@ export const reftables = {
     ARCM: "AR Credit Memo Voucher Transaction",
     CR: "Collection Receipt Transaction",
     SOA: "Statement of Account Transaction",
+
+    COAMast: "/public/Guide/NAYSA GL Reference Files.pdf",
+
   };
 
 
+<<<<<<< HEAD
 
 
 
@@ -103,6 +114,8 @@ export const reftables = {
 
 
 
+=======
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
   // utils/accountUtils.js (or useAccountActions.js)
 
  export const useGlobalDuplicateRefTable = async (tblCode, payload, fieldcaption) => {

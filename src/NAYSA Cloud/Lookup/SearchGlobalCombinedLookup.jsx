@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import GlobalLookupModalv1 from "@/NAYSA Cloud/Lookup/SearchGlobalLookupv1.jsx";
 import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
-import { useSwalInfoAlert } from "@/NAYSA Cloud/Global/behavior";
+import { useSwalInfoAlert } from "@/NAYSA Cloud/Global/behavior.jsx";
 
 const GlobalCombinedLookup = ({
   isOpen,

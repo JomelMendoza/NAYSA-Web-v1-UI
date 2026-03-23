@@ -30,13 +30,26 @@ import {
 import { reftables } from "@/NAYSA Cloud/Global/reftable";
 import { exportGenericQueryExcel } from "@/NAYSA Cloud/Global/report";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
-import { formatNumber, parseFormattedNumber } from "@/NAYSA Cloud/Global/behavior";
+import { formatNumber, parseFormattedNumber } from "@/NAYSA Cloud/Global/behavior.jsx";
 import { useReturnToDate } from "@/NAYSA Cloud/Global/dates";
 import Swal from "sweetalert2";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
 const TableLoader = () => <div className="global-ref-norecords-ui">Loading...</div>;
+<<<<<<< HEAD
+=======
+
+const parseAutoFillGrid = (value) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") return true;
+    if (normalized === "false" || normalized === "") return false;
+  }
+  return false;
+};
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 
 const SearchGlobalReferenceTable = forwardRef(
   (
@@ -52,12 +65,19 @@ const SearchGlobalReferenceTable = forwardRef(
       onStateChange,
       totalExemptions = ["rate", "percent", "ratio", "id", "code"],
       isLoading = false,
+<<<<<<< HEAD
       tableSize = "Full"
+=======
+      tableSize = "Full",
+      onMobileRowOpen,
+      autoFillGrid: autoFillGridProp = undefined,
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
     },
     ref,
   ) => {
     const scrollRef = useRef(null);
     const exportContainerRef = useRef(null);
+<<<<<<< HEAD
 
     // ✅ Mobile detection + view toggle
     const [isMobile, setIsMobile] = useState(false);
@@ -709,6 +729,810 @@ const SearchGlobalReferenceTable = forwardRef(
     const handleExportExcel = async () => {
       if (!hasDataFiltered) return;
 
+=======
+
+    // ✅ Mobile detection + view toggle
+    const [isMobile, setIsMobile] = useState(false);
+    const [forceTableView, setForceTableView] = useState(false);
+    const useCardView = isMobile && !forceTableView;
+    const [isMobileView, setIsMobileView] = useState(false);
+    const [autoFillGrid, setAutoFillGrid] = useState(() =>
+      parseAutoFillGrid(autoFillGridProp ?? initialState?.autoFillGrid),
+    );
+
+    useEffect(() => {
+      if (autoFillGridProp !== undefined) {
+        setAutoFillGrid(parseAutoFillGrid(autoFillGridProp));
+      }
+    }, [autoFillGridProp]);
+
+    useEffect(() => {
+      const checkSmall = () => setIsMobileView(window.innerWidth < 640); // Tailwind sm
+      checkSmall();
+
+      window.addEventListener("resize", checkSmall);
+      return () => window.removeEventListener("resize", checkSmall);
+    }, []);
+
+    useEffect(() => {
+      const mq = window.matchMedia("(max-width: 768px)");
+      const apply = () => setIsMobile(mq.matches);
+      apply();
+      mq.addEventListener?.("change", apply);
+      return () => mq.removeEventListener?.("change", apply);
+    }, []);
+
+    const [filters, setFilters] = useState(() => initialState?.filters || {});
+    const [globalSearch, setGlobalSearch] = useState(() => initialState?.globalSearch || "");
+
+
+    const [sortConfig, setSortConfig] = useState(
+      () => initialState?.sortConfig || { key: null, direction: null },
+    );
+    const [currentPage, setCurrentPage] = useState(
+      () => Number(initialState?.currentPage) || 1,
+    );
+
+    // ✅ Rows per page (supports: 10/20/50/100) — (All not shown in dropdown)
+    const [rowsPerPage, setRowsPerPage] = useState(() => {
+      const init = Number(initialState?.itemsPerPage ?? itemsPerPage ?? 50);
+      return Number.isFinite(init) ? init : 50;
+    });
+
+    const [columnOrder, setColumnOrder] = useState([]);
+    const [groupBy, setGroupBy] = useState(() => initialState?.groupBy || []);
+    const [expandedGroups, setExpandedGroups] = useState({});
+    const [draggedCol, setDraggedCol] = useState(null);
+
+    const [colWidths, setColWidths] = useState({});
+    const resizingRef = useRef(null);
+
+    const [userHiddenCols, setUserHiddenCols] = useState(
+      () => initialState?.userHiddenCols || [],
+    );
+
+    const [showColumnChooser, setShowColumnChooser] = useState(false);
+    const [showExportMenu, setShowExportMenu] = useState(false);
+
+    const { companyInfo, currentUserRow } = useAuth();
+
+    // ✅ keep columnOrder in sync with columns (dynamic cols like __actions)
+    useEffect(() => {
+      const keys = (columns || []).map((c) => c.key).filter(Boolean);
+      if (!keys.length) return;
+
+      setColumnOrder((prev) => {
+        const prevArr = Array.isArray(prev) ? prev : [];
+        const prevSet = new Set(prevArr);
+
+        const kept = prevArr.filter((k) => keys.includes(k));
+        const added = keys.filter((k) => !prevSet.has(k));
+
+        if (kept.length === prevArr.length && added.length === 0) return prevArr;
+        return [...kept, ...added];
+      });
+    }, [columns]);
+
+    // notify parent
+    useEffect(() => {
+      onStateChange?.({
+        filters,
+        sortConfig,
+        currentPage,
+        groupBy,
+        userHiddenCols,
+        itemsPerPage: rowsPerPage,
+        globalSearch, // ✅ add
+        autoFillGrid: autoFillGrid ? "True" : "False",
+      });
+    }, [
+      filters,
+      sortConfig,
+      currentPage,
+      groupBy,
+      userHiddenCols,
+      rowsPerPage,
+      globalSearch,   // ✅ add
+      autoFillGrid,
+      onStateChange,
+    ]);
+
+    // reset expansions when grouping changes
+    // useEffect(() => {
+    //   setExpandedGroups({});
+    //   setCurrentPage(1);
+    // }, [isMobile, groupBy]);
+
+    // clear grouping if data becomes empty
+    useEffect(() => {
+      if (!data || data.length === 0) {
+        if (groupBy.length > 0) setGroupBy([]);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [data]);
+
+    // Close menus when clicking outside (mobile friendly)
+    useEffect(() => {
+      const onDown = (e) => {
+        const t = e.target;
+        // close export/columns when clicking outside (simple approach)
+        if (!t.closest?.("[data-sgrt-export]")) setShowExportMenu(false);
+        if (!t.closest?.("[data-sgrt-cols]")) setShowColumnChooser(false);
+      };
+      document.addEventListener("mousedown", onDown);
+      document.addEventListener("touchstart", onDown, { passive: true });
+      return () => {
+        document.removeEventListener("mousedown", onDown);
+        document.removeEventListener("touchstart", onDown);
+      };
+    }, []);
+
+    // --- Utilities ---
+    const parseNumber = (v) => {
+      if (typeof parseFormattedNumber === "function") {
+        const n = parseFormattedNumber(v);
+        return typeof n === "number" ? n : Number(String(v ?? "").replace(/,/g, ""));
+      }
+      return typeof v === "number" ? v : Number(String(v ?? "").replace(/,/g, ""));
+    };
+
+    const formatValue = (value, col) => {
+      if (value === null || value === undefined) return "";
+      switch (col?.renderType) {
+        case "number":
+        case "currency": {
+          const digits = typeof col?.roundingOff === "number" ? col.roundingOff : 2;
+          return typeof formatNumber === "function"
+            ? formatNumber(value, digits)
+            : Number(parseNumber(value)).toLocaleString("en-US", {
+                minimumFractionDigits: digits,
+                maximumFractionDigits: digits,
+              });
+        }
+        case "date": {
+          try {
+            const datePart = String(value).split("T")[0];
+            return typeof useReturnToDate === "function" ? useReturnToDate(datePart) : datePart;
+          } catch {
+            return String(value);
+          }
+        }
+        default:
+          return String(value ?? "");
+      }
+    };
+
+    const extractTextFromNode = (node) => {
+      if (node === null || node === undefined || typeof node === "boolean") return "";
+      if (typeof node === "string" || typeof node === "number") return String(node);
+      if (Array.isArray(node)) {
+        return node
+          .map(extractTextFromNode)
+          .filter(Boolean)
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+      if (React.isValidElement(node)) {
+        return extractTextFromNode(node.props?.children);
+      }
+      return "";
+    };
+
+    const getCellDisplayText = (row, col) => {
+      if (!col) return "";
+
+      if (typeof col.render === "function") {
+        const rendered = col.render(row);
+        const extracted = extractTextFromNode(rendered);
+        if (extracted) return extracted;
+      }
+
+      return formatValue(row?.[col.key], col);
+    };
+
+    // --- Columns processing ---
+    const orderedCols = useMemo(() => {
+      if (columnOrder.length === 0) return columns;
+      return columnOrder.map((key) => columns.find((c) => c.key === key)).filter(Boolean);
+    }, [columns, columnOrder]);
+
+    const baseVisibleColumns = useMemo(() => orderedCols.filter((c) => !c.hidden), [orderedCols]);
+    const effectiveGroupBy = isMobile ? [] : groupBy;
+    const isGroupedView = effectiveGroupBy.length > 0;
+    const groupedKeysSet = useMemo(() => new Set(effectiveGroupBy), [effectiveGroupBy]);
+
+    const visibleCols = useMemo(
+      () =>
+        baseVisibleColumns.filter(
+          (c) => !userHiddenCols.includes(c.key) && !groupedKeysSet.has(c.key),
+        ),
+      [baseVisibleColumns, userHiddenCols, groupedKeysSet],
+    );
+
+    // ✅ treat "__actions" / Actions column as non-exportable
+    const isActionColumn = (c) =>
+      c?.key === "__actions" ||
+      c?.renderType === "actions" ||
+      String(c?.label || "").toLowerCase() === "actions";
+
+    const exportVisibleCols = useMemo(
+      () => visibleCols.filter((c) => !isActionColumn(c)),
+      [visibleCols],
+    );
+
+    const exportColumns = useMemo(() => (columns || []).filter((c) => !isActionColumn(c)), [columns]);
+
+    const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+
+    // estimate width by character length (simple + fast)
+    const estimatePx = (text) => {
+      const s = String(text ?? "");
+      return s.length * 7 + 40;
+    };
+
+    const headerCellWrap = "w-full min-w-0 overflow-hidden text-ellipsis whitespace-nowrap";
+    const hasActionCol = useMemo(() => visibleCols.some((c) => isActionColumn(c)), [visibleCols]);
+
+    // --- Drag/drop ---
+    const handleColDragStart = (e, key) => {
+      setDraggedCol(key);
+      e.dataTransfer.effectAllowed = "move";
+    };
+
+    const handleColDrop = (e, targetKey, isDropZone = false) => {
+      e.preventDefault();
+      if (!draggedCol) return;
+
+      if (isDropZone) {
+        setGroupBy((prev) => (prev.includes(draggedCol) ? prev : [...prev, draggedCol]));
+      } else {
+        if (groupBy.includes(draggedCol)) return;
+        if (draggedCol === targetKey) return;
+
+        const newOrder = [...columnOrder];
+        const oldIdx = newOrder.indexOf(draggedCol);
+        const newIdx = newOrder.indexOf(targetKey);
+
+        if (oldIdx > -1 && newIdx > -1) {
+          newOrder.splice(oldIdx, 1);
+          newOrder.splice(newIdx, 0, draggedCol);
+          setColumnOrder(newOrder);
+        }
+      }
+
+      setDraggedCol(null);
+    };
+
+    // --- Sorting ---
+    const handleSort = useCallback((key, sortable) => {
+      if (sortable === false) return;
+      setSortConfig((prev) => {
+        if (prev.key === key) {
+          if (prev.direction === "asc") return { key, direction: "desc" };
+          if (prev.direction === "desc") return { key: null, direction: null };
+        }
+        return { key, direction: "asc" };
+      });
+      setCurrentPage(1);
+    }, []);
+
+    // --- Filtering + sorting data ---
+    const filteredData = useMemo(() => {
+      const active = Object.entries(filters).filter(([, v]) => String(v || "").trim() !== "");
+      let rows = Array.isArray(data) ? data : [];
+
+      if (active.length) {
+        rows = rows.filter((r) =>
+          active.every(([k, v]) =>
+            String(r?.[k] ?? "").toLowerCase().includes(String(v).toLowerCase()),
+          ),
+        );
+      }
+
+      // ✅ Global search across all visible columns
+      const q = String(globalSearch || "").trim().toLowerCase();
+      if (q) {
+        const keys = (visibleCols || []).map((c) => c.key).filter(Boolean);
+
+        rows = rows.filter((r) =>
+          keys.some((k) => String(r?.[k] ?? "").toLowerCase().includes(q))
+        );
+      }
+
+      if (sortConfig?.key && sortConfig?.direction) {
+        const { key, direction } = sortConfig;
+        const col = columns.find((c) => c.key === key);
+        const isNumeric = col?.renderType === "number" || col?.renderType === "currency";
+        const norm = (val) => (isNumeric ? parseNumber(val) || 0 : String(val ?? "").toLowerCase());
+
+        rows = [...rows].sort((a, b) => {
+          const A = norm(a?.[key]);
+          const B = norm(b?.[key]);
+          const cmp = isNumeric
+            ? A - B
+            : String(A).localeCompare(String(B), undefined, { numeric: true });
+          return direction === "asc" ? cmp : -cmp;
+        });
+      }
+
+      return rows.map((row) => {
+        const cleanRow = { ...row };
+        delete cleanRow.isGroup;
+        delete cleanRow.children;
+        return cleanRow;
+      });
+    }, [data, filters, globalSearch, visibleCols, sortConfig, columns]);
+const autoColWidths = useMemo(() => {
+  const MIN = 60;
+  const MAX = 400;
+  const SAMPLE = 80;
+
+  const sampleRows = (Array.isArray(filteredData) ? filteredData : []).slice(0, SAMPLE);
+  const out = {};
+
+  visibleCols.forEach((col) => {
+    let w = estimatePx(col.label || "");
+
+    for (const r of sampleRows) {
+      let str = "";
+
+      if (col.autoWidthValue) {
+        str = String(col.autoWidthValue(r) ?? "");
+      } else if (typeof col.render === "function") {
+        str = String(r?.[col.key] ?? "");
+      } else {
+        str = String(formatValue(r?.[col.key], col) ?? "");
+      }
+
+      w = Math.max(w, estimatePx(str));
+    }
+
+    const colBase = Number(col.width);
+    if (Number.isFinite(colBase)) w = Math.max(w, colBase);
+
+    out[col.key] = clamp(w, MIN, MAX);
+  });
+
+  return out;
+}, [visibleCols, filteredData]);
+
+
+
+    const [manualResizedCols, setManualResizedCols] = useState({});
+
+const getColWidth = (col) => {
+  const manualWidth = colWidths[col.key];
+  const isManual = manualResizedCols[col.key];
+  const autoWidth = autoColWidths[col.key];
+  const defaultWidth = col.width || 140;
+
+  if (isManual && manualWidth) return manualWidth;
+  return autoWidth || defaultWidth;
+};
+
+
+    const getStickyLeftOffset = (index) => {
+      if (index <= 0) return 0;
+
+      let offset = 0;
+      for (let i = 0; i < index; i++) {
+        const prevCol = visibleCols[i];
+        offset += prevCol ? getColWidth(prevCol) : 140;
+      }
+      return offset;
+    };
+    
+    const shouldSumColumn = (col) => {
+      const noTotalKeys = ["unitcost", "currrate", "unitprice", "runbal"];
+      if (!col) return false;
+
+      const key = String(col.key ?? "").toLowerCase();
+      const label = String(col.label ?? "").toLowerCase();
+
+      if (noTotalKeys.includes(key)) return false;
+      if (col.renderType !== "number" && col.renderType !== "currency") return false;
+
+      if (totalExemptions.some((ex) => label.includes(ex) || key.includes(ex))) return false;
+
+      return true;
+    };
+
+    const calculateAggregates = (rows) => {
+      const sums = {};
+      exportVisibleCols.forEach((col) => {
+        if (shouldSumColumn(col)) {
+          sums[col.key] = (rows || []).reduce((acc, r) => acc + (parseNumber(r?.[col.key]) || 0), 0);
+        }
+      });
+      return sums;
+    };
+
+    // --- Grouping ---
+    const resolveGroupDisplayValue = useCallback(
+      (row, groupKey) => {
+        const groupedCol = columns.find((c) => c.key === groupKey);
+        if (!groupedCol) return String(row?.[groupKey] ?? "(Blank)");
+
+        const labelKeyCandidates = [
+          groupedCol.groupDisplayKey,
+          groupedCol.displayKey,
+          groupedCol.nameKey,
+          groupKey.endsWith("_code") ? groupKey.replace(/_code$/i, "_name") : null,
+          groupKey.endsWith("Code") ? groupKey.replace(/Code$/i, "Name") : null,
+          groupKey.endsWith("code") ? groupKey.replace(/code$/i, "name") : null,
+        ].filter(Boolean);
+
+        for (const candidate of labelKeyCandidates) {
+          const candidateValue = row?.[candidate];
+          if (candidateValue !== undefined && candidateValue !== null && String(candidateValue).trim() !== "") {
+            return String(candidateValue);
+          }
+        }
+
+        if (typeof groupedCol.groupDisplayValue === "function") {
+          const customValue = groupedCol.groupDisplayValue(row);
+          if (customValue !== undefined && customValue !== null && String(customValue).trim() !== "") {
+            return String(customValue);
+          }
+        }
+
+        const rendered = getCellDisplayText(row, groupedCol);
+        if (rendered && String(rendered).trim() !== "") return String(rendered);
+
+        return String(row?.[groupKey] ?? "(Blank)");
+      },
+      [columns],
+    );
+
+    function getGroupNodeId(node) {
+      return node?.path || `${node.key}-${node.rawValue ?? node.value}-${node.level}`;
+    }
+
+    const groupData = (
+      rows,
+      level = 0,
+      activeGroupBy = [],
+      parentPath = "",
+    ) => {
+      if (level >= activeGroupBy.length) return rows.map((r) => ({ ...r }));
+
+      const groupKey = activeGroupBy[level];
+      const groups = {};
+
+      rows.forEach((row) => {
+        const rawValue = String(row?.[groupKey] ?? "(Blank)");
+        const displayValue = resolveGroupDisplayValue(row, groupKey) || "(Blank)";
+        const bucketKey = `${rawValue}|||${displayValue}`;
+
+        if (!groups[bucketKey]) {
+          groups[bucketKey] = {
+            rawValue,
+            displayValue,
+            rows: [],
+          };
+        }
+
+        groups[bucketKey].rows.push(row);
+      });
+
+      return Object.values(groups)
+        .sort((a, b) =>
+          String(a.displayValue).localeCompare(String(b.displayValue), undefined, {
+            numeric: true,
+          }),
+        )
+        .map((group) => {
+          const nodePath = parentPath
+            ? `${parentPath}__${groupKey}:${group.rawValue}`
+            : `${groupKey}:${group.rawValue}`;
+
+          return {
+            isGroup: true,
+            key: groupKey,
+            rawValue: group.rawValue,
+            value: group.displayValue,
+            level,
+            path: nodePath,
+            children: groupData(group.rows, level + 1, activeGroupBy, nodePath),
+            count: group.rows.length,
+            aggregates: calculateAggregates(group.rows),
+          };
+        });
+    };
+
+    const buildExpandedExportRows = (nodes) => {
+      const firstKey = exportVisibleCols?.[0]?.key;
+      const out = [];
+
+      const walk = (arr) => {
+        (arr || []).forEach((node) => {
+          if (node?.isGroup) {
+            const headerRow = {};
+            exportColumns.forEach((c) => (headerRow[c.key] = ""));
+            if (firstKey) {
+              const label = columns.find((c) => c.key === node.key)?.label || node.key;
+              headerRow[firstKey] = `${label}: ${node.value} (${node.count})`;
+            }
+            out.push(headerRow);
+
+            const uniqueId = getGroupNodeId(node);
+            if (expandedGroups[uniqueId]) walk(node.children);
+          } else {
+            const clean = { ...node };
+            delete clean.isGroup;
+            delete clean.isSubtotal;
+            delete clean.children;
+            delete clean.aggregates;
+            out.push(clean);
+          }
+        });
+      };
+
+      walk(nodes);
+      return out;
+    };
+
+    const processRenderList = (nodes, activeGroupBy = []) => {
+      let list = [];
+      nodes.forEach((node) => {
+        if (node.isGroup) {
+          list.push(node);
+          const uniqueId = getGroupNodeId(node);
+          if (expandedGroups[uniqueId]) {
+            if (node.level === activeGroupBy.length - 1) list = list.concat(node.children);
+            else list = list.concat(processRenderList(node.children, activeGroupBy));
+          }
+        } else {
+          list.push(node);
+        }
+      });
+      return list;
+    };
+
+    const groupedStructure = useMemo(() => {
+      if (effectiveGroupBy.length === 0) return filteredData;
+      return groupData(filteredData, 0, effectiveGroupBy);
+    }, [filteredData, effectiveGroupBy, resolveGroupDisplayValue]);
+
+    const fullRenderRows = useMemo(() => {
+      if (effectiveGroupBy.length === 0) return filteredData;
+
+      const expandAll = (nodes) => {
+        let list = [];
+        nodes.forEach((node) => {
+          if (node.isGroup) {
+            list.push(node);
+            if (node.level === effectiveGroupBy.length - 1) list = list.concat(node.children);
+            else list = list.concat(expandAll(node.children));
+          } else {
+            list.push(node);
+          }
+        });
+        return list;
+      };
+
+      return expandAll(groupedStructure);
+    }, [filteredData, groupedStructure, effectiveGroupBy]);
+
+    // --- Pagination ---
+    const effectiveRowsPerPage = isMobileView ? 0 : rowsPerPage;
+
+    const totalItems =
+      effectiveGroupBy.length > 0 ? groupedStructure.length : filteredData.length;
+
+    const totalPages =
+      effectiveRowsPerPage > 0
+        ? Math.max(1, Math.ceil(totalItems / effectiveRowsPerPage))
+        : 1;
+
+    const safePage = isMobileView
+      ? 1
+      : Math.min(Math.max(1, currentPage), totalPages);
+
+    useEffect(() => {
+      if (isMobileView) {
+        if (currentPage !== 1) setCurrentPage(1);
+        return;
+      }
+
+      if (currentPage > totalPages && totalPages > 0) setCurrentPage(totalPages);
+      else if (currentPage < 1 && totalPages > 0) setCurrentPage(1);
+    }, [currentPage, totalPages, isMobileView]);
+
+    const displayRows = useMemo(() => {
+      const start =
+        effectiveRowsPerPage > 0 ? (safePage - 1) * effectiveRowsPerPage : 0;
+
+      if (effectiveGroupBy.length === 0) {
+        return effectiveRowsPerPage > 0
+          ? filteredData.slice(start, start + effectiveRowsPerPage)
+          : filteredData;
+      }
+
+      const pagedGroups =
+        effectiveRowsPerPage > 0
+          ? groupedStructure.slice(start, start + effectiveRowsPerPage)
+          : groupedStructure;
+
+      return processRenderList(pagedGroups, effectiveGroupBy);
+    }, [
+      safePage,
+      effectiveRowsPerPage,
+      filteredData,
+      groupedStructure,
+      expandedGroups,
+      effectiveGroupBy,
+    ]);
+
+    const grandTotals = useMemo(() => ({}), []);
+    const hasDataFiltered = Array.isArray(filteredData) && filteredData.length > 0;
+
+    const collectGroupKeys = (nodes) => {
+      const keys = [];
+
+      const walk = (arr) => {
+        (arr || []).forEach((n) => {
+          if (n?.isGroup) {
+            keys.push(getGroupNodeId(n));
+            if (Array.isArray(n.children) && n.children.length > 0) {
+              walk(n.children);
+            }
+          }
+        });
+      };
+
+      walk(nodes);
+      return keys;
+    };
+
+    const allGroupKeys = useMemo(() => {
+      if (effectiveGroupBy.length === 0) return [];
+      return collectGroupKeys(groupedStructure);
+    }, [groupedStructure, effectiveGroupBy]);
+
+    const prevGroupKeysRef = useRef([]);
+
+    const allExpanded =
+      allGroupKeys.length > 0 && allGroupKeys.every((key) => expandedGroups[key]);
+
+    useEffect(() => {
+      if (isMobile || effectiveGroupBy.length === 0) {
+        prevGroupKeysRef.current = [];
+        setExpandedGroups({});
+        setCurrentPage(1);
+        return;
+      }
+
+      setExpandedGroups((prev) => {
+        const prevKeys = prevGroupKeysRef.current || [];
+        const wasAllExpanded =
+          prevKeys.length > 0 && prevKeys.every((key) => prev[key]);
+
+        let nextState = {};
+
+        if (wasAllExpanded) {
+          nextState = Object.fromEntries(allGroupKeys.map((key) => [key, true]));
+        } else {
+          nextState = Object.fromEntries(
+            allGroupKeys.filter((key) => prev[key]).map((key) => [key, true]),
+          );
+        }
+
+        prevGroupKeysRef.current = allGroupKeys;
+        return nextState;
+      });
+
+      setCurrentPage(1);
+    }, [isMobile, effectiveGroupBy, allGroupKeys]);
+
+    const toggleGroup = (node) => {
+      const uniqueId = getGroupNodeId(node);
+      setExpandedGroups((prev) => ({
+        ...prev,
+        [uniqueId]: !prev[uniqueId],
+      }));
+    };
+
+    const toggleAll = (expand) => {
+      if (!expand) {
+        setExpandedGroups({});
+        return;
+      }
+
+      setExpandedGroups(Object.fromEntries(allGroupKeys.map((key) => [key, true])));
+    };
+
+    const handleToggleExpandCollapse = () => {
+      toggleAll(!allExpanded);
+    };
+
+    const handleRemoveGroup = (gKey) => {
+      setGroupBy((prev) => prev.filter((k) => k !== gKey));
+      setExpandedGroups((prev) => {
+        const next = { ...prev };
+
+        Object.keys(next).forEach((key) => {
+          if (key.startsWith(`${gKey}:`) || key.includes(`__${gKey}:`)) {
+            delete next[key];
+          }
+        });
+
+        return next;
+      });
+      setCurrentPage(1);
+    };
+
+    const handleRemoveAllGroups = () => {
+      setGroupBy([]);
+      setExpandedGroups({});
+      setCurrentPage(1);
+      setUserHiddenCols((prev) => prev.filter((k) => !groupBy.includes(k)));
+    };
+
+    // --- Column resize ---
+    const handleMouseMove = useCallback((e) => {
+      if (!resizingRef.current) return;
+
+      const { startX, startWidth, key } = resizingRef.current;
+      const delta = e.clientX - startX;
+      const newWidth = Math.max(60, startWidth + delta);
+
+      setColWidths((prev) => ({ ...prev, [key]: newWidth }));
+      setManualResizedCols((prev) => ({ ...prev, [key]: true }));
+    }, []);
+
+    const handleMouseUp = useCallback(() => {
+      if (!resizingRef.current) return;
+      resizingRef.current = null;
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    }, [handleMouseMove]);
+
+    const startResizing = (e, key) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const th = e.currentTarget?.parentElement;
+      const currentWidth =
+        th?.offsetWidth ||
+        colWidths[key] ||
+        Number(columns.find((c) => c.key === key)?.width) ||
+        140;
+
+      resizingRef.current = { startX: e.clientX, startWidth: currentWidth, key };
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    };
+
+    const sanitizeFileName = (name) =>
+      String(name ?? "")
+        .trim()
+        .replace(/[\\/:*?"<>|]/g, "")
+        .replace(/\s+/g, " ")
+        .substring(0, 120);
+
+    const getDateTimeStamp = () => {
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, "0");
+      const dd = String(now.getDate()).padStart(2, "0");
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mi = String(now.getMinutes()).padStart(2, "0");
+      const ss = String(now.getSeconds()).padStart(2, "0");
+      return `${yyyy}${mm}${dd}_${hh}${mi}${ss}`;
+    };
+
+    const getDefaultExportFileName = () => {
+      const effectiveDocType = String(docType ?? "").trim();
+      const title = reftables?.[effectiveDocType] || effectiveDocType || "Reference";
+      return sanitizeFileName(`${title}_${getDateTimeStamp()}`);
+    };
+
+    // --- Export handlers ---
+    const handleExportExcel = async () => {
+      if (!hasDataFiltered) return;
+
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
       const defaultFileName = getDefaultExportFileName();
       const { value: fileName } = await Swal.fire({
         // title: "Export Excel File Name:",
@@ -885,17 +1709,32 @@ const SearchGlobalReferenceTable = forwardRef(
         userHiddenCols,
         itemsPerPage: rowsPerPage,
         globalSearch, // ✅ add
+<<<<<<< HEAD
         autoFillGrid,
       }),
+=======
+        autoFillGrid: autoFillGrid ? "True" : "False",
+      }),
+      setAutoFillGrid: (value) => setAutoFillGrid(parseAutoFillGrid(value)),
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
       scrollRef,
       clearAllState: () => {
         setFilters({});
         setSortConfig({ key: null, direction: null });
         setGroupBy([]);
+<<<<<<< HEAD
         setUserHiddenCols([]);
         setRowsPerPage(Number(itemsPerPage) || 50);
         setGlobalSearch(""); // ✅ add
         setAutoFillGrid(Boolean(initialState?.autoFillGrid ?? false));
+=======
+        setExpandedGroups({});
+        setCurrentPage(1);
+        setUserHiddenCols([]);
+        setRowsPerPage(Number(itemsPerPage) || 50);
+        setGlobalSearch(""); // ✅ add
+        setAutoFillGrid(parseAutoFillGrid(autoFillGridProp ?? initialState?.autoFillGrid));
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
       },
       resetFilters: () => setFilters({}),
       clearSort: () => setSortConfig({ key: null, direction: null }),
@@ -915,7 +1754,15 @@ const SearchGlobalReferenceTable = forwardRef(
 
 
     const handleRowOpen = (row) => {
+<<<<<<< HEAD
       onRowDoubleClick?.(row);
+=======
+      if (isMobile) {
+        onMobileRowOpen?.(row);
+      } else {
+        onRowDoubleClick?.(row);
+      }
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
     };
 
     const filterInputClass =
@@ -924,13 +1771,21 @@ const SearchGlobalReferenceTable = forwardRef(
     // ✅ Mobile Card renderer
 const renderMobileCard = (row, idx) => {
   if (row?.isGroup) {
+<<<<<<< HEAD
     const uniqueId = `${row.key}-${row.value}-${row.level}`;
+=======
+    const uniqueId = getGroupNodeId(row);
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
     const isExpanded = expandedGroups[uniqueId];
 
     return (
       <div
         key={`g-${uniqueId}`}
+<<<<<<< HEAD
         className="rounded-lg border bg-gray-50 p-3 cursor-pointer"
+=======
+        className="rounded-lg border bg-gray-100 p-4 cursor-pointer"
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
         onClick={() => toggleGroup(row)}
       >
         <div className="flex items-center">
@@ -959,6 +1814,7 @@ const renderMobileCard = (row, idx) => {
       className="rounded-lg border bg-white shadow-sm p-3 cursor-pointer active:scale-[0.99] transition"
       onClick={() => handleRowOpen(row)}
     >
+<<<<<<< HEAD
       <div className="space-y-2">
         {firstCols.map((col) => (
           <div key={col.key} className="flex items-start justify-between gap-3">
@@ -966,6 +1822,22 @@ const renderMobileCard = (row, idx) => {
               {col.label}
             </span>
             <div className="text-[11px] text-gray-800 text-right break-words flex-1">
+=======
+      <div className="space-y-1">
+        {firstCols.map((col) => (
+          <div
+              key={col.key}
+              className={`flex items-start justify-between gap-1 ${
+                col.key === "__actions" ? "flex-col items-stretch mb-2" : ""
+              }`}
+            >
+            <span
+              className={`text-[10px] font-semibold text-gray-600 ${
+                col.key === "__actions" ? "min-w-0 mb-1" : "min-w-[110px]"
+              }`}
+            >{col.label}</span>
+            <div className="text-[10px] text-gray-800 text-left break-words flex-1">
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
               {typeof col.render === "function"
                 ? col.render(row)
                 : formatValue(row[col.key], col)}
@@ -974,6 +1846,7 @@ const renderMobileCard = (row, idx) => {
         ))}
 
         {otherCols.length > 0 && (
+<<<<<<< HEAD
           <div className="pt-2 border-t border-gray-100 space-y-2">
             {otherCols.map((col) => (
               <div key={col.key} className="flex items-start justify-between gap-3">
@@ -981,6 +1854,19 @@ const renderMobileCard = (row, idx) => {
                   {col.label}
                 </span>
                 <div className="text-[11px] text-gray-800 text-right break-words flex-1">
+=======
+          <div className="pt-2 border-t border-gray-100 space-y-1">
+            {otherCols.map((col) => (
+              <div key={col.key} className="flex items-start justify-between gap-1">
+                <span className="text-[10px] font-semibold text-gray-600 min-w-[110px]">
+                  {col.label}
+                </span>
+                  <div
+                    className={`text-[10px] text-gray-800 text-left break-words ${
+                      col.key === "__actions" ? "w-full" : "flex-1"
+                    }`}
+                  >
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
                   {typeof col.render === "function"
                     ? col.render(row)
                     : formatValue(row[col.key], col)}
@@ -997,7 +1883,11 @@ const renderMobileCard = (row, idx) => {
     return (
       <div
         className={[
+<<<<<<< HEAD
           "global-tran-table-main-div-ui flex flex-col flex-1 min-h-0 overflow-hidden",
+=======
+          "global-tran-table-main-div-ui flex flex-col flex-1s min-h-[330px] overflow-hidden",
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
           className,
         ].join(" ")}
       >
@@ -1026,7 +1916,11 @@ const renderMobileCard = (row, idx) => {
                   <div
                   className={`text-gray-400 italic border border-dashed border-gray-300 rounded py-1
                     ${tableSize === "Half"
+<<<<<<< HEAD
                       ? "text-[8px] sm:text-[9px] px-4"
+=======
+                      ? "text-[8px] sm:text-[9px] w-18 px-4"
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
                       : "text-[10px] sm:text-xs px-20"
                     }`}
                 >
@@ -1037,6 +1931,7 @@ const renderMobileCard = (row, idx) => {
                 {groupBy.map((gKey) => (
                   <div
                     key={gKey}
+<<<<<<< HEAD
                     className="flex items-center bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded border border-blue-200 max-w-full"
                   >
                     <span className="truncate">{columns.find((c) => c.key === gKey)?.label}</span>
@@ -1044,6 +1939,19 @@ const renderMobileCard = (row, idx) => {
                     <button
                       type="button"
                       onClick={() => setGroupBy((p) => p.filter((k) => k !== gKey))}
+=======
+                    className={`flex items-center bg-blue-100 text-blue-800 rounded border border-blue-200 max-w-full ${
+                      tableSize === "Half" ? "text-[10px] px-1.5 py-0.5" : "text-xs px-2 py-1"
+                    }`}
+                  >
+                    <span className="truncate">
+                      {columns.find((c) => c.key === gKey)?.label}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveGroup(gKey)}
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
                       className="ml-2 text-blue-600 hover:text-red-600 shrink-0"
                       title="Remove group"
                     >
@@ -1056,6 +1964,7 @@ const renderMobileCard = (row, idx) => {
 
             <div className="flex items-center gap-2 flex-wrap justify-end w-full md:w-auto">
               {!isMobile && groupBy.length > 0 && (
+<<<<<<< HEAD
                 <>
                   <button
                     type="button"
@@ -1087,6 +1996,70 @@ const renderMobileCard = (row, idx) => {
                 </>
               )}
 
+=======
+                <div className="flex items-center gap-2">
+                  <label
+                    className={`inline-flex items-center cursor-pointer select-none ${
+                      tableSize === "Half" ? "h-7" : "h-9"
+                    }`}
+                    title={allExpanded ? "Collapse All" : "Expand All"}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={allExpanded}
+                      onChange={handleToggleExpandCollapse}
+                      className="sr-only"
+                    />
+
+                    <div
+                      className={`relative rounded-full transition-colors duration-200 ${
+                        allExpanded ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-600"
+                      } ${tableSize === "Half" ? "w-[78px] h-7" : "w-24 h-8"}`}
+                    >
+                      <span
+                        className={`absolute rounded-full bg-white shadow-md transition-all duration-200 ${
+                          allExpanded
+                            ? tableSize === "Half"
+                              ? "left-[48px]"
+                              : "left-[66px]"
+                            : "left-[2px]"
+                        } ${tableSize === "Half" ? "top-[2px] w-6 h-6" : "top-[2px] w-7 h-7"}`}
+                      />
+
+                      <span
+                        className={`absolute inset-0 flex items-center font-medium pointer-events-none transition-all duration-200 ${
+                          tableSize === "Half" ? "text-[10px]" : "text-[11px]"
+                        } ${
+                          allExpanded
+                            ? "justify-start pl-4 text-white"
+                            : "justify-end pr-4 text-gray-700"
+                        }`}
+                      >
+                        {allExpanded ? "Collapse" : "Expand"}
+                      </span>
+                    </div>
+                  </label>
+
+                  <button
+  type="button"
+  onClick={handleRemoveAllGroups}
+  className={`font-medium text-white bg-red-600 border rounded-md hover:bg-red-700 active:scale-[0.98] transition ${
+    tableSize === "Half"
+      ? "h-7 text-[10px] px-2 py-1"
+      : "h-8 text-xs px-3 py-1"
+  }`}
+  title="Remove All Groups"
+>
+  <FontAwesomeIcon
+    icon={faTimes}
+    className={`mr-1 text-white ${tableSize === "Half" ? "text-[10px]" : "text-sm"}`}
+  />
+  Remove
+</button>
+                </div>
+              )}
+
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
               <div className="flex items-center gap-2 w-full md:w-auto">
                 <input
                   type="text"
@@ -1098,7 +2071,11 @@ const renderMobileCard = (row, idx) => {
                   placeholder="Search all columns..."
                   className={`w-full rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-300
                       ${tableSize === "Half"
+<<<<<<< HEAD
                         ? "h-7 md:w-44 px-2 text-[11px]"
+=======
+                        ? "h-7 md:w-32 px-2 text-[11px]"
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
                         : "h-8 md:w-64 px-3 text-xs"
                       }`}
                   />
@@ -1106,7 +2083,11 @@ const renderMobileCard = (row, idx) => {
                 {globalSearch?.trim() && (
                   <button
                     type="button"
+<<<<<<< HEAD
                     className="h-8 px-3 text-xs rounded-md bg-gray-200 hover:bg-gray-300"
+=======
+                    className={`rounded-md bg-gray-200 hover:bg-gray-300 ${tableSize === "Half" ? "h-7 px-2 text-[10px]" : "h-8 px-3 text-xs"}`}
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
                     onClick={() => {
                       setGlobalSearch("");
                       setCurrentPage(1);
@@ -1120,7 +2101,16 @@ const renderMobileCard = (row, idx) => {
 
               {!isMobile && (
                 <label
+<<<<<<< HEAD
                   className="inline-flex items-center cursor-pointer select-none"
+=======
+                  // className="inline-flex items-center cursor-pointer select-none"
+                  className={`inline-flex items-center cursor-pointer select-none
+                      ${tableSize === "Half"
+                        ? "h-7"
+                        : "h-8"
+                      }`}
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
                   title={autoFillGrid ? "Disable auto fit" : "Enable auto fit"}
                 >
                   <input
@@ -1130,6 +2120,7 @@ const renderMobileCard = (row, idx) => {
                     className="sr-only"
                   />
 
+<<<<<<< HEAD
                   <div
                     className={`relative w-20 h-8 rounded-full transition-colors duration-200 ${
                       autoFillGrid ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-600" 
@@ -1139,6 +2130,23 @@ const renderMobileCard = (row, idx) => {
                       className={`absolute top-[2px] h-7 w-7 rounded-full bg-white shadow-md transition-all duration-200 ${
                         autoFillGrid ? "left-[50px]" : "left-[2px]"
                       }`}
+=======
+                  {/* <div
+                    className={`relative w-20 h-7 rounded-full transition-colors duration-200 ${
+                      autoFillGrid ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-600" 
+                    }`}
+                  > */}
+<div
+  className={`relative rounded-full transition-colors duration-200 ${
+    autoFillGrid ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-600"
+  } ${tableSize === "Half" ? "w-20 h-7" : "w-20 h-8"}`}
+>
+                    
+                    <span
+                      className={`absolute top-[2px] rounded-full bg-white shadow-md transition-all duration-200 ${
+                        autoFillGrid ? "left-[50px]" : "left-[2px]"
+  } ${tableSize === "Half" ? "w-6 h-6" : "w-7 h-7"}`}
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
                     />
 
                     <span
@@ -1155,18 +2163,32 @@ const renderMobileCard = (row, idx) => {
               )}
 
               {/* EXPORT */}
+<<<<<<< HEAD
               <div className="relative flex-1 md:flex-none min-w-[110px]" data-sgrt-export>
+=======
+              <div className="relative flex-1 md:flex-none min-w-[80px]" data-sgrt-export>
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
                 <button
                   type="button"
                   onClick={() => hasDataFiltered && setShowExportMenu((p) => !p)}
                   disabled={!hasDataFiltered}
+<<<<<<< HEAD
                   className="w-full px-3 py-2 h-8 text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 active:scale-[0.98] transition"
+=======
+                  // className="w-full px-3 py-2 h-8 text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 active:scale-[0.98] transition"
+                  className={`w-full text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 active:scale-[0.98] transition
+                      ${tableSize === "Half"
+                        ? "h-7 md:w-38 px-3 py-1"
+                        : "h-8 md:w-[80px] px-3 py-2"
+                      }`}
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
                 >
                   <FontAwesomeIcon icon={faFileExport} className="mr-1" />
                   Export
                 </button>
 
                 {showExportMenu && (
+<<<<<<< HEAD
                   <div className="absolute right-0 mt-1 w-44 rounded-lg shadow-lg bg-white ring-1 ring-black/10 z-[60] overflow-hidden">
                     <button
                       type="button"
@@ -1213,15 +2235,95 @@ const renderMobileCard = (row, idx) => {
                       Image
                     </button>
                   </div>
+=======
+                  <div className="absolute right-0 mt-1 min-w-[80px] rounded-lg shadow-lg bg-white ring-1 ring-black/10 z-[60] overflow-hidden">
+  <button
+    type="button"
+    onClick={async () => {
+      setShowExportMenu(false);
+      await handleExportExcel();
+    }}
+    className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors
+      ${tableSize === "Half"
+        ? "h-7 text-xs px-2"
+        : "h-8 text-sm px-4"
+      }`}
+  >
+    <FontAwesomeIcon icon={faFileExcel} className={`mr-2 text-green-600 ${tableSize === "Half" ? "text-xs" : "text-sm"}`} />
+    Excel
+  </button>
+
+  <button
+    type="button"
+    onClick={async () => {
+      setShowExportMenu(false);
+      await handleExportCsv();
+    }}
+    className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors
+      ${tableSize === "Half"
+        ? "h-7 text-xs px-2"
+        : "h-8 text-sm px-4"
+      }`}
+  >
+    <FontAwesomeIcon icon={faFileCsv} className={`mr-2 text-emerald-600 ${tableSize === "Half" ? "text-xs" : "text-sm"}`} />
+    CSV
+  </button>
+
+  <button
+    type="button"
+    onClick={async () => {
+      setShowExportMenu(false);
+      await handleExportPdf();
+    }}
+    className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors
+      ${tableSize === "Half"
+        ? "h-7 text-xs px-2"
+        : "h-8 text-sm px-4"
+      }`}
+  >
+    <FontAwesomeIcon icon={faFilePdf} className={`mr-2 text-red-600 ${tableSize === "Half" ? "text-xs" : "text-sm"}`} />
+    PDF
+  </button>
+
+  <button
+    type="button"
+    onClick={async () => {
+      setShowExportMenu(false);
+      await handleExportImage();
+    }}
+    className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors
+      ${tableSize === "Half"
+        ? "h-7 text-xs px-2"
+        : "h-8 text-sm px-4"
+      }`}
+  >
+    <FontAwesomeIcon icon={faFileImage} className={`mr-2 text-blue-600 ${tableSize === "Half" ? "text-xs" : "text-sm"}`} />
+    Image
+  </button>
+</div>
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
                 )}
               </div>
 
               {/* COLUMNS */}
+<<<<<<< HEAD
               <div className="relative flex-1 md:flex-none min-w-[110px]" data-sgrt-cols>
                 <button
                   type="button"
                   onClick={() => setShowColumnChooser((p) => !p)}
                   className="w-full px-3 py-2 h-8 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-[0.98] transition"
+=======
+              <div className="relative flex-1 md:flex-none min-w-[80px]" data-sgrt-cols>
+                <button
+                  type="button"
+                  onClick={() => setShowColumnChooser((p) => !p)}
+                  // className="w-full px-3 py-2 h-8 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-[0.98] transition"
+                  className={`w-full text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-[0.98] transition
+                    ${tableSize === "Half"
+                      ? "h-7 text-xs px-2 py-1"
+                      : "h-8 text-sm px-3 py-2"
+                    }`}
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
                 >
                   <FontAwesomeIcon icon={faColumns} className="mr-1" />
                   Columns
@@ -1271,7 +2373,11 @@ const renderMobileCard = (row, idx) => {
         )}
 
         {/* TABLE / CARD VIEW */}
+<<<<<<< HEAD
         <div className="global-tran-table-main-sub-div-ui flex flex-col flex-1 min-h-0 h-0">
+=======
+        <div className="global-tran-table-main-sub-div-ui flex flex-col flex-1 min-h-[330px]">
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
           {isLoadingColumns ? (
             <TableLoader />
           ) : useCardView ? (
@@ -1406,7 +2512,11 @@ const renderMobileCard = (row, idx) => {
                   ) : (
                     displayRows.map((row, idx) => {
                       if (isGroupedView && row.isGroup) {
+<<<<<<< HEAD
                         const uniqueId = `${row.key}-${row.value}-${row.level}`;
+=======
+                        const uniqueId = getGroupNodeId(row);
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
                         const isExpanded = expandedGroups[uniqueId];
                         return (
                           <tr

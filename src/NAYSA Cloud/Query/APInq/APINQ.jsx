@@ -117,50 +117,61 @@ export default function APINQ() {
     }
   };
 
-  return (
-    <div className="global-tran-main-div-ui">
-      {/* Spacer so content sits below the fixed bar */}
-      <div style={{ height: barH }} />
+ return (
+    <div className="global-ref-main-div-ui">
+      
+      {/* HEADER SECTION - Aligned with COA Template */}
+      <div className="global-ref-header-ui">
+        <div className="w-full flex flex-col gap-3 md:grid md:grid-cols-3 md:items-center md:gap-0">
 
-      {/* Fixed Tabs + Action Bar (always visible) */}
-      <div
-        ref={barRef}
-        className="
-          fixed left-0 right-0 z-40
-          bg-white/95 backdrop-blur supports-backdrop-blur:bg-white/80
-          border-b shadow-sm
-        "
-        style={{ top: headerH }}  // pins this bar directly under your main header
-      >
-        <div className="flex justify-between items-center px-6 py-2">
-          {/* Tabs Group: left */}
-          <div className="flex flex-row gap-2">
-            {TABS.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center px-3 py-2 rounded-md text-xs md:text-sm font-bold transition-colors duration-200
-                  ${activeTab === tab.key
-                    ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
-                    : "text-gray-600 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-blue-300"}`}
-                  >
-                <FontAwesomeIcon icon={faDatabase} className="w-4 h-4 mr-2" />
-                {tab.label}
-              </button>
-            ))}
+          {/* 1) Title */}
+          <div className="w-full md:w-auto md:justify-start flex">
+            <h1 className="global-ref-headertext-ui w-full md:w-auto truncate text-center md:text-left">
+              {TABS.find(t => t.key === activeTab)?.label}
+            </h1>
           </div>
 
-          {/* Action Bar: right, inline with the tabs */}
-          <APINQActionBar
-            activeTab={activeTab}
-            onAction={handleAction}
-            help={{ pdfLink: "/public/NAYSA AP Inquiry.pdf" }}
-          />
+          {/* 2) Tabs - Using your Blue-border template style */}
+          <div className="w-full md:justify-center flex">
+            <div className="w-full md:w-auto">
+              <div className="flex flex-nowrap overflow-x-auto no-scrollbar border-b border-gray-200 dark:border-gray-700">
+                {TABS.map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key)}
+                    className={`shrink-0 whitespace-nowrap px-3 py-2 text-[12px] font-bold transition-all border-b-2
+                      ${activeTab === tab.key
+                        ? "border-blue-600 text-blue-600 bg-blue-50/50"
+                        : "border-transparent text-gray-500 hover:text-blue-500"
+                      }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* 3) Buttons + Info - Aligned with COA template */}
+          <div className="w-full md:w-auto flex md:justify-end">
+            <div className="w-full md:w-auto flex items-center justify-center md:justify-end gap-2 flex-wrap">
+              
+              {/* Using your custom APINQActionBar but styled as a ButtonBar */}
+              <div className="flex flex-wrap justify-center md:justify-end gap-2">
+                <APINQActionBar
+                  activeTab={activeTab}
+                  onAction={handleAction}
+                />
+              </div>
+
+
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Tab content */}
-      <div>
+      {/* Main Content - Pushing content down to avoid header overlap */}
+      <div className="mt-44 sm:mt-24 px-0">
         {ActiveComp && <ActiveComp registerActions={registerActions} />}
       </div>
     </div>

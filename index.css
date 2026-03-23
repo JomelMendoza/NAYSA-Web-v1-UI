@@ -54,6 +54,9 @@ body {
             dark:bg-blue-900 dark:text-white;
   }
 
+
+  
+
   .global-tran-headertext-div-ui {
     @apply text-center sm:text-left;
   }
@@ -217,7 +220,7 @@ body {
   }
 
   .global-tran-table-main-sub-div-ui {
-    @apply max-h-[360px] overflow-y-auto relative;
+    @apply max-h-[600px] sm:max-h-[450px] overflow-y-auto relative;
  
   }
 
@@ -300,13 +303,7 @@ body {
    /* Transaction Table Behavior */
   /* Keep scroll working */
 
-@keyframes bounce-slow {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
-}
-.animate-bounce-slow {
-  animation: bounce-slow 4s ease-in-out infinite;
-}
+
 
 
   /* REFERENCE FILES & MASTERDATA */
@@ -328,14 +325,15 @@ body {
 
   .global-ref-header-ui {
     /* items-center centers children horizontally in flex-col (mobile) */
-    @apply bg-gradient-to-r from-blue-200 to-blue-200 p-2 rounded-lg text-blue-900 shadow-lg fixed top-14 left-6 right-6 z-30 
-          flex flex-col items-center sm:flex-row sm:justify-between sm:items-center gap-4  
+    @apply bg-gradient-to-r from-blue-100 to-blue-100 p-2 rounded-lg text-blue-900 shadow-lg fixed top-14 left-6 right-6 z-30 
+          flex flex-col items-center sm:flex-row sm:justify-between sm:items-center gap-4
+
           dark:from-blue-900 dark:bg-blue-900 dark:text-white;
   }
 
   .global-ref-headertext-ui {
     /* ml-0 on mobile to avoid off-center shift, ml-2 restored on sm screens */
-    @apply text-sm lg:text-2xl font-semibold ml-0 sm:ml-2 whitespace-nowrap text-center sm:text-left;
+    @apply text-xs lg:text-2xl font-semibold ml-0 sm:ml-2 whitespace-nowrap text-center sm:text-left;
   }
 
     
@@ -459,13 +457,13 @@ body {
 
 .global-ref-textbox-enabled {
   @apply bg-white border border-gray-200 focus:border-blue-600 ;
-  @apply text-[10px] sm:text-[12px] !important ;
+  @apply text-[10px] sm:text-[12px] rounded-lg !important ;
   @apply dark:bg-gray-600 dark:text-white dark:peer-focus:text-white;
 }
 
 .global-ref-textbox-disabled {
   @apply bg-gray-100 !important; /* Force background */
-  @apply border-gray-200 text-gray-800 cursor-not-allowed text-[10px] sm:text-[12px] !important ;
+  @apply border-gray-200 text-gray-800 cursor-not-allowed text-[10px] sm:text-[12px] rounded-lg !important ;
   @apply dark:bg-gray-500 dark:text-gray-200;
   opacity: 1 !important; /* Overwrite default HTML/Tailwind opacity reductions */
 }
@@ -702,10 +700,23 @@ body {
 }
 
 .toast-title { font-weight:700; font-size:10px; color:#111827;}
-<<<<<<< HEAD
 @media (min-width: 768px) { .toast-title { font-size:14px; } } /* md */
-=======
-@media (min-width: 768px) { .toast-title { font-size:14px; } } /* md */
+
+.date-input-right {
+  position: relative;
+  padding-right: 2.5rem;
+}
+
+.date-input-right::-webkit-calendar-picker-indicator {
+  position: absolute;
+  right: 10px;
+  cursor: pointer;
+  opacity: 1;
+}
+
+.date-input-right::-webkit-date-and-time-value {
+  text-align: left;
+}
 
 
 @keyframes sonnerSuccessProgress {
@@ -1508,4 +1519,3 @@ body {
 }
 
 
->>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c

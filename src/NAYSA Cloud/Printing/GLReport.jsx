@@ -9,6 +9,10 @@ import BranchLookupModal from "@/NAYSA Cloud/Lookup/SearchBranchRef";
 import COAMastLookupModal from "@/NAYSA Cloud/Lookup/SearchCOAMast.jsx";
 import RCLookupModal from "@/NAYSA Cloud/Lookup/SearchRCMast.jsx";
 import SLMastLookupModal from "@/NAYSA Cloud/Lookup/SearchSLMast.jsx";
+import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
+import { useSelectedHSColConfig} from '@/NAYSA Cloud/Global/selectedData';
+import {exportGenericHistoryExcel} from "@/NAYSA Cloud/Global/report";
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 import Swal from "sweetalert2";
 
 
@@ -26,15 +30,13 @@ const GLReportModal = ({ isOpen, onClose, userCode,closeOnBackdrop = true }) => 
   const [accountModalOpen, setAccountModalOpen] = useState(false);
   const [slModalOpen, setSLModalOpen] = useState(false);
   const [rcModalOpen, setRCModalOpen] = useState(false);
-
-
+  const { companyInfo, currentUserRow } = useAuth();
   const [acctMode, setAcctMode] = useState("S"); 
   const [rcMode, setRCMode] = useState("S"); 
   const [slMode, setSlMode] = useState("S"); 
   const [reportList, setReportList] = useState([]);
   const [reportQuery, setReportQuery] = useState("");
   const [selected, setSelected] = useState({ id: 0, name: "" });
-
   const [filters, setFilters] = useState({
     branchCode: "",
     branchName: "",
@@ -249,24 +251,20 @@ const GLReportModal = ({ isOpen, onClose, userCode,closeOnBackdrop = true }) => 
   };
 
 
-  
-  const handlePreview = async () => {
-    try {
 
-      if (!selected.id) {
-              Swal.fire({ icon: "info", title: "Select a report", text: "Please choose a report first." });
-              return;
-            }
-      
 
-      const { startDate, endDate } = normalizeDates(filters.startDate, filters.endDate);
-      updateState({ startDate, endDate });
-      
-         
 
-      setLoading(true);
+const handlePreview = async () => {
+  try {
+    if (!selected.id) {
+      Swal.fire({ icon: "info", title: "Select a report", text: "Please choose a report first." });
+      return;
+    }
 
-      const params = {
+    setLoading(true);
+
+    const meta = await useTopHSRptRow(selected.id);
+    const params = {
         reportId: selected.id,
         branchCode: filters.branchCode,
         startDate: filters.startDate,
@@ -278,33 +276,51 @@ const GLReportModal = ({ isOpen, onClose, userCode,closeOnBackdrop = true }) => 
         sSL:filters.sSLCode,
         eSL:filters.eSLCode,
         userCode,
+        mode:meta.sprocMode
       };
 
+  
+    if (!meta?.crptName && meta?.export !== "Y") {
+      Swal.fire({ icon: "info", title: "No Records Found", text: "Report File not Defined." });
+      return;
+    }
+
+
+    const response = meta.export === "Y"
+      ? await useHandleDownloadExcelGLReport(params)
+      : await useHandlePrintGLReport(params);
+
+    if (meta.export === "Y") {
+      const colConfig = await useSelectedHSColConfig(meta.sprocMode, userCode);
+      
+      const payload = {
+        ReportName: meta.reportName,
+        UserCode: currentUserRow.userCode,
+        Branch: companyInfo.branchName,
+        JsonData: {
+          "Data": { [meta.reportName]: response.data }
+        },
+        companyName: companyInfo.compName,
+        companyAddress: companyInfo.compAddr,
+        companyTelNo: companyInfo.telNo,
+        StartDate: filters.startDate,
+        EndDate: filters.endDate,
+      };
+
+      const columnConfigsMap = { [meta.reportName]: colConfig };
+      console.log(payload)
+      await exportGenericHistoryExcel(payload, columnConfigsMap);
+    } 
     
+  } catch (err) {
+    Swal.fire({ icon: "error", title: "Generate failed", text: err?.message ?? "Unexpected error." });
+  } finally {
+    setLoading(false);
+  }
+};
 
-      const meta = await useTopHSRptRow(params.reportId);
 
-      if (!meta?.crptName && meta?.export !== "Y") {
-        Swal.fire({ icon: "info", title: "No Records Found", text: "Report File not Defined." });
-        return;
-      }
 
-      const response =
-        meta.export === "Y"
-          ? await useHandleDownloadExcelGLReport(params)
-          : await useHandlePrintGLReport(params);
-
-      if (!meta.crptName && meta.export !== "Y") {
-        console.error("⚠️ Failed to generate report:", response);
-      }
-   } catch (err) {
-         console.error("❌ Error generating report:", err);
-         Swal.fire({ icon: "error", title: "Generate failed", text: err?.message ?? "Unexpected error." });
-       } finally {
-         setLoading(false);
-       }
-  };
-   
 
   if (!isOpen) return null;
 
@@ -657,12 +673,26 @@ const GLReportModal = ({ isOpen, onClose, userCode,closeOnBackdrop = true }) => 
 
               {/* Actions */}
               <div className="pt-2 md:pt-4">
-                <div className="grid grid-cols-3 md:flex md:justify-center gap-2 md:gap-3">
+                <div className="grid grid-cols-3 md:flex md:justify-end gap-2 md:gap-3">
                   <button
                     onClick={handleReset}
-                    className="inline-flex items-center justify-center gap-2 w-full md:w-40 py-2 border rounded-lg text-white bg-blue-600 hover:bg-gray-700 text-xs md:text-sm"
+                    className="inline-flex items-center justify-center gap-2 w-full md:w-32 py-2 border rounded-lg bg-gray-50 hover:bg-gray-100 text-xs md:text-sm"
                   >
+                    <FontAwesomeIcon icon={faBroom} />
                     Reset
+                  </button>
+                  <button
+                    onClick={() => {
+                      // quick convenience: reset dates to current month
+                      const d = new Date(today);
+                      const start = useFormatToDate(new Date(d.getFullYear(), d.getMonth(), 1));
+                      updateState({ startDate: start, endDate: today });
+                    }}
+                    className="inline-flex items-center justify-center gap-2 w-full md:w-40 py-2 border rounded-lg bg-white hover:bg-gray-50 text-xs md:text-sm"
+                    title="Set to current month"
+                  >
+                    <FontAwesomeIcon icon={faRotateLeft} />
+                    This Month
                   </button>
                   <button
                     onClick={handlePreview}
@@ -684,19 +714,13 @@ const GLReportModal = ({ isOpen, onClose, userCode,closeOnBackdrop = true }) => 
                   </button>
                 </div>
               </div>
+
             </div>
           </div>
         </div>
 
-        {/* Loading overlay */}
-        {loading && (
-           <div className="global-tran-spinner-main-div-ui">
-                <div className="global-tran-spinner-sub-div-ui">
-                  <FontAwesomeIcon icon={faSpinner} spin size="2x" className="text-blue-500 mb-2" />
-                  <p>Please wait...</p>
-                </div>
-           </div>
-        )}
+
+        {loading && <LoadingSpinner />}
 
         {/* Child modals */}
         {branchModalOpen && (

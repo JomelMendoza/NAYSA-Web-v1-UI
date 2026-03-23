@@ -40,6 +40,10 @@ import CustMast from "./NAYSA Cloud/Master Data/CustMast.jsx";
 import VendMast from "./NAYSA Cloud/Master Data/VendMast.jsx";
 import BankMast from "./NAYSA Cloud/Master Data/BankMast.jsx";
 import RCMast from "./NAYSA Cloud/Master Data/RCMast.jsx";
+<<<<<<< HEAD
+=======
+import SLMast from "./NAYSA Cloud/Master Data/SLMast.jsx";
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 
 // --- PURCHASING & INVENTORY ---
 import PR from "./NAYSA Cloud/Module/Main Module/Purchasing/PR.jsx";
@@ -53,7 +57,11 @@ import MSRTV from "./NAYSA Cloud/Module/Main Module/Inventory/MSRTV.jsx";
 import PostMSRR from "./NAYSA Cloud/Module/Main Module/Inventory/PostMSRR.jsx";
 import PostMSRTV from "./NAYSA Cloud/Module/Main Module/Inventory/PostMSRTV.jsx";
 import PostMSAJ from "./NAYSA Cloud/Module/Main Module/Inventory/PostMSAJ.jsx";
+<<<<<<< HEAD
 
+=======
+import MonthendGLProcessingModal from "@/NAYSA Cloud/Processing/MonthendProcessing.jsx";
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 
 // --- REFERENCE FILES ---
 import Company from "./NAYSA Cloud/Reference File/Company.jsx";
@@ -234,6 +242,10 @@ export const pageRegistry = {
   RCMast,
   CustMast,
   VendMast,
+<<<<<<< HEAD
+=======
+  SLMast,
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 
   // Global & Queries
   AllTranHistory,
@@ -278,6 +290,10 @@ export const pageRegistry = {
   PostMSRR,
   PostMSRTV,
   PostMSAJ,
+<<<<<<< HEAD
+=======
+  MonthendGLProcessingModal,
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 
   // Printing
   // These keys now point to the Universal component but inject the specific module prop

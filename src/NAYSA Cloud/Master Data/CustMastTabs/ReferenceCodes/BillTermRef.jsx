@@ -22,7 +22,7 @@ import {
   useSwalDeleteRecord,
   useSwalshowSave,
   useSwalValidationAlert,
-} from "@/NAYSA Cloud/Global/behavior";
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 
 import {
   useGlobalDeleteRefTable
@@ -122,7 +122,26 @@ export default function BillTermRef() {
     return parsed.result === "1";
   };
 
-  const handleBillTermCodeBlur = async () => {
+
+  const handleBillTermCodeBlur = async (e) => {
+    // ✅ If blur happens right after Enter, skip blur validation
+    if (e?.type === "blur" && e?.relatedTarget === null) {
+      // still allow normal blur (mouse click, tab out, etc.)
+    }
+
+    // ✅ If this is blur but Enter was just pressed, ignore it
+    if (e?.type === "blur" && e?.target?.dataset?.enterValidated === "1") {
+      e.target.dataset.enterValidated = "0";
+      return;
+    }
+
+    // ✅ Only handle Enter on keydown
+    if (e?.type === "keydown") {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      e.target.dataset.enterValidated = "1"; // mark Enter validation happened
+    }
+
     const code = (form.code || "").trim();
     if (!code) return;
 
@@ -130,7 +149,7 @@ export default function BillTermRef() {
     if (!isAddMode || !isEditing) return;
 
     try {
-      const dup = await checkDuplicate(code); // API
+      const dup = await checkDuplicate(code);
       setIsDupCode(dup);
 
       if (dup) {
@@ -138,12 +157,12 @@ export default function BillTermRef() {
         updateForm({ code: "" });
         setIsDupCode(false);
         setTimeout(() => codeInputRef.current?.focus?.(), 0);
+        return;
       }
     } catch (err) {
       console.error(err);
     }
   };
-
 
 
   useEffect(() => {
@@ -242,6 +261,7 @@ export default function BillTermRef() {
       }
     }
 
+    
     const payload = {
       json_data: {
         billtermCode: String(f.code ?? "").trim(),
@@ -454,30 +474,12 @@ export default function BillTermRef() {
             type="text"
             value={form.code}
             inputRef={codeInputRef}
-            onChange={async (v) => {
-              const isAddMode = !selectedCode;
+            onChange={(v) => {
               updateForm({ code: v });
               setIsDupCode(false);
-
-              if (!isAddMode || !isEditing) return;
-
-              if (isDuplicateLocal(v)) {
-                setIsDupCode(true);
-
-                if (!dupAlertingRef.current) {
-                  dupAlertingRef.current = true;
-
-                  await showValidation("Duplicate Entry", ["Duplicate Code is not allowed."]);
-
-                  updateForm({ code: "" });
-                  setIsDupCode(false);
-
-                  setTimeout(() => codeInputRef.current?.focus?.(), 0);
-                  dupAlertingRef.current = false;
-                }
-              }
             }}
-            onBlur={handleBillTermCodeBlur}   // ✅ keep blur (server check)
+            onBlur={handleBillTermCodeBlur}
+            onKeyDown={handleBillTermCodeBlur}
             disabled={!isEditing || selectedCode !== ""}
           />
 

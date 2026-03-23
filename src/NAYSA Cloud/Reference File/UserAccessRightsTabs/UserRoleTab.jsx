@@ -6,26 +6,14 @@ import {
   useSwalErrorAlert,
   useSwalSuccessAlert,
   useSwalWarningAlert,
-} from "@/NAYSA Cloud/Global/behavior";
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 
 const UserRoleTab = ({ users }) => {
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [showModules, setShowModules] = useState(false);
   const [selectedModules, setSelectedModules] = useState([]);
 
-  // Sample modules data - replace with actual API data
-  const modulesData = [
-    { id: 1, module: "GL", particular: "General Ledger" },
-    { id: 2, module: "GL", particular: "Accounts Payable" },
-    { id: 3, module: "GL", particular: "Accounts Receivable" },
-    { id: 4, module: "GL", particular: "Fixed Assets" },
-    { id: 5, module: "GL", particular: "Inventory" },
-    { id: 6, module: "GL", particular: "Banking" },
-    { id: 7, module: "HR", particular: "Employee Management" },
-    { id: 8, module: "HR", particular: "Attendance" },
-    { id: 9, module: "HR", particular: "Payroll" },
-    { id: 10, module: "SYS", particular: "System Settings" },
-  ];
+
 
   const handleSaveAccess = async () => {
     if (selectedModules.length === 0) {

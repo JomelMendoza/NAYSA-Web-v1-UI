@@ -9,14 +9,24 @@ import React, {
 } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Edit, Trash2 } from "lucide-react";
+<<<<<<< HEAD
 import Swal from "sweetalert2";
+=======
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 import {
   useSwalErrorAlert,
   useSwalSuccessAlert,
+<<<<<<< HEAD
 } from "@/NAYSA Cloud/Global/behavior";
+=======
+  useSwalWarningAlert,
+  useSwalInfoAlert,
+  useSwalDeleteRecord
+} from "@/NAYSA Cloud/Global/behavior.jsx";
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 import {
   reftables,
   reftablesPDFGuide,
@@ -25,6 +35,10 @@ import {
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 import SearchGlobalReferenceTable from "@/NAYSA Cloud/Lookup/SearchGlobalReferenceTable.jsx";
 import RegistrationInfo from "@/NAYSA Cloud/Global/RegistrationInfo.jsx";
+<<<<<<< HEAD
+=======
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 
 /* ================= HELPERS ================= */
 
@@ -82,6 +96,7 @@ const BankRef = forwardRef(
 
     const [form, setForm] = useState(DEFAULT_FORM);
 
+<<<<<<< HEAD
     const setField = (key, value) =>
       setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -95,6 +110,27 @@ const BankRef = forwardRef(
 
     /* ================= TANSTACK QUERY ================= */
 
+=======
+    const { showSuccess } = useSwalSuccessAlert();
+    const { showError } = useSwalErrorAlert();
+    const { showDeleteRecord } = useSwalDeleteRecord();
+    const { showInfo } = useSwalInfoAlert();
+    const showWarning = useSwalWarningAlert;
+
+    const setField = (key, value) =>
+      setForm((prev) => ({ ...prev, [key]: value }));
+
+    const resetForm = useCallback((next = DEFAULT_FORM) => {
+      setForm(next);
+    }, []);
+
+    useEffect(() => {
+      if (!embedded) document.title = documentTitle;
+    }, [documentTitle, embedded]);
+
+    /* ================= TANSTACK QUERY ================= */
+
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
     const bankTypeListQuery = useQuery({
       queryKey: ["bankTypeList"],
       queryFn: async () => {
@@ -116,25 +152,42 @@ const BankRef = forwardRef(
           json_data: JSON.stringify(payload),
         });
       },
+<<<<<<< HEAD
       onSuccess: (response) => {
+=======
+      onSuccess: async (response) => {
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
         const sqlRow = response?.data?.data?.[0] || {};
         const errorcount = Number(sqlRow.errorcount ?? sqlRow.ERRORCOUNT ?? 0);
         const errormsg = String(sqlRow.errormsg ?? sqlRow.ERRORMSG ?? "");
 
         if (errorcount > 0) {
+<<<<<<< HEAD
           useSwalErrorAlert("Error", errormsg);
           return;
         }
 
         queryClient.invalidateQueries({ queryKey: ["bankTypeList"] });
         useSwalSuccessAlert("Success!", "Bank Type saved successfully.");
+=======
+          showError("Error", errormsg || "Failed to save Bank Type.");
+          return;
+        }
+
+        await queryClient.invalidateQueries({ queryKey: ["bankTypeList"] });
+        showSuccess("Success!", "Bank Type saved successfully.");
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
         setIsEditing(false);
         setSelectedRow(null);
         setIsDupCode(false);
         resetForm(DEFAULT_FORM);
       },
       onError: (error) => {
+<<<<<<< HEAD
         useSwalErrorAlert("System Error", error.message);
+=======
+        showError("System Error", error?.message || "Failed to save record.");
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
       },
     });
 
@@ -144,6 +197,7 @@ const BankRef = forwardRef(
           json_data: { bankTypeCode },
         });
       },
+<<<<<<< HEAD
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["bankTypeList"] });
         Swal.fire("Deleted", "Bank Type record has been removed.", "success");
@@ -151,6 +205,15 @@ const BankRef = forwardRef(
       },
       onError: (error) => {
         useSwalErrorAlert("System Error", error.message);
+=======
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({ queryKey: ["bankTypeList"] });
+        showDeleteRecord("Deleted", "Bank Type record has been removed.");
+        handleReset();
+      },
+      onError: (error) => {
+        showError("System Error", error?.message || "Failed to delete record.");
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
       },
     });
 
@@ -171,6 +234,7 @@ const BankRef = forwardRef(
       setIsDupCode(false);
     }, [resetForm]);
 
+<<<<<<< HEAD
     const checkDuplicate = async (bankTypeCode) => {
       const c = String(bankTypeCode || "").trim();
       if (!c) return false;
@@ -429,6 +493,314 @@ const BankRef = forwardRef(
             <div className="xl:col-span-4">
               <div className="flex flex-col gap-4">
                 <div className="border rounded-lg p-4">
+=======
+    const parseResultFlag = (res) => {
+      const row0 = res?.data?.data?.[0] || {};
+      const raw = row0?.result ?? row0?.[""] ?? '{"result":"0"}';
+
+      try {
+        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+        return String(parsed?.result) === "1";
+      } catch {
+        return false;
+      }
+    };
+
+    const checkDuplicate = async (bankTypeCode) => {
+      const c = String(bankTypeCode || "").trim();
+      if (!c) return false;
+
+      const res = await apiClient.post("/checkDuplicateBankType", {
+        json_data: { bankTypeCode: c },
+      });
+
+      return parseResultFlag(res);
+    };
+
+    const checkInUsed = async (bankTypeCode) => {
+      const c = String(bankTypeCode || "").trim();
+      if (!c) return false;
+
+      const res = await apiClient.post("/checkInUsedBankType", {
+        json_data: { bankTypeCode: c },
+      });
+
+      return parseResultFlag(res);
+    };
+
+    const handleBankTypeCodeValidate = async (arg) => {
+      const isEvent = arg && typeof arg === "object" && "type" in arg;
+
+      if (isEvent && arg.type === "keydown") {
+        if (arg.key !== "Enter") return;
+        enterValidatedRef.current = true;
+      }
+
+      if (isEvent && arg.type === "blur" && enterValidatedRef.current) {
+        enterValidatedRef.current = false;
+        return;
+      }
+
+      const code = String(form.bankTypeCode || "").trim().toUpperCase();
+      if (!code || !isEditing || form.__existing) return;
+
+      try {
+        const dup = await checkDuplicate(code);
+
+        if (dup) {
+          setIsDupCode(true);
+          showError(
+            "Duplicate Entry",
+            `Bank Type Code "${code}" already exists.`
+          );
+          setField("bankTypeCode", "");
+          setTimeout(() => codeInputRef.current?.focus?.(), 0);
+        } else {
+          setIsDupCode(false);
+        }
+      } catch (error) {
+        showError(
+          "Validation Error",
+          error?.message || "Failed to validate Bank Type Code."
+        );
+      }
+    };
+
+    const handleSave = useCallback(async () => {
+      if (!isEditing || saveMutation.isPending) return;
+
+      const code = String(form.bankTypeCode || "").trim().toUpperCase();
+      const name = String(form.bankTypeName || "").trim();
+
+      const missing = [];
+      if (!code) missing.push("• Bank Type Code");
+      if (!name) missing.push("• Bank Type Name");
+
+      if (missing.length) {
+        showError(
+          "Error!",
+          `Please fill in the required field(s):\n${missing.join("\n")}`
+        );
+        return;
+      }
+
+      try {
+        if (!form.__existing) {
+          const dup = await checkDuplicate(code);
+          if (dup) {
+            showError(
+              "Duplicate Entry",
+              `Bank Type Code "${code}" already exists.`
+            );
+            setTimeout(() => codeInputRef.current?.focus?.(), 0);
+            return;
+          }
+        }
+
+        const payload = {
+          bankTypeCode: code,
+          bankTypeName: name,
+          userCode: user?.USER_CODE || "ADMIN",
+        };
+
+        saveMutation.mutate(payload);
+      } catch (error) {
+        showError(
+          "System Error",
+          error?.message || "Failed to save Bank Type."
+        );
+      }
+    }, [form, isEditing, saveMutation, user?.USER_CODE, showError]);
+
+    const handleEdit = async (row) => {
+      try {
+        const res = await apiClient.get("/getBankType", {
+          params: { bankTypeCode: row.bankTypeCode },
+        });
+
+        const record = extractRows(res)?.[0];
+        resetForm({ ...DEFAULT_FORM, ...record, __existing: true });
+        setIsEditing(true);
+        setSelectedRow(row);
+      } catch {
+        showError("Error", "Could not fetch record");
+      }
+    };
+
+    const handleDelete = useCallback(
+      async (row) => {
+        const code = row?.bankTypeCode ?? row?.banktype_code ?? "";
+
+        if (!code) {
+          showError("Error", "No record selected.");
+          return;
+        }
+
+        try {
+          const used = await checkInUsed(code);
+
+          if (used) {
+            showError(
+              "Cannot Delete",
+              `Bank Type Code "${code}" is already in use.`
+            );
+            return;
+          }
+
+          const confirm = await useSwalDeleteConfirm(
+            "Delete Record?",
+            `Are you sure you want to delete Bank Type "${code}"?`,
+            "Yes, delete it"
+          );
+
+          if (!confirm?.isConfirmed) return;
+
+          deleteMutation.mutate(code);
+        } catch (error) {
+          showError(
+            "System Error",
+            error?.message || "Failed to delete record."
+          );
+        }
+      },
+      [deleteMutation, useSwalDeleteConfirm, showError]
+    );
+
+    const editSelected = useCallback(() => {
+      if (!selectedRow) {
+        showInfo("Info", "Please select a record first.");
+        return;
+      }
+      handleEdit(selectedRow);
+    }, [selectedRow, showInfo]);
+
+    const deleteSelected = useCallback(async () => {
+      if (!selectedRow) {
+        showInfo("Info", "Please select a record first.");
+        return;
+      }
+      await handleDelete(selectedRow);
+    }, [selectedRow, handleDelete, showInfo]);
+
+    const exportData = useCallback(() => {
+      tableRef.current?.getState?.();
+    }, []);
+
+    const openInfo = useCallback(() => {
+      const messages = [];
+
+      if (pdfLink) messages.push(`PDF Guide: ${pdfLink}`);
+      if (videoLink) messages.push(`Video Guide: ${videoLink}`);
+
+      if (messages.length) {
+        showInfo("Guide", messages.join("\n"));
+        return;
+      }
+
+      showInfo("Guide", "No guide or video link is available for this reference.");
+    }, [pdfLink, videoLink, showInfo]);
+
+    useImperativeHandle(ref, () => ({
+      startNew,
+      edit: editSelected,
+      editSelected,
+      deleteSelected,
+      save: handleSave,
+      reset: handleReset,
+      refresh: () =>
+        queryClient.invalidateQueries({ queryKey: ["bankTypeList"] }),
+      exportData,
+      openInfo,
+    }));
+
+    /* ================= TABLE COLUMNS ================= */
+
+    const tableColumns = useMemo(
+      () => [
+        {
+          key: "__actions",
+          label: "Actions",
+          sortable: false,
+          width: 140,
+          render: (row) => (
+            <div className="flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleEdit(row);
+                }}
+                className="rounded-md border border-blue-200 bg-blue-50 p-1 text-blue-600 transition-colors hover:bg-blue-600 hover:text-white"
+              >
+                <Edit size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete(row);
+                }}
+                className="rounded-md border border-red-200 bg-red-50 p-1 text-red-600 transition-colors hover:bg-red-600 hover:text-white"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          ),
+        },
+        {
+          key: "bankTypeCode",
+          label: "Code",
+          sortable: true,
+          width: 140,
+          render: (row) => row?.bankTypeCode,
+        },
+        {
+          key: "bankTypeName",
+          label: "Name",
+          sortable: true,
+          width: 360,
+          render: (row) => row?.bankTypeName,
+        },
+      ],
+      [handleDelete]
+    );
+
+    const tableData = useMemo(
+      () =>
+        (Array.isArray(bankTypes) ? bankTypes : []).map((row, index) => ({
+          ...row,
+          __idx: index,
+          bankTypeCode: row?.bankTypeCode,
+          bankTypeName: row?.bankTypeName,
+        })),
+      [bankTypes]
+    );
+
+    const registrationData = useMemo(
+      () => ({
+        registeredBy: form?.registeredBy,
+        registeredDate: form?.registeredDate,
+        lastUpdatedBy: form?.lastUpdatedBy,
+        lastUpdatedDate: form?.lastUpdatedDate,
+      }),
+      [form]
+    );
+
+    const showGlobalLoading =
+      isInitialLoading ||
+      saveMutation.isPending ||
+      deleteMutation.isPending;
+
+    return (
+      <div className={embedded ? "w-full" : "global-ref-main-div-ui mt-24"}>
+        {showGlobalLoading && <LoadingSpinner />}
+
+        <div className="mx-auto w-full max-w-[905px] px-4">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+            <div className="xl:col-span-4">
+              <div className="flex flex-col gap-4">
+                <div className="rounded-lg border p-4">
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
                   <div className="grid grid-cols-1 gap-4">
                     <FieldRenderer
                       label="Bank Type Code"
@@ -442,6 +814,10 @@ const BankRef = forwardRef(
                         )
                       }
                       onBlur={handleBankTypeCodeValidate}
+<<<<<<< HEAD
+=======
+                      onKeyDown={handleBankTypeCodeValidate}
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
                       disabled={!isEditing || form.__existing}
                     />
 
@@ -465,8 +841,13 @@ const BankRef = forwardRef(
               </div>
             </div>
 
+<<<<<<< HEAD
             <div className="xl:col-span-8 flex items-start">
               <div className="w-full h-[426px] border rounded-lg p-2 min-w-0">
+=======
+            <div className="flex items-start xl:col-span-8">
+              <div className="h-[426px] w-full min-w-0 rounded-lg border p-2">
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
                 <SearchGlobalReferenceTable
                   ref={tableRef}
                   docType={docType}
@@ -479,6 +860,11 @@ const BankRef = forwardRef(
                   onRowDoubleClick={handleEdit}
                   selectedRow={selectedRow}
                   onRowClick={(row) => setSelectedRow(row)}
+<<<<<<< HEAD
+=======
+                  showGlobalSearch={false}
+                  tableSize="Half"
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
                 />
               </div>
             </div>

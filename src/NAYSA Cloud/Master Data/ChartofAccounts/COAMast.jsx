@@ -12,9 +12,16 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPlus, faSave, faUndo, faEdit, faTrashAlt, faInfoCircle, faChevronDown, faFilePdf, faVideo } from "@fortawesome/free-solid-svg-icons";
 import { reftables, reftablesPDFGuide, reftablesVideoGuide } from "@/NAYSA Cloud/Global/reftable";
 import { useTopDocDropDown } from "@/NAYSA Cloud/Global/top1RefTable";
+<<<<<<< HEAD
 import { useSwalErrorAlert, useSwalSuccessAlert, useSwalErrorAlertAPI, useSwalDeleteConfirm, useSwalDeleteRecord } from "@/NAYSA Cloud/Global/behavior";
 import { useFieldLenghtCheck, useGetFieldLength,} from '@/NAYSA Cloud/Global/procedure';
 import { Plus, Trash2 } from "lucide-react";
+=======
+import { useSwalErrorAlert, useSwalSuccessAlert, useSwalErrorAlertAPI, useSwalDeleteConfirm, useSwalDeleteRecord } from "@/NAYSA Cloud/Global/behavior.jsx";
+import { useFieldLenghtCheck, useGetFieldLength,} from '@/NAYSA Cloud/Global/procedure';
+import { Plus, Trash2 } from "lucide-react";
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 
 // UI Helpers
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer";
@@ -202,6 +209,7 @@ const { mutate: deleteCOA, isLoading: isDeleting } = useMutation({
 
 const handleDelete = async (row) => {
   try {
+<<<<<<< HEAD
     setIsLoading(true); // Ensure you have a general loading state or use the mutation's state
     const payload = {
       json_data: {
@@ -234,6 +242,57 @@ const handleDelete = async (row) => {
     }
   } catch (error) {
     useSwalErrorAlertAPI("System Error", error);
+=======
+    if (!row?.acctCode) {
+      return useSwalErrorAlertAPI("Delete Error", "No account code found.");
+    }
+
+    setIsLoading(true);
+
+    const payload = {
+      json_data: {
+        acctCode: row.acctCode,
+      },
+    };
+
+    // 1. Check if used in other tables via SPROC
+    const response = await apiClient.post("/checkInUsedCOA", payload);
+    const sqlRow = response?.data?.data?.[0];
+    const rawJsonString = sqlRow?.result || Object.values(sqlRow || {})[0];
+    const parsedData = JSON.parse(rawJsonString || '{"result":"0"}');
+
+    if (String(parsedData.result) === "1") {
+      return useSwalErrorAlertAPI(
+        `Cannot Delete Account Code: ${row.acctCode}`,
+        "Code was already used."
+      );
+    }
+
+    // 2. Confirmation
+    const confirm = await useSwalDeleteConfirm(
+      "Confirm Delete",
+      `Are you sure you want to delete Code: ${row.acctCode}?`
+    );
+
+    if (!confirm?.isConfirmed) return;
+
+    // 3. Delete
+    await apiClient.post("/deleteCOA", payload);
+
+    await queryClient.invalidateQueries({ queryKey: ["coaList"] });
+
+    await useSwalDeleteRecord(
+      "Deleted!",
+      "The account has been removed from the system."
+    );
+
+    resetForm();
+  } catch (error) {
+    useSwalErrorAlertAPI(
+      "System Error",
+      error?.response?.data?.message || error?.message || "Delete failed."
+    );
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
   } finally {
     setIsLoading(false);
   }
@@ -287,8 +346,12 @@ const columns = useMemo(() => [
             handleEdit(row);
           }
         }}
+<<<<<<< HEAD
         className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-blue-50 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-colors text-xs"
         title="Edit"
+=======
+        className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-blue-50 border border-blue-100 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-colors text-xs"title="Edit"
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
       >
         <FontAwesomeIcon icon={faEdit} />
         <span className="md:hidden">Edit</span>
@@ -300,10 +363,17 @@ const columns = useMemo(() => [
           if (isMobile) {
             openMobileActionSheet(row);
           } else {
+<<<<<<< HEAD
             handleEdit(row);
           }
         }}
         className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-red-50 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors text-xs"
+=======
+            handleDelete(row);
+          }
+        }}
+        className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-red-50 border border-red-100 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors text-xs"
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
         title="Delete"
       >
         <FontAwesomeIcon icon={faTrashAlt} />
@@ -438,6 +508,7 @@ const columns = useMemo(() => [
 
   return (
     <div className="global-ref-main-div-ui">
+<<<<<<< HEAD
     {(isDropdownLoading || isListLoading || isSaving || isDeleting) && (
       <div className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center px-4">
         <div
@@ -496,6 +567,12 @@ const columns = useMemo(() => [
         </style>
       </div>
     )}
+=======
+      
+          {/* {(isDropdownLoading || isListLoading || isDeleting) && <LoadingSpinner />} */}
+    {(isDropdownLoading || isListLoading || isSaving || isDeleting) && <LoadingSpinner />}
+    
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
 
       {/* Lookup Modals */}
       <SearchCOAClassRef isOpen={modals.coaClass} onClose={(v) => { toggleModal("coaClass", false); if(v) updateForm({ classCode: v.classCode, className: v.className }) }} />
@@ -828,6 +905,7 @@ const columns = useMemo(() => [
           <FontAwesomeIcon icon={faEdit} />
           Edit
         </button>
+<<<<<<< HEAD
 
         <button
           onClick={() => {
@@ -838,6 +916,23 @@ const columns = useMemo(() => [
         >
           <FontAwesomeIcon icon={faTrashAlt} />
           Delete
+=======
+        
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            if (isMobile) {
+              openMobileActionSheet(row);
+            } else {
+              handleDelete(row);
+            }
+          }}
+          className="w-full flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-red-50 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors text-xs"
+          title="Delete"
+        >
+          <FontAwesomeIcon icon={faTrashAlt} />
+          <span className="md:hidden">Delete</span>
+>>>>>>> 701b926012ee5f3eb7e717f57ad3049d410c556c
         </button>
 
         <button

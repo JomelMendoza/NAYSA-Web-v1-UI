@@ -14,12 +14,12 @@ export const useSelectedHSColConfig = async (endpoint,userCode) => {
       endpoint,userCode
     }
   }
-
+  
     const response = await fetchData("getHSColConfig", { json_data: JSON.stringify(payload) });
-
     if (response?.success && response.data?.[0]?.result) {
       return JSON.parse(response.data[0].result);
     }
+
 
     throw new Error(response?.message || "No getHSColConfig found.");
   } catch (error) {
