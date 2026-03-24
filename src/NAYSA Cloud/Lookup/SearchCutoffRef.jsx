@@ -38,7 +38,7 @@ const CutoffLookupModal = ({ isOpen, onClose, source, customParam }) => {
                 setCutoffs(cutoffData);
                 setFiltered(cutoffData);
             } catch (err) {
-                console.error("Failed to fetch Cutoff References:", err);
+                console.error("Failed to fetch Cut Off:", err);
                 setCutoffs([]);
                 setFiltered([]);
             } finally {
@@ -117,7 +117,7 @@ const CutoffLookupModal = ({ isOpen, onClose, source, customParam }) => {
                     <FontAwesomeIcon icon={faTimes} size="lg" />
                 </button>
 
-                <h2 className="text-sm font-semibold text-blue-800 p-3 border-b border-gray-100">Select Cutoff Reference</h2>
+                <h2 className="text-sm font-semibold text-blue-800 p-3 border-b border-gray-100">Select Cut Off </h2>
 
                 <div className="flex-grow overflow-hidden">
                     {loading ? (
@@ -135,7 +135,7 @@ const CutoffLookupModal = ({ isOpen, onClose, source, customParam }) => {
                                             className="px-4 py-2 text-left text-xs font-bold text-blue-900 tracking-wider cursor-pointer hover:bg-blue-100 transition-colors duration-200"
                                             onClick={() => handleSort('cutoffCode')}
                                         >
-                                            Cutoff Code {renderSortIcon('cutoffCode')}
+                                            Cut Off Code {renderSortIcon('cutoffCode')}
                                         </th>
                                         <th
                                             className="px-4 py-2 text-left text-xs font-bold text-blue-900 tracking-wider cursor-pointer hover:bg-blue-100 transition-colors duration-200"

@@ -39,7 +39,7 @@ import {
   useSwalErrorAlertAPI,
   useSwalDeleteConfirm,
   useSwalDeleteRecord,
-} from "@/NAYSA Cloud/Global/behavior";
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 import {
   useFieldLenghtCheck,
   useGetFieldLength,
@@ -535,24 +535,23 @@ const RCMast = () => {
                   />
                 </div>
 
-                {form.rcGroup !== "Y" && (
-                  <FieldRenderer
-                    label="Group Code"
-                    type="select"
-                    value={form.groupCode}
-                    disabled={!isEditing}
-                    options={(accounts || [])
-                      .filter(
-                        (acc) =>
-                          acc.rcGroup === "Y" && acc.rcCode !== form.rcCode,
-                      )
-                      .map((acc) => ({
-                        value: acc.rcCode,
-                        label: `(${acc.rcCode}) - ${acc.rcName || "Unnamed Group"}`,
-                      }))}
-                    onChange={(v) => updateForm({ groupCode: v })}
-                  />
-                )}
+                {/* Removed the form.rcGroup !== "Y" condition here */}
+                <FieldRenderer
+                  label="Group Code"
+                  type="select"
+                  value={form.groupCode}
+                  disabled={!isEditing}
+                  options={(accounts || [])
+                    .filter(
+                      (acc) =>
+                        acc.rcGroup === "Y" && acc.rcCode !== form.rcCode,
+                    )
+                    .map((acc) => ({
+                      value: acc.rcCode,
+                      label: `(${acc.rcCode}) - ${acc.rcName || "Unnamed Group"}`,
+                    }))}
+                  onChange={(v) => updateForm({ groupCode: v })}
+                />
               </div>
             </div>
 
