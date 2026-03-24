@@ -1,206 +1,190 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTimes, faSpinner, faSort, faSortUp, faSortDown } from '@fortawesome/free-solid-svg-icons'; // Added faSpinner, faSort, faSortUp, faSortDown
-import { fetchData } from '../Configuration/BaseURL';
+import { faTimes, faSpinner, faSyncAlt, faEraser, faSort, faSortUp, faSortDown } from '@fortawesome/free-solid-svg-icons';
+import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 
 const BillCodeLookupModal = ({ isOpen, onClose, customParam }) => {
-    const [billcode, setBillCodes] = useState([]);
-    const [filtered, setFiltered] = useState([]);
     const [filters, setFilters] = useState({ billCode: '', billName: '', uomCode: '' });
-    const [loading, setLoading] = useState(false);
-    const [sortConfig, setSortConfig] = useState({ key: '', direction: 'asc' }); // Added for consistency, even if not fully used for sorting yet
+    const [sortConfig, setSortConfig] = useState({ key: '', direction: 'asc' });
 
-    useEffect(() => {
-        if (!isOpen) {
-            // Reset state when modal closes
-            setBillCodes([]);
-            setFiltered([]);
-            setFilters({ billCode: '', billName: '', uomCode: '' });
-            setSortConfig({ key: '', direction: 'asc' });
-            return; // Exit early if not open
-        }
+    // Check if any filters are active for the Clear button
+    const hasActiveFilters = filters.billCode !== '' || filters.billName !== '' || filters.uomCode !== '';
+    const resetFilters = () => setFilters({ billCode: '', billName: '', uomCode: '' });
 
-        setLoading(true);
-
-        const params = {
-            PARAMS: JSON.stringify({
-                search: "", 
-                page: 1,
-                pageSize: 100, // Increased pageSize to fetch more data initially for filtering
-            }),
-        };
-
-        fetchData("/lookupBillcode", params)
-            .then((result) => {
-                if (result.success && result.data && result.data.length > 0 && result.data[0].result) {
-                    const resultData = JSON.parse(result.data[0].result);
-                    setBillCodes(resultData);
-                    setFiltered(resultData); // Initialize filtered with all data
-                } else {
-                    console.warn(result.message || "No Billing Code found.");
-                    setBillCodes([]); // Ensure state is empty if no data
-                    setFiltered([]);
-                }
-            })
-            .catch((err) => {
-                console.error("Failed to fetch Billing Code", err);
-                // Optionally, display a user-friendly error message in the UI
-            })
-            .finally(() => {
-                setLoading(false);
+    // 1. TanStack Query with Polling/Auto-Refresh
+    const { 
+        data: billCodes = [], 
+        isLoading, 
+        isFetching, 
+        refetch 
+    } = useQuery({
+        queryKey: ['lookupBillCode'],
+        queryFn: async () => {
+            const { data: result } = await apiClient.get("/lookupBillCode", {
+                params: {
+                    PARAMS: JSON.stringify({ search: "", page: 1, pageSize: 100 }),
+                },
             });
-    }, [isOpen]); // Depend on isOpen to re-fetch when it changes
+            const rawData = result?.data?.[0]?.result || "[]";
+            return Array.isArray(rawData) ? rawData : JSON.parse(rawData);
+        },
+        enabled: isOpen,           
+        staleTime: 1000 * 5,       
+        refetchInterval: 1000 * 15, // Auto-refresh every 15 seconds
+        refetchIntervalInBackground: false,
+    });
 
-    useEffect(() => {
-        let currentFiltered = [...billcode];
+    // 2. Filtering & Sorting Logic
+    const filtered = useMemo(() => {
+        let data = [...billCodes];
 
-        // Apply filters
-        currentFiltered = currentFiltered.filter(item =>
-            (item.billCode || '').toLowerCase().includes((filters.billCode || '').toLowerCase()) &&
-            (item.billName || '').toLowerCase().includes((filters.billName || '').toLowerCase()) &&
-            (item.uomCode || '').toLowerCase().includes((filters.uomCode || '').toLowerCase())
+        // Filter
+        data = data.filter(item =>
+            (item.billCode || '').toLowerCase().includes(filters.billCode.toLowerCase()) &&
+            (item.billName || '').toLowerCase().includes(filters.billName.toLowerCase()) &&
+            (item.uomCode || '').toLowerCase().includes(filters.uomCode.toLowerCase())
         );
 
-        // No sorting logic applied here yet, but the `sortConfig` state is ready if you add it.
-        // If sorting is added later, implement it here:
-        // if (sortConfig.key) {
-        //     currentFiltered.sort((a, b) => { /* sorting logic */ });
-        // }
-
-        setFiltered(currentFiltered);
-    }, [filters, billcode, sortConfig]); // Add sortConfig as dependency for future sorting
-
-    const handleApply = (selectedBillcode) => {
-        onClose(selectedBillcode);
-    };
-
-    const handleFilterChange = (e, key) => {
-        setFilters({ ...filters, [key]: e.target.value });
-    };
-
-    // Placeholder for sorting, if you decide to implement it later
-    const handleSort = (key) => {
-        // Implement sorting logic here if needed
-        let direction = 'asc';
-        if (sortConfig.key === key && sortConfig.direction === 'asc') {
-            direction = 'desc';
+        // Sort
+        if (sortConfig.key) {
+            data.sort((a, b) => {
+                const aVal = a[sortConfig.key] || '';
+                const bVal = b[sortConfig.key] || '';
+                if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+                if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
         }
-        setSortConfig({ key, direction });
+        return data;
+    }, [filters, billCodes, sortConfig]);
+
+    const handleSort = (key) => {
+        setSortConfig(prev => ({
+            key,
+            direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+        }));
     };
 
     const renderSortIcon = (column) => {
         if (sortConfig.key === column) {
             return sortConfig.direction === 'asc' ? <FontAwesomeIcon icon={faSortUp} className="ml-1 text-blue-500" /> : <FontAwesomeIcon icon={faSortDown} className="ml-1 text-blue-500" />;
         }
-        return <FontAwesomeIcon icon={faSort} className="ml-1 text-gray-400" />;
+        return <FontAwesomeIcon icon={faSort} className="ml-1 text-slate-300 group-hover:text-slate-400" />;
     };
 
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 sm:p-6 lg:p-8 animate-fade-in">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-xl max-h-[90vh] flex flex-col relative overflow-hidden transform scale-95 animate-scale-in">
-                {/* Close Icon */}
-                <button
-                    onClick={() => onClose(null)}
-                    className="absolute top-3 right-3 text-gray-500 hover:text-gray-700 transition duration-200 focus:outline-none p-1 rounded-full hover:bg-gray-100"
-                    aria-label="Close modal"
-                >
-                    <FontAwesomeIcon icon={faTimes} size="lg" />
-                </button>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4 animate-fade-in">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl max-h-[75vh] flex flex-col relative overflow-hidden transform animate-scale-in border border-slate-200">
+                
+                {/* Header */}
+                <div className="flex items-center justify-between p-4 border-b bg-slate-50">
+                    <div className="flex items-center gap-3">
+                        <div className="relative">
+                            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-tight">Select Bill Code</h2>
+                            {/* Visual indicator for auto-refresh */}
+                            <div className="absolute -top-1 -right-4 flex h-2 w-2">
+                                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 ${isFetching ? 'block' : 'hidden'}`}></span>
+                                <span className={`relative inline-flex rounded-full h-2 w-2 bg-blue-500 ${isFetching ? 'block' : 'hidden'}`}></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {hasActiveFilters && (
+                            <button 
+                                onClick={resetFilters}
+                                className="px-2 py-1 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded transition-all flex items-center gap-1.5"
+                            >
+                                <FontAwesomeIcon icon={faEraser} />
+                                CLEAR
+                            </button>
+                        )}
+                        <button 
+                            onClick={() => refetch()} 
+                            className="p-2 text-slate-400 hover:text-blue-600 transition-all"
+                            title="Manual Refresh"
+                        >
+                            <FontAwesomeIcon icon={faSyncAlt} size="sm" spin={isFetching} />
+                        </button>
+                        <button
+                            onClick={() => onClose(null)}
+                            className="p-2 text-slate-400 hover:text-red-600 transition-all"
+                        >
+                            <FontAwesomeIcon icon={faTimes} size="lg" />
+                        </button>
+                    </div>
+                </div>
 
-                <h2 className="text-lg font-semibold text-blue-800 p-3 border-b border-gray-100">Select Bill Code</h2>
-
-                <div className="flex-grow overflow-hidden">
-                    {loading ? (
-                        <div className="flex items-center justify-center h-full min-h-[200px] text-blue-500">
-                            <FontAwesomeIcon icon={faSpinner} spin size="2x" className="mr-3" />
-                            <span>Loading Bill Codes...</span>
+                {/* Main Content */}
+                <div className="flex-grow overflow-hidden flex flex-col">
+                    {isLoading ? (
+                        <div className="flex flex-col items-center justify-center h-64 text-slate-400">
+                            <FontAwesomeIcon icon={faSpinner} spin size="2x" className="mb-4 text-blue-500" />
+                            <p className="text-sm">Fetching bill codes...</p>
                         </div>
                     ) : (
-                        <div className="overflow-auto max-h-[calc(90vh-160px)] custom-scrollbar">
-                            <table className="min-w-full divide-y divide-gray-100">
-                                <thead className="bg-gray-100 sticky top-0 z-10 shadow-sm">
+                        <div className="overflow-auto custom-scrollbar">
+                            <table className="min-w-full divide-y divide-slate-200 border-separate border-spacing-0">
+                                <thead className="bg-slate-100 sticky top-0 z-10">
                                     <tr>
-                                        {/* Headers - onClick for sorting is commented out, but ready */}
-                                        <th
-                                            className="px-4 py-2 text-left text-sm font-bold text-blue-900 tracking-wider cursor-pointer hover:bg-blue-100 transition-colors duration-200"
-                                            // onClick={() => handleSort('billCode')} // Uncomment to enable sorting
-                                        >
-                                            Bill Code {renderSortIcon('billCode')}
-                                        </th>
-                                        <th
-                                            className="px-4 py-2 text-left text-sm font-bold text-blue-900 tracking-wider cursor-pointer hover:bg-blue-100 transition-colors duration-200"
-                                            // onClick={() => handleSort('billName')} // Uncomment to enable sorting
-                                        >
-                                            Description {renderSortIcon('billName')}
-                                        </th>
-                                        <th
-                                            className="px-4 py-2 text-left text-sm font-bold text-blue-900 tracking-wider cursor-pointer hover:bg-blue-100 transition-colors duration-200"
-                                            // onClick={() => handleSort('uomCode')} // Uncomment to enable sorting
-                                        >
-                                            UOM {renderSortIcon('uomCode')}
-                                        </th>
-                                        <th className="px-4 py-2 text-left text-sm font-bold text-blue-900 tracking-wider cursor-pointer hover:bg-blue-100 transition-colors duration-200">
-                                            Action
-                                        </th>
-                                    </tr>
-                                    {/* Filter Row */}
-                                    <tr className="bg-gray-100">
-                                        <th className="px-3 py-1">
+                                        <th onClick={() => handleSort('billCode')} className="group px-4 py-3 text-left border-b border-slate-200 cursor-pointer hover:bg-slate-200 transition-colors">
+                                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1 cursor-pointer">
+                                                Bill Code {renderSortIcon('billCode')}
+                                            </label>
                                             <input
                                                 type="text"
+                                                onClick={(e) => e.stopPropagation()}
                                                 value={filters.billCode}
-                                                onChange={(e) => handleFilterChange(e, 'billCode')}
+                                                onChange={(e) => setFilters(prev => ({ ...prev, billCode: e.target.value }))}
                                                 placeholder="Filter..."
-                                                className="block w-full px-3 py-1 text-sm text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                                className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-normal"
                                             />
                                         </th>
-                                        <th className="px-3 py-1">
+                                        <th onClick={() => handleSort('billName')} className="group px-4 py-3 text-left border-b border-slate-200 cursor-pointer hover:bg-slate-200 transition-colors">
+                                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1 cursor-pointer">
+                                                Description {renderSortIcon('billName')}
+                                            </label>
                                             <input
                                                 type="text"
+                                                onClick={(e) => e.stopPropagation()}
                                                 value={filters.billName}
-                                                onChange={(e) => handleFilterChange(e, 'billName')}
+                                                onChange={(e) => setFilters(prev => ({ ...prev, billName: e.target.value }))}
                                                 placeholder="Filter..."
-                                                className="block w-full px-3 py-1 text-sm text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                                className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-normal"
                                             />
                                         </th>
-                                        <th className="px-3 py-1">
+                                        <th onClick={() => handleSort('uomCode')} className="group px-4 py-3 text-left border-b border-slate-200 cursor-pointer hover:bg-slate-200 transition-colors">
+                                            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1 cursor-pointer">
+                                                UOM {renderSortIcon('uomCode')}
+                                            </label>
                                             <input
                                                 type="text"
+                                                onClick={(e) => e.stopPropagation()}
                                                 value={filters.uomCode}
-                                                onChange={(e) => handleFilterChange(e, 'uomCode')}
+                                                onChange={(e) => setFilters(prev => ({ ...prev, uomCode: e.target.value }))}
                                                 placeholder="Filter..."
-                                                className="block w-full px-3 py-1 text-sm text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                                className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-normal"
                                             />
                                         </th>
-                                        <th className="px-3 py-1"></th>
                                     </tr>
                                 </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {filtered.length > 0 ? (
-                                        filtered.map((item, index) => (
-                                            <tr key={index}
-                                                className="hover:bg-blue-50 transition-colors duration-150 cursor-pointer text-sm"
-                                                onClick={() => handleApply(item)} // Allow clicking row to apply
-                                            >
-                                                <td className="px-4 py-1 whitespace-nowrap">{item.billCode}</td>
-                                                <td className="px-4 py-1 whitespace-nowrap">{item.billName}</td>
-                                                <td className="px-4 py-1 whitespace-nowrap">{item.uomCode}</td>
-                                                <td className="px-4 py-1 whitespace-nowrap">
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); handleApply(item); }} // Stop propagation to prevent row click
-                                                        className="px-6 py-1 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-150"
-                                                    >
-                                                        Apply
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    ) : (
+                                <tbody className="divide-y divide-slate-100">
+                                    {filtered.length > 0 ? filtered.map((item, index) => (
+                                        <tr 
+                                            key={index}
+                                            onClick={() => onClose(item)}
+                                            className="group hover:bg-blue-50 cursor-pointer transition-colors"
+                                        >
+                                            <td className="px-4 py-2 text-xs font-bold text-slate-600">{item.billCode}</td>
+                                            <td className="px-4 py-2 text-xs text-slate-600 font-medium">{item.billName}</td>
+                                            <td className="px-4 py-2 text-xs text-slate-500">{item.uomCode}</td>
+                                        </tr>
+                                    )) : (
                                         <tr>
-                                            <td colSpan="4" className="px-4 py-6 text-center text-gray-500 text-lg">
-                                                No matching Bill Codes found.
+                                            <td colSpan="3" className="px-4 py-12 text-center text-slate-400 italic text-sm">
+                                                No matching bill codes found.
                                             </td>
                                         </tr>
                                     )}
@@ -210,44 +194,21 @@ const BillCodeLookupModal = ({ isOpen, onClose, customParam }) => {
                     )}
                 </div>
 
-                <div className="p-4 border-t border-gray-200 bg-gray-50 text-right text-sm text-gray-600">
-                    Showing <span className="font-semibold">{filtered.length}</span> of <span className="font-semibold">{billcode.length}</span> entries
+                {/* Footer Status Bar */}
+                <div className="p-3 px-4 border-t bg-slate-50 flex justify-between items-center">
+                    <span className="text-[12px] text-slate-500 font-medium">
+                        {filtered.length} Entries Found
+                    </span>
+                    <div className="flex items-center gap-2">
+                        {isFetching && (
+                            <span className="text-[10px] text-blue-500 animate-pulse flex items-center gap-1 font-bold uppercase">
+                                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                                Auto-Syncing...
+                            </span>
+                        )}
+                    </div>
                 </div>
             </div>
-
-            {/* Tailwind CSS Animations (add to your CSS file or a style block if not globally available) */}
-            <style jsx="true">{`
-                @keyframes fade-in {
-                    from { opacity: 0; }
-                    to { opacity: 1; }
-                }
-                @keyframes scale-in {
-                    from { transform: scale(0.95); opacity: 0; }
-                    to { transform: scale(1); opacity: 1; }
-                }
-                .animate-fade-in {
-                    animation: fade-in 0.2s ease-out forwards;
-                }
-                .animate-scale-in {
-                    animation: scale-in 0.3s ease-out forwards;
-                }
-                /* Custom Scrollbar */
-                .custom-scrollbar::-webkit-scrollbar {
-                    width: 8px;
-                    height: 8px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-track {
-                    background: #f1f1f1;
-                    border-radius: 10px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background: #888;
-                    border-radius: 10px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-                    background: #555;
-                }
-            `}</style>
         </div>
     );
 };
