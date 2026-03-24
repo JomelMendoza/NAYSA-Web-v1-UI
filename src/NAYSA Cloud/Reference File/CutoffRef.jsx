@@ -459,16 +459,7 @@ const CutoffRef = () => {
     ],
     [handleEdit, handleDelete],
   );
-  // useEffect(() => {
-  //   // If current selected year is not in the options and options exist,
-  //   // default to the first available year in the list
-  //   if (
-  //     yearOptions.length > 0 &&
-  //     !yearOptions.find((o) => o.value === selectedYear)
-  //   ) {
-  //     setSelectedYear(yearOptions[0].value);
-  //   }
-  // }, [yearOptions, selectedYear]);
+
 
   useEffect(() => {
     const handleKey = (e) => {

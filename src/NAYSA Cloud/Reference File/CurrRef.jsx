@@ -5,6 +5,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -24,454 +25,286 @@ import {
   useSwalErrorAlert,
   useSwalDeleteConfirm,
   useSwalDeleteRecord,
-  useSwalshowSave,
   useSwalValidationAlert,
-} from "@/NAYSA Cloud/Global/behavior";
+  useSwalSuccessAlert,
+  useSwalErrorAlertAPI,
+} from "@/NAYSA Cloud/Global/behavior.jsx";
+
+import {
+  useFieldLenghtCheck,
+  useGetFieldLength,
+} from "@/NAYSA Cloud/Global/procedure";
 
 import { reftables } from "@/NAYSA Cloud/Global/reftable";
 
-const SectionHeader = ({ title }) => (
-  <div className="mb-3">
-    <div className="text-sm font-bold text-gray-800 border-b pb-1">{title}</div>
-  </div>
-);
-
-const parseSprocJsonResult = (rows) => {
-  if (!rows || !rows.length) return null;
-  const r = rows[0]?.result;
-  if (!r) return null;
-  try {
-    return JSON.parse(r);
-  } catch {
-    return null;
-  }
+const INITIAL_FORM = {
+  currCode: "",
+  currName: "",
+  active: "Y",
+  registeredBy: "",
+  registeredDate: "",
+  lastUpdatedBy: "",
+  lastUpdatedDate: "",
 };
 
-const getVal = (v) => (v && v.target ? v.target.value : v);
-
 const CurrRef = () => {
+  const queryClient = useQueryClient();
   const docType = "CURR";
   const documentTitle = reftables[docType] || "Currency";
 
   const { user } = useAuth();
   const userCode = user?.userCode || user?.USER_CODE || "ADMIN";
 
-  const emptyForm = useMemo(
-    () => ({
-      code: "",
-      name: "",
-      active: "Y",
-      registeredBy: "",
-      registeredDate: "",
-      lastUpdatedBy: "",
-      lastUpdatedDate: "",
-    }),
-    [],
-  );
-
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(INITIAL_FORM);
   const [rows, setRows] = useState([]);
-  const [selectedCode, setSelectedCode] = useState("");
+  const [selectedCode, setSelectedCode] = useState(null); 
   const [isEditing, setIsEditing] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  // ✅ true when adding new record
-  const isAddMode = isEditing && !selectedCode;
+  const [isLoading, setIsLoading] = useState(false); 
+  const [tblFieldArray, setTblFieldArray] = useState([]); // Added missing state
 
   const nameRef = useRef(null);
+  const codeRef = useRef(null);
 
-  const updateForm = useCallback((patch) => {
-    setForm((p) => ({ ...p, ...patch }));
+  const updateForm = (patch) => setForm((p) => ({ ...p, ...patch }));
+
+  const resetForm = useCallback(() => {
+    setForm(INITIAL_FORM);
+    setSelectedCode(null);
+    setIsEditing(false);
   }, []);
 
-  const normalizeRow = useCallback((x) => {
-    return {
-      code: x?.currCode ?? "",
-      name: x?.currName ?? "",
-      registeredBy: x?.registeredBy ?? "",
-      registeredDate: x?.registeredDate ?? "",
-      lastUpdatedBy: x?.lastUpdatedBy ?? "",
-      lastUpdatedDate: x?.lastUpdatedDate ?? "",
-    };
+  /* ================= METADATA LOAD ================= */
+
+  // Load max length metadata for the Currency table
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await useFieldLenghtCheck("CURR_REF"); // Adjusted to match Currency Table name
+        if (mounted) setTblFieldArray(res || []);
+      } catch (err) {
+        console.error("Failed to fetch field lengths:", err);
+      }
+    })();
+    return () => { mounted = false; };
   }, []);
+
+  const getMax = (col) => useGetFieldLength(tblFieldArray, col) || 100; // Default fallback
+
+  /* ================= API ACTIONS ================= */
+
+  const { mutate: saveCurrency } = useMutation({
+    mutationFn: async (payload) => await apiClient.post("/upsertCurr", payload),
+    onSuccess: (resp) => {
+      const sqlRow = resp?.data?.data?.[0] || resp?.data; // Handle both controller formats
+      if (sqlRow?.errorcount > 0) {
+        useSwalErrorAlert("Error", sqlRow?.errormsg || "Failed to save.");
+        return;
+      }
+
+      useSwalSuccessAlert("Success!", "Currency saved successfully!");
+      queryClient.invalidateQueries({ queryKey: ["currencyList"] });
+      loadList(); 
+      resetForm();
+    },
+    onError: (err) => useSwalErrorAlertAPI("System Error", err),
+  });
+
+  /* ================= LOGIC HANDLERS ================= */
+
+  const handleCheckDuplicate = async (code) => {
+    if (selectedCode || !code) return;
+    try {
+      const clean = code.trim().toUpperCase();
+      const resp = await apiClient.post("/checkDuplicateCurr", {
+        json_data: { currCode: clean },
+      });
+
+      const sqlRow = resp?.data?.data?.[0] || resp?.data;
+      const rawJsonString = sqlRow?.result || Object.values(sqlRow || {})[0];
+      const parsedData = typeof rawJsonString === 'string' ? JSON.parse(rawJsonString) : rawJsonString;
+
+      if (parsedData?.result === "1" || sqlRow?.result === "1") {
+        updateForm({ currCode: "" });
+        return useSwalErrorAlert("Duplicate Error", `The Code "${clean}" is already used.`);
+      }
+    } catch (error) {
+      console.error("Duplicate Check Error:", error);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!form.currCode || !form.currName) {
+      return useSwalErrorAlert("Validation Error", "All fields are required.");
+    }
+
+    // Validation for length before sending to API
+    if (form.currCode.length > getMax("CURR_CODE")) {
+        return useSwalValidationAlert("Length Error", `Code cannot exceed ${getMax("CURR_CODE")} characters.`);
+    }
+
+    if (!selectedCode) {
+      const resp = await apiClient.post("/checkDuplicateCurr", {
+        json_data: { currCode: form.currCode },
+      });
+      const sqlRow = resp?.data?.data?.[0] || resp?.data;
+      const parsedData = typeof sqlRow?.result === 'string' ? JSON.parse(sqlRow?.result) : sqlRow;
+      
+      if (parsedData?.result === "1" || sqlRow?.result === "1") {
+        return useSwalErrorAlert("Duplicate Error", `Code ${form.currCode} is already used.`);
+      }
+    }
+
+    saveCurrency({
+      json_data: {
+        currCode: form.currCode,
+        currName: form.currName,
+        userCode,
+      },
+    });
+  };
+
+  const handleDelete = async (row) => {
+    try {
+      const checkResp = await apiClient.post("/checkInUsedCurr", { 
+        json_data: { currCode: row.currCode } 
+      });
+      
+      const sqlRow = checkResp?.data?.data?.[0] || checkResp?.data;
+      if (sqlRow?.isInUsed) {
+        return useSwalErrorAlert("Cannot Delete", `Currency "${row.currCode}" is in use.`);
+      }
+
+      const confirm = await useSwalDeleteConfirm("Confirm Delete", `Delete Currency: ${row.currCode}?`);
+      if (confirm.isConfirmed) {
+        const response = await apiClient.post("/deleteCurr", {
+          json_data: { currCode: row.currCode, userCode },
+        });
+
+        if (response?.data?.success) {
+          useSwalDeleteRecord("Deleted!", "The currency has been successfully removed.");
+          loadList();
+          resetForm();
+        }
+      }
+    } catch (err) {
+      useSwalErrorAlertAPI("System Error", err);
+    }
+  };
 
   const loadList = useCallback(async () => {
     try {
       setIsLoading(true);
       const res = await apiClient.get("/curr");
-      const raw = parseSprocJsonResult(res.data?.data) || [];
-      setRows(raw.map(normalizeRow));
+      const r = res.data?.data?.[0]?.result || res.data?.result;
+      setRows(typeof r === 'string' ? JSON.parse(r) : (r || []));
     } catch (err) {
-      await useSwalErrorAlert("Error", "Failed to load Currency");
+      console.error(err);
     } finally {
       setIsLoading(false);
     }
-  }, [normalizeRow]);
+  }, []);
 
-  const latestGetRef = useRef(0);
+  const handleEdit = (row) => {
+    setForm({ ...INITIAL_FORM, ...row });
+    setSelectedCode(row.currCode); 
+    setIsEditing(true);
+    setTimeout(() => nameRef.current?.focus?.(), 0);
+  };
 
-  const fetchOne = useCallback(
-    async (code) => {
-      if (!code) return null;
+  useEffect(() => { loadList(); }, [loadList]);
 
-      const reqId = ++latestGetRef.current;
-
-      try {
-        // setIsLoading(true);
-
-        const res = await apiClient.get("/getCurr", {
-          params: { CURR_CODE: code },
-        });
-        const row = parseSprocJsonResult(res?.data?.data)?.[0];
-
-        console.log("res", res);
-
-        if (!row) return null;
-
-        // ignore old request
-        if (reqId !== latestGetRef.current) return null;
-
-        const normalized = normalizeRow(row);
-        setForm(normalized);
-
-        // ✅ selectedCode must be STRING
-        setSelectedCode(normalized.code);
-
-        return normalized;
-      } catch (e) {
-        await useSwalErrorAlert("Error", "Failed to fetch record.");
-        return null;
-      } finally {
-        setIsLoading(false);
-      }
+  const columns = useMemo(() => [
+    {
+      key: "__actions",
+      label: "Actions",
+      render: (row) => (
+        <div className="flex gap-2 justify-center">
+          <button onClick={() => handleEdit(row)} className="p-1.5 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-600 hover:text-white">
+            <FontAwesomeIcon icon={faEdit} />
+          </button>
+          <button onClick={() => handleDelete(row)} className="p-1.5 rounded-md bg-red-100 text-red-700 hover:bg-red-600 hover:text-white">
+            <FontAwesomeIcon icon={faTrashAlt} />
+          </button>
+        </div>
+      ),
     },
-    [normalizeRow],
-  );
-
-  const resetForm = useCallback(() => {
-    setForm(emptyForm);
-    setSelectedCode("");
-    setIsEditing(false);
-  }, [emptyForm]);
-
-  /* ================= HANDLERS ================= */
-
-  // ✅ IMPORTANT: keep deps so it always uses latest fetchOne
-  const handleEditAccount = useCallback(
-    async (row) => {
-      const code = row?.code || "";
-      if (!code) return;
-
-      // ✅ set selection immediately (string)
-      setSelectedCode(code);
-
-      // fetch record then enable edit
-      const full = await fetchOne(code);
-
-      if (full) {
-        setIsEditing(true);
-
-        // focus name (optional)
-        setTimeout(() => nameRef.current?.focus?.(), 0);
-      }
-    },
-    [fetchOne],
-  );
-  const handleDeleteAccount = useCallback(
-    async (row) => {
-      try {
-        // setIsLoading(true);
-
-        // 1. Check if the currency is in use
-        const checkResp = await apiClient.post("/checkInUsedCurr", {
-          json_data: { currCode: row.code },
-        });
-
-        // Parse the result from the sproc
-        const rawResult = checkResp?.data?.data?.[0]?.result;
-        const parsed =
-          typeof rawResult === "string" ? JSON.parse(rawResult) : rawResult;
-        // const isInUsed = String(parsed?.result) === "1";
-        const isInUsed = checkResp.data.isInUsed;
-
-        if (isInUsed) {
-          await useSwalValidationAlert({
-            title: "Cannot Delete",
-            message: `Currency "${row.code}" is currently in use by other records and cannot be deleted.`,
-          });
-          return;
-        }
-
-        // 2. Proceed with Delete Confirmation if NOT in use
-        const result = await useSwalDeleteConfirm(
-          "Delete Confirmation",
-          `Are you sure you want to delete currency "${row.code}"?`,
-        );
-
-        if (!result?.isConfirmed) return;
-
-        const response = await apiClient.post("/deleteCurr", {
-          json_data: { currCode: row.code, userCode },
-        });
-
-        if (response?.data?.success) {
-          await useSwalDeleteRecord();
-          await loadList();
-          resetForm();
-        } else {
-          await useSwalErrorAlert(
-            "Error",
-            response?.data?.message || "Delete failed",
-          );
-        }
-      } catch (err) {
-        console.error(err);
-        await useSwalErrorAlert(
-          "Error",
-          "Server error occurred during deletion check.",
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [loadList, resetForm, userCode],
-  );
-
-  const save = useCallback(async () => {
-    setSaving(true);
-    try {
-      const payload = {
-        json_data: {
-          currCode: form.code,
-          currName: form.name,
-          userCode,
-        },
-      };
-
-      const resp = await apiClient.post("/upsertCurr", payload);
-
-      if (resp?.data?.errorcount > 0) {
-        await useSwalValidationAlert({
-          title: "Validation Error",
-          message: resp.data.errormsg,
-        });
-        return;
-      }
-
-      await useSwalshowSave();
-      setIsEditing(false);
-      await loadList();
-      setSelectedCode(form.code);
-    } catch (err) {
-      console.error(err);
-      await useSwalErrorAlert("Error", "A server error occurred while saving.");
-    } finally {
-      setSaving(false);
-    }
-  }, [form.code, form.name, loadList, userCode]);
-
-  const columns = useMemo(
-    () => [
-      {
-        key: "__actions",
-        label: "Actions",
-        render: (row) => (
-          <div className="flex gap-2 justify-center">
-            {/* Edit Button - Matches RCMast Style */}
-            <button
-              onClick={() => handleEditAccount(row)}
-              className="p-1.5 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-600 hover:text-white transition-colors"
-              title="Edit"
-            >
-              <FontAwesomeIcon icon={faEdit} />
-            </button>
-
-            {/* Delete Button - Matches RCMast Style */}
-            <button
-              onClick={() => handleDeleteAccount(row)}
-              className="p-1.5 rounded-md bg-red-100 text-red-700 hover:bg-red-600 hover:text-white transition-colors"
-              title="Delete"
-            >
-              <FontAwesomeIcon icon={faTrashAlt} />
-            </button>
-          </div>
-        ),
-      },
-      { key: "code", label: "Code", sortable: true },
-      { key: "name", label: "Currency Name", sortable: true },
-    ],
-    [handleDeleteAccount, handleEditAccount],
-  );
-
-  useEffect(() => {
-    loadList();
-  }, [loadList]);
-
-  const codeRef = useRef(null);
-  const [dupChecking, setDupChecking] = useState(false);
-
-  const checkDuplicate = useCallback(
-    async (code) => {
-      const clean = (code || "").trim().toUpperCase();
-      console.log("checkDuplicate fired:", clean);
-
-      if (!clean) return false;
-      if (!isAddMode) {
-        console.log("skip duplicate check - not add mode", {
-          isEditing,
-          selectedCode,
-        });
-        return false;
-      }
-
-      try {
-        setDupChecking(true);
-
-        const resp = await apiClient.post("/checkDuplicateCurr", {
-          json_data: { currCode: clean },
-        });
-
-        console.log("dup api resp:", resp?.data);
-
-        if (!resp?.data?.success) {
-          await useSwalErrorAlert(
-            "Error",
-            resp?.data?.message || "Duplicate check failed",
-          );
-          return false;
-        }
-
-        const result = resp?.data?.result; // should be "1" or "0"
-        const isDup = String(result) === "1";
-
-        if (isDup) {
-          await useSwalValidationAlert({
-            title: "Duplicate Code",
-            message: `Currency code "${clean}" already exists.`,
-          });
-
-          updateForm({ code: "" });
-          setTimeout(() => codeRef.current?.focus?.(), 0);
-          return true;
-        }
-
-        return false;
-      } catch (e) {
-        console.error("dup error:", e?.response?.status, e?.response?.data, e);
-        await useSwalErrorAlert("Error", "Failed to check duplicate code.");
-        return false;
-      } finally {
-        setDupChecking(false);
-      }
-    },
-    [isAddMode, isEditing, selectedCode, updateForm],
-  );
-
-  const handleCodeBlur = useCallback(async () => {
-    await checkDuplicate(form.code);
-  }, [checkDuplicate, form.code]);
-
-  const handleCodeKeyDown = useCallback(
-    async (e) => {
-      if (e.key !== "Enter") return;
-      e.preventDefault();
-
-      const dup = await checkDuplicate(form.code);
-      if (!dup) {
-        // move focus to name if not duplicate
-        setTimeout(() => nameRef.current?.focus?.(), 0);
-      }
-    },
-    [checkDuplicate, form.code],
-  );
+    { key: "currCode", label: "Currency Code", sortable: true },
+    { key: "currName", label: "Currency Name", sortable: true },
+  ], [loadList]);
 
   return (
-    <div className="global-ref-main-div-ui mt-24">
-      {/* HEADER */}
-      <div className="fixed mt-4 top-14 left-6 right-6 z-30 global-ref-header-ui flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <h1 className="global-ref-headertext-ui">{documentTitle}</h1>
+    <div className="global-ref-main-div-ui">
+      {isLoading && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-[2px] flex items-center justify-center">
+            <div className="bg-white p-6 rounded-2xl flex flex-col items-center gap-4">
+                <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-sm font-semibold">Loading...</span>
+            </div>
+        </div>
+      )}
 
-        <div className="flex gap-2 text-xs">
-          <button
-            onClick={() => {
-              setForm(emptyForm);
-              setSelectedCode(""); // ✅ add mode
-              setIsEditing(true);
-              setTimeout(() => nameRef.current?.focus?.(), 0);
-            }}
-            className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
-          >
-            <FontAwesomeIcon icon={faPlus} /> Add
-          </button>
-
-          <button
-            onClick={save}
-            disabled={!isEditing || saving}
-            className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 disabled:opacity-50"
-          >
-            <FontAwesomeIcon icon={faSave} /> Save
-          </button>
-
-          <button
-            onClick={resetForm}
-            className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
-          >
-            <FontAwesomeIcon icon={faUndo} /> Reset
-          </button>
+      <div className="global-ref-header-ui">
+        <div className="w-full flex justify-between items-center px-4">
+          <h1 className="global-ref-headertext-ui">{documentTitle}</h1>
+          <div className="flex gap-2">
+            <button onClick={() => { resetForm(); setIsEditing(true); }} className="bg-blue-600 text-white h-8 px-4 rounded-md text-[11px]">
+              <FontAwesomeIcon icon={faPlus} className="mr-1" /> Add
+            </button>
+            <button onClick={handleSave} disabled={!isEditing} className="bg-blue-600 text-white h-8 px-4 rounded-md text-[11px]">
+              <FontAwesomeIcon icon={faSave} className="mr-1" /> Save
+            </button>
+            <button onClick={resetForm} className="bg-blue-600 text-white h-8 px-4 rounded-md text-[11px]">
+              <FontAwesomeIcon icon={faUndo} className="mr-1" /> Reset
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* CONTENT */}
-      <div
-        className="global-tran-tab-div-ui mt-5"
-        style={{ minHeight: "calc(100vh - 170px)" }}
-      >
-        <div className="grid grid-cols-1 md:grid-cols-[400px_1fr] gap-6">
-          <div className="global-ref-textbox-group-div-ui space-y-4 h-fit">
-            {/* <SectionHeader title="Currency Details" /> */}
-
-            {/* ✅ CODE: editable ONLY in Add mode */}
-            <FieldRenderer
-              id="currCode"
-              name="code"
-              label="Code"
-              type="text"
-              value={form.code}
-              onChange={(v) =>
-                updateForm({ code: (getVal(v) || "").toUpperCase() })
-              }
-              disabled={!isAddMode}
-              required
-              inputRef={codeRef}
-              onBlur={handleCodeBlur}
-              // onKeyDown={handleCodeKeyDown}
-              loading={dupChecking} // optional if your FieldRenderer supports it
-            />
-
-            <FieldRenderer
-              id="currName"
-              name="name"
-              label="Name"
-              type="text"
-              value={form.name}
-              onChange={(v) => updateForm({ name: getVal(v) || "" })}
-              disabled={!isEditing} // ✅ editable on add/edit
-              required
-              inputRef={nameRef}
-            />
-
-            <RegistrationInfo data={form} layout="stacked" disabled />
+      <div className="mt-24 px-4 pb-10">
+        <div className="flex flex-col xl:flex-row gap-6">
+          <div className="w-full xl:w-[400px] flex flex-col gap-4 shrink-0">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-100 shadow-lg">
+              <h2 className="text-sm font-bold text-blue-600 mb-6 uppercase tracking-wider border-b pb-2">Entry Details</h2>
+              <div className="space-y-6">
+                <FieldRenderer
+                  label="Currency Code"
+                  required
+                  type="text"
+                  value={form.currCode}
+                  onChange={(v) => updateForm({ currCode: (v || "").toUpperCase() })}
+                  disabled={!isEditing || !!selectedCode}
+                  onBlur={(e) => handleCheckDuplicate(e.target.value)}
+                  inputRef={codeRef}
+                  maxLength={getMax("CURR_CODE")} 
+                />
+                <FieldRenderer
+                  label="Currency Name"
+                  required
+                  type="text"
+                  value={form.currName}
+                  onChange={(v) => updateForm({ currName: v || "" })}
+                  disabled={!isEditing}
+                  inputRef={nameRef}
+                  maxLength={getMax("CURR_NAME")} 
+                />
+              </div>
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100">
+              <RegistrationInfo data={form} layout="stacked" />
+            </div>
           </div>
 
-          <SearchGlobalReferenceTable
-            columns={columns}
-            data={rows}
-            docType="CURR"
-            isLoading={isLoading}
-            onRowDoubleClick={(row) => handleEditAccount(row)}
-            tableSize="Half"
-          />
+          <div className="flex-1 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 shadow-lg overflow-hidden flex flex-col min-h-[500px]">
+            <SearchGlobalReferenceTable
+              columns={columns}
+              data={rows}
+              docType="Currency"
+              isLoading={isLoading}
+              onRowDoubleClick={handleEdit}
+              tableSize="Half"
+            />
+          </div>
         </div>
       </div>
     </div>

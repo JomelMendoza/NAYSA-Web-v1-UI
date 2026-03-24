@@ -38,7 +38,7 @@ import {
   useSwalErrorAlertAPI,
   useSwalDeleteConfirm,
   useSwalDeleteRecord,
-} from "@/NAYSA Cloud/Global/behavior";
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 import {
   useFieldLenghtCheck,
   useGetFieldLength,
@@ -115,70 +115,78 @@ const VATRef = () => {
     },
   });
 
-  // --- TANSTACK QUERY: Save Mutation ---
-  const { mutate: saveVAT, isLoading: isSaving } = useMutation({
-    mutationFn: async (payload) => await apiClient.post("/upsertVat", payload),
 
-    onSuccess: (response) => {
-      // 1) SPROC row style (errorcount/errormsg)
-      const sqlRow = response?.data?.data?.[0];
-      if (sqlRow?.errorcount > 0) {
-        useSwalErrorAlert(
-          "Error",
-          sqlRow?.errormsg || "Failed to save Branch.",
-        );
-        resetForm(); // ✅ reset on failure
-        return;
-      }
+  
 
-      // 2) API status style
-      const status = response?.data?.status ?? response?.data?.data?.status;
-      const success =
-        response?.data?.success || status === "success" || !status;
+  // --- Updated Save Mutation ---
+const { mutate: saveVAT, isLoading: isSaving } = useMutation({
+  mutationFn: async (payload) => await apiClient.post("/upsertVat", payload),
 
-      if (!success) {
-        useSwalErrorAlert(
-          "Error",
-          response?.data?.message ||
-            response?.data?.data?.message ||
-            "Failed to save Account.",
-        );
-        resetForm(); // ✅ reset on failure
-        return;
-      }
-
-      console.log("Save Payload:", sqlRow);
-
-      // ✅ success path
-      queryClient.invalidateQueries({ queryKey: ["vatList"] });
-      useSwalSuccessAlert("Success!", "Account saved successfully!");
-      resetForm();
-    },
-
-    onError: (error) => {
-      useSwalErrorAlertAPI(
-        "System Error",
-        error?.response?.status
-          ? `HTTP ${error.response.status}`
-          : error?.message || String(error),
+  onSuccess: (response) => {
+    // 1) SPROC row style (errorcount/errormsg)
+    const sqlRow = response?.data?.data?.[0];
+    if (sqlRow?.errorcount > 0) {
+      useSwalErrorAlert(
+        "Error",
+        sqlRow?.errormsg || "Failed to save VAT .",
       );
-      resetForm(); // ✅ reset on request error too
-    },
-  });
+      return; // Removed resetForm here so user doesn't lose data on simple validation error
+    }
 
-  // --- ACTIONS ---
-  const handleSave = () => {
-    const payload = {
-      json_data: JSON.stringify({
-        json_data: {
-          ...formData,
-          action: selectedVatCode ? "EDIT" : "ADD",
-          userCode: user?.USER_CODE || "ADMIN",
-        },
-      }),
-    };
-    saveVAT(payload);
+    // 2) API status style
+    const status = response?.data?.status ?? response?.data?.data?.status;
+    const success = response?.data?.success || status === "success" || !status;
+
+    if (!success) {
+      useSwalErrorAlert(
+        "Error",
+        response?.data?.message ||
+          response?.data?.data?.message ||
+          "An error occurred while saving the VAT record.",
+      );
+      return;
+    }
+
+    // ✅ Success path
+    queryClient.invalidateQueries({ queryKey: ["vatList"] });
+    useSwalSuccessAlert("Success!", "VAT Code Saved Successfully!");
+    resetForm();
+  },
+
+  onError: (error) => {
+    useSwalErrorAlertAPI(
+      "System Error",
+      error?.response?.status
+        ? `HTTP Error ${error.response.status}: ${error.response.statusText}`
+        : error?.message || String(error),
+    );
+  },
+});
+
+// --- UPDATED ACTIONS ---
+const handleSave = () => {
+  // 1. Basic Validations (Matching Cutoff style)
+  if (!formData.vatCode || !formData.vatName || !formData.acctCode) {
+    return useSwalErrorAlert("Validation Error", "Please fill in all required fields.");
+  }
+
+  // 2. VAT Rate specific validation
+  if (parseFloat(formData.vatRate) < 0) {
+    return useSwalErrorAlert("Invalid Rate", "VAT Rate cannot be negative.");
+  }
+
+  const payload = {
+    json_data: JSON.stringify({
+      json_data: {
+        ...formData,
+        vatRate: formData.vatRate || "0.00", // Ensure no nulls are sent
+        action: selectedVatCode ? "EDIT" : "ADD",
+        userCode: user?.USER_CODE || "ADMIN",
+      },
+    }),
   };
+  saveVAT(payload);
+};
 
   // --- MUTATION: UPSERT ---
 
@@ -224,7 +232,7 @@ const VATRef = () => {
       queryClient.invalidateQueries(["vatList"]);
       useSwalDeleteRecord(
         "Deleted!",
-        "The account has been removed from the system.",
+        "The VAT has been removed from the system.",
       );
       resetForm();
     },
@@ -272,29 +280,32 @@ const VATRef = () => {
 
   // --- VALIDATION: Check for Duplicate Code ---
   const handleCheckDuplicate = async (code) => {
-    if (isEditing && selectedVatCode) return;
-    if (!code) return;
+  if (selectedVatCode) return; 
+  if (!code) return;
 
-    try {
-      const payload = { json_data: { vatCode: code } };
-      const response = await apiClient.post("/checkDuplicateVat", payload);
+  try {
+    setIsLoading(true);
+    const payload = { json_data: { vatCode: code } };
+    const response = await apiClient.post("/checkDuplicateVat", payload);
 
-      const sqlRow = response?.data?.data?.[0];
-      const rawJsonString = sqlRow?.result || Object.values(sqlRow || {})[0];
-      const parsedData = JSON.parse(rawJsonString || '{"result":"0"}');
+    const sqlRow = response?.data?.data?.[0];
+    const rawJsonString = sqlRow?.result || Object.values(sqlRow || {})[0];
+    const parsedData = JSON.parse(rawJsonString || '{"result":"0"}');
 
-      if (parsedData.result === "1") {
-        setIsLoading(false);
-        resetForm();
-        return useSwalErrorAlertAPI(
-          `Duplicate VAT Code: ${code}`,
-          `Code was already used.`,
-        );
-      }
-    } catch (error) {
-      console.error("Duplicate Check Error:", error);
+    if (parsedData.result === "1") {
+      updateForm({ vatCode: "" }); // Clear the code on duplicate
+      setIsLoading(false);
+      return useSwalErrorAlert(
+        "Duplicate VAT Code",
+        `The VAT Code ${code} is already in use. Please enter a unique code.`
+      );
     }
-  };
+  } catch (error) {
+    console.error("Duplicate Check Error:", error);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const updateForm = (updates) =>
     setFormData((prev) => ({ ...prev, ...updates }));
@@ -509,6 +520,7 @@ const VATRef = () => {
                   <FontAwesomeIcon
                     icon={faChevronDown}
                     className="hidden sm:inline text-[10px] opacity-80"
+                    
                   />
                 </button>
 
@@ -604,22 +616,26 @@ const VATRef = () => {
           {/* Sub-Column 2 (Internal Grid) */}
           <div className="space-y-6">
             <FieldRenderer
-              label="VAT Rate (%)"
-              type="number"
-              value={formData.vatRate} // Use the raw value from state
-              disabled={!isEditing}
-              placeholder="0.00"
-              step="0.01"
-              onChange={(v) => {
-                // 1. Allow the user to type freely by updating state with the raw input
-                updateForm({ vatRate: v });
-              }}
-              onBlur={(e) => {
-                // 2. Format to 2 decimal places ONLY when the user clicks away
-                const val = parseFloat(e.target.value || 0).toFixed(2);
-                updateForm({ vatRate: val });
-              }}
-            />
+  label="VAT Rate (%)"
+  type="number"
+  value={formData.vatRate}
+  disabled={!isEditing}
+  placeholder="0.00"
+  step="0.01"
+  onChange={(v) => {
+    // Prevent negative rates immediately during typing
+    const numericValue = Math.max(0, parseFloat(v) || 0);
+    // If user is still typing (e.g., just a dot), we allow the string 'v' 
+    // but we'll clean it up on blur
+    updateForm({ vatRate: v }); 
+  }}
+  onBlur={(e) => {
+    // Force formatting and ensure no negatives/nulls on exit
+    const val = parseFloat(e.target.value || 0);
+    const sanitized = Math.max(0, val).toFixed(2);
+    updateForm({ vatRate: sanitized });
+  }}
+/>
 
             <FieldRenderer
               label="VAT Category"
