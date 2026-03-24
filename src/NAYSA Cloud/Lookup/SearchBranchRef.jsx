@@ -1,208 +1,302 @@
-import React, { useState, useEffect } from 'react';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTimes, faSpinner } from '@fortawesome/free-solid-svg-icons'; // Added faSpinner
+import React, { useState, useMemo, useEffect } from "react";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faTimes,
+  faSpinner,
+  faSyncAlt,
+  faSort,
+  faSearch,
+  faEraser,
+  faChevronLeft,
+  faChevronRight,
+} from "@fortawesome/free-solid-svg-icons";
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 
-const BranchLookupModal = ({ isOpen, onClose, customParam }) => {
-    const [branches, setBranches] = useState([]);
-    const [filtered, setFiltered] = useState([]);
-    const [filters, setFilters] = useState({ branchCode: '', branchName: '' });
-    const [loading, setLoading] = useState(false);
+// Debounce hook for smooth filtering
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
 
-   
+const BranchLookupModal = ({
+  isOpen,
+  onClose,
+  customParam = "",
+  title = "Search Branch Codes",
+  withPagination = false, // New parameter: defaults to false
+}) => {
+  const [filters, setFilters] = useState({
+    branchCode: "",
+    branchName: "",
+  });
 
-    useEffect(() => {
-        if (!isOpen) {
-            setBranches([]);
-            setFiltered([]);
-            setFilters({ branchCode: "", branchName: "" });
-            return;
-        }
+  const [sortConfig, setSortConfig] = useState({
+    key: "",
+    direction: "asc",
+  });
 
-        let alive = true;
+  const [currentPage, setCurrentPage] = useState(1);
+  
+  // Set pageSize to a very large number if pagination is disabled
+  const pageSize = withPagination ? 100 : 999999; 
 
-        (async () => {
-            setLoading(true);
-            try {
-            const { data: result } = await apiClient.get("/lookupBranch", {
-                  params: {
-                  PARAMS: JSON.stringify({
-                    search: "",
-                    page: 1,
-                    pageSize: 10,
-                }),
-                },
-            });
-            const branchData =
-                Array.isArray(result?.data) && result.data[0]?.result
-                ? JSON.parse(result.data[0].result)
-                : [];
+  const hasActiveFilters = Object.values(filters).some((val) => val !== "");
 
-            if (!alive) return;
-            setBranches(branchData);
-            setFiltered(branchData);
-            } catch (err) {
-            console.error("Failed to fetch Branch:", err);
-            if (!alive) return;
-            setBranches([]);
-            setFiltered([]);
-            } finally {
-            if (alive) setLoading(false);
-            }
-        })();
+  const resetFilters = () =>
+    setFilters({
+      branchCode: "",
+      branchName: "",
+    });
 
-        return () => {
-            alive = false;
-        };
-        }, [isOpen, customParam]);
+  const debouncedFilters = useDebounce(filters, 300);
 
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedFilters]);
 
-    useEffect(() => {
-        const newFiltered = branches.filter(branch =>
-            (branch.branchCode || '').toLowerCase().includes((filters.branchCode || '').toLowerCase()) &&
-            (branch.branchName || '').toLowerCase().includes((filters.branchName || '').toLowerCase())
-        );
-        setFiltered(newFiltered);
-    }, [filters, branches]); // Depend on 'branches' (original data) for filtering
+  // Fetching data using TanStack Query
+  const {
+    data: branches = [],
+    isLoading,
+    isFetching,
+    refetch,
+  } = useQuery({
+    queryKey: ["lookupBranch", customParam],
+    queryFn: async () => {
+      const { data: result } = await apiClient.get("/lookupBranch", {
+        params: {
+          PARAMS: JSON.stringify({
+            search: "",
+            page: 1,
+            pageSize: 5000, // Fetching a large set for comprehensive client-side handling
+          }),
+        },
+      });
 
-    const handleApply = (branch) => {
-        onClose(branch);
-    };
+      const rawData = result?.data?.[0]?.result || "[]";
+      return Array.isArray(rawData) ? rawData : JSON.parse(rawData);
+    },
+    enabled: isOpen,
+    staleTime: 1000 * 60 * 5,
+    placeholderData: keepPreviousData,
+  });
 
-    const handleFilterChange = (e, key) => {
-        setFilters({ ...filters, [key]: e.target.value });
-    };
+  // Client-side Filter and Sort Logic
+  const filteredAndSorted = useMemo(() => {
+    if (!branches.length) return [];
 
-    if (!isOpen) return null;
+    let result = branches.filter((item) => {
+      return (
+        (item.branchCode || "")
+          .toLowerCase()
+          .includes(debouncedFilters.branchCode.toLowerCase()) &&
+        (item.branchName || "")
+          .toLowerCase()
+          .includes(debouncedFilters.branchName.toLowerCase())
+      );
+    });
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 sm:p-6 lg:p-8 animate-fade-in">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col relative overflow-hidden transform scale-95 animate-scale-in">
-                {/* Close Icon */}
-                <button
-                    onClick={() => onClose(null)}
-                    className="absolute top-3 right-3 text-blue-500 hover:text-blue-700 transition duration-200 focus:outline-none p-1 rounded-full hover:bg-blue-100"
-                    aria-label="Close modal"
-                >
-                    <FontAwesomeIcon icon={faTimes} size="lg" />
-                </button>
+    if (sortConfig.key) {
+      result.sort((a, b) => {
+        const aVal = String(a[sortConfig.key] ?? "");
+        const bVal = String(b[sortConfig.key] ?? "");
+        return sortConfig.direction === "asc"
+          ? aVal.localeCompare(bVal, undefined, { numeric: true })
+          : bVal.localeCompare(aVal, undefined, { numeric: true });
+      });
+    }
 
-                <h2 className="text-sm font-semibold text-blue-800 p-3 border-b border-gray-100">Select Branch Codes</h2>
+    return result;
+  }, [branches, debouncedFilters, sortConfig]);
 
-                <div className="flex-grow overflow-hidden">
-                    {loading ? (
-                        <div className="flex items-center justify-center h-full min-h-[200px] text-blue-500">
-                            <FontAwesomeIcon icon={faSpinner} spin size="2x" className="mr-3" />
-                            <span>Loading branches...</span>
-                        </div>
-                    ) : (
-                        <div className="overflow-auto max-h-[calc(90vh-120px)] custom-scrollbar"> {/* Adjusted max-h for the table container */}
-                            <table className="min-w-full divide-y divide-gray-100">
-                                <thead className="bg-gray-100 sticky top-0 z-10 shadow-sm">
-                                    <tr>
-                                        {/* Headers */}
-                                        <th className="px-4 py-2 text-left text-xs font-bold text-blue-900 tracking-wider cursor-pointer hover:bg-blue-100 transition-colors duration-200">Branch Code</th>
-                                        <th className="px-4 py-2 text-left text-xs font-bold text-blue-900 tracking-wider cursor-pointer hover:bg-blue-100 transition-colors duration-200">Branch Name</th>
-                                        <th className="px-4 py-2 text-left text-xs font-bold text-blue-900 tracking-wider cursor-pointer hover:bg-blue-100 transition-colors duration-200">Action</th>
-                                    </tr>
-                                    {/* Filter Row */}
-                                    <tr className="bg-gray-100">
-                                        <th className="px-3 py-1">
-                                            <input
-                                                type="text"
-                                                value={filters.branchCode}
-                                                onChange={(e) => handleFilterChange(e, 'branchCode')}
-                                                placeholder="Filter..."
-                                                className="block w-full px-2 py-1 text-xs text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                            />
-                                        </th>
-                                        <th className="px-3 py-1">
-                                            <input
-                                                type="text"
-                                                value={filters.branchName}
-                                                onChange={(e) => handleFilterChange(e, 'branchName')}
-                                                placeholder="Filter..."
-                                                className="block w-full px-2 py-1 text-xs text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                            />
-                                        </th>
-                                        <th className="px-3 py-1"></th> {/* Empty header for action column */}
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {filtered.length > 0 ? (
-                                        filtered.map((branch, index) => (
-                                            <tr key={index}
-                                                className="hover:bg-blue-50 transition-colors duration-150 cursor-pointer text-xs"
-                                                onClick={() => handleApply(branch)} // Allow clicking row to apply
-                                            >
-                                                <td className="px-4 py-1 whitespace-nowrap">{branch.branchCode}</td>
-                                                <td className="px-4 py-1 whitespace-nowrap">{branch.branchName}</td>
-                                                <td className="px-4 py-1 whitespace-nowrap">
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); handleApply(branch); }} // Stop propagation to prevent row click
-                                                        className="px-6 py-1 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-150"
-                                                    >
-                                                        Apply
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    ) : (
-                                        <tr>
-                                            <td colSpan="3" className="px-4 py-6 text-center text-gray-500 text-lg">
-                                                No matching branches found.
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
+  // Pagination Logic
+  const paginatedData = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredAndSorted.slice(startIndex, startIndex + pageSize);
+  }, [filteredAndSorted, currentPage, pageSize]);
+
+  const totalPages = Math.ceil(filteredAndSorted.length / pageSize) || 1;
+
+  const handleSort = (key) => {
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
+    }));
+  };
+
+  const handleApply = (branch) => {
+    onClose(branch);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4 animate-fade-in">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col relative overflow-hidden transform animate-scale-in border border-slate-200">
+        
+        {/* Header Section */}
+        <div className="flex items-center justify-between bg-slate-100 border-b border-slate-200">
+          <div className="flex items-center gap-2 pl-3">
+            <h2 className="global-lookup-headertext-ui">{title}</h2>
+            {isFetching && (
+                <div className="flex h-2 w-2 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
                 </div>
+            )}
+          </div>
 
-                {/* Footer with count */}
-                <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end items-center text-xs text-gray-600">
-                    <div className="font-semibold">
-                        Showing <strong>{filtered.length}</strong> of {branches.length} entries
-                    </div>
-                </div>
-            </div>
+          <div className="flex items-center gap-1">
+            {hasActiveFilters && (
+              <button
+                onClick={resetFilters}
+                className="px-2 py-1 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded transition-all flex items-center gap-1.5"
+              >
+                <FontAwesomeIcon icon={faEraser} />
+                CLEAR
+              </button>
+            )}
+            
+            {isFetching && (
+              <span className="text-[9px] text-blue-500 animate-pulse font-bold flex items-center gap-1 uppercase mt-0.5">
+                <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
+                Syncing...
+              </span>
+            )}
 
-            {/* Tailwind CSS Animations (add to your CSS file or a style block if not globally available) */}
-            <style jsx="true">{`
-                @keyframes fade-in {
-                    from { opacity: 0; }
-                    to { opacity: 1; }
-                }
-                @keyframes scale-in {
-                    from { transform: scale(0.95); opacity: 0; }
-                    to { transform: scale(1); opacity: 1; }
-                }
-                .animate-fade-in {
-                    animation: fade-in 0.2s ease-out forwards;
-                }
-                .animate-scale-in {
-                    animation: scale-in 0.3s ease-out forwards;
-                }
-                /* Custom Scrollbar */
-                .custom-scrollbar::-webkit-scrollbar {
-                    width: 8px;
-                    height: 8px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-track {
-                    background: #f1f1f1;
-                    border-radius: 10px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background: #888;
-                    border-radius: 10px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-                    background: #555;
-                }
-            `}</style>
+            <button
+              onClick={() => refetch()}
+              className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+              title="Refresh Data"
+            >
+              <FontAwesomeIcon icon={faSyncAlt} size="sm" spin={isFetching} />
+            </button>
+
+            <button
+              onClick={() => onClose(null)}
+              className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+            >
+              <FontAwesomeIcon icon={faTimes} size="lg" />
+            </button>
+          </div>
         </div>
-    );
+
+        {/* Table Body */}
+        <div className="flex-grow overflow-auto custom-scrollbar bg-white">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center h-64 text-slate-400">
+              <FontAwesomeIcon icon={faSpinner} spin size="2x" className="mb-4 text-blue-500" />
+              <p className="text-sm font-medium">Loading...</p>
+            </div>
+          ) : (
+            <table className="min-w-full border-separate border-spacing-0">
+              <thead className="sticky top-0 z-10 bg-slate-200">
+                <tr>
+                  {[
+                    { label: "Branch Code", key: "branchCode" },
+                    { label: "Branch Name", key: "branchName" },
+                  ].map((col) => (
+                    <th key={col.key} className="global-lookup-th-ui">
+                      <div
+                        onClick={() => handleSort(col.key)}
+                        className="flex items-center gap-3 cursor-pointer group mb-1"
+                      >
+                        <span className="global-lookup-th-text-ui">{col.label}</span>
+                        <FontAwesomeIcon
+                          icon={faSort}
+                          className={`mb-2 text-[10px] ${sortConfig.key === col.key ? "text-gray-600" : "opacity-30 group-hover:opacity-100"}`}
+                        />
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={filters[col.key]}
+                          onChange={(e) => setFilters(prev => ({ ...prev, [col.key]: e.target.value }))}
+                          placeholder="Filter..."
+                          className="global-lookup-filter-text-ui"
+                        />
+                        <FontAwesomeIcon icon={faSearch} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px]" />
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-100">
+                {paginatedData.length > 0 ? (
+                  paginatedData.map((branch, index) => (
+                    <tr
+                      key={branch.branchCode || index}
+                      onClick={() => handleApply(branch)}
+                      className="group hover:bg-blue-50 cursor-pointer transition-colors"
+                    >
+                      <td className="global-lookup-td-ui w-[180px] font-bold">{branch.branchCode}</td>
+                      <td className="global-lookup-td-ui w-[300px]">{branch.branchName}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="2" className="px-4 py-20 text-center text-slate-400 italic text-sm">
+                      No matching records found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Footer Section */}
+        <div className="global-lookup-footer-records-div-ui">
+          <div className="flex flex-col">
+            <span className="global-lookup-footer-records-text-ui">
+              Total Records: {filteredAndSorted.length}
+            </span>
+          </div>
+
+          {/* Only show pagination controls if withPagination is true AND there's more than 1 page */}
+          {withPagination && totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="h-8 w-8 rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 disabled:opacity-40"
+              >
+                <FontAwesomeIcon icon={faChevronLeft} className="text-[10px]" />
+              </button>
+              <span className="text-[11px] font-semibold text-slate-600">
+                {currentPage} / {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="h-8 w-8 rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 disabled:opacity-40"
+              >
+                <FontAwesomeIcon icon={faChevronRight} className="text-[10px]" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <style jsx="true">{`
+        .animate-fade-in { animation: fadeIn 0.15s ease-out forwards; }
+        .animate-scale-in { animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      `}</style>
+    </div>
+  );
 };
 
 export default BranchLookupModal;

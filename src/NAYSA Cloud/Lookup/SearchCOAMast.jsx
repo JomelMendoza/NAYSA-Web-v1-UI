@@ -114,10 +114,10 @@ const COAMastLookupModal = ({ isOpen, onClose, source, customParam }) => {
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[75vh] flex flex-col relative overflow-hidden transform animate-scale-in border border-slate-200">
                 
                 {/* Header */}
-                <div className="flex items-center justify-between p-2  border-b bg-slate-100">
+                <div className="flex items-center justify-between pl-2 p-1 border-b bg-slate-100">
                     <div className="flex items-center gap-3">
-                        <div className="relative">
-                            <h2 className="text-md font-bold text-blue-800 tracking-tight propercase pl-2">Select Chart of Accounts</h2>
+                        <div className="flex items-center gap-2 pl-3">
+                            <h2 className="global-lookup-headertext-ui">Select Chart of Accounts</h2>
                             <div className="absolute -top-1 -right-4 flex h-2 w-2">
                                 <span className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 ${isFetching ? 'block' : 'hidden'}`}></span>
                                 <span className={`relative inline-flex rounded-full h-2 w-2 bg-blue-500 ${isFetching ? 'block' : 'hidden'}`}></span>
@@ -155,15 +155,15 @@ const COAMastLookupModal = ({ isOpen, onClose, source, customParam }) => {
                             <thead className="sticky top-0 z-10 bg-slate-200">
                                 <tr>
                                     {[
-                                        { label: 'Account Code', key: 'acctCode', className: 'block text-[12px] font-bold text-slate-600 propercase mb-1'},
+                                        { label: 'Account Code', key: 'acctCode', className: 'block text-[11px] sm:text-[12px] font-bold text-slate-600 propercase mb-1'},
                                         { label: 'Account Name', key: 'acctName', className: 'block text-[12px] font-bold text-slate-600 propercase mb-1' },
                                         { label: 'Balance', key: 'acctBalance', className: 'block text-[12px] font-bold text-slate-600 propercase mb-1' },
-                                        { label: 'Required SL?', key: 'reqSL', className: 'block text-[12px] font-bold text-slate-600 propercase mb-1' },
-                                        { label: 'Required RC?', key: 'reqRC', className: 'block text-[12px] font-bold text-slate-600 propercase mb-1' }
+                                        { label: 'Required SL', key: 'reqSL', className: 'block text-[12px] font-bold text-slate-600 propercase mb-1' },
+                                        { label: 'Required RC', key: 'reqRC', className: 'block text-[12px] font-bold text-slate-600 propercase mb-1' }
                                     ].map((col) => (
                                         <th key={col.key} className="px-4 py-2 text-left border-b border-slate-200">
                                             <div onClick={() => handleSort(col.key)} className="flex items-center gap-1 cursor-pointer group mb-1.5">
-                                                <label className="block text-[12px] font-bold text-slate-600 propercase mb-1">
+                                                <label className="block text-[10px] sm:text-[12px] font-bold text-slate-600 propercase mb-1">
                                                     {col.label}
                                                 </label>
                                                 <FontAwesomeIcon 
@@ -177,7 +177,7 @@ const COAMastLookupModal = ({ isOpen, onClose, source, customParam }) => {
                                                     value={filters[col.key]}
                                                     onChange={(e) => setFilters(prev => ({ ...prev, [col.key]: e.target.value }))}
                                                     placeholder="Filter..."
-                                                    className="w-full pl-7 pr-2 py-1.5 text-xs font-normal border border-slate-200 rounded bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                                                    className="global-lookup-filter-text-ui"
                                                 />
                                                 <FontAwesomeIcon icon={faSearch} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-300 text-[9px]" />
                                             </div>
@@ -193,11 +193,11 @@ const COAMastLookupModal = ({ isOpen, onClose, source, customParam }) => {
                                         onClick={() => handleApply(coa)} 
                                         className="group hover:bg-blue-50 cursor-pointer transition-colors"
                                     >
-                                        <td className="px-4 py-2 text-xs font-bold text-slate-600 w-[140px]">{coa.acctCode}</td>
-                                        <td className="px-4 py-2 text-xs text-slate-600 font-medium w-[330px]">{coa.acctName}</td>
-                                        <td className="px-4 py-2 text-xs text-slate-500 w-[140px]">{coa.acctBalance}</td>
-                                        <td className="px-4 py-2 text-xs text-slate-500 w-[140px]">{coa.reqSL}</td>
-                                        <td className="px-4 py-2 text-xs text-slate-500 w-[140px]">{coa.reqRC}</td>
+                                        <td className="global-lookup-td-ui w-[180px] font-bold">{coa.acctCode}</td>
+                                        <td className="global-lookup-td-ui w-[330px]">{coa.acctName}</td>
+                                        <td className="global-lookup-td-ui w-[140px]">{coa.acctBalance}</td>
+                                        <td className="global-lookup-td-ui w-[140px]">{coa.reqSL}</td>
+                                        <td className="global-lookup-td-ui w-[140px]">{coa.reqRC}</td>
                                         
                                     </tr>
                                 )) : (
