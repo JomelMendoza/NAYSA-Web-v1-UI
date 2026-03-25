@@ -43,6 +43,10 @@ import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 import SearchGlobalReferenceTable from "@/NAYSA Cloud/Lookup/SearchGlobalReferenceTable.jsx";
 import RegistrationInfo from "@/NAYSA Cloud/Global/RegistrationInfo.jsx";
 import ButtonBar from "@/NAYSA Cloud/Global/ButtonBar.jsx";
+import {
+  useFieldLenghtCheck,
+  useGetFieldLength,
+} from "@/NAYSA Cloud/Global/procedure";
 
 /* ================= HELPERS ================= */
 
@@ -76,8 +80,6 @@ const DEFAULT_FORM = {
   __existing: false,
 };
 
- const getMax = (col) => useGetFieldLength(tblFieldArray, col);
- 
 const RcRef = forwardRef(
   (
     {
@@ -108,6 +110,24 @@ const RcRef = forwardRef(
     const [isLoading, setIsLoading] = useState(false);
 
     const [form, setForm] = useState(DEFAULT_FORM);
+
+    // FIX: Moved inside the component!
+    const [tblFieldArray, setTblFieldArray] = useState([]);
+
+    // FIX: Moved inside the component!
+    useEffect(() => {
+      (async () => {
+        // Note: Verify "RC_TYPE" matches your exact database table name
+        const res = await useFieldLenghtCheck("RC_TYPE"); 
+        setTblFieldArray(res || []);
+      })();
+    }, []);
+
+    // FIX: Moved inside the component!
+    const getMax = useCallback(
+      (col) => useGetFieldLength(tblFieldArray, col),
+      [tblFieldArray]
+    );
 
     const setField = (key, value) =>
       setForm((prev) => ({ ...prev, [key]: value }));
@@ -284,7 +304,6 @@ const RcRef = forwardRef(
     const handleEdit = useCallback(
       async (row) => {
         try {
-          // setIsLoading(true);
           const res = await apiClient.get("/getRcType", {
             params: { rcTypeCode: row.rcTypeCode },
           });
@@ -295,8 +314,6 @@ const RcRef = forwardRef(
           setSelectedRow(row);
         } catch (error) {
           swalErrorAlertAPI("Fetch Error", error);
-        } finally {
-          // setIsLoading(false);
         }
       },
       [resetForm],
@@ -311,7 +328,6 @@ const RcRef = forwardRef(
         }
 
         try {
-          // setIsLoading(true);
           // 1. Check if used in other tables via SPROC
           const res = await apiClient.post("/checkInUsedRcType", {
             json_data: JSON.stringify({ rcTypeCode: code }),
@@ -322,7 +338,6 @@ const RcRef = forwardRef(
           const parsed = JSON.parse(raw);
 
           if (String(parsed?.result) === "1") {
-            // setIsLoading(false);
             return swalErrorAlert(
               "Cannot Delete",
               `RC Type Code "${code}" is currently in use by other transactions.`,
@@ -330,7 +345,6 @@ const RcRef = forwardRef(
           }
 
           // 2. Confirmation
-          // setIsLoading(false);
           const confirm = await swalDeleteConfirm(
             "Confirm Delete",
             `Are you sure you want to delete RC Type "${code}"?`,
@@ -340,7 +354,6 @@ const RcRef = forwardRef(
             deleteMutation.mutate(code);
           }
         } catch (error) {
-          // setIsLoading(false);
           swalErrorAlertAPI("System Error", error);
         }
       },
@@ -630,13 +643,13 @@ const RcRef = forwardRef(
                   value={form.rcTypeCode}
                   inputRef={codeInputRef}
                   onChange={(e) => {
-                    // Extract value whether it's an Event object (e.target.value) or a direct string (e)
                     const val = e?.target?.value ?? e ?? "";
                     setField("rcTypeCode", String(val).toUpperCase());
                   }}
                   onBlur={handleRcTypeCodeValidate}
                   onKeyDown={handleRcTypeCodeValidate}
                   disabled={!isEditing || form.__existing}
+                  maxLength={getMax("RCTYPE_CODE")} 
                 />
 
                 <FieldRenderer
@@ -644,11 +657,11 @@ const RcRef = forwardRef(
                   required
                   value={form.rcTypeName}
                   onChange={(e) => {
-                    // Extract value whether it's an Event object or a direct string
                     const val = e?.target?.value ?? e ?? "";
                     setField("rcTypeName", String(val));
                   }}
                   disabled={!isEditing || saveMutation.isPending}
+                  maxLength={getMax("RCTYPE_NAME")} 
                 />
               </div>
 
