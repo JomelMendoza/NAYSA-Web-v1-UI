@@ -870,13 +870,20 @@ const jumpToGLInquiryFromBS = useCallback(
  
 
   const handlePrint = useCallback(() => {
+    
+    const { cutoffCode, currCode, rcCode } = filters;
+
+
     if (activeTab === "balSheetYTD") {
-      useHandlePrintQuery("BSYTD.rpt", currentUserRow?.userCode);
+      
+      const params = `cutoffCode:${cutoffCode}|currCode:${currCode}|rcCode:${rcCode}`;
+      useHandlePrintQuery("BSYTD.rpt", currentUserRow?.userCode, params);
       return;
     }
 
     if (activeTab === "incStatementYTD") {
-      useHandlePrintQuery("ISYTD.rpt", currentUserRow?.userCode);
+      const params = `cutoffCode:${cutoffCode}|currCode:${currCode}|rcCode:${rcCode}`;
+      useHandlePrintQuery("ISYTD.rpt", currentUserRow?.userCode,params);
       return;
     }
 

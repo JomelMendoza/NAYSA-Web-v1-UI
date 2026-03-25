@@ -294,6 +294,7 @@ const columns = useMemo(() => [
     {
   key: "__actions",
   label: <span className="hidden md:inline">Actions</span>,
+  width: 50,
   render: (row) => (
     <div className="flex gap-2 justify-center w-full">
       <button
@@ -330,13 +331,14 @@ const columns = useMemo(() => [
   ),
 },
 
-  { key: "acctCode", label: "Account Code", sortable: true },
-  { key: "acctName", label: "Account Name", sortable: true },
+  { key: "acctCode", label: "Account Code", sortable: true, width: 100 },
+  { key: "acctName", label: "Account Name", sortable: true, width: 150 },
 
   {
     key: "acctType",
     label: "Account Type",
     sortable: true,
+    width: 100 ,
     render: (row) => {
       const match = dropdowns?.typ?.find((d) => d.DROPDOWN_CODE === row.acctType);
       return match ? match.DROPDOWN_NAME : row.acctType;
@@ -347,6 +349,7 @@ const columns = useMemo(() => [
     key: "acctGroup",
     label: "Account Group",
     sortable: true,
+    width: 80 ,
     render: (row) => {
       const match = dropdowns?.grp?.find((d) => d.DROPDOWN_CODE === row.acctGroup);
       return match ? match.DROPDOWN_NAME : row.acctGroup;
@@ -357,6 +360,7 @@ const columns = useMemo(() => [
     key: "acctBalance",
     label: "Balance",
     sortable: true,
+    width: 90 ,
     render: (row) => {
       const match = dropdowns?.bal?.find((d) => d.DROPDOWN_CODE === row.acctBalance);
       return match ? match.DROPDOWN_NAME : row.acctBalance;
@@ -366,6 +370,7 @@ const columns = useMemo(() => [
   { 
     key: "reqSL", 
     label: "SL Required", 
+    width: 80 ,
     sortable: true,
     render: (row) => (row.reqSL === "Y" ? "Yes" : "No") 
   },
@@ -373,6 +378,7 @@ const columns = useMemo(() => [
   { 
     key: "reqRC", 
     label: "RC Required", 
+    width: 80 ,
     sortable: true,
     render: (row) => (row.reqRC === "Y" ? "Yes" : "No") 
   },
@@ -380,6 +386,7 @@ const columns = useMemo(() => [
   {
     key: "classCode",
     label: "Classification",
+    width: 150 ,
     sortable: true,
     render: (row) => {
       const match = dropdowns?.cls?.find((d) => d.DROPDOWN_CODE === row.classCode);
@@ -387,12 +394,13 @@ const columns = useMemo(() => [
     },
   },
 
-  { key: "oldCode", label: "Old Code", sortable: true },
+  { key: "oldCode", label: "Old Code", sortable: true, width: 100 },
 
   { 
     key: "active", 
     label: "Active", 
     sortable: true,
+    width: 100 ,
     render: (row) => (row.active === "Y" ? "Yes" : "No") 
   },
 

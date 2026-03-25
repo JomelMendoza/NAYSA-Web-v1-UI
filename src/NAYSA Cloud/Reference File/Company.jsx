@@ -269,7 +269,12 @@ const Company = () => {
             <FieldRenderer label="Currency" labelWidth="w-56" type="lookup" value={formData.currencyCode ? `(${formData.currencyCode}) - ${formData.currencyName}` : ""} onLookup={() => toggleModal("currency", true)} />
             <FieldRenderer label="Disbursement Bank" labelWidth="w-56" type="lookup" value={formData.disbursementBankCode ? `(${formData.disbursementBankCode}) - ${formData.disbursementBankName}` : ""} onLookup={() => toggleModal("disbBank", true)} />
             <FieldRenderer label="Deposit Bank" labelWidth="w-56" type="lookup" value={formData.depositBankCode ? `(${formData.depositBankCode}) - ${formData.depositBankName}` : ""} onLookup={() => toggleModal("depBank", true)} />
-            <FieldRenderer label="Stale Check Days" labelWidth="w-56" type="number" value={formData.staleCheckDueDays} onChange={(v) => updateForm({ staleCheckDueDays: v })} />
+            <FieldRenderer label="Stale Check Days" labelWidth="w-56" type="number" placeholder="0.00" step="0.01" value={formData.staleCheckDueDays} onChange={(v) => updateForm({ staleCheckDueDays: v })} 
+              onBlur={(e) => {
+                const val = parseFloat(e.target.value || 0);
+                const sanitized = Math.max(0, val).toFixed(2);
+                updateForm({ staleCheckDueDays: sanitized });
+              }} />
             <FieldRenderer label="Global RC" labelWidth="w-56" type="lookup" value={formData.globalRespCenter ? `(${formData.globalRespCenter}) - ${formData.globalRespCenterName}` : ""} onLookup={() => { setRcType("global"); toggleModal("rc", true); }} />
             <FieldRenderer label="Sales RC" labelWidth="w-56" type="lookup" value={formData.salesRespCenter ? `(${formData.salesRespCenter}) - ${formData.salesRespCenterName}` : ""} onLookup={() => { setRcType("sales"); toggleModal("rc", true); }} />
           </div>

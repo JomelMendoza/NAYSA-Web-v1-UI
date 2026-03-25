@@ -253,7 +253,7 @@ export async function useTopBillCodeRow(billCode) {
   if (!billCode) return null;
 
   try {
-    const response = await fetchData("getBillcode", { billCode: billCode });
+    const response = await fetchData("getbillCode", { billCode: billCode });
     if (response.success) {
       const responseData = JSON.parse(response.data[0].result);
       return responseData.length > 0 ? responseData[0] : null;

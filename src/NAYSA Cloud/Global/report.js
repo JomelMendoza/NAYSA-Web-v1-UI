@@ -102,7 +102,7 @@ export async function useHandlePrint(documentID, docCode, printMode, userCode) {
 
 
 
-export async function useHandlePrintQuery(formName, userCode) {
+export async function useHandlePrintQuery(formName, userCode,params) {
   try {
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
@@ -115,7 +115,7 @@ export async function useHandlePrintQuery(formName, userCode) {
       throw new Error("Report Name not defined");
     }
 
-    const payload = { formName ,userCode};
+    const payload = { formName ,userCode,params};
     console.log(payload)
     const pdfBlob = await postPdfRequest("/printQuery", payload);
 

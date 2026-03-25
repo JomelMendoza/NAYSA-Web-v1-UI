@@ -311,7 +311,7 @@ const SearchGlobalReferenceTable = forwardRef(
       return s.length * 7 + 40;
     };
 
-    const headerCellWrap = "w-full min-w-0 overflow-hidden text-ellipsis whitespace-nowrap";
+    const headerCellWrap = "w-full min-w-0 whitespace-normal break-words";
     const hasActionCol = useMemo(() => visibleCols.some((c) => isActionColumn(c)), [visibleCols]);
 
     // --- Drag/drop ---
@@ -1563,7 +1563,7 @@ const renderMobileCard = (row, idx) => {
                           key={col.key}
                           className={`global-tran-th-ui bg-blue-100 cursor-pointer select-none relative ${
                             isStickyLeft ? "sticky z-40" : ""
-                          }`}
+                          }${col.className || ""}`}
                           draggable={!isMobile && !groupBy.includes(col.key)}
                           onDragStart={(e) => !isMobile && handleColDragStart(e, col.key)}
                           onDragOver={(e) => {
@@ -1575,7 +1575,7 @@ const renderMobileCard = (row, idx) => {
                           onClick={() => handleSort(col.key, col.sortable)}
                           title={!isMobile ? "Click to sort • Drag to reorder/group" : "Click to sort"}
                           style={{
-                            ...(autoFillGrid && !isManual
+                            ...(autoFillGrid && !isManual && !col.width
                               ? {}
                               : {
                                   width: `${colWidth}px`,
@@ -1653,7 +1653,8 @@ const renderMobileCard = (row, idx) => {
                   {!hasDataFiltered ? (
                     <tr>
                       <td
-                        colSpan={visibleCols.length + (hasActionCol ? 1 : 0)}
+                        // colSpan={visibleCols.length + (hasActionCol ? 1 : 0)}
+                        colSpan={visibleCols.length}
                         className="global-ref-norecords-ui"
                       >
                         {Array.isArray(data) && data.length > 0 ? "No records found" : "No data"}
@@ -1671,7 +1672,8 @@ const renderMobileCard = (row, idx) => {
                             onClick={() => toggleGroup(row)}
                           >
                             <td
-                              colSpan={visibleCols.length + (hasActionCol ? 1 : 0)}
+                              // colSpan={visibleCols.length + (hasActionCol ? 1 : 0)}
+                              colSpan={visibleCols.length}
                               className="global-tran-td-ui font-semibold text-blue-900"
                             >
                               <div
@@ -1716,14 +1718,14 @@ const renderMobileCard = (row, idx) => {
                                   isStickyLeft
                                     ? "sticky z-10 shadow-[-1px_0_0_0_rgba(229,231,235,1)]"
                                     : ""
-                                }`}
+                                } ${col.className || ""}`}
                                 style={{
                                   width: getColWidth(col),
-                                  minWidth: autoFillGrid ? 120 : 90,
+                                  minWidth: col.width ? col.width : (autoFillGrid ? 120 : 90),
                                   left: isStickyLeft ? leftOffset : undefined,
                                 }}
                               >
-                                <div className="w-full">
+                                <div className="w-full whitespace-normal break-words">
                                   {typeof col.render === "function"
                                     ? col.render(row)
                                     : formatValue(row[col.key], col)}
