@@ -274,7 +274,7 @@ export default function SLMast() {
 
       // ✅ success path
       queryClient.invalidateQueries({ queryKey: ["slMasterList"] });
-      useSwalSuccessAlert("Success!", "SL Code saved successfully!");
+      useSwalSuccessAlert("Success!", "Record saved successfully!");
       resetSLForm();
     },
 
@@ -291,7 +291,7 @@ export default function SLMast() {
     mutationFn: async (payload) => await apiClient.post("/deleteSLMast", payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["slMasterList"] });
-      useSwalDeleteRecord("Deleted!", "SL deleted successfully.");
+      useSwalDeleteRecord("Deleted!", "Record deleted successfully");
       resetSLForm();
     },
     onError: (error) => useSwalErrorAlertAPI("Delete Error", error),
@@ -327,7 +327,7 @@ export default function SLMast() {
 
       // ✅ success path
       queryClient.invalidateQueries({ queryKey: ["slTypeList"] });
-      useSwalSuccessAlert("Success!", "SL Type saved successfully!");
+      useSwalSuccessAlert("Success!", "Record saved successfully!");
       resetSLTypeForm();
     },
 
@@ -346,7 +346,7 @@ export default function SLMast() {
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ["slTypeList"] });
       queryClient.invalidateQueries({ queryKey: ["slCoaList"] });
-      useSwalDeleteRecord("Deleted!", "The branch has been removed from the system.");
+      useSwalDeleteRecord("Deleted!", "Record deleted successfully.");
       resetSLTypeForm();
       setSelectedSLTypeCode("");
     },
@@ -383,7 +383,7 @@ export default function SLMast() {
 
       // ✅ success path
       queryClient.invalidateQueries({ queryKey: ["slCoaList"] });
-      useSwalSuccessAlert("Success!", "SL - GL Matching saved successfully!");
+      useSwalSuccessAlert("Success!", "Record saved successfully!");
       // resetSLTypeForm();
     },
 
@@ -581,6 +581,7 @@ export default function SLMast() {
         key: "__actions",
         label: "Actions",
         sortable: false,
+        width: 100,
         render: (row) => (
           <div className="flex gap-1 justify-center">
             <button
@@ -618,11 +619,11 @@ export default function SLMast() {
           </div>
         ),
       },
-      { key: "slTypeCode", label: "SL Type Code", sortable: true },
-      { key: "slTypeName", label: "SL Type Name", sortable: true },
-      { key: "slTypeActive", label: "Active", sortable: true },
-      { key: "slTypeIncSu", label: "Payee", sortable: true },
-      { key: "slTypeIncCu", label: "Customer", sortable: true },
+      { key: "slTypeCode", label: "SL Type Code", sortable: true, width: 5 },
+      { key: "slTypeName", label: "SL Type Name", sortable: true, width: 5 },
+      { key: "slTypeActive", label: "Active", sortable: true, width: 10 },
+      { key: "slTypeIncSu", label: "Payee", sortable: true, width: 10 },
+      { key: "slTypeIncCu", label: "Customer", sortable: true, width: 10 },
     ],
     []
   );
@@ -643,33 +644,31 @@ export default function SLMast() {
           </div>
         ),
         sortable: true,
+        
         render: (row) => (
           <div className="flex justify-center">
             <input
               type="checkbox"
               checked={selectedGLAccounts.includes(row.acctCode)}
               onChange={() => toggleGLSelection(row.acctCode)}
-              className="h-6 w-4 accent-blue-600"
+              className="h-5 w-4 accent-blue-600"
+              width="20px"
             />
           </div>
         ),
-        
-        width: 25,
-        maxWidth: 25
+        width: 10
       },
       {
         key: "acctCode",
-        label: "GL Account Code",
+        label: "Account Code",
         sortable: true,
-        width: 50,
-        maxWidth: 50
+        width: 10,
       },
       {
         key: "acctName",
-        label: "GL Account Name",
+        label: "Account Name",
         sortable: true,
-        width: 500,
-        maxWidth: 500
+        width: 300,
       },
     ],
     [selectedGLAccounts, isAllSelected]
@@ -873,12 +872,14 @@ export default function SLMast() {
                 type="text"
                 value={slForm.slTypeCode}
                 disabled
+                required
               />
               <FieldRenderer
                 label="SL Type Name"
                 type="text"
                 value={slForm.slTypeName}
                 disabled
+                required
               />
 
               <FieldRenderer
@@ -887,6 +888,7 @@ export default function SLMast() {
                 value={slForm.slCode}
                 disabled={!isEditingSL || !!selectedSLCode}
                 onChange={(v) => updateSLForm({ slCode: v })}
+                required
               />
               <FieldRenderer
                 label="SL Name"
@@ -894,6 +896,7 @@ export default function SLMast() {
                 value={slForm.slName}
                 disabled={!isEditingSL || !canDeleteSL}
                 onChange={(v) => updateSLForm({ slName: v })}
+                required
               />
 
               <FieldRenderer
@@ -945,19 +948,20 @@ export default function SLMast() {
           </div>
 
           <SearchGlobalReferenceTable
-            docType={`${DOC_TYPE}_MASTER`}
+            // docType={`${DOC_TYPE}_MASTER`}
+            docType={`SL Master Data`}
             columns={slMasterColumns}
             data={filteredSLMasterList}
             isLoading={isLoadingSL}
             itemsPerPage={200}
             onRowDoubleClick={handleEditSL}
-              autoFillGrid="True"
+            // autoFillGrid="True"
           />
         </div>
       )}
 
       {activeTab === "sltype" && (
-        <div className="mt-24 grid grid-cols-1 xl:grid-cols-[680px,1fr] gap-2">
+        <div className="mt-24 grid grid-cols-1 xl:grid-cols-[2.5fr_1.5fr] gap-4">
           <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border shadow-lg">
             <div className="mb-3 flex items-center justify-between">
               <div className="text-sm font-semibold text-blue-700">
@@ -1003,6 +1007,7 @@ export default function SLMast() {
                 value={slTypeForm.slTypeCode}
                 disabled={!isEditingSLType || !!selectedSLTypeRow}
                 onChange={(v) => updateSLTypeForm({ slTypeCode: v })}
+                required
               />
               <FieldRenderer
                 label="SL Type Name"
@@ -1010,6 +1015,7 @@ export default function SLMast() {
                 value={slTypeForm.slTypeName}
                 disabled={!isEditingSLType}
                 onChange={(v) => updateSLTypeForm({ slTypeName: v })}
+                required
               />
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-6">
@@ -1050,7 +1056,7 @@ export default function SLMast() {
             </div>
 
             <SearchGlobalReferenceTable
-              docType={`${DOC_TYPE}_TYPE`}
+              docType={`SL Types`}
               columns={slTypeColumns}
               data={slTypes}
               isLoading={isLoadingTypes}
@@ -1060,12 +1066,12 @@ export default function SLMast() {
               }}
               onRowDoubleClick={handleEditSLType}
               tableSize="Half"
-              autoFillGrid="True"
+              // autoFillGrid="True"
             />
           </div>
 
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border shadow-lg">
-            <div className="mb-2 flex items-center justify-between gap-2 flex-wrap">
+          <div className="bg-white dark:bg-gray-800 p-3 rounded-xl border shadow-lg">
+            <div className="mb-1 flex items-center justify-between gap-2 flex-wrap">
               <div className="text-lg font-semibold text-blue-800">
                 {isGLMatchingLoaded ? (
                   <>
@@ -1124,7 +1130,7 @@ export default function SLMast() {
             </div>
 
             <SearchGlobalReferenceTable
-              docType={`${DOC_TYPE}_COA`}
+              docType={`SLGL Matching`}
               columns={slCoaColumns}
               data={displayedSLCoaList}
               isLoading={isLoadingSLCoa}
