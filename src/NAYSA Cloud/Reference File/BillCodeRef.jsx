@@ -1,6 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Save, Undo2, Edit, Trash2, Info } from "lucide-react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faEdit,
+  faTrashAlt,
+  faInfoCircle,
+  faChevronDown,
+  faFilePdf,
+  faVideo,
+} from "@fortawesome/free-solid-svg-icons";
 
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
@@ -76,7 +85,9 @@ const DEFAULT_FORM = {
 };
 
 const toYN = (v, def = "N") => {
-  const x = String(v ?? "").trim().toUpperCase();
+  const x = String(v ?? "")
+    .trim()
+    .toUpperCase();
   if (x === "Y" || x === "YES" || x === "TRUE" || x === "1") return "Y";
   if (x === "N" || x === "NO" || x === "FALSE" || x === "0") return "N";
   return def;
@@ -90,7 +101,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
 
   const docType = "BillCode";
   const documentTitle = reftables?.[docType];
-
+  const guideRef = useRef(null);
   const pdfLink = reftablesPDFGuide?.[docType];
   const videoLink = reftablesVideoGuide?.[docType];
 
@@ -102,6 +113,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
   const [isRCModalOpen, setRCModalOpen] = useState(false);
   const [isAccountModalOpen, setAccountModalOpen] = useState(false);
   const [activeAccountField, setActiveAccountField] = useState(null);
+  const [isOpenGuide, setOpenGuide] = useState(false);
 
   const setField = (key, value) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -173,11 +185,14 @@ const BillCodeRef = React.forwardRef((props, ref) => {
       const res = await apiClient.get("/billCode");
       return extractRows(res);
     },
+    // ✅ ADDED: Force fresh data on load and auto-sync every 30s
+    staleTime: 0,
+    refetchInterval: 1000 * 30,
   });
 
   const billCodes = useMemo(
     () => billCodeListQuery.data || [],
-    [billCodeListQuery.data]
+    [billCodeListQuery.data],
   );
 
   const isInitialLoading = billCodeListQuery.isLoading;
@@ -194,7 +209,10 @@ const BillCodeRef = React.forwardRef((props, ref) => {
       const errormsg = String(row0.errormsg ?? row0.ERRORMSG ?? "");
 
       if (errorcount > 0) {
-        useSwalErrorAlert("Missing Fields", errormsg || "Failed to save Bill Code.");
+        useSwalErrorAlert(
+          "Missing Fields",
+          errormsg || "Failed to save Bill Code.",
+        );
         return;
       }
 
@@ -207,7 +225,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
     onError: (error) => {
       useSwalErrorAlert(
         "System Error",
-        error?.response?.data?.message || error?.message || "Save failed."
+        error?.response?.data?.message || error?.message || "Save failed.",
       );
     },
   });
@@ -220,16 +238,13 @@ const BillCodeRef = React.forwardRef((props, ref) => {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["billCodeList"] });
-      useSwalDeleteRecord(
-        "Deleted!",
-        "Record has been successfully removed."
-      );
+      useSwalDeleteRecord("Deleted!", "Record has been successfully removed.");
       handleReset();
     },
     onError: (error) => {
       useSwalErrorAlert(
         "System Error",
-        error?.response?.data?.message || error?.message || "Delete failed."
+        error?.response?.data?.message || error?.message || "Delete failed.",
       );
     },
   });
@@ -239,7 +254,9 @@ const BillCodeRef = React.forwardRef((props, ref) => {
   const handleSave = async () => {
     if (!isEditing || saveMutation.isPending) return;
 
-    const billCode = String(form.billCode || "").trim().toUpperCase();
+    const billCode = String(form.billCode || "")
+      .trim()
+      .toUpperCase();
     const billName = String(form.billName || "").trim();
     const uomCode = String(form.uomCode || "").trim();
     const rcCode = String(form.rcCode || "").trim();
@@ -257,8 +274,6 @@ const BillCodeRef = React.forwardRef((props, ref) => {
           return;
         }
       }
-
-
 
       const {
         __existing,
@@ -284,7 +299,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
     } catch (error) {
       useSwalErrorAlert(
         "System Error",
-        error?.message || "Failed to save Bill Code."
+        error?.message || "Failed to save Bill Code.",
       );
     }
   };
@@ -317,7 +332,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
         "System Error",
         error?.response?.data?.message ||
           error?.message ||
-          "Failed to fetch record."
+          "Failed to fetch record.",
       );
     }
   };
@@ -337,7 +352,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
       if (isUsed) {
         useSwalErrorAlert(
           "Cannot Delete",
-          `Bill Code "${code}" is already in use.`
+          `Bill Code "${code}" is already in use.`,
         );
         return;
       }
@@ -345,7 +360,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
       const confirm = await useSwalDeleteConfirm(
         "Delete Record?",
         `Are you sure you want to delete Bill Code "${code}${name ? ` - ${name}` : ""}"?`,
-        "Yes, delete it"
+        "Yes, delete it",
       );
 
       if (!confirm?.isConfirmed) return;
@@ -354,7 +369,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
     } catch (error) {
       useSwalErrorAlert(
         "System Error",
-        error?.message || "Failed to delete record."
+        error?.message || "Failed to delete record.",
       );
     }
   };
@@ -392,7 +407,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
               }}
               className="rounded-md border border-blue-200 bg-blue-50 p-1 text-blue-600 transition-colors hover:bg-blue-600 hover:text-white"
             >
-              <Edit size={16} />
+              <FontAwesomeIcon icon={faEdit} />
             </button>
             <button
               type="button"
@@ -402,7 +417,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
               }}
               className="rounded-md border border-red-200 bg-red-50 p-1 text-red-600 transition-colors hover:bg-red-600 hover:text-white"
             >
-              <Trash2 size={16} />
+              <FontAwesomeIcon icon={faTrashAlt} />
             </button>
           </div>
         ),
@@ -442,7 +457,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
       { key: "advancesAcct", label: "Advances Account", sortable: true },
       { key: "sDiscAcct", label: "Discount Account", sortable: true },
     ],
-    []
+    [],
   );
 
   React.useImperativeHandle(ref, () => ({
@@ -487,21 +502,53 @@ const BillCodeRef = React.forwardRef((props, ref) => {
         <Undo2 size={16} /> Reset
       </button>
 
-      <button
-        type="button"
-        onClick={handleOpenInfo}
-        className="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-white hover:bg-blue-700"
-      >
-        <Info size={16} /> Info
-      </button>
+      {/* Info Dropdown */}
+      <div ref={guideRef} className="relative">
+        <button
+          onClick={() => setOpenGuide((v) => !v)}
+          className="bg-blue-600 text-white h-7 w-16 sm:w-auto sm:h-8 sm:px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
+        >
+          <FontAwesomeIcon icon={faInfoCircle} className="text-[12px]" />
+          <span className="sm:inline ml-1 text-[11px] font-medium">Info</span>
+          <FontAwesomeIcon
+            icon={faChevronDown}
+            className="hidden sm:inline text-[10px] opacity-80"
+          />
+        </button>
+
+        {isOpenGuide && (
+          <div className="absolute right-0 mt-2 w-52 rounded-md shadow-xl bg-white ring-1 ring-black/10 z-[60] dark:bg-gray-800 overflow-hidden">
+            <button
+              onClick={() => {
+                window.open(pdfLink, "_blank");
+                setOpenGuide(false);
+              }}
+              className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900 border-b border-gray-100 dark:border-gray-700"
+            >
+              <FontAwesomeIcon icon={faFilePdf} className="mr-2 text-red-500" />{" "}
+              PDF Guide
+            </button>
+            <button
+              onClick={() => {
+                window.open(videoLink, "_blank");
+                setOpenGuide(false);
+              }}
+              className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900"
+            >
+              <FontAwesomeIcon icon={faVideo} className="mr-2 text-blue-500" />{" "}
+              Video Guide
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 
   return (
     <div className="global-ref-main-div-ui mt-24">
-      {(isInitialLoading || saveMutation.isPending || deleteMutation.isPending) && (
-        <LoadingSpinner />
-      )}
+      {(isInitialLoading ||
+        saveMutation.isPending ||
+        deleteMutation.isPending) && <LoadingSpinner />}
 
       <div className="fixed top-14 left-6 right-6 z-30 mt-4 global-ref-header-ui flex flex-col gap-4 rounded-xl border border-slate-200 bg-white/80 p-3 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between">
         <h1 className="global-ref-headertext-ui">{documentTitle}</h1>
@@ -527,7 +574,10 @@ const BillCodeRef = React.forwardRef((props, ref) => {
                     if (!isEditing || form.__existing) return;
                     const isDup = await checkDuplicate(form.billCode);
                     if (isDup) {
-                      useSwalErrorAlert("Duplicate Entry", "Bill Code already exists.");
+                      useSwalErrorAlert(
+                        "Duplicate Entry",
+                        "Bill Code already exists.",
+                      );
                       setField("billCode", "");
                       setTimeout(() => billCodeInputRef.current?.focus?.(), 0);
                     }
@@ -678,6 +728,10 @@ const BillCodeRef = React.forwardRef((props, ref) => {
             onRowDoubleClick={handleEdit}
             selectedRow={selectedRow}
             onRowClick={(row) => setSelectedRow(row)}
+            // ✅ ADDED: Connecting the table to the query for UI feedback
+            isLoading={isInitialLoading}
+            isFetching={billCodeListQuery.isFetching}
+            onRefresh={() => billCodeListQuery.refetch()}
           />
         </div>
       </div>

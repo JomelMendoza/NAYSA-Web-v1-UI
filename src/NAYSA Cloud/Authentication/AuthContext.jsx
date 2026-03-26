@@ -157,7 +157,7 @@ export default function AuthProvider({ children }) {
           ? {
               icon: "warning",
               title: "Signed out for inactivity",
-              text: "You were inactive and have been signed out. Please sign in again.",
+              text: "You were inactive and have been signed out.",
             }
           : reason === "expired"
           ? {
@@ -174,7 +174,7 @@ export default function AuthProvider({ children }) {
           : {
               icon: "warning",
               title: "Session ended",
-              text: "Your session has ended. Please sign in again.",
+              text: "Your session has ended. ",
             };
 
       try {
@@ -254,7 +254,7 @@ export default function AuthProvider({ children }) {
             ? {
                 icon: "warning",
                 title: "Session expired",
-                text: "Your session expired. Please sign in again.",
+                text: "Your session expired.",
               }
             : reason === "remote"
             ? {
@@ -265,19 +265,20 @@ export default function AuthProvider({ children }) {
             : {
                 icon: "warning",
                 title: "Session ended",
-                text: "Your session has ended. Please sign in again.",
+                text: "Your session has ended. ",
               };
 
         if (showPopup) {
           try {
-            await Swal.fire({
-              ...msg,
-              timer: 3000,
-              timerProgressBar: true,
-              showConfirmButton: false,
-              allowOutsideClick: false,
-              allowEscapeKey: false,
-            });
+            useSwalSuccessAlert(msg.title,msg.text)
+            // await Swal.fire({
+            //   ...msg,
+            //   timer: 3000,
+            //   timerProgressBar: true,
+            //   showConfirmButton: false,
+            //   allowOutsideClick: false,
+            //   allowEscapeKey: false,
+            // });
           } catch {}
         } else {
           pendingLogoutNoticeRef.current = true;
@@ -388,17 +389,18 @@ export default function AuthProvider({ children }) {
 
         if (pendingLogoutNoticeRef.current) {
           pendingLogoutNoticeRef.current = false;
-          Swal.fire({
-            icon: "warning",
-            title: "Session ended",
-            text: "Your session has ended. Please sign in again.",
-            confirmButtonText: undefined,
-            showConfirmButton: false,
-            timer: 3000,
-            timerProgressBar: true,
-            allowOutsideClick: false,
-            allowEscapeKey: false,
-          });
+          useSwalSuccessAlert("Session ended","Your session has ended. ")
+          // Swal.fire({
+          //   icon: "warning",
+          //   title: "Session ended",
+          //   text: "Your session has ended. ",
+          //   confirmButtonText: undefined,
+          //   showConfirmButton: false,
+          //   timer: 3000,
+          //   timerProgressBar: true,
+          //   allowOutsideClick: false,
+          //   allowEscapeKey: false,
+          // });
         }
 
         check();

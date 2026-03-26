@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faList, faPen, faSave, faUndo, faPrint, faTimesCircle, faCopy,
-  faInfoCircle, faVideo, faFilePdf, faPaperclip, faExclamationTriangle
+  faInfoCircle, faVideo, faFilePdf, faPaperclip, faExclamationTriangle,faFileImport
 } from "@fortawesome/free-solid-svg-icons";
 import { useNavigate, useLocation } from "react-router-dom";
 // import { useReset } from "./ResetContext"; // if you need it, keep; otherwise remove
@@ -21,9 +21,10 @@ const Header = ({
   showCopyForm=true,
   isViewDocument=false,
   showPost=false,
+  showUpload=false,
 
   // action callbacks
-  pdfLink, videoLink, onPrint, printData, onReset, onSave, onPost, onCancel, onCopy, onAttach,
+  pdfLink, videoLink, onPrint, printData, onReset, onSave, onPost, onCancel, onCopy, onAttach, onUpload,
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -72,6 +73,7 @@ const Header = ({
   const handlePDFGuide = () => { if (pdfLink) window.open(pdfLink, "_blank"); setIsGuideOpen(false); };
   const handleVideoGuide = () => { if (videoLink) window.open(videoLink, "_blank"); setIsGuideOpen(false); };
   const handlePrint = () => onPrint?.(printData);
+  const handleUpload =() =>onUpload?.();
 
   return (
     <div className="fixed top-[50px] left-0 w-full z-30 bg-white shadow-md dark:bg-gray-800">
@@ -130,6 +132,12 @@ const Header = ({
             <button onClick={handleAttach} className="px-3 py-2 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-800 dark:hover:bg-blue-700">
               <FontAwesomeIcon icon={faPaperclip} /> <span className="hidden lg:inline ml-2">Attach</span>
             </button>
+
+            {showUpload && (
+              <button onClick={handleUpload} className="px-3 py-2 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-800 dark:hover:bg-blue-700">
+              <FontAwesomeIcon icon={faFileImport} /> <span className="hidden lg:inline ml-2">Upload</span>
+            </button>
+              )}
 
             <div className="relative" ref={guideDropdownRef}>
               <button

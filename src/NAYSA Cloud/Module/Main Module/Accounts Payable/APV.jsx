@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef,useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
 
@@ -28,6 +28,8 @@ import AttachDocumentModal from "../../../Lookup/SearchAttachment.jsx";
 import DocumentSignatories from "../../../Lookup/SearchSignatory.jsx";
 import PostAPV from "./PostAPV.jsx";
 import AllTranHistory from "../../../Lookup/SearchGlobalTranHistory.jsx";
+import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
+import AllTranDocNo from "../../../Lookup/SearchDocNo.jsx";
 
 // Configuration
 import { fetchData, postRequest } from "../../../Configuration/BaseURL.jsx";
@@ -68,9 +70,7 @@ import {
   useHandleCancel,
 } from "@/NAYSA Cloud/Global/procedure";
 
-import {
-  useHandlePrint,
-} from '@/NAYSA Cloud/Global/report';
+import { useHandlePrint } from "@/NAYSA Cloud/Global/report";
 
 import {
   formatNumber,
@@ -78,15 +78,13 @@ import {
   useSwalshowSaveSuccessDialog,
 } from "@/NAYSA Cloud/Global/behavior.jsx";
 
-
 // Header
 import Header from "@/NAYSA Cloud/Components/Header";
-
 
 const APV = () => {
   const { resetFlag } = useReset();
   const { user } = useAuth();
-  const [topTab, setTopTab] = useState("details"); 
+  const [topTab, setTopTab] = useState("details");
   const [state, setState] = useState({
     // HS Option
     glCurrMode: "M",
@@ -116,6 +114,7 @@ const APV = () => {
     isResetDisabled: false,
     isFetchDisabled: false,
     triggerGLEntries: false,
+    showAllTranDocNo: false,
 
     // Header information
     header: {
@@ -144,7 +143,7 @@ const APV = () => {
     selectedApType: "APV01",
     apAccountName: "",
     apAccountCode: "",
-    userCode : user?.USER_CODE,
+    userCode: user?.USER_CODE,
 
     // Detail rows
     detailRows: [],
@@ -250,6 +249,7 @@ const APV = () => {
     selectionContext,
     selectedRowIndex,
     accountModalSource,
+    showAllTranDocNo,
 
     // Modals
     showAccountModal,
@@ -285,16 +285,16 @@ const APV = () => {
   };
   const statusColor = statusMap[displayStatus] || "";
   const isFormDisabled = ["FINALIZED", "CANCELLED", "CLOSED"].includes(
-    displayStatus
+    displayStatus,
   );
 
   const handleHistoryRowPick = useCallback((row) => {
-       const docNo = row?.docNo;
-       const branchCode = row?.branchCode;
-       if (!docNo || !branchCode) return;
-       fetchTranData(docNo, branchCode);
-       setTopTab("details");
-     });
+    const docNo = row?.docNo;
+    const branchCode = row?.branchCode;
+    if (!docNo || !branchCode) return;
+    fetchTranData(docNo, branchCode);
+    setTopTab("details");
+  });
 
   // Field visibility based on AP type
   useEffect(() => {
@@ -322,22 +322,6 @@ const APV = () => {
     </div>
   );
 
-  // Effect for reset
-  useEffect(() => {
-    if (resetFlag) {
-      handleReset();
-    }
-
-    let timer;
-    if (isLoading) {
-      timer = setTimeout(() => updateState({ showSpinner: true }), 200);
-    } else {
-      updateState({ showSpinner: false });
-    }
-
-    return () => clearTimeout(timer);
-  }, [resetFlag, isLoading]);
-
   useEffect(() => {
     if (triggerGLEntries) {
       handleActivityOption("GenerateGL").then(() => {
@@ -361,11 +345,11 @@ const APV = () => {
   useEffect(() => {
     const debitSum = detailRowsGL.reduce(
       (acc, row) => acc + (parseFormattedNumber(row.debit) || 0),
-      0
+      0,
     );
     const creditSum = detailRowsGL.reduce(
       (acc, row) => acc + (parseFormattedNumber(row.credit) || 0),
-      0
+      0,
     );
     updateState({
       totalDebit: formatNumber(debitSum),
@@ -464,7 +448,7 @@ const APV = () => {
   const loadCurrencyMode = (
     mode = glCurrMode,
     defaultCurr = glCurrDefault,
-    curr = currencyCode
+    curr = currencyCode,
   ) => {
     const calcWithCurr3 = mode === "T";
     const calcWithCurr2 =
@@ -487,29 +471,6 @@ const APV = () => {
       });
     }
   };
-
-  // Effect for reset
-  useEffect(() => {
-    if (resetFlag) {
-      updateState({
-        currencyCode: "",
-        currencyName: "Philippine Peso",
-        branchName: "",
-        header: { ...header, apv_date: new Date().toISOString().split("T")[0] },
-      });
-      console.log("Fields in APV reset!");
-    }
-    getDocumentControl();
-
-    let timer;
-    if (isLoading) {
-      timer = setTimeout(() => updateState({ showSpinner: true }), 200);
-    } else {
-      updateState({ showSpinner: false });
-    }
-
-    return () => clearTimeout(timer);
-  }, [resetFlag, isLoading]);
 
   // API call functions
   const getDocumentControl = async () => {
@@ -540,7 +501,7 @@ const APV = () => {
 
       const response = await postRequest(
         "getHSDropdown",
-        JSON.stringify(payload)
+        JSON.stringify(payload),
       );
 
       if (response.success) {
@@ -617,7 +578,7 @@ const APV = () => {
         documentNo,
         branchCode,
         docType,
-        "apvNo"
+        "apvNo",
       );
 
       console.log("Fetched data:", data);
@@ -734,12 +695,12 @@ const APV = () => {
       if (apAccountCode && !apAccountName) {
         try {
           console.log("Fetching AP account name for code:", apAccountCode);
-          const accountResponse = await postRequest("getCOA", {
+          const accountResponse = await fetchData("getCOA", {
             ACCT_CODE: apAccountCode,
           });
           if (accountResponse?.success) {
             const accountData = JSON.parse(
-              accountResponse.data[0]?.result || "[]"
+              accountResponse.data[0]?.result || "[]",
             );
             if (accountData.length > 0) {
               apAccountName =
@@ -797,6 +758,36 @@ const APV = () => {
     }
   };
 
+  const fetchRCNameByCode = async (rcCode) => {
+  if (!rcCode) return "";
+
+  try {
+    const response = await fetchData("getRCMast", {
+      RC_CODE: rcCode,
+    });
+
+    if (!response?.success) return "";
+
+    let rcData = response.data || [];
+
+    if (rcData?.[0]?.result) {
+      rcData = JSON.parse(rcData[0].result || "[]");
+    }
+
+    const row = Array.isArray(rcData) ? rcData[0] : rcData;
+
+    return (
+      row?.rcName ||
+      row?.rc_name ||
+      row?.RC_NAME ||
+      ""
+    );
+  } catch (error) {
+    console.error("Could not fetch RC name:", error);
+    return "";
+  }
+};
+
   const handleDocumentNoBlur = () => {
     console.log("Document No blur:", documentNo, "Branch:", branchCode);
 
@@ -810,6 +801,37 @@ const APV = () => {
         hasBranchCode: !!branchCode,
       });
     }
+  };
+
+  const fetchRCDetails = async (rcCode) => {
+    if (!rcCode) return null;
+
+    try {
+      const response = await fetchData("getRCMast", {
+        RC_CODE: rcCode,
+      });
+
+      if (response?.success) {
+        let rcData = response.data || [];
+
+        if (rcData?.[0]?.result) {
+          rcData = JSON.parse(rcData[0].result || "[]");
+        }
+
+        const row = Array.isArray(rcData) ? rcData[0] : rcData;
+
+        if (!row) return null;
+
+        return {
+          rcCode: row.rcCode || row.RC_CODE || rcCode,
+          rcName: row.rcName || row.rc_name || row.RC_NAME || "",
+        };
+      }
+    } catch (error) {
+      console.error("Could not fetch RC details:", error);
+    }
+
+    return null;
   };
 
   const handleCurrencyRateBlur = (e) => {
@@ -956,7 +978,7 @@ const APV = () => {
       if (action === "GenerateGL") {
         const newGlEntries = await useGenerateGLEntries(
           docType,
-          serializableGlData
+          serializableGlData,
         );
         if (newGlEntries) {
           updateState({ detailRowsGL: newGlEntries });
@@ -969,11 +991,11 @@ const APV = () => {
           serializableGlData,
           updateState,
           "apvId",
-          "apvNo"
+          "apvNo",
         );
         if (response) {
           useSwalshowSaveSuccessDialog(handleReset, () =>
-            handleSaveAndPrint(response.data[0].apvId)
+            handleSaveAndPrint(response.data[0].apvId),
           );
           // Update state with new document ID and number
           updateState({
@@ -1035,7 +1057,7 @@ const APV = () => {
             REC_RC: item.REC_RC || "N", // Default to 'N' if not provided
             REC_SL: item.REC_SL || "N", // Default to 'N' if not provided
           };
-        })
+        }),
       );
 
       const updatedRows = [...detailRows, ...newRows];
@@ -1111,7 +1133,7 @@ const APV = () => {
 
       const vendResponse = await postRequest(
         "addPayeeDetail",
-        JSON.stringify(vendPayload)
+        JSON.stringify(vendPayload),
       );
       const rawResult = vendResponse.data[0]?.result;
 
@@ -1121,6 +1143,71 @@ const APV = () => {
       console.error("Error fetching data:", error);
       return [];
     }
+  };
+
+  const handleSelectAPAccount = async (accountData) => {
+    if (!accountData) return;
+
+    // Safely extract the code and name whether it's a string or an object
+    let rawCode =
+      typeof accountData === "string"
+        ? accountData
+        : accountData.acctCode ||
+          accountData.accountCode ||
+          accountData.apAcct ||
+          accountData.ACCT_CODE ||
+          "";
+
+    let rawName =
+      typeof accountData === "object"
+        ? accountData.acctName ||
+          accountData.accountName ||
+          accountData.ACCT_NAME ||
+          ""
+        : "";
+
+    if (!rawCode) return; // Stop if no AP Account is linked to this vendor
+
+    // 🚀 Instant UI Update for the code so it doesn't freeze while fetching
+    updateState({ apAccountCode: rawCode });
+
+    // If we only have the code, we MUST fetch the name from the COA server
+    if (!rawName) {
+      try {
+        const coaResponse = await fetchData("getCOA", {
+          ACCT_CODE: rawCode,
+        });
+
+        if (coaResponse?.success) {
+          const coaData = JSON.parse(coaResponse.data[0].result);
+          rawName = coaData[0]?.acctName || coaData[0]?.ACCT_NAME || "";
+
+          // Add REC_RC to the row data if available (for GL details)
+          setState((prev) => {
+            if (prev.selectedRowIndex !== null) {
+              const updatedRows = [...prev.detailRows];
+              updatedRows[prev.selectedRowIndex] = {
+                ...updatedRows[prev.selectedRowIndex],
+                REC_RC: coaData[0]?.REC_RC || "N",
+              };
+              return { ...prev, detailRows: updatedRows };
+            }
+            return prev;
+          });
+        }
+      } catch (error) {
+        console.error("COA API error:", error);
+      }
+    }
+
+    // Final UI Update with combined format "Code - Name"
+    const combinedDisplay =
+      rawCode && rawName ? `${rawCode} - ${rawName}` : rawCode;
+
+    updateState({
+      apAccountName: combinedDisplay,
+      apAccountCode: rawCode,
+    });
   };
 
   const handlePost = async () => {
@@ -1147,7 +1234,7 @@ const APV = () => {
       "Cancel button clicked - Document ID:",
       documentID,
       "Status:",
-      documentStatus
+      documentStatus,
     );
 
     if (documentID) {
@@ -1206,7 +1293,7 @@ const APV = () => {
           docType,
           documentID,
           "NSI",
-          updateState
+          updateState,
         );
         if (result && result.success) {
           Swal.fire({
@@ -1238,88 +1325,49 @@ const APV = () => {
     updateState({ payeeModalOpen: false, isLoading: true });
 
     try {
-      // Set basic payee info
+      // Extract codes from the selected row (using the columns your SP returns)
+      let foundCurrCode = selectedData.currCode || selectedData.CURR_CODE;
+      let foundAcctCode =
+        selectedData.acctCode || selectedData.apAcct || selectedData.ACCT_CODE;
+      let foundAcctName = selectedData.acctName || selectedData.ACCT_NAME; // From your new SP Join
+
       const payeeDetails = {
-        vendCode: selectedData?.vendCode || "",
-        vendName: selectedData?.vendName || "",
-        currCode: selectedData?.currCode || "",
-        acctCode: selectedData?.acctCode || "",
+        vendCode: selectedData.vendCode || "",
+        vendName: selectedData.vendName || "",
+        currCode: foundCurrCode || "",
       };
 
+      // 1. Update Payee basic info
       updateState({
         vendName: payeeDetails,
         vendCode: selectedData.vendCode,
-        apAccountCode: selectedData.acctCode || "",
-        apAccountName: selectedData.acctName || "",
       });
 
-      // Update all existing detail rows with the payee's SL Code
+      // 2. Update detail rows SL info
       const updatedRows = detailRows.map((row) => ({
         ...row,
         slCode: selectedData.vendCode,
         slName: selectedData.vendName,
       }));
-
       updateState({ detailRows: updatedRows });
 
-      // FIX: Use postRequest with the correct payload structure
-      if (!selectedData.currCode) {
-        // The backend expects VEND_CODE as a field in the request, not wrapped in json_data
-    
-
-       const vendResponse = await useTopPayeeRow(selectedData.vendCode);
-
-        if (vendResponse.success) {
-          const vendData = JSON.parse(vendResponse.data[0].result);
-          payeeDetails.currCode = vendData[0]?.currCode;
-          payeeDetails.acctCode = vendData[0]?.acctCode;
-          updateState({
-            vendName: payeeDetails,
-            apAccountCode: vendData[0]?.acctCode || "",
-            apAccountName: vendData[0]?.acctName || "",
-          });
-        }
+      // 3. Handle AP Account Formatting: "Code - Name"
+      if (foundAcctCode && foundAcctName) {
+        updateState({
+          apAccountCode: foundAcctCode,
+          apAccountName: `${foundAcctCode} - ${foundAcctName}`, // Concentenated format
+        });
+      } else if (foundAcctCode) {
+        // Fallback: If name is missing from modal row, fetch it
+        handleSelectAPAccount(foundAcctCode);
       }
 
-      await Promise.all([
-        handleSelectCurrency(payeeDetails.currCode),
-        handleSelectAPAccount(payeeDetails.acctCode),
-      ]);
+      // 4. Handle Currency
+      handleSelectCurrency(foundCurrCode);
     } catch (error) {
-      console.error("Error:", error);
+      console.error("Error setting Payee details:", error);
     } finally {
       updateState({ isLoading: false });
-    }
-  };
-
-  const handleSelectAPAccount = async (accountCode) => {
-    if (accountCode) {
-      try {
-        // FIX: Use fetchData instead of direct axios call
-        const coaResponse = await postRequest("getCOA", {
-          ACCT_CODE: accountCode,
-        });
-
-        if (coaResponse.success) {
-          const coaData = JSON.parse(coaResponse.data[0].result);
-          updateState({
-            apAccountName: coaData[0]?.acctName || coaData[0]?.ACCT_NAME || "",
-            apAccountCode: coaData[0]?.acctCode || coaData[0]?.ACCT_CODE || "",
-          });
-
-          // Add REC_RC to the row data if available
-          const updatedRows = [...detailRows];
-          if (selectedRowIndex !== null) {
-            updatedRows[selectedRowIndex] = {
-              ...updatedRows[selectedRowIndex],
-              REC_RC: coaData[0]?.REC_RC || "N",
-            };
-            updateState({ detailRows: updatedRows });
-          }
-        }
-      } catch (error) {
-        console.error("COA API error:", error);
-      }
     }
   };
 
@@ -1358,7 +1406,7 @@ const APV = () => {
     index,
     field,
     value,
-    runCalculations = true
+    runCalculations = true,
   ) => {
     const updatedRows = [...detailRows];
 
@@ -1385,8 +1433,8 @@ const APV = () => {
 
     // Handle RC code selection from modal
     if (field === "rcCode") {
-      row.rcCode = value.rcCode;
-      row.rcName = value.rcName;
+      row.rcCode = value?.rcCode || value?.rc_code || "";
+      row.rcName = value?.rcName || value?.rc_name || "";
     }
 
     if (field === "slCode") {
@@ -1478,7 +1526,7 @@ const APV = () => {
         if (paytermData && paytermData.daysDue && header.apv_date) {
           const newDueDate = calculateDueDate(
             header.apv_date,
-            paytermData.daysDue
+            paytermData.daysDue,
           );
           row.dueDate = newDueDate;
         } else {
@@ -1528,7 +1576,7 @@ const APV = () => {
           value,
           currencyCode,
           currencyRate,
-          header.apv_date
+          header.apv_date,
         );
         if (data) {
           row.debit = formatNumber(data.debit);
@@ -1578,7 +1626,7 @@ const APV = () => {
         field,
         value,
         vendCode,
-        docType
+        docType,
       );
       if (data) {
         row.acctCode = data.acctCode;
@@ -1630,25 +1678,47 @@ const APV = () => {
     updateState({ detailRowsGL: updatedRowsGL });
   };
 
-  // In your COA lookup component, make sure to include REC_RC in the returned data
   const handleCloseAccountModal = (selectedAccount) => {
-    if (selectedAccount && selectedRowIndex !== null) {
-      const specialAccounts = ["debitAcct", "apAcct", "vatAcct"];
-      if (specialAccounts.includes(accountModalSource)) {
-        // Add REC_RC to the row data
-        handleDetailChange(
-          selectedRowIndex,
-          accountModalSource,
-          {
+    if (selectedAccount) {
+      // 1. Handle Header-Level AP Account
+      if (accountModalSource === "apAccount") {
+        const rawCode =
+          selectedAccount.accountCode || selectedAccount.acctCode || "";
+        const rawName =
+          selectedAccount.accountName || selectedAccount.acctName || "";
+        const combinedDisplay =
+          rawCode && rawName ? `${rawCode} - ${rawName}` : rawName;
+
+        updateState({
+          apAccountCode: rawCode,
+          apAccountName: combinedDisplay, // Save "Code - Name" to the visible field
+        });
+      }
+      // 2. Handle Detail Row Accounts
+      else if (selectedRowIndex !== null) {
+        const specialAccounts = ["debitAcct", "vatAcct"];
+
+        if (specialAccounts.includes(accountModalSource)) {
+          handleDetailChange(
+            selectedRowIndex,
+            accountModalSource,
+            {
+              ...selectedAccount,
+              acctCode: selectedAccount.accountCode || selectedAccount.acctCode,
+              REC_RC: selectedAccount.REC_RC || "N",
+            },
+            false,
+          );
+        } else {
+          handleDetailChangeGL(selectedRowIndex, "acctCode", {
             ...selectedAccount,
-            REC_RC: selectedAccount.REC_RC || "N", // Ensure this is set
-          },
-          false
-        );
-      } else {
-        handleDetailChangeGL(selectedRowIndex, "acctCode", selectedAccount);
+            acctCode: selectedAccount.accountCode || selectedAccount.acctCode,
+          });
+        }
       }
     }
+
+    // Always close and reset context
     updateState({
       showAccountModal: false,
       selectedRowIndex: null,
@@ -1658,11 +1728,14 @@ const APV = () => {
 
   const handleCloseRcModal = async (selectedRc) => {
     if (selectedRc && selectedRowIndex !== null) {
-      const result = await useTopRCRow(selectedRc.rcCode);
+      const rcCode = selectedRc.rcCode || selectedRc.rc_code || "";
+
+      const result = await fetchRCDetails(rcCode);
       if (result) {
         handleDetailChange(selectedRowIndex, "rcCode", result, false);
       }
     }
+
     updateState({
       showRcModal: false,
       selectedRowIndex: null,
@@ -1672,20 +1745,23 @@ const APV = () => {
 
   const handleCloseRcModalGL = async (selectedRc) => {
     if (selectedRc && selectedRowIndex !== null) {
-      if (accountModalSource !== null) {
-        handleDetailChange(selectedRowIndex, "rcCode", selectedRc, false);
-      } else {
-        const result = await useTopRCRow(selectedRc.rcCode);
-        if (result) {
+      const rcCode = selectedRc.rcCode || selectedRc.rc_code || "";
+      const result = await fetchRCDetails(rcCode);
+
+      if (result) {
+        if (accountModalSource !== null) {
+          handleDetailChange(selectedRowIndex, "rcCode", result, false);
+        } else {
           handleDetailChangeGL(selectedRowIndex, "rcCode", result);
         }
       }
-      updateState({
-        showRcModal: false,
-        selectedRowIndex: null,
-        accountModalSource: null,
-      });
     }
+
+    updateState({
+      showRcModal: false,
+      selectedRowIndex: null,
+      accountModalSource: null,
+    });
   };
 
   const handleCloseSlModal = async (selectedSl) => {
@@ -1730,7 +1806,7 @@ const APV = () => {
           documentID,
           "NSI",
           confirmation.reason,
-          updateState
+          updateState,
         );
         console.log("Cancel result:", result);
 
@@ -1774,54 +1850,99 @@ const APV = () => {
   };
 
   const handleCloseSignatory = async (mode) => {
-  console.log("ðŸ”„ handleCloseSignatory called with mode:", mode);
-  console.log("ðŸ“„ Current document state:", {
-    documentID,
-    documentNo,
-    docType,
-    status: documentStatus
-  });
+    console.log("ðŸ”„ handleCloseSignatory called with mode:", mode);
+    console.log("ðŸ“„ Current document state:", {
+      documentID,
+      documentNo,
+      docType,
+      status: documentStatus,
+    });
 
-  if (!documentID) {
-    console.error("âŒ Cannot print: documentID is undefined!");
-    Swal.fire({
-      icon: "error",
-      title: "Cannot Print",
-      text: "Document ID is missing. Please save the document first.",
-    });
-    updateState({ showSignatoryModal: false });
-    return;
-  }
+    if (!documentID) {
+      console.error("âŒ Cannot print: documentID is undefined!");
+      Swal.fire({
+        icon: "error",
+        title: "Cannot Print",
+        text: "Document ID is missing. Please save the document first.",
+      });
+      updateState({ showSignatoryModal: false });
+      return;
+    }
 
-  updateState({ 
-    showSpinner: true,
-    showSignatoryModal: false,
-    noReprints: mode === "Final" ? 1 : 0, 
-  });
-  
-  try {
-    console.log("ðŸ–¨ï¸ Calling useHandlePrint with:", { 
-      documentID, 
-      docType, 
-      mode,
-      timestamp: new Date().toISOString()
+    updateState({
+      showSpinner: true,
+      showSignatoryModal: false,
+      noReprints: mode === "Final" ? 1 : 0,
     });
-    
-    await useHandlePrint(documentID, docType, mode);
-    
-    console.log("âœ… Printing completed successfully");
-  } catch (error) {
-    console.error("âŒ Printing failed:", error);
-    Swal.fire({
-      icon: "error",
-      title: "Print Failed",
-      text: error.message || "Failed to generate print document",
-    });
-  } finally {
-    updateState({ showSpinner: false });
-  }
-};
-  
+
+    try {
+      console.log("ðŸ–¨ï¸ Calling useHandlePrint with:", {
+        documentID,
+        docType,
+        mode,
+        timestamp: new Date().toISOString(),
+      });
+
+      await useHandlePrint(documentID, docType, mode);
+
+      console.log("âœ… Printing completed successfully");
+    } catch (error) {
+      console.error("âŒ Printing failed:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Print Failed",
+        text: error.message || "Failed to generate print document",
+      });
+    } finally {
+      updateState({ showSpinner: false });
+    }
+  };
+
+  // ✅ 1. Initialize component (Runs ONCE)
+  useEffect(() => {
+    handleReset();
+    getDocumentControl();
+  }, []);
+
+  // ✅ 2. Handle Reset Flag ONLY
+  useEffect(() => {
+    if (resetFlag) {
+      handleReset();
+      console.log("Fields in APV reset!");
+    }
+  }, [resetFlag]);
+
+  // ✅ 3. Handle Spinner ONLY (Doesn't trigger server calls)
+  useEffect(() => {
+    let timer;
+    if (isLoading) {
+      timer = setTimeout(() => updateState({ showSpinner: true }), 200);
+    } else {
+      updateState({ showSpinner: false });
+    }
+    return () => clearTimeout(timer);
+  }, [isLoading]);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "F1") {
+        e.preventDefault();
+        updateState({ showAllTranDocNo: true });
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const handleTranDocNoRetrieval = async (data) => {
+    await fetchTranData(data.docNo, branchCode, data.key);
+    updateState({ showAllTranDocNo: data.modalClose });
+  };
+
+  const handleTranDocNoSelection = async (data) => {
+    handleReset();
+    updateState({ showAllTranDocNo: false, documentNo: data.docNo });
+  };
 
   const handleSaveAndPrint = async (documentID) => {
     updateState({ showSpinner: true });
@@ -1897,29 +2018,45 @@ const APV = () => {
 
   const handleCloseCurrencyModal = async (selectedCurrency) => {
     if (selectedCurrency) {
-      handleSelectCurrency(selectedCurrency.currCode);
+      // Pass the WHOLE object to skip the redundant server fetch
+      handleSelectCurrency(selectedCurrency);
     }
     updateState({ currencyModalOpen: false });
   };
 
-  const handleSelectCurrency = async (currCode) => {
-    if (currCode) {
+  const handleSelectCurrency = async (currencyData) => {
+    if (!currencyData) return;
+
+    let currCode =
+      typeof currencyData === "string" ? currencyData : currencyData.currCode;
+    let currName =
+      typeof currencyData === "object" ? currencyData.currName : null;
+
+    // 🚀 Update the code immediately so the UI feels instantly responsive
+    updateState({ currencyCode: currCode });
+
+    if (!currName) {
       const result = await useTopCurrencyRow(currCode);
       if (result) {
-        const rate =
-          currCode === glCurrDefault
-            ? defaultCurrRate
-            : await useTopForexRate(currCode, header.apv_date);
-
-        // Make sure to parse and format the rate properly
-        const formattedRate = formatNumber(parseFormattedNumber(rate || 1), 6);
-
-        updateState({
-          currencyCode: result.currCode,
-          currencyName: result.currName,
-          currencyRate: formattedRate,
-        });
+        currName = result.currName;
+      } else {
+        return;
       }
+    }
+
+    if (currCode && currName) {
+      let rate = defaultCurrRate;
+      if (currCode !== glCurrDefault) {
+        rate = await useTopForexRate(currCode, header.apv_date);
+      }
+
+      const formattedRate = formatNumber(parseFormattedNumber(rate || 1), 6);
+
+      updateState({
+        currencyCode: currCode,
+        currencyName: currName,
+        currencyRate: formattedRate,
+      });
     }
   };
 
@@ -2215,29 +2352,28 @@ const APV = () => {
       {showSpinner && <LoadingSpinner />}
 
       <div className="global-tran-headerToolbar-ui">
-        <Header 
-              docType={docType} 
-              pdfLink={pdfLink} 
-              videoLink={videoLink}
-              onPrint={handlePrint} 
-              onPost={handlePost} 
-              printData={printData} 
-              onReset={handleReset}
-              onSave={() => handleActivityOption("Upsert")}
-              onCancel={handleCancel} 
-              onCopy={handleCopy} 
-              onAttach={handleAttach}
-              activeTopTab={topTab} 
-              showActions={topTab === "details"} 
-              showBIRForm={false}      
-              onDetails={() => setTopTab("details")}
-              onHistory={() => setTopTab("history")}
-              disableRouteNavigation={true}         
-              isSaveDisabled={isSaveDisabled} // Pass disabled state
-              isResetDisabled={isResetDisabled} // Pass disabled state
-              detailsRoute="/page/APV"
+        <Header
+          docType={docType}
+          pdfLink={pdfLink}
+          videoLink={videoLink}
+          onPrint={handlePrint}
+          onPost={handlePost}
+          printData={printData}
+          onReset={handleReset}
+          onSave={() => handleActivityOption("Upsert")}
+          onCancel={handleCancel}
+          onCopy={handleCopy}
+          onAttach={handleAttach}
+          activeTopTab={topTab}
+          showActions={topTab === "details"}
+          showBIRForm={false}
+          onDetails={() => setTopTab("details")}
+          onHistory={() => setTopTab("history")}
+          disableRouteNavigation={true}
+          isSaveDisabled={isSaveDisabled} // Pass disabled state
+          isResetDisabled={isResetDisabled} // Pass disabled state
+          detailsRoute="/page/APV"
         />
-
       </div>
 
       <div className={topTab === "details" ? "" : "hidden"}></div>
@@ -2499,39 +2635,19 @@ const APV = () => {
             </div>
 
             <div className="relative">
-              <select
-                id="apType"
-                className="peer global-tran-textbox-ui"
+              <FieldRenderer
+                label="AP Type"
+                type="select"
                 value={selectedApType}
-                onChange={handleAPTypeChange}
-              >
-                <option value="">Select AP Type</option>
-                {apTypes.map((type) => (
-                  <option key={type.DROPDOWN_CODE} value={type.DROPDOWN_CODE}>
-                    {type.DROPDOWN_NAME}
-                  </option>
-                ))}
-              </select>
-              <label htmlFor="apType" className="global-tran-floating-label">
-                AP Type
-              </label>
-
-              {/* Dropdown Icon */}
-              <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-                <svg
-                  className="h-4 w-4 text-gray-500"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </div>
+                disabled={isFormDisabled}
+                onChange={(val) =>
+                  handleAPTypeChange({ target: { value: val } })
+                }
+                options={apTypes.map((t) => ({
+                  label: t.DROPDOWN_NAME,
+                  value: t.DROPDOWN_CODE,
+                }))}
+              />
             </div>
           </div>
 
@@ -2666,9 +2782,7 @@ const APV = () => {
                           SL Type Code
                         </th>
                       )}
-                      {fieldVisibility.slName && (
                         <th className="global-tran-th-ui">SL Code</th>
-                      )}
                       <th className="global-tran-th-ui">VAT Code</th>
                       <th className="global-tran-th-ui">VAT Name</th>
                       <th className="global-tran-th-ui">VAT Amount</th>
@@ -2705,7 +2819,7 @@ const APV = () => {
                                   index,
                                   "invType",
                                   e.target.value,
-                                  false
+                                  false,
                                 )
                               }
                               disabled={isFormDisabled}
@@ -2727,7 +2841,7 @@ const APV = () => {
                                   index,
                                   "rrNo",
                                   e.target.value,
-                                  false
+                                  false,
                                 )
                               }
                               disabled={isFormDisabled}
@@ -2745,7 +2859,7 @@ const APV = () => {
                                   index,
                                   "poNo",
                                   e.target.value,
-                                  false
+                                  false,
                                 )
                               }
                               disabled={isFormDisabled}
@@ -2762,7 +2876,7 @@ const APV = () => {
                                 index,
                                 "siNo",
                                 e.target.value,
-                                false
+                                false,
                               )
                             }
                             disabled={isFormDisabled}
@@ -2778,7 +2892,7 @@ const APV = () => {
                                 index,
                                 "siDate",
                                 e.target.value,
-                                false
+                                false,
                               )
                             }
                             disabled={isFormDisabled}
@@ -2790,17 +2904,6 @@ const APV = () => {
                             ref={(el) => (amountRefs.current[index] = el)}
                             className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
                             value={row.amount}
-                            onFocus={(e) => {
-                              if (
-                                (e.target.value === "0.00" ||
-                                  e.target.value === "0") &&
-                                !row.touched
-                              ) {
-                                handleDetailChange(index, "amount", "", false, {
-                                  touched: true,
-                                });
-                              }
-                            }}
                             onChange={(e) => {
                               const value = e.target.value;
                               if (
@@ -2812,7 +2915,6 @@ const APV = () => {
                                   "amount",
                                   value,
                                   false,
-                                  { touched: true }
                                 );
                               }
                             }}
@@ -2821,54 +2923,38 @@ const APV = () => {
                                 e.preventDefault();
                                 const value = e.target.value;
                                 const num = parseFormattedNumber(value);
-
                                 if (!isNaN(num)) {
                                   await handleDetailChange(
                                     index,
                                     "amount",
-                                    value,
+                                    num.toFixed(2),
                                     true,
-                                    { touched: true }
                                   );
                                 }
-
-                                if (index === detailRows.length - 1) {
-                                  handleAddRow(index);
-                                  setTimeout(() => {
-                                    if (amountRefs.current[index + 1]) {
-                                      amountRefs.current[index + 1].focus();
-                                    }
-                                  }, 100);
-                                } else {
-                                  if (amountRefs.current[index + 1]) {
-                                    amountRefs.current[index + 1].focus();
-                                  }
-                                }
+                              }
+                            }}
+                            onFocus={(e) => {
+                              if (isFormDisabled) return;
+                              if (
+                                e.target.value === "0.00" ||
+                                e.target.value === "0"
+                              ) {
+                                e.target.value = "";
                               }
                             }}
                             onBlur={async (e) => {
+                              if (isFormDisabled) return;
                               const value = e.target.value;
                               const num = parseFormattedNumber(value);
-                              if (!isNaN(num) && value !== "") {
+                              if (!isNaN(num)) {
                                 await handleDetailChange(
                                   index,
                                   "amount",
-                                  value,
+                                  num.toFixed(2),
                                   true,
-                                  { touched: true }
-                                );
-                              } else {
-                                // restore 0.00 only if left empty
-                                handleDetailChange(
-                                  index,
-                                  "amount",
-                                  "0.00",
-                                  true,
-                                  { touched: false }
                                 );
                               }
                             }}
-                            disabled={isFormDisabled}
                           />
                         </td>
                         <td className="global-tran-td-ui">
@@ -2947,16 +3033,8 @@ const APV = () => {
                             type="text"
                             className="w-[250px] global-tran-td-inputclass-ui"
                             value={row.rcName || ""}
-                            onChange={(e) =>
-                              handleDetailChange(
-                                index,
-                                "rcDescription",
-                                e.target.value,
-                                false
-                              )
-                            }
+                            readOnly
                             disabled={isFormDisabled}
-                            S
                           />
                         </td>
                         {fieldVisibility.sltypeCode && (
@@ -2970,7 +3048,7 @@ const APV = () => {
                                   index,
                                   "sltypeCode",
                                   e.target.value,
-                                  false
+                                  false,
                                 )
                               }
                               disabled={isFormDisabled}
@@ -3044,10 +3122,10 @@ const APV = () => {
                             className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
                             value={
                               formatNumber(
-                                parseFormattedNumber(row.vatAmount)
+                                parseFormattedNumber(row.vatAmount),
                               ) ||
                               formatNumber(
-                                parseFormattedNumber(row.vatAmount)
+                                parseFormattedNumber(row.vatAmount),
                               ) ||
                               ""
                             }
@@ -3097,10 +3175,10 @@ const APV = () => {
                             className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
                             value={
                               formatNumber(
-                                parseFormattedNumber(row.atcAmount)
+                                parseFormattedNumber(row.atcAmount),
                               ) ||
                               formatNumber(
-                                parseFormattedNumber(row.atcAmount)
+                                parseFormattedNumber(row.atcAmount),
                               ) ||
                               ""
                             }
@@ -3108,7 +3186,7 @@ const APV = () => {
                               handleDetailChange(
                                 index,
                                 "atcAmount",
-                                e.target.value
+                                e.target.value,
                               )
                             }
                           />
@@ -3354,7 +3432,7 @@ const APV = () => {
                             handleDetailChangeGL(
                               index,
                               "acctCode",
-                              e.target.value
+                              e.target.value,
                             )
                           }
                           disabled={isFormDisabled}
@@ -3385,7 +3463,7 @@ const APV = () => {
                             handleDetailChangeGL(
                               index,
                               "rcCode",
-                              e.target.value
+                              e.target.value,
                             )
                           }
                           readOnly
@@ -3417,7 +3495,7 @@ const APV = () => {
                           handleDetailChangeGL(
                             index,
                             "sltypeCode",
-                            e.target.value
+                            e.target.value,
                           )
                         }
                         disabled={isFormDisabled}
@@ -3434,7 +3512,7 @@ const APV = () => {
                             handleDetailChangeGL(
                               index,
                               "slCode",
-                              e.target.value
+                              e.target.value,
                             )
                           }
                           readOnly
@@ -3476,7 +3554,7 @@ const APV = () => {
                             handleDetailChangeGL(
                               index,
                               "particular",
-                              e.target.value
+                              e.target.value,
                             )
                           }
                           disabled={isFormDisabled}
@@ -3494,7 +3572,7 @@ const APV = () => {
                             handleDetailChangeGL(
                               index,
                               "vatCode",
-                              e.target.value
+                              e.target.value,
                             )
                           }
                           readOnly
@@ -3537,7 +3615,7 @@ const APV = () => {
                             handleDetailChangeGL(
                               index,
                               "atcCode",
-                              e.target.value
+                              e.target.value,
                             )
                           }
                           readOnly
@@ -3582,7 +3660,7 @@ const APV = () => {
                           const inputValue = e.target.value;
                           const sanitizedValue = inputValue.replace(
                             /[^0-9.]/g,
-                            ""
+                            "",
                           );
                           if (
                             /^\d*\.?\d{0,2}$/.test(sanitizedValue) ||
@@ -3591,7 +3669,7 @@ const APV = () => {
                             handleDetailChangeGL(
                               index,
                               "debit",
-                              sanitizedValue
+                              sanitizedValue,
                             );
                           }
                         }}
@@ -3626,7 +3704,7 @@ const APV = () => {
                           const inputValue = e.target.value;
                           const sanitizedValue = inputValue.replace(
                             /[^0-9.]/g,
-                            ""
+                            "",
                           );
                           if (
                             /^\d*\.?\d{0,2}$/.test(sanitizedValue) ||
@@ -3635,7 +3713,7 @@ const APV = () => {
                             handleDetailChangeGL(
                               index,
                               "credit",
-                              sanitizedValue
+                              sanitizedValue,
                             );
                           }
                         }}
@@ -3674,7 +3752,7 @@ const APV = () => {
                           const inputValue = e.target.value;
                           const sanitizedValue = inputValue.replace(
                             /[^0-9.]/g,
-                            ""
+                            "",
                           );
                           if (
                             /^\d*\.?\d{0,2}$/.test(sanitizedValue) ||
@@ -3683,7 +3761,7 @@ const APV = () => {
                             handleDetailChangeGL(
                               index,
                               "debitFx1",
-                              sanitizedValue
+                              sanitizedValue,
                             );
                           }
                         }}
@@ -3694,7 +3772,7 @@ const APV = () => {
                               index,
                               "debitFx1",
                               e.target.value,
-                              true
+                              true,
                             );
                           }
                         }}
@@ -3726,7 +3804,7 @@ const APV = () => {
                           const inputValue = e.target.value;
                           const sanitizedValue = inputValue.replace(
                             /[^0-9.]/g,
-                            ""
+                            "",
                           );
                           if (
                             /^\d*\.?\d{0,2}$/.test(sanitizedValue) ||
@@ -3735,7 +3813,7 @@ const APV = () => {
                             handleDetailChangeGL(
                               index,
                               "creditFx1",
-                              sanitizedValue
+                              sanitizedValue,
                             );
                           }
                         }}
@@ -3746,7 +3824,7 @@ const APV = () => {
                               index,
                               "creditFx1",
                               e.target.value,
-                              true
+                              true,
                             );
                           }
                         }}
@@ -3779,7 +3857,7 @@ const APV = () => {
                           const inputValue = e.target.value;
                           const sanitizedValue = inputValue.replace(
                             /[^0-9.]/g,
-                            ""
+                            "",
                           );
                           if (
                             /^\d*\.?\d{0,2}$/.test(sanitizedValue) ||
@@ -3788,7 +3866,7 @@ const APV = () => {
                             handleDetailChangeGL(
                               index,
                               "debitFx2",
-                              sanitizedValue
+                              sanitizedValue,
                             );
                           }
                         }}
@@ -3799,7 +3877,7 @@ const APV = () => {
                               index,
                               "debitFx2",
                               e.target.value,
-                              true
+                              true,
                             );
                           }
                         }}
@@ -3831,7 +3909,7 @@ const APV = () => {
                           const inputValue = e.target.value;
                           const sanitizedValue = inputValue.replace(
                             /[^0-9.]/g,
-                            ""
+                            "",
                           );
                           if (
                             /^\d*\.?\d{0,2}$/.test(sanitizedValue) ||
@@ -3840,7 +3918,7 @@ const APV = () => {
                             handleDetailChangeGL(
                               index,
                               "creditFx2",
-                              sanitizedValue
+                              sanitizedValue,
                             );
                           }
                         }}
@@ -3851,7 +3929,7 @@ const APV = () => {
                               index,
                               "creditFx2",
                               e.target.value,
-                              true
+                              true,
                             );
                           }
                         }}
@@ -3893,7 +3971,7 @@ const APV = () => {
                           handleDetailChangeGL(
                             index,
                             "slrefDate",
-                            e.target.value
+                            e.target.value,
                           )
                         }
                         disabled={isFormDisabled}
@@ -4025,13 +4103,15 @@ const APV = () => {
       )}
 
       {/* RC Code Modal */}
-      {showRcModal && (
-        <RCLookupModal
-          isOpen={showRcModal}
-          onClose={handleCloseRcModalGL}
-          source={accountModalSource}
-        />
-      )}
+      <RCLookupModal
+        isOpen={showRcModal}
+        onClose={
+          accountModalSource === "rcCode"
+            ? handleCloseRcModal
+            : handleCloseRcModalGL
+        }
+        source={accountModalSource}
+      />
 
       {/* VAT Code Modal */}
       {showVatModal && (
@@ -4078,54 +4158,68 @@ const APV = () => {
       )}
 
       {showSignatoryModal && (
-  <DocumentSignatories
-    isOpen={showSignatoryModal}
-    params={{
-      documentID: documentID,        // âœ… Pass the actual document ID
-      noReprints: 0,                 // âœ… Add this if needed
-      docType: docType               // âœ… Add this if needed
-    }}
-    onClose={handleCloseSignatory}
-    onCancel={() => updateState({ showSignatoryModal: false })}
-  />
-)}
+        <DocumentSignatories
+          isOpen={showSignatoryModal}
+          params={{
+            documentID: documentID, // âœ… Pass the actual document ID
+            noReprints: 0, // âœ… Add this if needed
+            docType: docType, // âœ… Add this if needed
+          }}
+          onClose={handleCloseSignatory}
+          onCancel={() => updateState({ showSignatoryModal: false })}
+        />
+      )}
 
-
+      {showAllTranDocNo && (
+        <AllTranDocNo
+          isOpen={showAllTranDocNo}
+          params={{
+            branchCode,
+            branchName,
+            docType,
+            documentTitle,
+            fieldNo: "apvNo",
+          }}
+          onRetrieve={handleTranDocNoRetrieval}
+          onResponse={{ documentNo }}
+          onSelected={handleTranDocNoSelection}
+          onClose={() => updateState({ showAllTranDocNo: false })}
+        />
+      )}
 
       {/* Post Modal */}
-       {showPostingModal && (
-    <PostAPV
-      isOpen={showPostingModal}
-      userCode={userCode} // This should now work
-      onClose={() => updateState({ showPostingModal: false })}
-    />
-  )}
+      {showPostingModal && (
+        <PostAPV
+          isOpen={showPostingModal}
+          userCode={userCode} // This should now work
+          onClose={() => updateState({ showPostingModal: false })}
+        />
+      )}
       {showSpinner && <LoadingSpinner />}
 
       <div className={topTab === "history" ? "" : "hidden"}>
         <AllTranHistory
           showHeader={false}
           endpoint="/getAPVHistory"
-          cacheKey={`APV:${state.branchCode || ""}:${state.docNo || ""}`}  // âœ… per-transaction
+          cacheKey={`APV:${state.branchCode || ""}:${state.docNo || ""}`} // âœ… per-transaction
           activeTabKey="APV_Summary"
           branchCode={state.branchCode}
           startDate={state.fromDate}
           endDate={state.toDate}
-            status={(() => {
-              const s = (state.status || "").toUpperCase();
-              if (s === "FINALIZED") return "F";
-              if (s === "CANCELLED") return "X";
-              if (s === "CLOSED")    return "C";
-              if (s === "OPEN")      return "";
-              return "All";
-            })()}
-            onRowDoubleClick={handleHistoryRowPick}
-            historyExportName={`${documentTitle} History`} 
-      />
-    </div>
+          status={(() => {
+            const s = (state.status || "").toUpperCase();
+            if (s === "FINALIZED") return "F";
+            if (s === "CANCELLED") return "X";
+            if (s === "CLOSED") return "C";
+            if (s === "OPEN") return "";
+            return "All";
+          })()}
+          onRowDoubleClick={handleHistoryRowPick}
+          historyExportName={`${documentTitle} History`}
+        />
+      </div>
     </div>
   );
-
 };
 
 export default APV;

@@ -454,6 +454,7 @@ useEffect(() => {
       userCode:currentUserRow?.userCode||"",
       documentDate:useGetCurrentDay(),
       currCode:companyInfo?.currCode||"",
+      glCurrDefault:companyInfo?.currCode||"",
       currName:companyInfo?.currName||"",
       currRate:formatNumber(companyInfo?.currRate||1,6) ,
       documentDate:useGetCurrentDay(),
@@ -1393,26 +1394,27 @@ const handleCloseAccountModal = (selectedAccount) => {
 
 
 
+const handleCloseRcModalGL = async (selectedRc) => {
+  const rowIndex = selectedRowIndex;
+  const modalSource = accountModalSource;
 
-  const handleCloseRcModalGL = async (selectedRc) => {
-    if (selectedRc && selectedRowIndex !== null) {
-      if (accountModalSource !== null) {
-        handleDetailChange(selectedRowIndex, 'rcCode', selectedRc, false);
-     
-     
-      } else {
-           const result = await useTopRCRow(selectedRc.rcCode);
-            if (result) {
-              handleDetailChangeGL(selectedRowIndex, 'rcCode', result);
-            }
+  if (selectedRc && rowIndex !== null) {
+    if (modalSource !== null) {
+      handleDetailChange(rowIndex, "rcCode", selectedRc, false);
+    } else {
+      const result = await useTopRCRow(selectedRc.rcCode);
+      if (result) {
+        handleDetailChangeGL(rowIndex, "rcCode", result);
+      }
     }
-    updateState({
-        showRcModal: false,
-        selectedRowIndex: null,
-        accountModalSource: null
-    })};
-};
+  }
 
+  updateState({
+    showRcModal: false,
+    selectedRowIndex: null,
+    accountModalSource: null,
+  });
+};
 
 
 
@@ -2913,59 +2915,63 @@ const handleCloseBranchModal = (selectedBranch) => {
 
       
 
-     {/* Totals Section */}
-<div className="global-tran-tab-footer-total-main-div-ui">
 
-  {/* Total Debit */}
-  <div className="global-tran-tab-footer-total-div-ui">
-    <label htmlFor="TotalDebit" className="global-tran-tab-footer-total-label-ui">
-      Total Debit ({glCurrDefault}):
-    </label>
-    <label htmlFor="TotalDebit" className="global-tran-tab-footer-total-value-ui">
-      {totalDebit}
-    </label>
-  </div>
-
-  {/* Total Credit */}
-  <div className="global-tran-tab-footer-total-div-ui">
-    <label htmlFor="TotalCredit" className="global-tran-tab-footer-total-label-ui">
-      Total Credit ({glCurrDefault}):
-    </label>
-    <label htmlFor="TotalCredit" className="global-tran-tab-footer-total-value-ui">
-      {totalCredit}
-    </label>
-  </div>
-
-  {/* Totals in Forex Section (if currRate > 1) */}
-  {currRate !== 1 && (
+   {/* Totals Section */}
     <div className="global-tran-tab-footer-total-main-div-ui">
 
-      {/* Total Debit in Forex */}
-      <div className="global-tran-tab-footer-total-div-ui">
-        <label htmlFor="TotalDebit" className="global-tran-tab-footer-total-label-ui">
-          Total Debit ({currCode}):
-        </label>
-        <label htmlFor="TotalDebit" className="global-tran-tab-footer-total-value-ui">
-          {totalDebitFx1}
-        </label>
-      </div>
+      {/* Show base currency totals only when different from selected currency */}
+      {glCurrDefault !== currCode && (
+        <>
+          {/* Total Debit */}
+          <div className="global-tran-tab-footer-total-div-ui">
+            <label htmlFor="TotalDebit" className="global-tran-tab-footer-total-label-ui">
+              Total Debit ({glCurrDefault}):
+            </label>
+            <label htmlFor="TotalDebit" className="global-tran-tab-footer-total-value-ui">
+              {totalDebit}
+            </label>
+          </div>
 
-      {/* Total Credit in Forex */}
-      <div className="global-tran-tab-footer-total-div-ui">
-        <label htmlFor="TotalCredit" className="global-tran-tab-footer-total-label-ui">
-          Total Credit ({currCode}):
-        </label>
-        <label htmlFor="TotalCredit" className="global-tran-tab-footer-total-value-ui">
-          {totalCreditFx1}
-        </label>
-      </div>
+          {/* Total Credit */}
+          <div className="global-tran-tab-footer-total-div-ui">
+            <label htmlFor="TotalCredit" className="global-tran-tab-footer-total-label-ui">
+              Total Credit ({glCurrDefault}):
+            </label>
+            <label htmlFor="TotalCredit" className="global-tran-tab-footer-total-value-ui">
+              {totalCredit}
+            </label>
+          </div>
+        </>
+      )}
 
+      {/* Totals in Forex Section */}
+      {currRate !== 1 && (
+        <div className="global-tran-tab-footer-total-main-div-ui">
+          {/* Total Debit in Forex */}
+          <div className="global-tran-tab-footer-total-div-ui">
+            <label htmlFor="TotalDebitFx" className="global-tran-tab-footer-total-label-ui">
+              Total Debit ({currCode}):
+            </label>
+            <label htmlFor="TotalDebitFx" className="global-tran-tab-footer-total-value-ui">
+              {totalDebitFx1}
+            </label>
+          </div>
+
+          {/* Total Credit in Forex */}
+          <div className="global-tran-tab-footer-total-div-ui">
+            <label htmlFor="TotalCreditFx" className="global-tran-tab-footer-total-label-ui">
+              Total Credit ({currCode}):
+            </label>
+            <label htmlFor="TotalCreditFx" className="global-tran-tab-footer-total-value-ui">
+              {totalCreditFx1}
+            </label>
+          </div>
+        </div>
+      )}
     </div>
-  )}
+        
 
-</div>
 
-    
 
   </div>
 

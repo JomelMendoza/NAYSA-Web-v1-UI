@@ -7,8 +7,19 @@ import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 import {
   useSwalErrorAlert,
   useSwalSuccessAlert,
-  useSwalInfoAlert
+  useSwalInfoAlert,
+  useSwalDeleteConfirm,
+  useSwalDeleteRecord,
 } from "@/NAYSA Cloud/Global/behavior.jsx";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faEdit,
+  faTrashAlt,
+  faInfoCircle,
+  faChevronDown,
+  faFilePdf,
+  faVideo,
+} from "@fortawesome/free-solid-svg-icons";
 import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
 import {
@@ -196,14 +207,11 @@ const DForexRef = ({ onSelect }) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const { showError } = useSwalErrorAlert();
-  const { showSuccess } = useSwalSuccessAlert();
-  const { showInfo } = useSwalInfoAlert();
-
   const docType = "DForexRef";
   const documentTitle = reftables?.[docType] || "Daily Forex Reference";
-  const pdfLink = reftablesPDFGuide?.[docType];
-  const videoLink = reftablesVideoGuide?.[docType];
+    const guideRef = useRef(null);
+    const pdfLink = reftablesPDFGuide?.[docType];
+    const videoLink = reftablesVideoGuide?.[docType];
 
   const fromDateRef = useRef(null);
 
@@ -214,6 +222,7 @@ const DForexRef = ({ onSelect }) => {
 
   const [isCurr1ModalOpen, setCurr1ModalOpen] = useState(false);
   const [isCurr2ModalOpen, setCurr2ModalOpen] = useState(false);
+    const [isOpenGuide, setOpenGuide] = useState(false);
 
   const setField = (key, value) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -244,6 +253,9 @@ const DForexRef = ({ onSelect }) => {
       const res = await apiClient.get("/DForex");
       return extractRows(res);
     },
+    // ✅ ADDED: Auto-sync and manual refresh support
+    staleTime: 0,
+    refetchInterval: 1000 * 30,
   });
 
   const forexRows = useMemo(
@@ -312,13 +324,13 @@ const DForexRef = ({ onSelect }) => {
       const errormsg = String(sqlRow.errormsg ?? sqlRow.ERRORMSG ?? "");
 
       if (errorcount > 0) {
-        showError("Error", errormsg || "Failed to save forex record.");
+        useSwalErrorAlert("Error", errormsg || "Failed to save forex record.");
         return;
       }
 
       if (data?.success || data?.status === "success") {
         await queryClient.invalidateQueries({ queryKey: ["dforexList"] });
-        showSuccess(
+        useSwalSuccessAlert(
           "Success!",
           form.__existing
             ? "Forex record updated successfully."
@@ -329,11 +341,11 @@ const DForexRef = ({ onSelect }) => {
         setSelectedRow(null);
         setSelectedDateRangeRow(null);
       } else {
-        showError("Error", data?.message || "Failed to save forex record.");
+        useSwalErrorAlert("Error", data?.message || "Failed to save forex record.");
       }
     },
     onError: (error) => {
-      showError(
+      useSwalErrorAlert(
         "System Error",
         error?.response?.data?.message ||
           JSON.stringify(error?.response?.data?.errors || {}) ||
@@ -351,11 +363,11 @@ const DForexRef = ({ onSelect }) => {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["dforexList"] });
-      showSuccess("Deleted", "Forex record has been removed.");
+      useSwalDeleteRecord("Deleted!", "Forex record has been removed.");
       handleReset();
     },
     onError: (error) => {
-      showError(
+      useSwalErrorAlert(
         "System Error",
         error?.response?.data?.message || error?.message || "Delete failed."
       );
@@ -389,7 +401,7 @@ const DForexRef = ({ onSelect }) => {
     const tranID = getId(rawRow);
 
     if (!tranID) {
-      showError("Error", "Selected row has no tranID.");
+      useSwalErrorAlert("Error", "Selected row has no tranID.");
       return;
     }
 
@@ -410,7 +422,7 @@ const DForexRef = ({ onSelect }) => {
       setSelectedRow(rawRow);
       onSelect?.(finalRecord);
     } catch (error) {
-      showError(
+      useSwalErrorAlert(
         "Error",
         error?.response?.data?.message || "Could not fetch record"
       );
@@ -419,7 +431,7 @@ const DForexRef = ({ onSelect }) => {
 
   const handleDelete = async (row) => {
     if (!row) {
-      showError("Error", "Please select a forex record to delete.");
+      useSwalErrorAlert("Error", "Please select a forex record to delete.");
       return;
     }
 
@@ -427,7 +439,7 @@ const DForexRef = ({ onSelect }) => {
     const tranID = getId(rawRow);
 
     if (!tranID) {
-      showError("Error", "Selected row has no tranID.");
+      useSwalErrorAlert("Error", "Selected row has no tranID.");
       return;
     }
 
@@ -480,7 +492,7 @@ const DForexRef = ({ onSelect }) => {
     if (!String(form.currRate2 || "").trim()) missing.push("• Currency Rate 2");
 
     if (missing.length) {
-      showError(
+      useSwalErrorAlert(
         "Error!",
         `Please fill out all required fields:\n${missing.join("\n")}`
       );
@@ -508,11 +520,11 @@ const DForexRef = ({ onSelect }) => {
     if (videoLink) messages.push(`Video Guide: ${videoLink}`);
 
     if (!messages.length) {
-      showInfo("Info", "No guide available for this page.");
+      useSwalInfoAlert("Info", "No guide available for this page.");
       return;
     }
 
-    showInfo("Reference Information", messages.join("\n"));
+    useSwalInfoAlert("Reference Information", messages.join("\n"));
   };
 
   /* ================= TABLE COLUMNS ================= */
@@ -640,16 +652,53 @@ const DForexRef = ({ onSelect }) => {
             <Undo2 size={16} /> Reset
           </button>
 
-          <button
-            type="button"
-            onClick={handleOpenInfo}
-            className={`flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-white hover:bg-blue-700 ${
-              isBusy ? "cursor-not-allowed opacity-50" : ""
-            }`}
-            disabled={isBusy}
-          >
-            <Info size={16} /> Info
-          </button>
+          {/* Info Dropdown */}
+                          <div ref={guideRef} className="relative">
+                            <button
+                              onClick={() => setOpenGuide((v) => !v)}
+                              className="bg-blue-600 text-white h-7 w-16 sm:w-auto sm:h-8 sm:px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
+                            >
+                              <FontAwesomeIcon icon={faInfoCircle} className="text-[12px]" />
+                              <span className="sm:inline ml-1 text-[11px] font-medium">
+                                Info
+                              </span>
+                              <FontAwesomeIcon
+                                icon={faChevronDown}
+                                className="hidden sm:inline text-[10px] opacity-80"
+                              />
+                            </button>
+                
+                            {isOpenGuide && (
+                              <div className="absolute right-0 mt-2 w-52 rounded-md shadow-xl bg-white ring-1 ring-black/10 z-[60] dark:bg-gray-800 overflow-hidden">
+                                <button
+                                  onClick={() => {
+                                    window.open(pdfLink, "_blank");
+                                    setOpenGuide(false);
+                                  }}
+                                  className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900 border-b border-gray-100 dark:border-gray-700"
+                                >
+                                  <FontAwesomeIcon
+                                    icon={faFilePdf}
+                                    className="mr-2 text-red-500"
+                                  />{" "}
+                                  PDF Guide
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    window.open(videoLink, "_blank");
+                                    setOpenGuide(false);
+                                  }}
+                                  className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900"
+                                >
+                                  <FontAwesomeIcon
+                                    icon={faVideo}
+                                    className="mr-2 text-blue-500"
+                                  />{" "}
+                                  Video Guide
+                                </button>
+                              </div>
+                            )}
+                          </div>
         </div>
       </div>
 
@@ -755,9 +804,11 @@ const DForexRef = ({ onSelect }) => {
                 showColumnChooser={false}
                 showAutoFitToggle={true}
                 showGroupBy={true}
+                initialState={{ groupBy: ["year", "monthName"] }}
                 onRowClick={handleDateRangeClick}
                 onRowDoubleClick={handleDateRangeClick}
                 selectedRow={selectedDateRangeRow}
+                isLoading={isInitialLoading} 
               />
             </div>
           </div>
@@ -770,7 +821,7 @@ const DForexRef = ({ onSelect }) => {
                 data={filteredForexRows}
                 itemsPerPage={50}
                 showFilters
-                isLoading={false}
+                isLoading={isInitialLoading}
                 onRowDoubleClick={handleEdit}
                 selectedRow={selectedRow}
                 showGlobalSearch={false}
@@ -779,6 +830,8 @@ const DForexRef = ({ onSelect }) => {
                 showColumnChooser={true}
                 showAutoFitToggle={true}
                 showGroupBy={true}
+                isFetching={forexListQuery.isFetching} // Added UI sync
+                onRefresh={() => forexListQuery.refetch()} // Added manual refresh
               />
             </div>
           </div>

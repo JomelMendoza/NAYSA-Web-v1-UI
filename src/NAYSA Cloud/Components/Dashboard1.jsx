@@ -45,52 +45,90 @@ export default function Dashboard1({ user: propUser }) {
     localStorage.setItem("hasSeenOnboarding", "true");
   };
 
+  const containerVariants = {
+    hidden: { opacity: 0, scale: 0.98 },
+    visible: {
+      opacity: 1,
+      scale: 1,
+      transition: {
+        duration: 0.5,
+        ease: [0.16, 1, 0.3, 1],
+        when: "beforeChildren",
+        staggerChildren: 0.1,
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 15 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { type: "spring", stiffness: 300, damping: 24 },
+    },
+  };
+
   return (
     <section className="relative min-h-[70vh] flex flex-col items-center justify-center px-6 py-20">
-
       <motion.div
-        initial={{ opacity: 0, scale: 0.98 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.45, ease: "easeOut" }}
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
         className="w-full max-w-2xl"
       >
         <div className="relative bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl p-14 rounded-[32px] border border-slate-200 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+          
+          {/* Subtle pulsing background orb */}
+          <motion.div 
+            animate={{ 
+              scale: [1, 1.1, 1],
+              opacity: [0.5, 0.8, 0.5] 
+            }}
+            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" 
+          />
 
-          <div className="mb-4">
-            <p className="text-[18px] font-bold tracking-[0.25em] text-blue-600 dark:text-blue-400 uppercase mb-7">
+          <motion.div variants={itemVariants} className="mb-4">
+            <p className="text-[21px] font-bold tracking-[0.25em] text-blue-600 dark:text-blue-400 uppercase mb-7">
               NAYSA Financials Cloud
             </p>
             <h1 className="text-[34px] font-light text-slate-900 dark:text-white tracking-tight">
               Hello,{" "}
-              <span className="text-[34px] font-bold text-slate-900 dark:text-white">
+              <span className="font-bold text-slate-900 dark:text-white">
                 {name}
               </span>
             </h1>
-          </div>
+          </motion.div>
 
           <motion.div
-  whileHover={{ scale: 1.03 }}
-  className="flex flex-col items-start mb-[25px]" // Container for logo + text
->
-  <img
-    src="/NAYSA.jpg"
-    alt="NAYSA Financials"
-    className="w-[250px] select-none"
-    draggable="false"
-  />
-</motion.div>
+            variants={itemVariants}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="flex flex-col items-start mb-[25px] cursor-pointer" 
+          >
+            <img
+              src="/NAYSA.jpg"
+              alt="NAYSA Financials"
+              className="w-[250px] select-none rounded-lg"
+              draggable="false"
+            />
+          </motion.div>
 
-{/* Your existing subtitle */}
-<span className="text-[15px] text-slate-400 block mb-6">
-  We make life easier through business applications.
-</span>
-          <div className="flex items-center gap-6 text-slate-400 dark:text-slate-600">
+          <motion.span variants={itemVariants} className="text-[15px] text-slate-400 block mb-10">
+            We make life easier through business applications.
+          </motion.span>
+          
+          {/* UPDATED: Footer area with App Version and User ID */}
+          <motion.div variants={itemVariants} className="flex items-center gap-6 text-slate-400 dark:text-slate-600">
+            <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-md">
+              APPLICATION DATE: {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'N/A'}
+            </span>
             <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
             <span className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-md">
               ID: {user?.USER_CODE || "—"}
             </span>
-          </div>
+          </motion.div>
+          
         </div>
       </motion.div>
     </section>

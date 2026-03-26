@@ -18,7 +18,7 @@ import {
   useSwalWarningAlert,
   useSwalInfoAlert,
   useSwalDeleteRecord,
-  useSwalDeleteConfirm 
+  useSwalDeleteConfirm,
 } from "@/NAYSA Cloud/Global/behavior.jsx";
 import {
   reftables,
@@ -29,6 +29,8 @@ import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 import SearchGlobalReferenceTable from "@/NAYSA Cloud/Lookup/SearchGlobalReferenceTable.jsx";
 import RegistrationInfo from "@/NAYSA Cloud/Global/RegistrationInfo.jsx";
 import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faEdit, faTrashAlt } from "@fortawesome/free-solid-svg-icons";
 
 /* ================= HELPERS ================= */
 
@@ -66,7 +68,7 @@ const BankRef = forwardRef(
       setActiveTab = () => {},
       tabs = [],
     },
-    ref
+    ref,
   ) => {
     const { user } = useAuth();
     const queryClient = useQueryClient();
@@ -105,11 +107,14 @@ const BankRef = forwardRef(
         const res = await apiClient.get("/bankType");
         return extractRows(res);
       },
+      // ✅ ADDED: Force fresh data on load and auto-sync every 20s
+      staleTime: 0,
+      refetchInterval: 1000 * 20,
     });
 
     const bankTypes = useMemo(
       () => bankTypeListQuery.data || [],
-      [bankTypeListQuery.data]
+      [bankTypeListQuery.data],
     );
 
     const isInitialLoading = bankTypeListQuery.isLoading;
@@ -131,7 +136,7 @@ const BankRef = forwardRef(
         }
 
         await queryClient.invalidateQueries({ queryKey: ["bankTypeList"] });
-        useSwalSuccessAlert("Success!", "Bank Type saved successfully.");
+        useSwalSuccessAlert("Success!", "Record saved successfully.");
         setIsEditing(false);
         setSelectedRow(null);
         setIsDupCode(false);
@@ -140,7 +145,7 @@ const BankRef = forwardRef(
       onError: (error) => {
         useSwalErrorAlert(
           "System Error",
-          error?.message || "Failed to save record."
+          error?.message || "Failed to save record.",
         );
       },
     });
@@ -153,13 +158,13 @@ const BankRef = forwardRef(
       },
       onSuccess: async () => {
         await queryClient.invalidateQueries({ queryKey: ["bankTypeList"] });
-        useSwalDeleteRecord("Deleted", "Bank Type record has been removed.");
+        useSwalDeleteRecord("Deleted", "Record deleted successfully.");
         handleReset();
       },
       onError: (error) => {
         useSwalErrorAlert(
           "System Error",
-          error?.message || "Failed to delete record."
+          error?.message || "Failed to delete record.",
         );
       },
     });
@@ -228,7 +233,9 @@ const BankRef = forwardRef(
         return;
       }
 
-      const code = String(form.bankTypeCode || "").trim().toUpperCase();
+      const code = String(form.bankTypeCode || "")
+        .trim()
+        .toUpperCase();
       if (!code || !isEditing || form.__existing) return;
 
       try {
@@ -238,7 +245,7 @@ const BankRef = forwardRef(
           setIsDupCode(true);
           useSwalErrorAlert(
             "Duplicate Entry",
-            `Bank Type Code "${code}" already exists.`
+            `Bank Type Code "${code}" already exists.`,
           );
           setField("bankTypeCode", "");
           setTimeout(() => codeInputRef.current?.focus?.(), 0);
@@ -248,7 +255,7 @@ const BankRef = forwardRef(
       } catch (error) {
         useSwalErrorAlert(
           "Validation Error",
-          error?.message || "Failed to validate Bank Type Code."
+          error?.message || "Failed to validate Bank Type Code.",
         );
       }
     };
@@ -256,7 +263,9 @@ const BankRef = forwardRef(
     const handleSave = useCallback(async () => {
       if (!isEditing || saveMutation.isPending) return;
 
-      const code = String(form.bankTypeCode || "").trim().toUpperCase();
+      const code = String(form.bankTypeCode || "")
+        .trim()
+        .toUpperCase();
       const name = String(form.bankTypeName || "").trim();
 
       const missing = [];
@@ -266,7 +275,7 @@ const BankRef = forwardRef(
       if (missing.length) {
         useSwalErrorAlert(
           "Error!",
-          `Please fill in the required field(s):\n${missing.join("\n")}`
+          `Please fill in the required field(s):\n${missing.join("\n")}`,
         );
         return;
       }
@@ -277,7 +286,7 @@ const BankRef = forwardRef(
           if (dup) {
             useSwalErrorAlert(
               "Duplicate Entry",
-              `Bank Type Code "${code}" already exists.`
+              `Bank Type Code "${code}" already exists.`,
             );
             setTimeout(() => codeInputRef.current?.focus?.(), 0);
             return;
@@ -294,7 +303,7 @@ const BankRef = forwardRef(
       } catch (error) {
         useSwalErrorAlert(
           "System Error",
-          error?.message || "Failed to save Bank Type."
+          error?.message || "Failed to save Bank Type.",
         );
       }
     }, [form, isEditing, saveMutation, user?.USER_CODE]);
@@ -329,7 +338,7 @@ const BankRef = forwardRef(
           if (used) {
             useSwalErrorAlert(
               "Cannot Delete",
-              `Bank Type Code "${code}" is already in use.`
+              `Bank Type Code "${code}" is already in use.`,
             );
             return;
           }
@@ -337,7 +346,7 @@ const BankRef = forwardRef(
           const confirm = await useSwalDeleteConfirm(
             "Delete Record?",
             `Are you sure you want to delete Bank Type "${code}"?`,
-            "Yes, delete it"
+            "Yes, delete it",
           );
 
           if (!confirm?.isConfirmed) return;
@@ -346,11 +355,11 @@ const BankRef = forwardRef(
         } catch (error) {
           useSwalErrorAlert(
             "System Error",
-            error?.message || "Failed to delete record."
+            error?.message || "Failed to delete record.",
           );
         }
       },
-      [deleteMutation, useSwalDeleteConfirm]
+      [deleteMutation, useSwalDeleteConfirm],
     );
 
     const editSelected = useCallback(() => {
@@ -386,7 +395,7 @@ const BankRef = forwardRef(
 
       useSwalInfoAlert(
         "Guide",
-        "No guide or video link is available for this reference."
+        "No guide or video link is available for this reference.",
       );
     }, [pdfLink, videoLink]);
 
@@ -422,7 +431,7 @@ const BankRef = forwardRef(
                 }}
                 className="rounded-md border border-blue-200 bg-blue-50 p-1 text-blue-600 transition-colors hover:bg-blue-600 hover:text-white"
               >
-                <Edit size={16} />
+                <FontAwesomeIcon icon={faEdit}/>
               </button>
               <button
                 type="button"
@@ -432,27 +441,27 @@ const BankRef = forwardRef(
                 }}
                 className="rounded-md border border-red-200 bg-red-50 p-1 text-red-600 transition-colors hover:bg-red-600 hover:text-white"
               >
-                <Trash2 size={16} />
+                <FontAwesomeIcon icon={faTrashAlt}/>
               </button>
             </div>
           ),
         },
         {
           key: "bankTypeCode",
-          label: "Code",
+          label: "Bank Type Code",
           sortable: true,
           width: 140,
           render: (row) => row?.bankTypeCode,
         },
         {
           key: "bankTypeName",
-          label: "Name",
+          label: "Bank Type Name",
           sortable: true,
           width: 360,
           render: (row) => row?.bankTypeName,
         },
       ],
-      [handleDelete]
+      [handleDelete],
     );
 
     const tableData = useMemo(
@@ -463,7 +472,7 @@ const BankRef = forwardRef(
           bankTypeCode: row?.bankTypeCode,
           bankTypeName: row?.bankTypeName,
         })),
-      [bankTypes]
+      [bankTypes],
     );
 
     const registrationData = useMemo(
@@ -473,13 +482,11 @@ const BankRef = forwardRef(
         lastUpdatedBy: form?.lastUpdatedBy,
         lastUpdatedDate: form?.lastUpdatedDate,
       }),
-      [form]
+      [form],
     );
 
     const showGlobalLoading =
-      isInitialLoading ||
-      saveMutation.isPending ||
-      deleteMutation.isPending;
+      isInitialLoading || saveMutation.isPending || deleteMutation.isPending;
 
     return (
       <div className={embedded ? "w-full" : "global-ref-main-div-ui mt-24"}>
@@ -497,6 +504,7 @@ const BankRef = forwardRef(
                       value={form.bankTypeCode}
                       inputRef={codeInputRef}
                       onChange={(val) => setField("bankTypeCode", val)}
+                      maxLength={10}
                       onBlur={handleBankTypeCodeValidate}
                       onKeyDown={handleBankTypeCodeValidate}
                       disabled={!isEditing || form.__existing}
@@ -507,6 +515,7 @@ const BankRef = forwardRef(
                       required
                       value={form.bankTypeName}
                       onChange={(val) => setField("bankTypeName", val)}
+                      maxLength={100}
                       disabled={!isEditing || saveMutation.isPending}
                     />
                   </div>
@@ -521,7 +530,7 @@ const BankRef = forwardRef(
             </div>
 
             <div className="flex items-start xl:col-span-8">
-              <div className="h-[426px] w-full min-w-0 rounded-lg border p-2">
+              <div className="h-[550px] w-full min-w-0 rounded-lg border p-2 flex flex-col">
                 <SearchGlobalReferenceTable
                   ref={tableRef}
                   docType={docType}
@@ -529,13 +538,16 @@ const BankRef = forwardRef(
                   data={tableData}
                   itemsPerPage={10}
                   showFilters
-                  isLoading={isInitialLoading}
                   className="h-full"
                   onRowDoubleClick={handleEdit}
                   selectedRow={selectedRow}
                   onRowClick={(row) => setSelectedRow(row)}
                   showGlobalSearch={false}
                   tableSize="Half"
+                  // ✅ ADDED: Connecting the table to the query for UI feedback
+                  isLoading={isInitialLoading}
+                  isFetching={bankTypeListQuery.isFetching}
+                  onRefresh={() => bankTypeListQuery.refetch()}
                 />
               </div>
             </div>
@@ -543,7 +555,7 @@ const BankRef = forwardRef(
         </div>
       </div>
     );
-  }
+  },
 );
 
 export default BankRef;

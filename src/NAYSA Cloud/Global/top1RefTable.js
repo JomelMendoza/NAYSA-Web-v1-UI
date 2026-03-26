@@ -214,6 +214,7 @@ export async function useTopATCRow(atcCode) {
 
   try {
     const response = await fetchData("getATC", { atcCode: atcCode });
+
     if (response.success) {
       const responseData = JSON.parse(response.data[0].result);
       return responseData.length > 0 ? responseData[0] : null;

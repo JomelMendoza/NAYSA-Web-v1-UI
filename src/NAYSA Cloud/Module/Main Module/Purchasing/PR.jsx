@@ -22,6 +22,7 @@ import RCLookupModal from "../../../Lookup/SearchRCMast.jsx";
 import AllTranDocNo from "../../../Lookup/SearchDocNo.jsx";
 import GlobalLookupModalv1 from "../../../Lookup/SearchGlobalLookupv1.jsx";
 import JobCodeLookupModal from "../../../Lookup/SearchJobCodesRef.jsx";
+import ExcelBatchUploadModal from "../../../Lookup/SearchGlobalExcelBatchUpload.jsx";
 
 // Configuration
 import {  apiClient,fetchDataJson } from "../../../Configuration/BaseURL.jsx";
@@ -186,6 +187,7 @@ import Header from "@/NAYSA Cloud/Components/Header";
     billtermModalOpen: false,
     showCancelModal: false,
     showAttachModal: false,
+    showUploadModal:false,
     showSignatoryModal: false,
     showPostModal: false,
     showJobCodesModal:false,
@@ -258,6 +260,7 @@ import Header from "@/NAYSA Cloud/Components/Header";
     showAttachModal,
     showSignatoryModal,
     showPostModal,
+    showUploadModal,
 
     rcLookupModalOpen,
     rcLookupContext,
@@ -1269,9 +1272,17 @@ const handleHeaderStatusChange = (value) => {
     }
   };
 
+
   const handleAttach = async () => {
     updateState({ showAttachModal: true });
   };
+
+  
+  const handleUpload = async () => {
+    updateState({ showUploadModal: true });
+  };
+
+
 
 
 
@@ -1509,11 +1520,13 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
           onCancel={handleCancel} 
           onCopy={handleCopy} 
           onAttach={handleAttach}
+          onUpload={handleUpload}
 
           activeTopTab={topTab} 
           showActions={topTab === "details"} 
           showBIRForm={false}   
           showCopyForm ={true} 
+          showUpload ={true} 
           isViewDocument={isViewDocument}  
           onDetails={() => setTopTab("details")}
           onHistory={() => setTopTab("history")}
@@ -2439,6 +2452,22 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
           onClose={() => updateState({ showAttachModal: false })}
         />
       )}
+
+
+    {showUploadModal && (
+        <ExcelBatchUploadModal 
+          isOpen={showUploadModal}
+          // params={{
+          //   DocumentID: documentID,
+          //   DocumentName: documentName,
+          //   BranchName: branchName,
+          //   DocumentNo: documentNo,
+          // }}
+          onClose={() => updateState({ showUploadModal: false })}
+        />
+      )}
+
+
 
       {showSignatoryModal && (
         <DocumentSignatories
