@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useCallback } from "react";
+import React, { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
@@ -7,18 +7,27 @@ import ButtonBar from "@/NAYSA Cloud/Global/ButtonBar";
 import { Edit, Trash2 } from "lucide-react";
 import RegistrationInfo from "@/NAYSA Cloud/Global/RegistrationInfo";
 import SearchGlobalReferenceTable from "@/NAYSA Cloud/Lookup/SearchGlobalReferenceTable";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faPlus,
+  faSave,
+  faUndo,
+  faTrashAlt,
+  faEdit,
+} from "@fortawesome/free-solid-svg-icons";
+
 import {
   useSwalErrorAlert,
   useSwalSuccessAlert,
   useSwalDeleteSuccess,
   useSwalDeleteConfirm,
 } from "@/NAYSA Cloud/Global/behavior";
+
 import {
-  faPlus,
-  faSave,
-  faUndo,
-  faList,
-} from "@fortawesome/free-solid-svg-icons";
+  reftables,
+  reftablesPDFGuide,
+  reftablesVideoGuide,
+} from "@/NAYSA Cloud/Global/reftable";
 
 // Helper function to extract rows from response
 const extractRows = (payload) => {
@@ -48,7 +57,11 @@ const SectionHeader = ({ title }) => (
 );
 
 export const SalesRep = () => {
-  const title = "Agent Codes";
+  const docType = "SalesRep"; // Matches key in reftables.js
+  const title = reftables?.[docType] || "Agent Codes";
+  const pdfLink = reftablesPDFGuide?.[docType];
+  const videoLink = reftablesVideoGuide?.[docType];
+
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const userCode = user?.USER_CODE ?? user?.userCode ?? "ADMIN";
@@ -68,7 +81,13 @@ export const SalesRep = () => {
   const [form, setForm] = useState(emptyForm);
   const [isEditing, setIsEditing] = useState(false);
   const [search, setSearch] = useState("");
+  const [isOpenGuide, setOpenGuide] = useState(false);
   const codeInputRef = useRef(null);
+  const guideRef = useRef(null);
+
+  useEffect(() => {
+    document.title = title;
+  }, [title]);
 
   const setField = (key, value) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -94,14 +113,20 @@ export const SalesRep = () => {
     setTimeout(() => codeInputRef.current?.focus?.(), 0);
   };
 
-  const { data: allRows = [], isLoading } = useQuery({
+  /* ================= TANSTACK QUERY (Auto Sync) ================= */
+  const salesRepQuery = useQuery({
     queryKey: ["salesRep"],
     queryFn: async () => {
       const res = await apiClient.get("/salesRep");
       return extractRows(res);
     },
     refetchOnWindowFocus: false,
+    staleTime: 0,
+    refetchInterval: 1000 * 30, // Auto-sync every 30 seconds
   });
+
+  const allRows = useMemo(() => salesRepQuery.data || [], [salesRepQuery.data]);
+  const isLoading = salesRepQuery.isLoading;
 
   const upsertMutation = useMutation({
     mutationFn: (payload) =>
@@ -141,10 +166,7 @@ export const SalesRep = () => {
       resetUI();
     },
     onError: (error) => {
-      useSwalErrorAlert(
-        "Error",
-        error?.message || "Failed to delete Sales Rep."
-      );
+      useSwalErrorAlert("Error", error?.message || "Failed to delete Sales Rep.");
     },
   });
 
@@ -161,87 +183,84 @@ export const SalesRep = () => {
   };
 
   const checkDuplicate = async (salesRepCode) => {
-  const c = String(salesRepCode || "").trim();
-  if (!c) return false;
+    const c = String(salesRepCode || "").trim();
+    if (!c) return false;
 
-  const res = await apiClient.post("/checkDuplicatesalesRep", {
-    json_data: { salesRepCode: c },
-  });
+    const res = await apiClient.post("/checkDuplicatesalesRep", {
+      json_data: { salesRepCode: c },
+    });
 
-  return parseResultFlag(res);
-};
-
+    return parseResultFlag(res);
+  };
 
   const handleSalesRepCodeValidate = async () => {
-  const code = String(form.salesRepCode || "").trim().toUpperCase();
+    const code = String(form.salesRepCode || "").trim().toUpperCase();
 
-  if (!code || !isEditing || form.__existing) return;
+    if (!code || !isEditing || form.__existing) return;
 
-  try {
-    const dup = await checkDuplicate(code);
+    try {
+      const dup = await checkDuplicate(code);
 
-    if (dup) {
-      useSwalErrorAlert("Duplicate Entry", `Code "${code}" already exists.`);
-      setField("salesRepCode", "");
-      setTimeout(() => codeInputRef.current?.focus?.(), 0);
-    }
-  } catch {
-    useSwalErrorAlert(
-      "Validation Error",
-      "An error occurred while validating the Sales Rep code."
-    );
-  }
-};
-
-  const handleSave = async () => {
-  if (!isEditing || upsertMutation.isPending) return;
-
-  const code = String(form.salesRepCode || "").trim().toUpperCase();
-  const name = String(form.salesRepName || "").trim();
-  const type = String(form.salesRepType || "").trim();
-  const branch = String(form.salesRepBranch || "").trim();
-
-  const missing = [];
-  if (!code) missing.push("• Agent Code");
-  if (!name) missing.push("• Agent Name");
-  if (!type) missing.push("• Agent Type");
-  if (!branch) missing.push("• Agent Branch");
-
-  if (missing.length) {
-    useSwalErrorAlert(
-      "Error!",
-      `Please fill in the required field(s):\n${missing.join("\n")}`
-    );
-    return;
-  }
-
-  try {
-    if (!form.__existing) {
-      const duplicate = await checkDuplicate(code);
-
-      if (duplicate) {
+      if (dup) {
         useSwalErrorAlert("Duplicate Entry", `Code "${code}" already exists.`);
         setField("salesRepCode", "");
         setTimeout(() => codeInputRef.current?.focus?.(), 0);
-        return;
       }
+    } catch {
+      useSwalErrorAlert(
+        "Validation Error",
+        "An error occurred while validating the Sales Rep code."
+      );
+    }
+  };
+
+  const handleSave = async () => {
+    if (!isEditing || upsertMutation.isPending) return;
+
+    const code = String(form.salesRepCode || "").trim().toUpperCase();
+    const name = String(form.salesRepName || "").trim();
+    const type = String(form.salesRepType || "").trim();
+    const branch = String(form.salesRepBranch || "").trim();
+
+    const missing = [];
+    if (!code) missing.push("• Agent Code");
+    if (!name) missing.push("• Agent Name");
+
+    if (missing.length) {
+      useSwalErrorAlert(
+        "Error!",
+        `Please fill in the required field(s):\n${missing.join("\n")}`
+      );
+      return;
     }
 
-    await upsertMutation.mutateAsync({
-      ...form,
-      salesRepCode: code,
-      salesRepName: name,
-      salesRepType: type,
-      salesRepBranch: branch,
-      userCode,
-    });
-  } catch (err) {
-    useSwalErrorAlert(
-      "Validation Error",
-      err?.message || "An error occurred while saving the Agent record."
-    );
-  }
-};
+    try {
+      if (!form.__existing) {
+        const duplicate = await checkDuplicate(code);
+
+        if (duplicate) {
+          useSwalErrorAlert("Duplicate Entry", `Code "${code}" already exists.`);
+          setField("salesRepCode", "");
+          setTimeout(() => codeInputRef.current?.focus?.(), 0);
+          return;
+        }
+      }
+
+      await upsertMutation.mutateAsync({
+        ...form,
+        salesRepCode: code,
+        salesRepName: name,
+        salesRepType: type,
+        salesRepBranch: branch,
+        userCode,
+      });
+    } catch (err) {
+      useSwalErrorAlert(
+        "Validation Error",
+        err?.message || "An error occurred while saving the Agent record."
+      );
+    }
+  };
 
   const handleDelete = async (row) => {
     const code = String(row?.salesRepCode || "").trim();
@@ -291,7 +310,7 @@ export const SalesRep = () => {
               }}
               className="rounded-md border border-blue-200 bg-blue-50 p-1 text-blue-600 transition-colors hover:bg-blue-600 hover:text-white"
             >
-              <Edit size={16} />
+              <FontAwesomeIcon icon={faEdit} />
             </button>
             <button
               type="button"
@@ -301,7 +320,7 @@ export const SalesRep = () => {
               }}
               className="rounded-md border border-red-200 bg-red-50 p-1 text-red-600 transition-colors hover:bg-red-600 hover:text-white"
             >
-              <Trash2 size={16} />
+              <FontAwesomeIcon icon={faTrashAlt} />
             </button>
           </div>
         ),
@@ -315,7 +334,7 @@ export const SalesRep = () => {
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-bold">{title}</h1>
 
-        <div className="flex gap-3">
+        <div className="flex gap-3 items-center">
           <input
             className="global-tran-textbox-ui w-64"
             placeholder="Search..."
@@ -359,7 +378,7 @@ export const SalesRep = () => {
                 required
                 value={form.salesRepCode}
                 inputRef={codeInputRef}
-                onChange={(val) => setField("salesRepCode", val)}
+                onChange={(val) => setField("salesRepCode", val.toUpperCase())}
                 onBlur={handleSalesRepCodeValidate}
                 disabled={!isEditing || form.__existing}
               />
@@ -400,8 +419,10 @@ export const SalesRep = () => {
             columns={columns}
             data={filteredRows}
             isLoading={isLoading}
+            isFetching={salesRepQuery.isFetching} // Sync indicator
             onRowDoubleClick={startEdit}
             showGlobalSearch={false}
+            onRefresh={() => salesRepQuery.refetch()}
           />
         </div>
       </div>

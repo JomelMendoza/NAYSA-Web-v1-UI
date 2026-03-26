@@ -495,6 +495,7 @@ useEffect(() => {
       userCode:currentUserRow?.userCode||"",
       documentDate:useGetCurrentDay(),
       currCode:companyInfo?.currCode||"",
+      glCurrDefault:companyInfo?.currCode||"",
       currName:companyInfo?.currName||"",
       currRate:formatNumber(companyInfo?.currRate||1,6) ,
       selectedARDMType : "ARDM01",
@@ -1494,24 +1495,26 @@ const handleCloseAccountModal = (selectedAccount) => {
 
 
 
+const handleCloseRcModalGL = async (selectedRc) => {
+  const rowIndex = selectedRowIndex;
+  const modalSource = accountModalSource;
 
-  const handleCloseRcModalGL = async (selectedRc) => {
-    if (selectedRc && selectedRowIndex !== null) {
-      if (accountModalSource !== null) {
-        handleDetailChange(selectedRowIndex, 'rcCode', selectedRc, false);
-     
-     
-      } else {
-           const result = await useTopRCRow(selectedRc.rcCode);
-            if (result) {
-              handleDetailChangeGL(selectedRowIndex, 'rcCode', result);
-            }
+  if (selectedRc && rowIndex !== null) {
+    if (modalSource !== null) {
+      handleDetailChange(rowIndex, "rcCode", selectedRc, false);
+    } else {
+      const result = await useTopRCRow(selectedRc.rcCode);
+      if (result) {
+        handleDetailChangeGL(rowIndex, "rcCode", result);
+      }
     }
-    updateState({
-        showRcModal: false,
-        selectedRowIndex: null,
-        accountModalSource: null
-    })};
+  }
+
+  updateState({
+    showRcModal: false,
+    selectedRowIndex: null,
+    accountModalSource: null,
+  });
 };
 
 
@@ -2663,6 +2666,9 @@ const handleCloseBranchModal = (selectedBranch) => {
       </div>
 
     </div>
+
+
+    
     </div>
 
     </div>

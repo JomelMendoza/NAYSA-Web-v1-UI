@@ -214,7 +214,6 @@
 // };
 
 // export default ChangePassword;
-
 import React, { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -398,6 +397,12 @@ const ChangePassword = () => {
 
   useEffect(() => {
     if (companyFromLink) setTenant(companyFromLink);
+
+    // NEW: Scrub the URL completely clean so it only shows the domain
+    if (window.location.search || window.location.pathname !== "/") {
+      const cleanUrl = window.location.protocol + "//" + window.location.host + "/";
+      window.history.replaceState({}, document.title, cleanUrl);
+    }
   }, [companyFromLink]);
 
   const tenant = getTenant();
@@ -544,9 +549,19 @@ const ChangePassword = () => {
                     Secure Password Update
                   </p>
                   <p className="mt-1 text-sm leading-6 text-slate-700">
-                    Hi <span className="font-semibold text-slate-900">{user}</span>, use your{" "}
-                    <span className="font-semibold text-indigo-700">temporary password</span>{" "}
-                    to create a new password and continue.
+                    Hi <span className="font-semibold text-slate-900">{user}</span>,{" "}
+                    {mode === "admin_add" ? (
+                      <>
+                        use your <span className="font-semibold text-indigo-700">temporary password</span>{" "}
+                        to create a new password and continue.
+                      </>
+                    ) : mode === "release" ? (
+                      "your account is approved! Please set your new password below to activate your account."
+                    ) : mode === "reset" ? (
+                      "please securely set your new password below."
+                    ) : (
+                      "please enter your current password to set a new one."
+                    )}
                   </p>
                 </div>
               </div>

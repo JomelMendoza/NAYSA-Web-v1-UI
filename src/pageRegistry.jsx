@@ -55,6 +55,7 @@ import PostMSRR from "./NAYSA Cloud/Module/Main Module/Inventory/PostMSRR.jsx";
 import PostMSRTV from "./NAYSA Cloud/Module/Main Module/Inventory/PostMSRTV.jsx";
 import PostMSAJ from "./NAYSA Cloud/Module/Main Module/Inventory/PostMSAJ.jsx";
 import MonthendGLProcessingModal from "@/NAYSA Cloud/Processing/MonthendProcessing.jsx";
+import YearendGLProcessingModal from "@/NAYSA Cloud/Processing/YearendProcessing.jsx";
 
 // --- REFERENCE FILES ---
 import Company from "./NAYSA Cloud/Reference File/Company.jsx";
@@ -281,6 +282,7 @@ export const pageRegistry = {
   PostMSRTV,
   PostMSAJ,
   MonthendGLProcessingModal,
+  YearendGLProcessingModal,
 
   // Printing
   // These keys now point to the Universal component but inject the specific module prop

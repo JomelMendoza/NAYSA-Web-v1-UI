@@ -6,14 +6,16 @@ import React, {
   useCallback,
 } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Plus, Save, Undo2, Edit, Trash2, Info } from "lucide-react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  Plus,
-  Save,
-  Undo2,
-  Edit,
-  Trash2,
-  Info,
-} from "lucide-react";
+  faEdit,
+  faTrashAlt,
+  faInfoCircle,
+  faChevronDown,
+  faFilePdf,
+  faVideo,
+} from "@fortawesome/free-solid-svg-icons";
 
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
@@ -102,72 +104,19 @@ const parseResultFlag = (res) => {
 };
 
 const mapAtcRow = (row) => ({
-  atcCode:
-    row?.atcCode ??
-    row?.ATC_CODE ??
-    row?.atc_code ??
-    "",
-  atcName:
-    row?.atcName ??
-    row?.ATC_NAME ??
-    row?.atc_name ??
-    "",
-  atcRate: String(
-    row?.atcRate ??
-      row?.ATC_RATE ??
-      row?.atc_rate ??
-      ""
-  ),
-  ewtAcct:
-    row?.ewtAcct ??
-    row?.EWT_ACCT ??
-    row?.ewt_acct ??
-    "",
-  ewtAcctName:
-    row?.ewtAcctName ??
-    row?.EWT_ACCT_NAME ??
-    row?.ewt_acct_name ??
-    "",
-  cwtAcct:
-    row?.cwtAcct ??
-    row?.CWT_ACCT ??
-    row?.cwt_acct ??
-    "",
-  cwtAcctName:
-    row?.cwtAcctName ??
-    row?.CWT_ACCT_NAME ??
-    row?.cwt_acct_name ??
-    "",
-  clAcct:
-    row?.clAcct ??
-    row?.CL_ACCT ??
-    row?.cl_acct ??
-    "",
-  clAcctName:
-    row?.clAcctName ??
-    row?.CL_ACCT_NAME ??
-    row?.cl_acct_name ??
-    "",
-  registeredBy:
-    row?.registeredBy ??
-    row?.REGISTERED_BY ??
-    row?.registered_by ??
-    "",
-  registeredDate: formatDate(
-    row?.registeredDate ??
-      row?.REGISTERED_DATE ??
-      row?.registered_date
-  ),
-  lastUpdatedBy:
-    row?.lastUpdatedBy ??
-    row?.LAST_UPDATED_BY ??
-    row?.last_updated_by ??
-    "",
-  lastUpdatedDate: formatDate(
-    row?.lastUpdatedDate ??
-      row?.LAST_UPDATED_DATE ??
-      row?.last_updated_date
-  ),
+  atcCode: row?.atccode ?? "",          
+  atcName: row?.atcname ?? "",           
+  atcRate: String(row?.atcrate ?? ""),   
+  ewtAcct: row?.ewtacct ?? "",          
+  ewtAcctName: row?.ewtacctname ?? "",   
+  cwtAcct: row?.cwtacct ?? "",         
+  cwtAcctName: row?.cwtacctname ?? "",   
+  clAcct: row?.clacct ?? "",          
+  clAcctName: row?.clacctname ?? "",     
+  registeredBy: row?.registeredby ?? "",
+  registeredDate: formatDate(row?.registereddate),
+  lastUpdatedBy: row?.lastupdatedby ?? "",
+  lastUpdatedDate: formatDate(row?.lastupdateddate),
   __existing: true,
 });
 
@@ -216,7 +165,7 @@ const saveAtcApi = async (payload) => {
   const firstRow = data?.data?.[0] || {};
   const errorCount = Number(firstRow?.errorcount ?? firstRow?.ERRORCOUNT ?? 0);
   const errorMsg = String(
-    firstRow?.errormsg ?? firstRow?.ERRORMSG ?? data?.message ?? ""
+    firstRow?.errormsg ?? firstRow?.ERRORMSG ?? data?.message ?? "",
   );
 
   if (data?.success === false || errorCount > 0) {
@@ -235,7 +184,7 @@ const deleteAtcApi = async ({ atcCode }) => {
   const firstRow = data?.data?.[0] || {};
   const errorCount = Number(firstRow?.errorcount ?? firstRow?.ERRORCOUNT ?? 0);
   const errorMsg = String(
-    firstRow?.errormsg ?? firstRow?.ERRORMSG ?? data?.message ?? ""
+    firstRow?.errormsg ?? firstRow?.ERRORMSG ?? data?.message ?? "",
   );
 
   if (data?.success === false || errorCount > 0) {
@@ -254,8 +203,9 @@ const ATCRef = () => {
 
   const docType = "ATC";
   const documentTitle = reftables?.[docType] || "Alphanumeric Tax Code";
-  const pdfLink = reftablesPDFGuide?.[docType];
-  const videoLink = reftablesVideoGuide?.[docType];
+  const guideRef = useRef(null);
+  const pdfLink = reftablesPDFGuide[docType];
+  const videoLink = reftablesVideoGuide[docType];
 
   const atcCodeInputRef = useRef(null);
   const enterValidatedRef = useRef(false);
@@ -268,6 +218,7 @@ const ATCRef = () => {
   const [isEwtAcctModalOpen, setEwtAcctModalOpen] = useState(false);
   const [isCwtAcctModalOpen, setCwtAcctModalOpen] = useState(false);
   const [isClAcctModalOpen, setClAcctModalOpen] = useState(false);
+  const [isOpenGuide, setOpenGuide] = useState(false);
 
   const setField = (key, value) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -284,6 +235,9 @@ const ATCRef = () => {
     queryKey: ATC_LIST_QUERY_KEY,
     queryFn: fetchAtcList,
     refetchOnWindowFocus: false,
+    // ✅ ADDED: Force fresh data on load and auto-sync every 30s
+    staleTime: 0,
+    refetchInterval: 1000 * 30,
   });
 
   const atcs = useMemo(() => atcListQuery.data || [], [atcListQuery.data]);
@@ -299,19 +253,19 @@ const ATCRef = () => {
   const saveMutation = useMutation({
     mutationFn: saveAtcApi,
     onSuccess: async (response) => {
-  const sqlRow = response?.data?.data?.[0] || {};
-  const errorcount = Number(sqlRow.errorcount ?? sqlRow.ERRORCOUNT ?? 0);
-  const errormsg = String(sqlRow.errormsg ?? sqlRow.ERRORMSG ?? "");
+      const sqlRow = response?.data?.data?.[0] || {};
+      const errorcount = Number(sqlRow.errorcount ?? sqlRow.ERRORCOUNT ?? 0);
+      const errormsg = String(sqlRow.errormsg ?? sqlRow.ERRORMSG ?? "");
 
-  if (errorcount > 0) {
-    useSwalErrorAlert("Missing Fields", errormsg || "Failed to save ATC.");
-    return;
-  }
+      if (errorcount > 0) {
+        useSwalErrorAlert("Missing Fields", errormsg || "Failed to save ATC.");
+        return;
+      }
 
-  await queryClient.invalidateQueries({ queryKey: ATC_LIST_QUERY_KEY });
-  useSwalSuccessAlert("Success!", "ATC saved successfully.");
-  handleReset();
-},
+      await queryClient.invalidateQueries({ queryKey: ATC_LIST_QUERY_KEY });
+      useSwalSuccessAlert("Success!", "ATC saved successfully.");
+      handleReset();
+    },
   });
 
   const deleteMutation = useMutation({
@@ -324,7 +278,7 @@ const ATCRef = () => {
     onError: (error) => {
       useSwalErrorAlert(
         "System Error",
-        error?.message || "Failed to delete ATC."
+        error?.message || "Failed to delete ATC.",
       );
     },
   });
@@ -344,6 +298,7 @@ const ATCRef = () => {
       });
 
       const freshData = extractRows(res)?.[0];
+      console.log("Fresh Data from API:", freshData);
       if (!freshData) {
         useSwalErrorAlert("Error", "Could not fetch details for this record.");
         return;
@@ -357,7 +312,7 @@ const ATCRef = () => {
     } catch (error) {
       useSwalErrorAlert(
         "Error",
-        error?.message || "Could not fetch details for this record."
+        error?.message || "Could not fetch details for this record.",
       );
     }
   }, []);
@@ -376,7 +331,9 @@ const ATCRef = () => {
         return;
       }
 
-      const code = String(form.atcCode || "").trim().toUpperCase();
+      const code = String(form.atcCode || "")
+        .trim()
+        .toUpperCase();
       if (!code || !isEditing || form.__existing) return;
 
       try {
@@ -386,7 +343,7 @@ const ATCRef = () => {
           setIsDupCode(true);
           useSwalErrorAlert(
             "Duplicate Entry",
-            `ATC Code "${code}" already exists.`
+            `ATC Code "${code}" already exists.`,
           );
           setField("atcCode", "");
           setTimeout(() => atcCodeInputRef.current?.focus?.(), 0);
@@ -398,56 +355,58 @@ const ATCRef = () => {
       } catch (error) {
         useSwalErrorAlert(
           "Validation Error",
-          error?.message || "Failed to validate ATC Code."
+          error?.message || "Failed to validate ATC Code.",
         );
       }
     },
-    [form.atcCode, form.__existing, isEditing]
+    [form.atcCode, form.__existing, isEditing],
   );
 
   const handleSave = useCallback(async () => {
-  if (!isEditing || saveMutation.isPending) return;
+    if (!isEditing || saveMutation.isPending) return;
 
-  const code = String(form.atcCode || "").trim().toUpperCase();
-  const name = String(form.atcName || "").trim();
-  const rate = String(form.atcRate || "").trim();
-  const ewtAcct = String(form.ewtAcct || "").trim();
-  const cwtAcct = String(form.cwtAcct || "").trim();
-  const clAcct = String(form.clAcct || "").trim();
+    const code = String(form.atcCode || "")
+      .trim()
+      .toUpperCase();
+    const name = String(form.atcName || "").trim();
+    const rate = String(form.atcRate || "").trim();
+    const ewtAcct = String(form.ewtAcct || "").trim();
+    const cwtAcct = String(form.cwtAcct || "").trim();
+    const clAcct = String(form.clAcct || "").trim();
 
-  try {
-    if (!form.__existing) {
-      const isDuplicate = await checkDuplicateAtcApi(code);
+    try {
+      if (!form.__existing) {
+        const isDuplicate = await checkDuplicateAtcApi(code);
 
-      if (isDuplicate) {
-        setIsDupCode(true);
-        useSwalErrorAlert(
-          "Duplicate Entry",
-          `ATC Code "${code}" already exists.`
-        );
-        setTimeout(() => atcCodeInputRef.current?.focus?.(), 0);
-        return;
+        if (isDuplicate) {
+          setIsDupCode(true);
+          useSwalErrorAlert(
+            "Duplicate Entry",
+            `ATC Code "${code}" already exists.`,
+          );
+          setTimeout(() => atcCodeInputRef.current?.focus?.(), 0);
+          return;
+        }
       }
+
+      const parsedRate = parseFloat(rate);
+
+      await saveMutation.mutateAsync({
+        atcCode: code,
+        atcName: name,
+        atcRate: Number.isNaN(parsedRate) ? 0 : parsedRate,
+        ewtAcct,
+        cwtAcct,
+        clAcct,
+        userCode: user?.USER_CODE || "ADMIN",
+      });
+    } catch (error) {
+      useSwalErrorAlert(
+        "System Error",
+        error?.message || "Failed to save ATC.",
+      );
     }
-
-    const parsedRate = parseFloat(rate);
-
-    await saveMutation.mutateAsync({
-      atcCode: code,
-      atcName: name,
-      atcRate: Number.isNaN(parsedRate) ? 0 : parsedRate,
-      ewtAcct,
-      cwtAcct,
-      clAcct,
-      userCode: user?.USER_CODE || "ADMIN",
-    });
-  } catch (error) {
-    useSwalErrorAlert(
-      "System Error",
-      error?.message || "Failed to save ATC."
-    );
-  }
-}, [form, isEditing, saveMutation, user?.USER_CODE]);
+  }, [form, isEditing, saveMutation, user?.USER_CODE]);
 
   const handleDelete = useCallback(
     async (row = selectedRow) => {
@@ -464,7 +423,7 @@ const ATCRef = () => {
         if (isInUsed) {
           useSwalErrorAlert(
             "Unable to Delete",
-            `ATC "${atcCode}" is already in use.`
+            `ATC "${atcCode}" is already in use.`,
           );
           return;
         }
@@ -472,7 +431,7 @@ const ATCRef = () => {
         const confirm = await useSwalDeleteConfirm(
           "Delete Record?",
           `Are you sure you want to delete ATC "${atcCode}"?`,
-          "Yes, delete it"
+          "Yes, delete it",
         );
 
         if (!confirm?.isConfirmed) return;
@@ -481,11 +440,11 @@ const ATCRef = () => {
       } catch (error) {
         useSwalErrorAlert(
           "System Error",
-          error?.message || "Failed to delete record."
+          error?.message || "Failed to delete record.",
         );
       }
     },
-    [selectedRow, deleteMutation]
+    [selectedRow, deleteMutation],
   );
 
   const handleSaveRef = useRef(null);
@@ -539,7 +498,7 @@ const ATCRef = () => {
               }}
               className="p-1 rounded-md bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-600 hover:text-white transition-colors"
             >
-              <Edit size={16} />
+              <FontAwesomeIcon icon={faEdit} />
             </button>
 
             <button
@@ -550,7 +509,7 @@ const ATCRef = () => {
               }}
               className="p-1 rounded-md bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white transition-colors"
             >
-              <Trash2 size={16} />
+              <FontAwesomeIcon icon={faTrashAlt} />
             </button>
           </div>
         ),
@@ -577,22 +536,28 @@ const ATCRef = () => {
         key: "ewtAcct",
         label: "EWT Account",
         sortable: true,
-        render: (row) => row?.ewtAcct,
+        render: (row) => row?.ewtAcctName 
+          ? `${row.ewtAcct} - ${row.ewtAcctName}` 
+          : row?.ewtAcct,
       },
       {
         key: "cwtAcct",
         label: "CWT Account",
         sortable: true,
-        render: (row) => row?.cwtAcct,
+        render: (row) => row?.cwtAcctName 
+          ? `${row.cwtAcct} - ${row.cwtAcctName}` 
+          : row?.cwtAcct,
       },
       {
         key: "clAcct",
         label: "CWT Clearing Account",
         sortable: true,
-        render: (row) => row?.clAcct,
+        render: (row) => row?.clAcctName 
+          ? `${row.clAcct} - ${row.clAcctName}` 
+          : row?.clAcct,
       },
     ],
-    [handleEdit, handleDelete]
+    [handleEdit, handleDelete],
   );
 
   const tableData = useMemo(
@@ -601,7 +566,7 @@ const ATCRef = () => {
         ...row,
         __idx: index,
       })),
-    [atcs]
+    [atcs],
   );
 
   const registrationData = useMemo(
@@ -611,13 +576,11 @@ const ATCRef = () => {
       lastUpdatedBy: form?.lastUpdatedBy,
       lastUpdatedDate: form?.lastUpdatedDate,
     }),
-    [form]
+    [form],
   );
 
   const showGlobalLoading =
-    isInitialLoading ||
-    saveMutation.isPending ||
-    deleteMutation.isPending;
+    isInitialLoading || saveMutation.isPending || deleteMutation.isPending;
 
   return (
     <div className="global-ref-main-div-ui mt-24">
@@ -656,31 +619,53 @@ const ATCRef = () => {
             Reset
           </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              if (pdfLink || videoLink) {
-                useSwalInfoAlert(
-                  "Guide",
-                  [
-                    pdfLink ? `PDF Guide: ${pdfLink}` : null,
-                    videoLink ? `Video Guide: ${videoLink}` : null,
-                  ]
-                    .filter(Boolean)
-                    .join("\n")
-                );
-              } else {
-                useSwalInfoAlert(
-                  "Guide",
-                  "No guide or video link is available for this reference."
-                );
-              }
-            }}
-            className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
-          >
-            <Info size={16} />
-            Info
-          </button>
+          {/* Info Dropdown */}
+          <div ref={guideRef} className="relative">
+            <button
+              onClick={() => setOpenGuide((v) => !v)}
+              className="bg-blue-600 text-white h-7 w-16 sm:w-auto sm:h-8 sm:px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
+            >
+              <FontAwesomeIcon icon={faInfoCircle} className="text-[12px]" />
+              <span className="sm:inline ml-1 text-[11px] font-medium">
+                Info
+              </span>
+              <FontAwesomeIcon
+                icon={faChevronDown}
+                className="hidden sm:inline text-[10px] opacity-80"
+              />
+            </button>
+
+            {isOpenGuide && (
+              <div className="absolute right-0 mt-2 w-52 rounded-md shadow-xl bg-white ring-1 ring-black/10 z-[60] dark:bg-gray-800 overflow-hidden">
+                <button
+                  onClick={() => {
+                    window.open(pdfLink, "_blank");
+                    setOpenGuide(false);
+                  }}
+                  className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900 border-b border-gray-100 dark:border-gray-700"
+                >
+                  <FontAwesomeIcon
+                    icon={faFilePdf}
+                    className="mr-2 text-red-500"
+                  />{" "}
+                  PDF Guide
+                </button>
+                <button
+                  onClick={() => {
+                    window.open(videoLink, "_blank");
+                    setOpenGuide(false);
+                  }}
+                  className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900"
+                >
+                  <FontAwesomeIcon
+                    icon={faVideo}
+                    className="mr-2 text-blue-500"
+                  />{" "}
+                  Video Guide
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -716,8 +701,16 @@ const ATCRef = () => {
 
                 <FieldRenderer
                   label="Tax Rate (%)"
+                  type="number"
                   value={form.atcRate}
-                  onChange={(val) => setField("atcRate", val)}
+                  onChange={(val) => {
+                    const numericVal = parseFloat(val);
+                    if (numericVal < 0) {
+                      setField("atcRate", "0");
+                    } else {
+                      setField("atcRate", val);
+                    }
+                  }}
                   disabled={!isEditing}
                   required
                 />
@@ -792,42 +785,52 @@ const ATCRef = () => {
             onRowClick={setSelectedRow}
             pdfLink={pdfLink}
             videoLink={videoLink}
+            // ✅ ADDED: Connecting the table to the query for UI feedback
+            isLoading={isInitialLoading}
+            isFetching={atcListQuery.isFetching}
+            onRefresh={() => atcListQuery.refetch()}
           />
         </div>
       </div>
 
-      <SearchCOAMast
-        isOpen={isEwtAcctModalOpen}
-        onClose={(value) => {
-          if (value) {
-            setField("ewtAcct", value?.acctCode || "");
-            setField("ewtAcctName", value?.acctName || "");
-          }
-          setEwtAcctModalOpen(false);
-        }}
-      />
+      {isEwtAcctModalOpen && (
+        <SearchCOAMast
+          isOpen={isEwtAcctModalOpen}
+          onClose={(value) => {
+            if (value) {
+              setField("ewtAcct", value?.acctCode || "");
+              setField("ewtAcctName", value?.acctName || "");
+            }
+            setEwtAcctModalOpen(false);
+          }}
+        />
+      )}
 
-      <SearchCOAMast
-        isOpen={isCwtAcctModalOpen}
-        onClose={(value) => {
-          if (value) {
-            setField("cwtAcct", value?.acctCode || "");
-            setField("cwtAcctName", value?.acctName || "");
-          }
-          setCwtAcctModalOpen(false);
-        }}
-      />
+      {isCwtAcctModalOpen && (
+        <SearchCOAMast
+          isOpen={isCwtAcctModalOpen}
+          onClose={(value) => {
+            if (value) {
+              setField("cwtAcct", value?.acctCode || "");
+              setField("cwtAcctName", value?.acctName || "");
+            }
+            setCwtAcctModalOpen(false);
+          }}
+        />
+      )}
 
-      <SearchCOAMast
-        isOpen={isClAcctModalOpen}
-        onClose={(value) => {
-          if (value) {
-            setField("clAcct", value?.acctCode || "");
-            setField("clAcctName", value?.acctName || "");
-          }
-          setClAcctModalOpen(false);
-        }}
-      />
+      {isClAcctModalOpen && (
+        <SearchCOAMast
+          isOpen={isClAcctModalOpen}
+          onClose={(value) => {
+            if (value) {
+              setField("clAcct", value?.acctCode || "");
+              setField("clAcctName", value?.acctName || "");
+            }
+            setClAcctModalOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 };

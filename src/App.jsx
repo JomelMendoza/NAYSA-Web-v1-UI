@@ -759,6 +759,7 @@ import Login from "./NAYSA Cloud/Authentication/Login.jsx";
 import Register from "./NAYSA Cloud/Authentication/Register.jsx";
 import Dashboard1 from "./NAYSA Cloud/Components/Dashboard1.jsx";
 import ChangePassword from "./NAYSA Cloud/Authentication/ChangePassword.jsx";
+import ApproveUser from "@/NAYSA Cloud/Authentication/ApproveUser.jsx";
 import BiometricSettingsPage from "./NAYSA Cloud/Authentication/BiometricSettingsPage.jsx";
 import AuthProvider, { useAuth } from "./NAYSA Cloud/Authentication/AuthContext.jsx";
 import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
@@ -1010,6 +1011,7 @@ const AppContent = () => {
       <Routes>
         <Route path="/register" element={<Register />} />
         <Route path="/change-password" element={<ChangePassword />} />
+        <Route path="/approve-user" element={<ApproveUser />} />
         <Route
           path="*"
           element={<Login onSwitchToRegister={() => navigate("/register")} />}

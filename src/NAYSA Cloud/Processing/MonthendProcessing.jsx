@@ -209,6 +209,7 @@ const MonthendGLProcessingModal = ({
           json_data: {
             json_data: {
               cutoffCode: selectedCutOff,
+              unpostedMode:"ME"
             },
           },
         },
@@ -532,24 +533,24 @@ const MonthendGLProcessingModal = ({
           </div>
 
           <div className="px-2.5 sm:px-4 py-2.5 sm:py-3 space-y-3 bg-slate-50 overflow-y-auto">
-            <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 shadow-sm">
-              <div className="flex items-start gap-2.5">
-                <TriangleAlert
-                  className="text-amber-600 mt-0.5 shrink-0"
-                  size={16}
-                />
-                <div>
-                  <div className="text-xs sm:text-sm font-semibold text-amber-800">
-                    Reminder
-                  </div>
-                  <div className="text-[11px] sm:text-xs text-amber-700 mt-0.5 leading-5">
-                    Validate first if the selected period still has open or unposted
-                    transactions. If transactions are found, Excel generation will be
-                    required and password entry must remain disabled.
-                  </div>
+          <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
+            <div className="flex items-start gap-2.5">
+              <TriangleAlert
+                className="text-slate-500 mt-0.5 shrink-0"
+                size={16}
+              />
+              <div>
+                <div className="text-xs sm:text-sm font-semibold text-slate-800">
+                  Reminder
+                </div>
+                <div className="text-[11px] sm:text-xs text-slate-600 mt-0.5 leading-5">
+                  Validate first if the selected period still has open or unposted
+                  transactions. If transactions are found, Excel generation will be
+                  required and password entry must remain disabled.
                 </div>
               </div>
             </div>
+          </div>
 
             {/* MOBILE STEP INDICATOR */}
             <div className="sm:hidden">
@@ -649,17 +650,9 @@ const MonthendGLProcessingModal = ({
                   </div>
 
                   <div className="p-3 space-y-3">
-                    <div
-                      className={`rounded-lg border px-3 py-2.5 text-[11px] sm:text-xs ${
-                        !validationDone
-                          ? "border-slate-200 bg-slate-50 text-slate-600"
-                          : validationPassed
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                          : "border-rose-200 bg-rose-50 text-rose-700"
-                      }`}
-                    >
-                      {validationMessage}
-                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[11px] sm:text-xs text-slate-700">
+                    {validationMessage}
+                  </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                       <div className="rounded-lg border bg-slate-50 px-3 py-2.5">
@@ -696,43 +689,43 @@ const MonthendGLProcessingModal = ({
                       </div>
                     </div>
 
-                    {(downloadReady || excelGenerated) && (
-                      <div className="flex justify-stretch sm:justify-end">
-                        <button
-                          type="button"
-                          onClick={handleGenerateExcel}
-                          disabled={isGeneratingExcel || excelGenerated}
-                          className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-xs sm:text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${
-                            excelGenerated
-                              ? "border border-slate-300 bg-slate-100 text-slate-500"
-                              : "border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                          }`}
-                        >
-                          {isGeneratingExcel ? (
-                            <>
-                              <Loader2 size={14} className="animate-spin" />
-                              Generating Excel...
-                            </>
-                          ) : excelGenerated ? (
-                            <>
-                              <CheckCircle2 size={14} />
-                              Excel Generated
-                            </>
-                          ) : (
-                            <>
-                              <FileSpreadsheet size={14} />
-                              Generate Excel File
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    )}
+                   {(downloadReady || excelGenerated) && (
+                        <div className="flex justify-stretch sm:justify-end">
+                          <button
+                            type="button"
+                            onClick={handleGenerateExcel}
+                            disabled={isGeneratingExcel || excelGenerated}
+                            className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-xs sm:text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed ${
+                              excelGenerated
+                                ? "border border-slate-300 bg-slate-100 text-slate-500"
+                                : "border border-blue-600 bg-blue-600 text-white hover:bg-blue-700"
+                            }`}
+                          >
+                            {isGeneratingExcel ? (
+                              <>
+                                <Loader2 size={14} className="animate-spin" />
+                                Generating Excel...
+                              </>
+                            ) : excelGenerated ? (
+                              <>
+                                <CheckCircle2 size={14} />
+                                Excel Generated
+                              </>
+                            ) : (
+                              <>
+                                <FileSpreadsheet size={14} />
+                                Generate Excel File
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
 
                     {!validationPassed && validationDone && (
-                      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-[11px] sm:text-xs text-amber-800">
-                        Password remains disabled until no open or unposted
-                        transactions are found for the selected cut off.
-                      </div>
+                     <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-[11px] text-slate-700 sm:text-xs">
+                      Password remains disabled until no open or unposted
+                      transactions are found for the selected cut off.
+                    </div>
                     )}
                   </div>
                 </div>
@@ -832,7 +825,7 @@ const MonthendGLProcessingModal = ({
                           4
                         </span>
                         <span>
-                          If none are found, enter your password and click Final OK.
+                          If none are found, enter your password and click Process.
                         </span>
                       </li>
                     </ol>
@@ -897,17 +890,9 @@ const MonthendGLProcessingModal = ({
                         )}
                       </button>
 
-                      <div
-                        className={`rounded-lg border px-3 py-2.5 text-[11px] ${
-                          !validationDone
-                            ? "border-slate-200 bg-slate-50 text-slate-600"
-                            : validationPassed
-                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                            : "border-rose-200 bg-rose-50 text-rose-700"
-                        }`}
-                      >
-                        {validationMessage}
-                      </div>
+                    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[11px] text-slate-700">
+                      {validationMessage}
+                    </div>
 
                       <div className="grid grid-cols-1 gap-2">
                         <div className="rounded-lg border bg-slate-50 px-3 py-2.5">
@@ -1084,7 +1069,7 @@ const MonthendGLProcessingModal = ({
                             Processing...
                           </>
                         ) : (
-                          <>Final OK</>
+                          <>Process</>
                         )}
                       </button>
                     </div>
@@ -1154,7 +1139,7 @@ const MonthendGLProcessingModal = ({
                     Processing...
                   </>
                 ) : (
-                  <>Final OK</>
+                  <>Process</>
                 )}
               </button>
             </div>

@@ -25,18 +25,24 @@ import {
   faFileImage,
   faFileExport,
   faFileCsv,
+  faSyncAlt,
 } from "@fortawesome/free-solid-svg-icons";
 
 import { reftables } from "@/NAYSA Cloud/Global/reftable";
 import { exportGenericQueryExcel } from "@/NAYSA Cloud/Global/report";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
-import { formatNumber, parseFormattedNumber } from "@/NAYSA Cloud/Global/behavior.jsx";
+import {
+  formatNumber,
+  parseFormattedNumber,
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 import { useReturnToDate } from "@/NAYSA Cloud/Global/dates";
 import Swal from "sweetalert2";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
-const TableLoader = () => <div className="global-ref-norecords-ui">Loading...</div>;
+const TableLoader = () => (
+  <div className="global-ref-norecords-ui">Loading...</div>
+);
 
 const parseAutoFillGrid = (value) => {
   if (typeof value === "boolean") return value;
@@ -62,6 +68,8 @@ const SearchGlobalReferenceTable = forwardRef(
       onStateChange,
       totalExemptions = ["rate", "percent", "ratio", "id", "code"],
       isLoading = false,
+      isFetching = false,
+      onRefresh,
       tableSize = "Full",
       onMobileRowOpen,
       autoFillGrid: autoFillGridProp = undefined,
@@ -103,8 +111,9 @@ const SearchGlobalReferenceTable = forwardRef(
     }, []);
 
     const [filters, setFilters] = useState(() => initialState?.filters || {});
-    const [globalSearch, setGlobalSearch] = useState(() => initialState?.globalSearch || "");
-
+    const [globalSearch, setGlobalSearch] = useState(
+      () => initialState?.globalSearch || "",
+    );
 
     const [sortConfig, setSortConfig] = useState(
       () => initialState?.sortConfig || { key: null, direction: null },
@@ -131,6 +140,8 @@ const SearchGlobalReferenceTable = forwardRef(
       () => initialState?.userHiddenCols || [],
     );
 
+    const isInitialLoading = isLoading && (!data || data.length === 0);
+
     const [showColumnChooser, setShowColumnChooser] = useState(false);
     const [showExportMenu, setShowExportMenu] = useState(false);
 
@@ -148,7 +159,8 @@ const SearchGlobalReferenceTable = forwardRef(
         const kept = prevArr.filter((k) => keys.includes(k));
         const added = keys.filter((k) => !prevSet.has(k));
 
-        if (kept.length === prevArr.length && added.length === 0) return prevArr;
+        if (kept.length === prevArr.length && added.length === 0)
+          return prevArr;
         return [...kept, ...added];
       });
     }, [columns]);
@@ -162,7 +174,7 @@ const SearchGlobalReferenceTable = forwardRef(
         groupBy,
         userHiddenCols,
         itemsPerPage: rowsPerPage,
-        globalSearch, // ✅ add
+        globalSearch,
         autoFillGrid: autoFillGrid ? "True" : "False",
       });
     }, [
@@ -172,16 +184,10 @@ const SearchGlobalReferenceTable = forwardRef(
       groupBy,
       userHiddenCols,
       rowsPerPage,
-      globalSearch,   // ✅ add
+      globalSearch,
       autoFillGrid,
       onStateChange,
     ]);
-
-    // reset expansions when grouping changes
-    // useEffect(() => {
-    //   setExpandedGroups({});
-    //   setCurrentPage(1);
-    // }, [isMobile, groupBy]);
 
     // clear grouping if data becomes empty
     useEffect(() => {
@@ -211,9 +217,13 @@ const SearchGlobalReferenceTable = forwardRef(
     const parseNumber = (v) => {
       if (typeof parseFormattedNumber === "function") {
         const n = parseFormattedNumber(v);
-        return typeof n === "number" ? n : Number(String(v ?? "").replace(/,/g, ""));
+        return typeof n === "number"
+          ? n
+          : Number(String(v ?? "").replace(/,/g, ""));
       }
-      return typeof v === "number" ? v : Number(String(v ?? "").replace(/,/g, ""));
+      return typeof v === "number"
+        ? v
+        : Number(String(v ?? "").replace(/,/g, ""));
     };
 
     const formatValue = (value, col) => {
@@ -221,7 +231,8 @@ const SearchGlobalReferenceTable = forwardRef(
       switch (col?.renderType) {
         case "number":
         case "currency": {
-          const digits = typeof col?.roundingOff === "number" ? col.roundingOff : 2;
+          const digits =
+            typeof col?.roundingOff === "number" ? col.roundingOff : 2;
           return typeof formatNumber === "function"
             ? formatNumber(value, digits)
             : Number(parseNumber(value)).toLocaleString("en-US", {
@@ -232,7 +243,9 @@ const SearchGlobalReferenceTable = forwardRef(
         case "date": {
           try {
             const datePart = String(value).split("T")[0];
-            return typeof useReturnToDate === "function" ? useReturnToDate(datePart) : datePart;
+            return typeof useReturnToDate === "function"
+              ? useReturnToDate(datePart)
+              : datePart;
           } catch {
             return String(value);
           }
@@ -243,8 +256,10 @@ const SearchGlobalReferenceTable = forwardRef(
     };
 
     const extractTextFromNode = (node) => {
-      if (node === null || node === undefined || typeof node === "boolean") return "";
-      if (typeof node === "string" || typeof node === "number") return String(node);
+      if (node === null || node === undefined || typeof node === "boolean")
+        return "";
+      if (typeof node === "string" || typeof node === "number")
+        return String(node);
       if (Array.isArray(node)) {
         return node
           .map(extractTextFromNode)
@@ -274,13 +289,21 @@ const SearchGlobalReferenceTable = forwardRef(
     // --- Columns processing ---
     const orderedCols = useMemo(() => {
       if (columnOrder.length === 0) return columns;
-      return columnOrder.map((key) => columns.find((c) => c.key === key)).filter(Boolean);
+      return columnOrder
+        .map((key) => columns.find((c) => c.key === key))
+        .filter(Boolean);
     }, [columns, columnOrder]);
 
-    const baseVisibleColumns = useMemo(() => orderedCols.filter((c) => !c.hidden), [orderedCols]);
+    const baseVisibleColumns = useMemo(
+      () => orderedCols.filter((c) => !c.hidden),
+      [orderedCols],
+    );
     const effectiveGroupBy = isMobile ? [] : groupBy;
     const isGroupedView = effectiveGroupBy.length > 0;
-    const groupedKeysSet = useMemo(() => new Set(effectiveGroupBy), [effectiveGroupBy]);
+    const groupedKeysSet = useMemo(
+      () => new Set(effectiveGroupBy),
+      [effectiveGroupBy],
+    );
 
     const visibleCols = useMemo(
       () =>
@@ -301,7 +324,10 @@ const SearchGlobalReferenceTable = forwardRef(
       [visibleCols],
     );
 
-    const exportColumns = useMemo(() => (columns || []).filter((c) => !isActionColumn(c)), [columns]);
+    const exportColumns = useMemo(
+      () => (columns || []).filter((c) => !isActionColumn(c)),
+      [columns],
+    );
 
     const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 
@@ -311,8 +337,12 @@ const SearchGlobalReferenceTable = forwardRef(
       return s.length * 7 + 40;
     };
 
-    const headerCellWrap = "w-full min-w-0 overflow-hidden text-ellipsis whitespace-nowrap";
-    const hasActionCol = useMemo(() => visibleCols.some((c) => isActionColumn(c)), [visibleCols]);
+    const headerCellWrap =
+      "w-full min-w-0 overflow-hidden text-ellipsis whitespace-nowrap";
+    const hasActionCol = useMemo(
+      () => visibleCols.some((c) => isActionColumn(c)),
+      [visibleCols],
+    );
 
     // --- Drag/drop ---
     const handleColDragStart = (e, key) => {
@@ -325,7 +355,15 @@ const SearchGlobalReferenceTable = forwardRef(
       if (!draggedCol) return;
 
       if (isDropZone) {
-        setGroupBy((prev) => (prev.includes(draggedCol) ? prev : [...prev, draggedCol]));
+        // Find the column definition
+        const draggedColDef = columns.find((c) => c.key === draggedCol);
+
+        // Prevent grouping if it is an action column
+        if (isActionColumn(draggedColDef)) return;
+
+        setGroupBy((prev) =>
+          prev.includes(draggedCol) ? prev : [...prev, draggedCol],
+        );
       } else {
         if (groupBy.includes(draggedCol)) return;
         if (draggedCol === targetKey) return;
@@ -359,32 +397,44 @@ const SearchGlobalReferenceTable = forwardRef(
 
     // --- Filtering + sorting data ---
     const filteredData = useMemo(() => {
-      const active = Object.entries(filters).filter(([, v]) => String(v || "").trim() !== "");
+      const active = Object.entries(filters).filter(
+        ([, v]) => String(v || "").trim() !== "",
+      );
       let rows = Array.isArray(data) ? data : [];
 
       if (active.length) {
         rows = rows.filter((r) =>
           active.every(([k, v]) =>
-            String(r?.[k] ?? "").toLowerCase().includes(String(v).toLowerCase()),
+            String(r?.[k] ?? "")
+              .toLowerCase()
+              .includes(String(v).toLowerCase()),
           ),
         );
       }
 
       // ✅ Global search across all visible columns
-      const q = String(globalSearch || "").trim().toLowerCase();
+      const q = String(globalSearch || "")
+        .trim()
+        .toLowerCase();
       if (q) {
         const keys = (visibleCols || []).map((c) => c.key).filter(Boolean);
 
         rows = rows.filter((r) =>
-          keys.some((k) => String(r?.[k] ?? "").toLowerCase().includes(q))
+          keys.some((k) =>
+            String(r?.[k] ?? "")
+              .toLowerCase()
+              .includes(q),
+          ),
         );
       }
 
       if (sortConfig?.key && sortConfig?.direction) {
         const { key, direction } = sortConfig;
         const col = columns.find((c) => c.key === key);
-        const isNumeric = col?.renderType === "number" || col?.renderType === "currency";
-        const norm = (val) => (isNumeric ? parseNumber(val) || 0 : String(val ?? "").toLowerCase());
+        const isNumeric =
+          col?.renderType === "number" || col?.renderType === "currency";
+        const norm = (val) =>
+          isNumeric ? parseNumber(val) || 0 : String(val ?? "").toLowerCase();
 
         rows = [...rows].sort((a, b) => {
           const A = norm(a?.[key]);
@@ -403,54 +453,53 @@ const SearchGlobalReferenceTable = forwardRef(
         return cleanRow;
       });
     }, [data, filters, globalSearch, visibleCols, sortConfig, columns]);
-const autoColWidths = useMemo(() => {
-  const MIN = 60;
-  const MAX = 400;
-  const SAMPLE = 80;
+    const autoColWidths = useMemo(() => {
+      const MIN = 60;
+      const MAX = 400;
+      const SAMPLE = 80;
 
-  const sampleRows = (Array.isArray(filteredData) ? filteredData : []).slice(0, SAMPLE);
-  const out = {};
+      const sampleRows = (
+        Array.isArray(filteredData) ? filteredData : []
+      ).slice(0, SAMPLE);
+      const out = {};
 
-  visibleCols.forEach((col) => {
-    let w = estimatePx(col.label || "");
+      visibleCols.forEach((col) => {
+        let w = estimatePx(col.label || "");
 
-    for (const r of sampleRows) {
-      let str = "";
+        for (const r of sampleRows) {
+          let str = "";
 
-      if (col.autoWidthValue) {
-        str = String(col.autoWidthValue(r) ?? "");
-      } else if (typeof col.render === "function") {
-        str = String(r?.[col.key] ?? "");
-      } else {
-        str = String(formatValue(r?.[col.key], col) ?? "");
-      }
+          if (col.autoWidthValue) {
+            str = String(col.autoWidthValue(r) ?? "");
+          } else if (typeof col.render === "function") {
+            str = String(r?.[col.key] ?? "");
+          } else {
+            str = String(formatValue(r?.[col.key], col) ?? "");
+          }
 
-      w = Math.max(w, estimatePx(str));
-    }
+          w = Math.max(w, estimatePx(str));
+        }
 
-    const colBase = Number(col.width);
-    if (Number.isFinite(colBase)) w = Math.max(w, colBase);
+        const colBase = Number(col.width);
+        if (Number.isFinite(colBase)) w = Math.max(w, colBase);
 
-    out[col.key] = clamp(w, MIN, MAX);
-  });
+        out[col.key] = clamp(w, MIN, MAX);
+      });
 
-  return out;
-}, [visibleCols, filteredData]);
-
-
+      return out;
+    }, [visibleCols, filteredData]);
 
     const [manualResizedCols, setManualResizedCols] = useState({});
 
-const getColWidth = (col) => {
-  const manualWidth = colWidths[col.key];
-  const isManual = manualResizedCols[col.key];
-  const autoWidth = autoColWidths[col.key];
-  const defaultWidth = col.width || 140;
+    const getColWidth = (col) => {
+      const manualWidth = colWidths[col.key];
+      const isManual = manualResizedCols[col.key];
+      const autoWidth = autoColWidths[col.key];
+      const defaultWidth = col.width || 140;
 
-  if (isManual && manualWidth) return manualWidth;
-  return autoWidth || defaultWidth;
-};
-
+      if (isManual && manualWidth) return manualWidth;
+      return autoWidth || defaultWidth;
+    };
 
     const getStickyLeftOffset = (index) => {
       if (index <= 0) return 0;
@@ -462,7 +511,7 @@ const getColWidth = (col) => {
       }
       return offset;
     };
-    
+
     const shouldSumColumn = (col) => {
       const noTotalKeys = ["unitcost", "currrate", "unitprice", "runbal"];
       if (!col) return false;
@@ -471,9 +520,11 @@ const getColWidth = (col) => {
       const label = String(col.label ?? "").toLowerCase();
 
       if (noTotalKeys.includes(key)) return false;
-      if (col.renderType !== "number" && col.renderType !== "currency") return false;
+      if (col.renderType !== "number" && col.renderType !== "currency")
+        return false;
 
-      if (totalExemptions.some((ex) => label.includes(ex) || key.includes(ex))) return false;
+      if (totalExemptions.some((ex) => label.includes(ex) || key.includes(ex)))
+        return false;
 
       return true;
     };
@@ -482,7 +533,10 @@ const getColWidth = (col) => {
       const sums = {};
       exportVisibleCols.forEach((col) => {
         if (shouldSumColumn(col)) {
-          sums[col.key] = (rows || []).reduce((acc, r) => acc + (parseNumber(r?.[col.key]) || 0), 0);
+          sums[col.key] = (rows || []).reduce(
+            (acc, r) => acc + (parseNumber(r?.[col.key]) || 0),
+            0,
+          );
         }
       });
       return sums;
@@ -498,21 +552,31 @@ const getColWidth = (col) => {
           groupedCol.groupDisplayKey,
           groupedCol.displayKey,
           groupedCol.nameKey,
-          groupKey.endsWith("_code") ? groupKey.replace(/_code$/i, "_name") : null,
+          groupKey.endsWith("_code")
+            ? groupKey.replace(/_code$/i, "_name")
+            : null,
           groupKey.endsWith("Code") ? groupKey.replace(/Code$/i, "Name") : null,
           groupKey.endsWith("code") ? groupKey.replace(/code$/i, "name") : null,
         ].filter(Boolean);
 
         for (const candidate of labelKeyCandidates) {
           const candidateValue = row?.[candidate];
-          if (candidateValue !== undefined && candidateValue !== null && String(candidateValue).trim() !== "") {
+          if (
+            candidateValue !== undefined &&
+            candidateValue !== null &&
+            String(candidateValue).trim() !== ""
+          ) {
             return String(candidateValue);
           }
         }
 
         if (typeof groupedCol.groupDisplayValue === "function") {
           const customValue = groupedCol.groupDisplayValue(row);
-          if (customValue !== undefined && customValue !== null && String(customValue).trim() !== "") {
+          if (
+            customValue !== undefined &&
+            customValue !== null &&
+            String(customValue).trim() !== ""
+          ) {
             return String(customValue);
           }
         }
@@ -526,7 +590,9 @@ const getColWidth = (col) => {
     );
 
     function getGroupNodeId(node) {
-      return node?.path || `${node.key}-${node.rawValue ?? node.value}-${node.level}`;
+      return (
+        node?.path || `${node.key}-${node.rawValue ?? node.value}-${node.level}`
+      );
     }
 
     const groupData = (
@@ -542,7 +608,8 @@ const getColWidth = (col) => {
 
       rows.forEach((row) => {
         const rawValue = String(row?.[groupKey] ?? "(Blank)");
-        const displayValue = resolveGroupDisplayValue(row, groupKey) || "(Blank)";
+        const displayValue =
+          resolveGroupDisplayValue(row, groupKey) || "(Blank)";
         const bucketKey = `${rawValue}|||${displayValue}`;
 
         if (!groups[bucketKey]) {
@@ -558,9 +625,13 @@ const getColWidth = (col) => {
 
       return Object.values(groups)
         .sort((a, b) =>
-          String(a.displayValue).localeCompare(String(b.displayValue), undefined, {
-            numeric: true,
-          }),
+          String(a.displayValue).localeCompare(
+            String(b.displayValue),
+            undefined,
+            {
+              numeric: true,
+            },
+          ),
         )
         .map((group) => {
           const nodePath = parentPath
@@ -591,7 +662,8 @@ const getColWidth = (col) => {
             const headerRow = {};
             exportColumns.forEach((c) => (headerRow[c.key] = ""));
             if (firstKey) {
-              const label = columns.find((c) => c.key === node.key)?.label || node.key;
+              const label =
+                columns.find((c) => c.key === node.key)?.label || node.key;
               headerRow[firstKey] = `${label}: ${node.value} (${node.count})`;
             }
             out.push(headerRow);
@@ -620,8 +692,12 @@ const getColWidth = (col) => {
           list.push(node);
           const uniqueId = getGroupNodeId(node);
           if (expandedGroups[uniqueId]) {
-            if (node.level === activeGroupBy.length - 1) list = list.concat(node.children);
-            else list = list.concat(processRenderList(node.children, activeGroupBy));
+            if (node.level === activeGroupBy.length - 1)
+              list = list.concat(node.children);
+            else
+              list = list.concat(
+                processRenderList(node.children, activeGroupBy),
+              );
           }
         } else {
           list.push(node);
@@ -643,7 +719,8 @@ const getColWidth = (col) => {
         nodes.forEach((node) => {
           if (node.isGroup) {
             list.push(node);
-            if (node.level === effectiveGroupBy.length - 1) list = list.concat(node.children);
+            if (node.level === effectiveGroupBy.length - 1)
+              list = list.concat(node.children);
             else list = list.concat(expandAll(node.children));
           } else {
             list.push(node);
@@ -659,7 +736,9 @@ const getColWidth = (col) => {
     const effectiveRowsPerPage = isMobileView ? 0 : rowsPerPage;
 
     const totalItems =
-      effectiveGroupBy.length > 0 ? groupedStructure.length : filteredData.length;
+      effectiveGroupBy.length > 0
+        ? groupedStructure.length
+        : filteredData.length;
 
     const totalPages =
       effectiveRowsPerPage > 0
@@ -676,7 +755,8 @@ const getColWidth = (col) => {
         return;
       }
 
-      if (currentPage > totalPages && totalPages > 0) setCurrentPage(totalPages);
+      if (currentPage > totalPages && totalPages > 0)
+        setCurrentPage(totalPages);
       else if (currentPage < 1 && totalPages > 0) setCurrentPage(1);
     }, [currentPage, totalPages, isMobileView]);
 
@@ -706,7 +786,8 @@ const getColWidth = (col) => {
     ]);
 
     const grandTotals = useMemo(() => ({}), []);
-    const hasDataFiltered = Array.isArray(filteredData) && filteredData.length > 0;
+    const hasDataFiltered =
+      Array.isArray(filteredData) && filteredData.length > 0;
 
     const collectGroupKeys = (nodes) => {
       const keys = [];
@@ -734,7 +815,8 @@ const getColWidth = (col) => {
     const prevGroupKeysRef = useRef([]);
 
     const allExpanded =
-      allGroupKeys.length > 0 && allGroupKeys.every((key) => expandedGroups[key]);
+      allGroupKeys.length > 0 &&
+      allGroupKeys.every((key) => expandedGroups[key]);
 
     useEffect(() => {
       if (isMobile || effectiveGroupBy.length === 0) {
@@ -752,7 +834,9 @@ const getColWidth = (col) => {
         let nextState = {};
 
         if (wasAllExpanded) {
-          nextState = Object.fromEntries(allGroupKeys.map((key) => [key, true]));
+          nextState = Object.fromEntries(
+            allGroupKeys.map((key) => [key, true]),
+          );
         } else {
           nextState = Object.fromEntries(
             allGroupKeys.filter((key) => prev[key]).map((key) => [key, true]),
@@ -780,7 +864,9 @@ const getColWidth = (col) => {
         return;
       }
 
-      setExpandedGroups(Object.fromEntries(allGroupKeys.map((key) => [key, true])));
+      setExpandedGroups(
+        Object.fromEntries(allGroupKeys.map((key) => [key, true])),
+      );
     };
 
     const handleToggleExpandCollapse = () => {
@@ -839,7 +925,11 @@ const getColWidth = (col) => {
         Number(columns.find((c) => c.key === key)?.width) ||
         140;
 
-      resizingRef.current = { startX: e.clientX, startWidth: currentWidth, key };
+      resizingRef.current = {
+        startX: e.clientX,
+        startWidth: currentWidth,
+        key,
+      };
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
     };
@@ -864,7 +954,8 @@ const getColWidth = (col) => {
 
     const getDefaultExportFileName = () => {
       const effectiveDocType = String(docType ?? "").trim();
-      const title = reftables?.[effectiveDocType] || effectiveDocType || "Reference";
+      const title =
+        reftables?.[effectiveDocType] || effectiveDocType || "Reference";
       return sanitizeFileName(`${title}_${getDateTimeStamp()}`);
     };
 
@@ -887,12 +978,16 @@ const getColWidth = (col) => {
       if (!fileName) return;
 
       const exportData =
-        effectiveGroupBy.length > 0 ? buildExpandedExportRows(groupedStructure) : filteredData;
+        effectiveGroupBy.length > 0
+          ? buildExpandedExportRows(groupedStructure)
+          : filteredData;
 
       const normalizedExportData = exportData.map((row) => {
         const out = {};
         exportVisibleCols.forEach((col) => {
-          out[col.key] = row?.isGroup ? row[col.key] ?? "" : getCellDisplayText(row, col);
+          out[col.key] = row?.isGroup
+            ? (row[col.key] ?? "")
+            : getCellDisplayText(row, col);
         });
         return out;
       });
@@ -941,7 +1036,8 @@ const getColWidth = (col) => {
         .join(",");
 
       const csvLines = [headerRow];
-      const csvRows = effectiveGroupBy.length === 0 ? filteredData : fullRenderRows;
+      const csvRows =
+        effectiveGroupBy.length === 0 ? filteredData : fullRenderRows;
 
       csvRows.forEach((row) => {
         const line = exportVisibleCols
@@ -965,7 +1061,9 @@ const getColWidth = (col) => {
         csvLines.push(line);
       });
 
-      const blob = new Blob([csvLines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+      const blob = new Blob([csvLines.join("\r\n")], {
+        type: "text/csv;charset=utf-8;",
+      });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -993,14 +1091,20 @@ const getColWidth = (col) => {
       });
       if (!fileName) return;
 
-      const canvas = await html2canvas(exportContainerRef.current, { scale: 2, useCORS: true });
+      const canvas = await html2canvas(exportContainerRef.current, {
+        scale: 2,
+        useCORS: true,
+      });
 
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("l", "mm", "a4");
 
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
-      const ratio = Math.min(pdfWidth / canvas.width, pdfHeight / canvas.height);
+      const ratio = Math.min(
+        pdfWidth / canvas.width,
+        pdfHeight / canvas.height,
+      );
 
       const imgWidth = canvas.width * ratio;
       const imgHeight = canvas.height * ratio;
@@ -1028,7 +1132,10 @@ const getColWidth = (col) => {
       });
       if (!fileName) return;
 
-      const canvas = await html2canvas(exportContainerRef.current, { scale: 2, useCORS: true });
+      const canvas = await html2canvas(exportContainerRef.current, {
+        scale: 2,
+        useCORS: true,
+      });
       const imgData = canvas.toDataURL("image/png");
       const link = document.createElement("a");
       link.href = imgData;
@@ -1047,7 +1154,7 @@ const getColWidth = (col) => {
         groupBy,
         userHiddenCols,
         itemsPerPage: rowsPerPage,
-        globalSearch, // ✅ add
+        globalSearch,
         autoFillGrid: autoFillGrid ? "True" : "False",
       }),
       setAutoFillGrid: (value) => setAutoFillGrid(parseAutoFillGrid(value)),
@@ -1060,16 +1167,16 @@ const getColWidth = (col) => {
         setCurrentPage(1);
         setUserHiddenCols([]);
         setRowsPerPage(Number(itemsPerPage) || 50);
-        setGlobalSearch(""); // ✅ add
-        setAutoFillGrid(parseAutoFillGrid(autoFillGridProp ?? initialState?.autoFillGrid));
+        setGlobalSearch("");
+        setAutoFillGrid(
+          parseAutoFillGrid(autoFillGridProp ?? initialState?.autoFillGrid),
+        );
       },
       resetFilters: () => setFilters({}),
       clearSort: () => setSortConfig({ key: null, direction: null }),
       goToPage: (p) => setCurrentPage(Math.max(1, Number(p) || 1)),
       setCardView: (on) => setForceTableView(!on),
     }));
-
-    const isLoadingColumns = isLoading || columns.length === 0;
 
     // Column chooser helpers
     const allChooserKeys = baseVisibleColumns.map((c) => c.key);
@@ -1078,7 +1185,6 @@ const getColWidth = (col) => {
       if (allChecked) setUserHiddenCols(allChooserKeys);
       else setUserHiddenCols([]);
     };
-
 
     const handleRowOpen = (row) => {
       if (isMobile) {
@@ -1092,93 +1198,98 @@ const getColWidth = (col) => {
       "w-full min-w-0 px-2 py-1 text-[11px] rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-300";
 
     // ✅ Mobile Card renderer
-const renderMobileCard = (row, idx) => {
-  if (row?.isGroup) {
-    const uniqueId = getGroupNodeId(row);
-    const isExpanded = expandedGroups[uniqueId];
+    const renderMobileCard = (row, idx) => {
+      if (row?.isGroup) {
+        const uniqueId = getGroupNodeId(row);
+        const isExpanded = expandedGroups[uniqueId];
 
-    return (
-      <div
-        key={`g-${uniqueId}`}
-        className="rounded-lg border bg-gray-100 p-4 cursor-pointer"
-        onClick={() => toggleGroup(row)}
-      >
-        <div className="flex items-center">
-          <FontAwesomeIcon
-            icon={isExpanded ? faChevronDown : faChevronRight}
-            className="mr-2 text-gray-500"
-          />
-          <span className="mr-2 text-gray-600">
-            {columns.find((c) => c.key === row.key)?.label}:
-          </span>
-          <span className="mr-2 font-bold">{row.value}</span>
-          <span className="bg-blue-200 text-blue-800 text-[10px] px-2 rounded-full">
-            {row.count}
-          </span>
-        </div>
-      </div>
-    );
-  }
-
-  const firstCols = visibleCols.slice(0, 4);
-  const otherCols = visibleCols.slice(4);
-
-  return (
-    <div
-      key={row.__idx ?? idx}
-      className="rounded-lg border bg-white shadow-sm p-3 cursor-pointer active:scale-[0.99] transition"
-      onClick={() => handleRowOpen(row)}
-    >
-      <div className="space-y-1">
-        {firstCols.map((col) => (
+        return (
           <div
-              key={col.key}
-              className={`flex items-start justify-between gap-1 ${
-                col.key === "__actions" ? "flex-col items-stretch mb-2" : ""
-              }`}
-            >
-            <span
-              className={`text-[10px] font-semibold text-gray-600 ${
-                col.key === "__actions" ? "min-w-0 mb-1" : "min-w-[110px]"
-              }`}
-            >{col.label}</span>
-            <div className="text-[10px] text-gray-800 text-left break-words flex-1">
-              {typeof col.render === "function"
-                ? col.render(row)
-                : formatValue(row[col.key], col)}
+            key={`g-${uniqueId}`}
+            className="rounded-lg border bg-gray-100 p-4 cursor-pointer"
+            onClick={() => toggleGroup(row)}
+          >
+            <div className="flex items-center">
+              <FontAwesomeIcon
+                icon={isExpanded ? faChevronDown : faChevronRight}
+                className="mr-2 text-gray-500"
+              />
+              <span className="mr-2 text-gray-600">
+                {columns.find((c) => c.key === row.key)?.label}:
+              </span>
+              <span className="mr-2 font-bold">{row.value}</span>
+              <span className="bg-blue-200 text-blue-800 text-[10px] px-2 rounded-full">
+                {row.count}
+              </span>
             </div>
           </div>
-        ))}
+        );
+      }
 
-        {otherCols.length > 0 && (
-          <div className="pt-2 border-t border-gray-100 space-y-1">
-            {otherCols.map((col) => (
-              <div key={col.key} className="flex items-start justify-between gap-1">
-                <span className="text-[10px] font-semibold text-gray-600 min-w-[110px]">
+      const firstCols = visibleCols.slice(0, 4);
+      const otherCols = visibleCols.slice(4);
+
+      return (
+        <div
+          key={row.__idx ?? idx}
+          className="rounded-lg border bg-white shadow-sm p-3 cursor-pointer active:scale-[0.99] transition"
+          onClick={() => handleRowOpen(row)}
+        >
+          <div className="space-y-1">
+            {firstCols.map((col) => (
+              <div
+                key={col.key}
+                className={`flex items-start justify-between gap-1 ${
+                  col.key === "__actions" ? "flex-col items-stretch mb-2" : ""
+                }`}
+              >
+                <span
+                  className={`text-[10px] font-semibold text-gray-600 ${
+                    col.key === "__actions" ? "min-w-0 mb-1" : "min-w-[110px]"
+                  }`}
+                >
                   {col.label}
                 </span>
-                  <div
-                    className={`text-[10px] text-gray-800 text-left break-words ${
-                      col.key === "__actions" ? "w-full" : "flex-1"
-                    }`}
-                  >
+                <div className="text-[10px] text-gray-800 text-left break-words flex-1">
                   {typeof col.render === "function"
                     ? col.render(row)
                     : formatValue(row[col.key], col)}
                 </div>
               </div>
             ))}
+
+            {otherCols.length > 0 && (
+              <div className="pt-2 border-t border-gray-100 space-y-1">
+                {otherCols.map((col) => (
+                  <div
+                    key={col.key}
+                    className="flex items-start justify-between gap-1"
+                  >
+                    <span className="text-[10px] font-semibold text-gray-600 min-w-[110px]">
+                      {col.label}
+                    </span>
+                    <div
+                      className={`text-[10px] text-gray-800 text-left break-words ${
+                        col.key === "__actions" ? "w-full" : "flex-1"
+                      }`}
+                    >
+                      {typeof col.render === "function"
+                        ? col.render(row)
+                        : formatValue(row[col.key], col)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
-    </div>
-  );
-};
+        </div>
+      );
+    };
 
     return (
       <div
         className={[
-          "global-tran-table-main-div-ui flex flex-col flex-1s min-h-[330px] overflow-hidden",
+          "global-tran-table-main-div-ui flex flex-col flex-1 min-h-[330px] overflow-hidden",
           className,
         ].join(" ")}
       >
@@ -1205,21 +1316,24 @@ const renderMobileCard = (row, idx) => {
 
                 {groupBy.length === 0 && (
                   <div
-                  className={`text-gray-400 italic border border-dashed border-gray-300 rounded py-1
-                    ${tableSize === "Half"
-                      ? "text-[8px] sm:text-[9px] w-18 px-4"
-                      : "text-[10px] sm:text-xs px-20"
+                    className={`text-gray-400 italic border border-dashed border-gray-300 rounded py-1
+                    ${
+                      tableSize === "Half"
+                        ? "text-[8px] sm:text-[9px] w-18 px-4"
+                        : "text-[10px] sm:text-xs px-20"
                     }`}
-                >
-                  Drag Header Here...
-                </div>
+                  >
+                    Drag Header Here...
+                  </div>
                 )}
 
                 {groupBy.map((gKey) => (
                   <div
                     key={gKey}
                     className={`flex items-center bg-blue-100 text-blue-800 rounded border border-blue-200 max-w-full ${
-                      tableSize === "Half" ? "text-[10px] px-1.5 py-0.5" : "text-xs px-2 py-1"
+                      tableSize === "Half"
+                        ? "text-[10px] px-1.5 py-0.5"
+                        : "text-xs px-2 py-1"
                     }`}
                   >
                     <span className="truncate">
@@ -1257,7 +1371,9 @@ const renderMobileCard = (row, idx) => {
 
                     <div
                       className={`relative rounded-full transition-colors duration-200 ${
-                        allExpanded ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-600"
+                        allExpanded
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-300 text-gray-600"
                       } ${tableSize === "Half" ? "w-[78px] h-7" : "w-24 h-8"}`}
                     >
                       <span
@@ -1285,21 +1401,21 @@ const renderMobileCard = (row, idx) => {
                   </label>
 
                   <button
-  type="button"
-  onClick={handleRemoveAllGroups}
-  className={`font-medium text-white bg-red-600 border rounded-md hover:bg-red-700 active:scale-[0.98] transition ${
-    tableSize === "Half"
-      ? "h-7 text-[10px] px-2 py-1"
-      : "h-8 text-xs px-3 py-1"
-  }`}
-  title="Remove All Groups"
->
-  <FontAwesomeIcon
-    icon={faTimes}
-    className={`mr-1 text-white ${tableSize === "Half" ? "text-[10px]" : "text-sm"}`}
-  />
-  Remove
-</button>
+                    type="button"
+                    onClick={handleRemoveAllGroups}
+                    className={`font-medium text-white bg-red-600 border rounded-md hover:bg-red-700 active:scale-[0.98] transition ${
+                      tableSize === "Half"
+                        ? "h-7 text-[10px] px-2 py-1"
+                        : "h-8 text-xs px-3 py-1"
+                    }`}
+                    title="Remove All Groups"
+                  >
+                    <FontAwesomeIcon
+                      icon={faTimes}
+                      className={`mr-1 text-white ${tableSize === "Half" ? "text-[10px]" : "text-sm"}`}
+                    />
+                    Remove
+                  </button>
                 </div>
               )}
 
@@ -1313,11 +1429,12 @@ const renderMobileCard = (row, idx) => {
                   }}
                   placeholder="Search all columns..."
                   className={`w-full rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-300
-                      ${tableSize === "Half"
-                        ? "h-7 md:w-32 px-2 text-[11px]"
-                        : "h-8 md:w-64 px-3 text-xs"
+                      ${
+                        tableSize === "Half"
+                          ? "h-7 md:w-32 px-2 text-[11px]"
+                          : "h-8 md:w-64 px-3 text-xs"
                       }`}
-                  />
+                />
 
                 {globalSearch?.trim() && (
                   <button
@@ -1336,12 +1453,8 @@ const renderMobileCard = (row, idx) => {
 
               {!isMobile && (
                 <label
-                  // className="inline-flex items-center cursor-pointer select-none"
                   className={`inline-flex items-center cursor-pointer select-none
-                      ${tableSize === "Half"
-                        ? "h-7"
-                        : "h-8"
-                      }`}
+                      ${tableSize === "Half" ? "h-7" : "h-8"}`}
                   title={autoFillGrid ? "Disable auto fit" : "Enable auto fit"}
                 >
                   <input
@@ -1351,21 +1464,17 @@ const renderMobileCard = (row, idx) => {
                     className="sr-only"
                   />
 
-                  {/* <div
-                    className={`relative w-20 h-7 rounded-full transition-colors duration-200 ${
-                      autoFillGrid ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-600" 
-                    }`}
-                  > */}
-<div
-  className={`relative rounded-full transition-colors duration-200 ${
-    autoFillGrid ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-600"
-  } ${tableSize === "Half" ? "w-20 h-7" : "w-20 h-8"}`}
->
-                    
+                  <div
+                    className={`relative rounded-full transition-colors duration-200 ${
+                      autoFillGrid
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-300 text-gray-600"
+                    } ${tableSize === "Half" ? "w-20 h-7" : "w-20 h-8"}`}
+                  >
                     <span
                       className={`absolute top-[2px] rounded-full bg-white shadow-md transition-all duration-200 ${
                         autoFillGrid ? "left-[50px]" : "left-[2px]"
-  } ${tableSize === "Half" ? "w-6 h-6" : "w-7 h-7"}`}
+                      } ${tableSize === "Half" ? "w-6 h-6" : "w-7 h-7"}`}
                     />
 
                     <span
@@ -1381,17 +1490,43 @@ const renderMobileCard = (row, idx) => {
                 </label>
               )}
 
+              {onRefresh && (
+                <div className="relative flex-1 md:flex-none min-w-[40px]">
+                  <button
+                    type="button"
+                    onClick={onRefresh}
+                    className={`w-full text-xs font-medium text-slate-600 bg-white border border-slate-300 rounded-md hover:bg-slate-50 hover:text-blue-600 active:scale-[0.98] transition flex items-center justify-center
+                      ${
+                        tableSize === "Half" ? "h-7 px-2 py-1" : "h-8 px-3 py-2"
+                      }`}
+                    title="Refresh Data"
+                  >
+                    <FontAwesomeIcon
+                      icon={faSyncAlt}
+                      spin={isFetching}
+                      className="mr-1 md:mr-0 lg:mr-1"
+                    />
+                    <span className="hidden lg:inline">Refresh</span>
+                  </button>
+                </div>
+              )}
+
               {/* EXPORT */}
-              <div className="relative flex-1 md:flex-none min-w-[80px]" data-sgrt-export>
+              <div
+                className="relative flex-1 md:flex-none min-w-[80px]"
+                data-sgrt-export
+              >
                 <button
                   type="button"
-                  onClick={() => hasDataFiltered && setShowExportMenu((p) => !p)}
+                  onClick={() =>
+                    hasDataFiltered && setShowExportMenu((p) => !p)
+                  }
                   disabled={!hasDataFiltered}
-                  // className="w-full px-3 py-2 h-8 text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 active:scale-[0.98] transition"
                   className={`w-full text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 active:scale-[0.98] transition
-                      ${tableSize === "Half"
-                        ? "h-7 md:w-38 px-3 py-1"
-                        : "h-8 md:w-[80px] px-3 py-2"
+                      ${
+                        tableSize === "Half"
+                          ? "h-7 md:w-38 px-3 py-1"
+                          : "h-8 md:w-[80px] px-3 py-2"
                       }`}
                 >
                   <FontAwesomeIcon icon={faFileExport} className="mr-1" />
@@ -1400,83 +1535,102 @@ const renderMobileCard = (row, idx) => {
 
                 {showExportMenu && (
                   <div className="absolute right-0 mt-1 min-w-[80px] rounded-lg shadow-lg bg-white ring-1 ring-black/10 z-[60] overflow-hidden">
-  <button
-    type="button"
-    onClick={async () => {
-      setShowExportMenu(false);
-      await handleExportExcel();
-    }}
-    className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors
-      ${tableSize === "Half"
-        ? "h-7 text-xs px-2"
-        : "h-8 text-sm px-4"
-      }`}
-  >
-    <FontAwesomeIcon icon={faFileExcel} className={`mr-2 text-green-600 ${tableSize === "Half" ? "text-xs" : "text-sm"}`} />
-    Excel
-  </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setShowExportMenu(false);
+                        await handleExportExcel();
+                      }}
+                      className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors
+                        ${
+                          tableSize === "Half"
+                            ? "h-7 text-xs px-2"
+                            : "h-8 text-sm px-4"
+                        }`}
+                    >
+                      <FontAwesomeIcon
+                        icon={faFileExcel}
+                        className={`mr-2 text-green-600 ${tableSize === "Half" ? "text-xs" : "text-sm"}`}
+                      />
+                      Excel
+                    </button>
 
-  <button
-    type="button"
-    onClick={async () => {
-      setShowExportMenu(false);
-      await handleExportCsv();
-    }}
-    className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors
-      ${tableSize === "Half"
-        ? "h-7 text-xs px-2"
-        : "h-8 text-sm px-4"
-      }`}
-  >
-    <FontAwesomeIcon icon={faFileCsv} className={`mr-2 text-emerald-600 ${tableSize === "Half" ? "text-xs" : "text-sm"}`} />
-    CSV
-  </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setShowExportMenu(false);
+                        await handleExportCsv();
+                      }}
+                      className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors
+                        ${
+                          tableSize === "Half"
+                            ? "h-7 text-xs px-2"
+                            : "h-8 text-sm px-4"
+                        }`}
+                    >
+                      <FontAwesomeIcon
+                        icon={faFileCsv}
+                        className={`mr-2 text-emerald-600 ${tableSize === "Half" ? "text-xs" : "text-sm"}`}
+                      />
+                      CSV
+                    </button>
 
-  <button
-    type="button"
-    onClick={async () => {
-      setShowExportMenu(false);
-      await handleExportPdf();
-    }}
-    className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors
-      ${tableSize === "Half"
-        ? "h-7 text-xs px-2"
-        : "h-8 text-sm px-4"
-      }`}
-  >
-    <FontAwesomeIcon icon={faFilePdf} className={`mr-2 text-red-600 ${tableSize === "Half" ? "text-xs" : "text-sm"}`} />
-    PDF
-  </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setShowExportMenu(false);
+                        await handleExportPdf();
+                      }}
+                      className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors
+                        ${
+                          tableSize === "Half"
+                            ? "h-7 text-xs px-2"
+                            : "h-8 text-sm px-4"
+                        }`}
+                    >
+                      <FontAwesomeIcon
+                        icon={faFilePdf}
+                        className={`mr-2 text-red-600 ${tableSize === "Half" ? "text-xs" : "text-sm"}`}
+                      />
+                      PDF
+                    </button>
 
-  <button
-    type="button"
-    onClick={async () => {
-      setShowExportMenu(false);
-      await handleExportImage();
-    }}
-    className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors
-      ${tableSize === "Half"
-        ? "h-7 text-xs px-2"
-        : "h-8 text-sm px-4"
-      }`}
-  >
-    <FontAwesomeIcon icon={faFileImage} className={`mr-2 text-blue-600 ${tableSize === "Half" ? "text-xs" : "text-sm"}`} />
-    Image
-  </button>
-</div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setShowExportMenu(false);
+                        await handleExportImage();
+                      }}
+                      className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors
+                        ${
+                          tableSize === "Half"
+                            ? "h-7 text-xs px-2"
+                            : "h-8 text-sm px-4"
+                        }`}
+                    >
+                      <FontAwesomeIcon
+                        icon={faFileImage}
+                        className={`mr-2 text-blue-600 ${tableSize === "Half" ? "text-xs" : "text-sm"}`}
+                      />
+                      Image
+                    </button>
+                  </div>
                 )}
               </div>
 
               {/* COLUMNS */}
-              <div className="relative flex-1 md:flex-none min-w-[80px]" data-sgrt-cols>
+              <div
+                className="relative flex-1 md:flex-none min-w-[80px]"
+                data-sgrt-cols
+              >
                 <button
                   type="button"
                   onClick={() => setShowColumnChooser((p) => !p)}
-                  // className="w-full px-3 py-2 h-8 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-[0.98] transition"
                   className={`w-full text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-[0.98] transition
-                    ${tableSize === "Half"
-                      ? "h-7 text-xs px-2 py-1"
-                      : "h-8 text-sm px-3 py-2"
+                    ${
+                      tableSize === "Half"
+                        ? "h-7 text-xs px-2 py-1"
+                        : "h-8 text-sm px-3 py-2"
                     }`}
                 >
                   <FontAwesomeIcon icon={faColumns} className="mr-1" />
@@ -1527,8 +1681,8 @@ const renderMobileCard = (row, idx) => {
         )}
 
         {/* TABLE / CARD VIEW */}
-        <div className="global-tran-table-main-sub-div-ui flex flex-col flex-1 min-h-[481px] relative">
-          {isLoadingColumns ? (
+        <div className="global-tran-table-main-sub-div-ui flex flex-col flex-1 min-h-[330px]">
+          {isInitialLoading ? (
             <TableLoader />
           ) : useCardView ? (
             <div className="flex-1 overflow-auto space-y-2 p-2">
@@ -1538,7 +1692,9 @@ const renderMobileCard = (row, idx) => {
             <div
               ref={scrollRef}
               className={`flex-1 border border-gray-200 rounded-sm relative custom-scrollbar ${
-                autoFillGrid ? "overflow-y-auto overflow-x-hidden" : "overflow-auto"
+                autoFillGrid
+                  ? "overflow-y-auto overflow-x-hidden"
+                  : "overflow-auto"
               }`}
             >
               <div className="text-[10px] text-gray-400 px-2 py-1 md:hidden">
@@ -1547,7 +1703,9 @@ const renderMobileCard = (row, idx) => {
 
               <table
                 className={`global-tran-table-div-ui border-collapse ${
-                  autoFillGrid ? "table-fixed w-full min-w-full" : "table-auto min-w-max w-max"
+                  autoFillGrid
+                    ? "table-fixed w-full min-w-full"
+                    : "table-auto min-w-max w-max"
                 }`}
               >
                 <thead className="global-tran-thead-div-ui text-[11px] sticky top-0 z-30 bg-white">
@@ -1561,11 +1719,18 @@ const renderMobileCard = (row, idx) => {
                       return (
                         <th
                           key={col.key}
-                          className={`global-tran-th-ui bg-blue-100 cursor-pointer select-none relative ${
+                          className={`global-tran-th-ui bg-blue-100 select-none relative ${
                             isStickyLeft ? "sticky z-40" : ""
-                          }`}
-                          draggable={!isMobile && !groupBy.includes(col.key)}
-                          onDragStart={(e) => !isMobile && handleColDragStart(e, col.key)}
+                          } ${isActionColumn(col) ? "cursor-default" : "cursor-pointer"}`}
+                          draggable={
+                            !isMobile &&
+                            !groupBy.includes(col.key) &&
+                            !isActionColumn(col)
+                          }
+                          onDragStart={(e) => {
+                            if (!isMobile && !isActionColumn(col))
+                              handleColDragStart(e, col.key);
+                          }}
                           onDragOver={(e) => {
                             if (!isMobile) e.preventDefault();
                           }}
@@ -1573,7 +1738,13 @@ const renderMobileCard = (row, idx) => {
                             if (!isMobile) handleColDrop(e, col.key);
                           }}
                           onClick={() => handleSort(col.key, col.sortable)}
-                          title={!isMobile ? "Click to sort • Drag to reorder/group" : "Click to sort"}
+                          title={
+                            !isMobile && !isActionColumn(col)
+                              ? "Click to sort • Drag to reorder/group"
+                              : col.sortable
+                                ? "Click to sort"
+                                : ""
+                          }
                           style={{
                             ...(autoFillGrid && !isManual
                               ? {}
@@ -1589,10 +1760,17 @@ const renderMobileCard = (row, idx) => {
                             <span className={headerCellWrap}>{col.label}</span>
                             {sortConfig.key === col.key ? (
                               <FontAwesomeIcon
-                                icon={sortConfig.direction === "asc" ? faSortUp : faSortDown}
+                                icon={
+                                  sortConfig.direction === "asc"
+                                    ? faSortUp
+                                    : faSortDown
+                                }
                               />
                             ) : (
-                              <FontAwesomeIcon icon={faSort} className="opacity-30" />
+                              <FontAwesomeIcon
+                                icon={faSort}
+                                className="opacity-30"
+                              />
                             )}
                           </div>
 
@@ -1630,7 +1808,9 @@ const renderMobileCard = (row, idx) => {
                                     minWidth: `${colWidth}px`,
                                     maxWidth: `${colWidth}px`,
                                   }),
-                              left: isStickyLeft ? `${leftOffset}px` : undefined,
+                              left: isStickyLeft
+                                ? `${leftOffset}px`
+                                : undefined,
                             }}
                           >
                             <input
@@ -1638,7 +1818,10 @@ const renderMobileCard = (row, idx) => {
                               placeholder="Filter..."
                               value={filters[col.key] || ""}
                               onChange={(e) => {
-                                setFilters((p) => ({ ...p, [col.key]: e.target.value }));
+                                setFilters((p) => ({
+                                  ...p,
+                                  [col.key]: e.target.value,
+                                }));
                                 setCurrentPage(1);
                               }}
                             />
@@ -1656,7 +1839,9 @@ const renderMobileCard = (row, idx) => {
                         colSpan={visibleCols.length + (hasActionCol ? 1 : 0)}
                         className="global-ref-norecords-ui"
                       >
-                        {Array.isArray(data) && data.length > 0 ? "No records found" : "No data"}
+                        {Array.isArray(data) && data.length > 0
+                          ? "No records found"
+                          : "No data"}
                       </td>
                     </tr>
                   ) : (
@@ -1671,7 +1856,9 @@ const renderMobileCard = (row, idx) => {
                             onClick={() => toggleGroup(row)}
                           >
                             <td
-                              colSpan={visibleCols.length + (hasActionCol ? 1 : 0)}
+                              colSpan={
+                                visibleCols.length + (hasActionCol ? 1 : 0)
+                              }
                               className="global-tran-td-ui font-semibold text-blue-900"
                             >
                               <div
@@ -1679,13 +1866,21 @@ const renderMobileCard = (row, idx) => {
                                 style={{ paddingLeft: row.level * 20 }}
                               >
                                 <FontAwesomeIcon
-                                  icon={isExpanded ? faChevronDown : faChevronRight}
+                                  icon={
+                                    isExpanded ? faChevronDown : faChevronRight
+                                  }
                                   className="mr-2 text-gray-500"
                                 />
                                 <span className="mr-2 text-gray-600">
-                                  {columns.find((c) => c.key === row.key)?.label}:
+                                  {
+                                    columns.find((c) => c.key === row.key)
+                                      ?.label
+                                  }
+                                  :
                                 </span>
-                                <span className="mr-2 font-bold">{row.value}</span>
+                                <span className="mr-2 font-bold">
+                                  {row.value}
+                                </span>
                                 <span className="bg-blue-200 text-blue-800 text-[10px] px-2 rounded-full">
                                   {row.count}
                                 </span>
@@ -1697,18 +1892,18 @@ const renderMobileCard = (row, idx) => {
 
                       return (
                         <tr
-                            key={row.__idx ?? idx}
-                            className="global-tran-tr-ui hover:bg-gray-50 cursor-pointer"
-                            onClick={() => {
-                              if (isMobile) handleRowOpen(row);
-                            }}
-                            onDoubleClick={() => {
-                              if (!isMobile) handleRowOpen(row);
-                            }}
+                          key={row.__idx ?? idx}
+                          className="global-tran-tr-ui hover:bg-gray-50 cursor-pointer"
+                          onClick={() => {
+                            if (isMobile) handleRowOpen(row);
+                          }}
+                          onDoubleClick={() => {
+                            if (!isMobile) handleRowOpen(row);
+                          }}
                         >
-                          {visibleCols.map((col, index) => {                           
+                          {visibleCols.map((col, index) => {
                             const isStickyLeft = index < 3;
-                            const leftOffset = getStickyLeftOffset(index);                            
+                            const leftOffset = getStickyLeftOffset(index);
                             return (
                               <td
                                 key={col.key}
@@ -1741,114 +1936,129 @@ const renderMobileCard = (row, idx) => {
           )}
         </div>
 
+        {/* PAGINATION FOOTER */}
+        {hasDataFiltered && !isMobileView && (
+          <div
+            className="
+              border-t bg-white shrink-0
+              px-3 py-2 sm:px-2
+              flex flex-col gap-3
+              lg:flex-row lg:items-center lg:justify-between
+            "
+          >
+            <div className="text-[11px] sm:text-xs text-gray-600 text-center lg:text-left flex items-center justify-center lg:justify-start gap-2">
+              <div>
+                Showing{" "}
+                <span className="font-semibold text-gray-900">
+                  {effectiveRowsPerPage > 0
+                    ? (safePage - 1) * effectiveRowsPerPage + 1
+                    : 1}
+                </span>
+                –
+                <span className="font-semibold text-gray-900">
+                  {effectiveRowsPerPage > 0
+                    ? Math.min(safePage * effectiveRowsPerPage, totalItems)
+                    : totalItems}
+                </span>{" "}
+                of{" "}
+                <span className="font-semibold text-gray-900">
+                  {totalItems}
+                </span>
+              </div>
 
-{/* PAGINATION FOOTER */}
-{hasDataFiltered && !isMobileView && (
-  <div
-    className="
-      border-t bg-white shrink-0
-      px-3 py-2 sm:px-2
-      flex flex-col gap-3
-      lg:flex-row lg:items-center lg:justify-between
-    "
-  >
-    <div className="text-[11px] sm:text-xs text-gray-600 text-center lg:text-left">
-      Showing{" "}
-      <span className="font-semibold text-gray-900">
-        {effectiveRowsPerPage > 0 ? (safePage - 1) * effectiveRowsPerPage + 1 : 1}
-      </span>
-      –
-      <span className="font-semibold text-gray-900">
-        {effectiveRowsPerPage > 0
-          ? Math.min(safePage * effectiveRowsPerPage, totalItems)
-          : totalItems}
-      </span>{" "}
-      of <span className="font-semibold text-gray-900">{totalItems}</span>
-    </div>
+              {isFetching && (
+                <span className="text-[10px] text-blue-500 animate-pulse font-bold flex items-center gap-1 uppercase ml-2">
+                  <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>{" "}
+                  Syncing...
+                </span>
+              )}
+            </div>
 
-    <div
-      className="
-        flex flex-col sm:flex-row sm:flex-wrap
-        items-stretch sm:items-center
-        justify-center lg:justify-end
-        gap-2 sm:gap-2
-        w-full lg:w-auto
-      "
-    >
-      <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
-        <span className="text-[11px] sm:text-xs text-gray-600 whitespace-nowrap">
-          Rows per page
-        </span>
+            <div
+              className="
+                flex flex-col sm:flex-row sm:flex-wrap
+                items-stretch sm:items-center
+                justify-center lg:justify-end
+                gap-2 sm:gap-2
+                w-full lg:w-auto
+              "
+            >
+              <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
+                <span className="text-[11px] sm:text-xs text-gray-600 whitespace-nowrap">
+                  Rows per page
+                </span>
 
-        <select
-          className="
-            global-tran-textbox-ui global-tran-textbox-enabled
-            h-8 min-w-[70px] w-20
-            rounded-md sm:text-xs
-          "
-          value={rowsPerPage}
-          onChange={(e) => {
-            setRowsPerPage(Number(e.target.value));
-            setCurrentPage(1);
-          }}
-        >
-          {[10, 20, 50, 100, 200, 500, 1000].map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
-      </div>
+                <select
+                  className="
+                    global-tran-textbox-ui global-tran-textbox-enabled
+                    h-8 min-w-[70px] w-20
+                    rounded-md sm:text-xs
+                  "
+                  value={rowsPerPage}
+                  onChange={(e) => {
+                    setRowsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                >
+                  {[10, 20, 50, 100, 200, 500, 1000].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-      <div
-        className="
-          flex items-center justify-between sm:justify-end
-          gap-2 sm:gap-3
-          w-full sm:w-auto
-        "
-      >
-        <button
-          className="
-            global-tran-btn-ui
-            h-8 px-3 sm:px-4
-            min-w-[80px]
-            rounded-md
-            hover:bg-blue-100 hover:text-blue-800
-            text-xs sm:text-sm
-            active:scale-[0.98] transition
-            disabled:opacity-50 disabled:cursor-not-allowed
-          "
-          disabled={safePage <= 1}
-          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-        >
-          Prev
-        </button>
+              <div
+                className="
+                  flex items-center justify-between sm:justify-end
+                  gap-2 sm:gap-3
+                  w-full sm:w-auto
+                "
+              >
+                <button
+                  className="
+                    global-tran-btn-ui
+                    h-8 px-3 sm:px-4
+                    min-w-[80px]
+                    rounded-md
+                    hover:bg-blue-100 hover:text-blue-800
+                    text-xs sm:text-sm
+                    active:scale-[0.98] transition
+                    disabled:opacity-50 disabled:cursor-not-allowed
+                  "
+                  disabled={safePage <= 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                >
+                  Prev
+                </button>
 
-        <div className="text-[11px] sm:text-xs text-gray-700 whitespace-nowrap">
-          Page <span className="font-semibold">{safePage}</span> /{" "}
-          <span className="font-semibold">{totalPages}</span>
-        </div>
+                <div className="text-[11px] sm:text-xs text-gray-700 whitespace-nowrap">
+                  Page <span className="font-semibold">{safePage}</span> /{" "}
+                  <span className="font-semibold">{totalPages}</span>
+                </div>
 
-        <button
-          className="
-            global-tran-btn-ui
-            h-8 px-3 sm:px-4
-            min-w-[80px]
-            rounded-md
-            hover:bg-blue-100 hover:text-blue-800
-            text-xs sm:text-sm
-            active:scale-[0.98] transition
-            disabled:opacity-50 disabled:cursor-not-allowed
-          "
-          disabled={safePage >= totalPages}
-          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-        >
-          Next
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+                <button
+                  className="
+                    global-tran-btn-ui
+                    h-8 px-3 sm:px-4
+                    min-w-[80px]
+                    rounded-md
+                    hover:bg-blue-100 hover:text-blue-800
+                    text-xs sm:text-sm
+                    active:scale-[0.98] transition
+                    disabled:opacity-50 disabled:cursor-not-allowed
+                  "
+                  disabled={safePage >= totalPages}
+                  onClick={() =>
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                  }
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* HIDDEN EXPORT TABLE (PDF/IMAGE) */}
         {hasDataFiltered && (
@@ -1872,7 +2082,11 @@ const renderMobileCard = (row, idx) => {
                     <th
                       key={col.key}
                       className="border px-2 py-1 text-left bg-gray-200 align-bottom"
-                      style={{ maxWidth: 150, whiteSpace: "normal", wordBreak: "break-word" }}
+                      style={{
+                        maxWidth: 150,
+                        whiteSpace: "normal",
+                        wordBreak: "break-word",
+                      }}
                     >
                       {col.label}
                     </th>
@@ -1881,15 +2095,21 @@ const renderMobileCard = (row, idx) => {
               </thead>
 
               <tbody>
-                {(effectiveGroupBy.length === 0 ? filteredData : fullRenderRows).map((row, idx) => {
+                {(effectiveGroupBy.length === 0
+                  ? filteredData
+                  : fullRenderRows
+                ).map((row, idx) => {
                   if (effectiveGroupBy.length > 0 && row.isGroup) {
                     return (
-                      <tr key={`exp-g-${row.key}-${row.value}-${row.level}-${idx}`}>
+                      <tr
+                        key={`exp-g-${row.key}-${row.value}-${row.level}-${idx}`}
+                      >
                         <td
                           colSpan={exportVisibleCols.length}
                           className="border px-2 py-1 font-semibold bg-gray-100"
                         >
-                          {columns.find((c) => c.key === row.key)?.label}: {row.value} ({row.count})
+                          {columns.find((c) => c.key === row.key)?.label}:{" "}
+                          {row.value} ({row.count})
                         </td>
                       </tr>
                     );
@@ -1901,7 +2121,11 @@ const renderMobileCard = (row, idx) => {
                         <td
                           key={col.key}
                           className="border px-2 py-1 align-bottom"
-                          style={{ maxWidth: 150, whiteSpace: "normal", wordBreak: "break-word" }}
+                          style={{
+                            maxWidth: 150,
+                            whiteSpace: "normal",
+                            wordBreak: "break-word",
+                          }}
                         >
                           {getCellDisplayText(row, col)}
                         </td>

@@ -66,6 +66,8 @@ import {
 import {
   useGetCurrentDay,
   useFormatToDate,
+  usehandleDateChange,
+  usehandleDateBlur,
 } from '@/NAYSA Cloud/Global/dates';
 
 import {
@@ -501,6 +503,7 @@ useEffect(() => {
       userCode:currentUserRow?.userCode||"",
       documentDate:useGetCurrentDay(),
       currCode:companyInfo?.currCode||"",
+      glCurrDefault:companyInfo?.currCode||"",
       currName:companyInfo?.currName||"",
       currRate:formatNumber(companyInfo?.currRate||1,6) ,
       refDocNo1: "",
@@ -853,53 +856,71 @@ const handleCurrRateNoBlur = (e) => {
 };
 
 
-  const handleAddRow = async () => {
+  const handleAddRow = async (insertIndex = null) => {
   try {
     const items = await handleFetchDetail(custCode);
     const itemList = Array.isArray(items) ? items : [items];
-    const newRows = await Promise.all(itemList.map(async (item) => {
 
-      return {
-        lnNo: "",
-        billCode: "",
-        billName: "",
-        sviSpecs: "",
-        quantity:"1.00",
-        uomCode: "",
-        unitPrice: "0.00",
-        grossAmount: "0.00",
-        discRate: "0.00",
-        discAmount: "0.00",
-        netDisc: "0.00",
-        vatCode: item.vatCode || "",
-        vatName: item.vatName || "",
-        vatAmount: "0.00",
-        atcCode: item.atcCode || "",
-        atcName: item.atcName || "",
-        atcAmount: "0.00",
-        sviAmount: "0.00",
-        salesAcct: "",
-        arAcct: "",       
-        vatAcct: item.vatAcctCode,
-        discAcct: "",
-        rcCode: ""
-      };
+    const newRows = await Promise.all(
+      itemList.map(async (item) => {
+        console.log(insertIndex !== null ? "insert below" : "add");
+
+        return {
+          lnNo: "",
+          billCode: "",
+          billName: "",
+          sviSpecs: "",
+          quantity: "1.00",
+          uomCode: "",
+          unitPrice: "0.00",
+          grossAmount: "0.00",
+          discRate: "0.00",
+          discAmount: "0.00",
+          netDisc: "0.00",
+          vatCode: item.vatCode || "",
+          vatName: item.vatName || "",
+          vatAmount: "0.00",
+          atcCode: item.atcCode || "",
+          atcName: item.atcName || "",
+          atcAmount: "0.00",
+          sviAmount: "0.00",
+          salesAcct: "",
+          arAcct: "",
+          vatAcct: item.vatAcctCode || "",
+          discAcct: "",
+          rcCode: "",
+        };
+      })
+    );
+
+    let updatedRows = [...detailRows];
+
+    if (insertIndex !== null && insertIndex >= 0) {
+      updatedRows.splice(insertIndex + 1, 0, ...newRows);
+    } else {
+      updatedRows = [...updatedRows, ...newRows];
+    }
+
+    updatedRows = updatedRows.map((row, index) => ({
+      ...row,
+      lnNo: String(index + 1),
     }));
 
-      const updatedRows = [...detailRows, ...newRows];
-      updateState({ detailRows: updatedRows,
-                    detailRowsGL: []
-       });
-      updateTotals(updatedRows);
+    updateState({
+      detailRows: updatedRows,
+      detailRowsGL: [],
+    });
 
+    updateTotals(updatedRows);
 
     setTimeout(() => {
-      const tableContainer = document.querySelector('.max-h-\\[430px\\]');
-      if (tableContainer) {
+      const tableContainer = document.querySelector(".max-h-\\[430px\\]");
+      if (!tableContainer) return;
+
+      if (insertIndex === null) {
         tableContainer.scrollTop = tableContainer.scrollHeight;
       }
     }, 100);
-
   } catch (error) {
     console.error("Error adding new row:", error);
     alert("Failed to add new row. Please select a Payee first.");
@@ -1197,7 +1218,8 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
       ...updatedRows[index],
       [field]: value,
     }
-   
+    
+
      const row = updatedRows[index];
 
       if (field === 'vatCode') {
@@ -1461,25 +1483,27 @@ const handleCloseAccountModal = (selectedAccount) => {
 
 
 
-  const handleCloseRcModalGL = async (selectedRc) => {
-    if (selectedRc && selectedRowIndex !== null) {
-      if (accountModalSource !== null) {
-        handleDetailChange(selectedRowIndex, 'rcCode', selectedRc, false);
-     
-     
-      } else {
-           const result = await useTopRCRow(selectedRc.rcCode);
-            if (result) {
-              handleDetailChangeGL(selectedRowIndex, 'rcCode', result);
-            }
-    }
-    updateState({
-        showRcModal: false,
-        selectedRowIndex: null,
-        accountModalSource: null
-    })};
-};
+ const handleCloseRcModalGL = async (selectedRc) => {
+    const rowIndex = selectedRowIndex;
+    const modalSource = accountModalSource;
 
+    if (selectedRc && rowIndex !== null) {
+      if (modalSource !== null) {
+        handleDetailChange(rowIndex, "rcCode", selectedRc, false);
+      } else {
+        const result = await useTopRCRow(selectedRc.rcCode);
+        if (result) {
+          handleDetailChangeGL(rowIndex, "rcCode", result);
+        }
+      }
+    }
+
+    updateState({
+      showRcModal: false,
+      selectedRowIndex: null,
+      accountModalSource: null,
+    });
+  };
 
 
 
@@ -2014,7 +2038,11 @@ return (
 
                     <div className="relative">
                         <input type="date"
-                            id="fromDate" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
+                            id="fromDate" value={fromDate} 
+                            maxLength={10}
+                            inputMode="numeric"
+                            onChange={(e) => usehandleDateChange(e.target.value, "fromDate", updateState)}
+                            onBlur={() => usehandleDateBlur(state.fromDate || "", "fromDate", updateState)}
                             className="peer global-tran-textbox-ui"
                             disabled={isFormDisabled} 
                         />
@@ -3334,61 +3362,61 @@ return (
           </div>
 
           
-    {/* Totals Section */}
-    <div className="global-tran-tab-footer-total-main-div-ui">
-
-      {/* Total Debit */}
-      <div className="global-tran-tab-footer-total-div-ui">
-        <label htmlFor="TotalDebit" className="global-tran-tab-footer-total-label-ui">
-          Total Debit ({glCurrDefault}):
-        </label>
-        <label htmlFor="TotalDebit" className="global-tran-tab-footer-total-value-ui">
-          {totalDebit}
-        </label>
-      </div>
-
-      {/* Total Credit */}
-      <div className="global-tran-tab-footer-total-div-ui">
-        <label htmlFor="TotalCredit" className="global-tran-tab-footer-total-label-ui">
-          Total Credit ({glCurrDefault}):
-        </label>
-        <label htmlFor="TotalCredit" className="global-tran-tab-footer-total-value-ui">
-          {totalCredit}
-        </label>
-      </div>
-
-      {/* Totals in Forex Section (if currRate > 1) */}
-      {currRate !== 1 && (
+      {/* Totals Section */}
         <div className="global-tran-tab-footer-total-main-div-ui">
 
-          {/* Total Debit in Forex */}
-          <div className="global-tran-tab-footer-total-div-ui">
-            <label htmlFor="TotalDebit" className="global-tran-tab-footer-total-label-ui">
-              Total Debit ({currCode}):
-            </label>
-            <label htmlFor="TotalDebit" className="global-tran-tab-footer-total-value-ui">
-              {totalDebitFx1}
-            </label>
-          </div>
+          {/* Show base currency totals only when different from selected currency */}
+          {glCurrDefault !== currCode && (
+            <>
+              {/* Total Debit */}
+              <div className="global-tran-tab-footer-total-div-ui">
+                <label htmlFor="TotalDebit" className="global-tran-tab-footer-total-label-ui">
+                  Total Debit ({glCurrDefault}):
+                </label>
+                <label htmlFor="TotalDebit" className="global-tran-tab-footer-total-value-ui">
+                  {totalDebit}
+                </label>
+              </div>
 
-          {/* Total Credit in Forex */}
-          <div className="global-tran-tab-footer-total-div-ui">
-            <label htmlFor="TotalCredit" className="global-tran-tab-footer-total-label-ui">
-              Total Credit ({currCode}):
-            </label>
-            <label htmlFor="TotalCredit" className="global-tran-tab-footer-total-value-ui">
-              {totalCreditFx1}
-            </label>
-          </div>
+              {/* Total Credit */}
+              <div className="global-tran-tab-footer-total-div-ui">
+                <label htmlFor="TotalCredit" className="global-tran-tab-footer-total-label-ui">
+                  Total Credit ({glCurrDefault}):
+                </label>
+                <label htmlFor="TotalCredit" className="global-tran-tab-footer-total-value-ui">
+                  {totalCredit}
+                </label>
+              </div>
+            </>
+          )}
 
+          {/* Totals in Forex Section */}
+          {currRate !== 1 && (
+            <div className="global-tran-tab-footer-total-main-div-ui">
+              {/* Total Debit in Forex */}
+              <div className="global-tran-tab-footer-total-div-ui">
+                <label htmlFor="TotalDebitFx" className="global-tran-tab-footer-total-label-ui">
+                  Total Debit ({currCode}):
+                </label>
+                <label htmlFor="TotalDebitFx" className="global-tran-tab-footer-total-value-ui">
+                  {totalDebitFx1}
+                </label>
+              </div>
+
+              {/* Total Credit in Forex */}
+              <div className="global-tran-tab-footer-total-div-ui">
+                <label htmlFor="TotalCreditFx" className="global-tran-tab-footer-total-label-ui">
+                  Total Credit ({currCode}):
+                </label>
+                <label htmlFor="TotalCreditFx" className="global-tran-tab-footer-total-value-ui">
+                  {totalCreditFx1}
+                </label>
+              </div>
+            </div>
+          )}
         </div>
-      )}
 
-
-
-    </div>
-
-        
+                
 
       </div>
 
