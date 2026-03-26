@@ -207,8 +207,45 @@ const CutoffRef = () => {
       return useSwalErrorAlert("Validation Error", "All fields are required.");
     }
 
-    // 2. Final Duplicate Check for New Records
-    // We perform this ONLY if it's a new record (no selectedCutoffCode)
+    // --- DATE MATCHING VALIDATION ---
+    // Extract Years
+    const codeYear = formData.cutoffCode.substring(0, 4);
+    const startYear = formData.fromDate.substring(0, 4);
+    const endYear = formData.toDate.substring(0, 4);
+
+    // Extract Months (YYYYMM for code, YYYY-MM-DD for dates)
+    const codeMonth = formData.cutoffCode.substring(4, 6);
+    const startMonth = formData.fromDate.substring(5, 7);
+    const endMonth = formData.toDate.substring(5, 7);
+
+    // Validate Year
+    if (codeYear !== startYear || codeYear !== endYear) {
+      return useSwalErrorAlert(
+        "Invalid Dates",
+        `The Start and End Date years must match the first 4 digits of the Cut Off Code (${codeYear}).`
+      );
+    }
+
+    // Validate Month
+    if (codeMonth !== startMonth || codeMonth !== endMonth) {
+      return useSwalErrorAlert(
+        "Invalid Dates",
+        `The Start and End Date months must match the last 2 digits of the Cut Off Code (${codeMonth}).`
+      );
+    }
+    // --------------------------------
+
+    // 2. Date Range Validation
+    const start = new Date(formData.fromDate);
+    const end = new Date(formData.toDate);
+    if (start > end) {
+      return useSwalErrorAlert(
+        "Invalid Date Range",
+        "Start Date cannot be later than End Date.",
+      );
+    }
+
+    // 3. Final Duplicate Check for New Records
     if (!selectedCutoffCode) {
       try {
         setIsLoading(true);
@@ -224,8 +261,6 @@ const CutoffRef = () => {
 
         if (parsedData.result === "1") {
           setIsLoading(false);
-          // We only show this alert if the user managed to click save
-          // before the onBlur validation finished or if onBlur was bypassed.
           return useSwalErrorAlert(
             "Duplicate Error",
             `The Cut Off Code ${formData.cutoffCode} is already used.`,
@@ -236,16 +271,6 @@ const CutoffRef = () => {
       } finally {
         setIsLoading(false);
       }
-    }
-
-    // 3. Date Range Validation
-    const start = new Date(formData.fromDate);
-    const end = new Date(formData.toDate);
-    if (start > end) {
-      return useSwalErrorAlert(
-        "Invalid Date Range",
-        "Start Date cannot be later than End Date.",
-      );
     }
 
     // 4. Proceed with Save
@@ -311,51 +336,52 @@ const CutoffRef = () => {
   });
 
   const handleDelete = async (row) => {
-    // 1. Check if the status is Closed ('C')
-    if (row.status === "C") {
+  if (row.status === "C") {
+    return useSwalErrorAlert(
+      "Cannot Delete",
+      `Cut Off Code ${row.cutoffCode} is currently CLOSED and cannot be deleted.`,
+    );
+  }
+
+  try {
+    setIsLoading(true);
+
+    const payload = {
+      json_data: {
+        cutoffCode: row.cutoffCode,
+      },
+    };
+
+    const response = await apiClient.post("/checkInUsedCutOff", payload);
+
+    const sqlRow = response?.data?.data?.[0];
+    const rawJsonString = sqlRow?.result || Object.values(sqlRow || {})[0];
+    const parsedData = JSON.parse(rawJsonString || '{"result":"0"}');
+
+    if (parsedData.result === "1") {
       return useSwalErrorAlert(
         "Cannot Delete",
-        `Cut Off Code ${row.cutoffCode} is currently CLOSED and cannot be deleted.`,
+        `Cut Off Code ${row.cutoffCode} was already used.`,
       );
     }
 
-    try {
-      setIsLoading(true);
-      const payload = {
-        json_data: {
-          cutoffCode: row.cutoffCode,
-        },
-      };
+    const confirm = await useSwalDeleteConfirm(
+      "Confirm Delete",
+      `Are you sure you want to delete Code: ${row.cutoffCode}?`,
+    );
 
-      // 2. Check if used in other tables via SPROC
-      const response = await apiClient.post("/checkInUsedCutOff", payload);
-      const sqlRow = response?.data?.data?.[0];
-      const rawJsonString = sqlRow?.result || Object.values(sqlRow || {})[0];
-      const parsedData = JSON.parse(rawJsonString || '{"result":"0"}');
-
-      if (parsedData.result === "1") {
-        setIsLoading(false);
-        return useSwalErrorAlertAPI(
-          `Cannot Delete Cut Off Code: ${row.cutoffCode}`,
-          `Code was already used.`,
-        );
-      }
-
-      // 3. Confirmations
-      const confirm = await useSwalDeleteConfirm(
-        "Confirm Delete",
-        `Are you sure you want to delete Code: ${row.cutoffCode}?`,
-      );
-
-      if (confirm.isConfirmed) {
-        deleteCutoff(payload);
-      }
-    } catch (error) {
-      useSwalErrorAlertAPI("System Error", error);
-    } finally {
-      setIsLoading(false);
+    if (confirm.isConfirmed) {
+      deleteCutoff(payload);
     }
-  };
+  } catch (error) {
+    useSwalErrorAlertAPI(
+      "System Error",
+      error?.response?.data?.message || error?.message || "Delete check failed.",
+    );
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // --- VALIDATION: Check for Duplicate Code ---
   const handleCheckDuplicate = async (code) => {
@@ -485,7 +511,7 @@ const CutoffRef = () => {
     let mounted = true;
 
     (async () => {
-      const res = await useFieldLenghtCheck("VAT_REF");
+      const res = await useFieldLenghtCheck("CUTOFF_REF");
       if (mounted) setTblFieldArray(res || []);
     })();
 
@@ -674,7 +700,7 @@ const CutoffRef = () => {
                 disabled={!isEditing || !!selectedCutoffCode} // Field is locked during edit
                 onChange={(v) => handleCodeChange(v)}
                 onBlur={(e) => handleCheckDuplicate(e.target.value)} // <--- This triggers the check
-                maxLength={6}
+                maxLength={getMax("CUTOFF_CODE")}
               />
               {/* ... rest of your fields (Cut Off Name, Dates, Status) */}
               <FieldRenderer
@@ -688,8 +714,7 @@ const CutoffRef = () => {
                 onChange={(v) =>
                   setFormData((prev) => ({ ...prev, cutoffName: v }))
                 }
-                // Change this from getMax("CUTOFF_NAME") to a number like 50 for testing
-                maxLength={50}
+                maxLength={getMax("CUTOFF_NAME")}
               />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FieldRenderer
@@ -698,16 +723,21 @@ const CutoffRef = () => {
                   type="date"
                   value={formData.fromDate || ""}
                   disabled={!isEditing}
+                  max="9999-12-31" // Restricts browser date picker limit
                   onChange={(v) => {
+                    // Prevent year from exceeding 4 digits (e.g., YYYYY-MM-DD)
+                    if (v && v.split('-')[0].length > 4) return;
+                    
                     updateForm({ fromDate: v });
+                    
                     if (
                       formData.toDate &&
                       new Date(v) > new Date(formData.toDate)
                     ) {
-                      // Optional: Trigger a small toast or temporary warning here
                       console.warn("Start date is after end date");
                     }
                   }}
+                  maxLength={getMax("FROM_DATE")}
                 />
                 <FieldRenderer
                   label="End Date"
@@ -715,16 +745,21 @@ const CutoffRef = () => {
                   type="date"
                   value={formData.toDate || ""}
                   disabled={!isEditing}
+                  max="9999-12-31" // Restricts browser date picker limit
                   onChange={(v) => {
+                    // Prevent year from exceeding 4 digits (e.g., YYYYY-MM-DD)
+                    if (v && v.split('-')[0].length > 4) return;
+
                     updateForm({ toDate: v });
+                    
                     if (
                       formData.fromDate &&
                       new Date(formData.fromDate) > new Date(v)
                     ) {
-                      // Optional: Trigger a small toast or temporary warning here
                       console.warn("End date is before start date");
                     }
                   }}
+                  maxLength={getMax("TO_DATE")}
                 />
               </div>
               <FieldRenderer
