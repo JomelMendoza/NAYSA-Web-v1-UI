@@ -74,6 +74,7 @@ const VATRef = () => {
   const { user } = useAuth();
   const docType = "VATRef";
   const guideRef = useRef(null);
+  const formTopRef = useRef(null); // <-- Added ref for smooth scrolling
   const pdfLink = reftablesPDFGuide[docType];
   const videoLink = reftablesVideoGuide[docType];
 
@@ -88,7 +89,37 @@ const VATRef = () => {
 
   const [vatAcct, setvatAcct] = useState(null);
 
-  // const [isAccountModalOpen, setAccountModalOpen] = useState(false);
+  // --- Mobile Action Sheet State ---
+  const [isMobile, setIsMobile] = useState(false);
+  const [isMobileActionSheetMounted, setIsMobileActionSheetMounted] = useState(false);
+  const [isMobileActionSheetOpen, setIsMobileActionSheetOpen] = useState(false);
+  const [selectedMobileRow, setSelectedMobileRow] = useState(null);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  const openMobileActionSheet = (row) => {
+    setSelectedMobileRow(row);
+    setIsMobileActionSheetMounted(true);
+
+    requestAnimationFrame(() => {
+      setIsMobileActionSheetOpen(true);
+    });
+  };
+
+  const closeMobileActionSheet = () => {
+    setIsMobileActionSheetOpen(false);
+
+    setTimeout(() => {
+      setIsMobileActionSheetMounted(false);
+      setSelectedMobileRow(null);
+    }, 300);
+  };
 
   const toggleModal = (name, isOpen) =>
     setModals((prev) => ({ ...prev, [name]: isOpen }));
@@ -120,14 +151,12 @@ const VATRef = () => {
     mutationFn: async (payload) => await apiClient.post("/upsertVat", payload),
 
     onSuccess: (response) => {
-      // 1) SPROC row style (errorcount/errormsg)
       const sqlRow = response?.data?.data?.[0];
       if (sqlRow?.errorcount > 0) {
         useSwalErrorAlert("Error", sqlRow?.errormsg || "Failed to save VAT .");
-        return; // Removed resetForm here so user doesn't lose data on simple validation error
+        return; 
       }
 
-      // 2) API status style
       const status = response?.data?.status ?? response?.data?.data?.status;
       const success =
         response?.data?.success || status === "success" || !status;
@@ -142,7 +171,6 @@ const VATRef = () => {
         return;
       }
 
-      // ✅ Success path
       queryClient.invalidateQueries({ queryKey: ["vatList"] });
       useSwalSuccessAlert("Success!", "VAT Code Saved Successfully!");
       resetForm();
@@ -160,7 +188,6 @@ const VATRef = () => {
 
   // --- UPDATED ACTIONS ---
   const handleSave = () => {
-    // 1. Basic Validations (Matching Cutoff style)
     if (!formData.vatCode || !formData.vatName || !formData.acctCode) {
       return useSwalErrorAlert(
         "Validation Error",
@@ -168,7 +195,6 @@ const VATRef = () => {
       );
     }
 
-    // 2. VAT Rate specific validation
     if (parseFloat(formData.vatRate) < 0) {
       return useSwalErrorAlert("Invalid Rate", "VAT Rate cannot be negative.");
     }
@@ -177,7 +203,7 @@ const VATRef = () => {
       json_data: JSON.stringify({
         json_data: {
           ...formData,
-          vatRate: formData.vatRate || "0.00", // Ensure no nulls are sent
+          vatRate: formData.vatRate || "0.00", 
           action: selectedVatCode ? "EDIT" : "ADD",
           userCode: user?.USER_CODE || "ADMIN",
         },
@@ -186,13 +212,16 @@ const VATRef = () => {
     saveVAT(payload);
   };
 
-  // --- MUTATION: UPSERT ---
-
   const resetForm = () => {
     setFormData(INITIAL_FORM);
     setRegistrationInfo(INITIAL_REG);
     setSelectedAcctCode(null);
     setIsEditing(false);
+    
+    // Optional: Also scroll to top on reset
+    if (formTopRef.current) {
+      formTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
   const handleEdit = (row) => {
@@ -209,7 +238,7 @@ const VATRef = () => {
       ...row,
       classCode: row.classCode,
       acctName: row.acctName,
-      className: classNameFromRow || classNameFromDropdown, // ✅ important
+      className: classNameFromRow || classNameFromDropdown, 
       vatRate: row.vatRate !== undefined ? row.vatRate : 0,
     });
 
@@ -222,6 +251,17 @@ const VATRef = () => {
 
     console.log("Edit Row:", row);
     setIsEditing(true);
+    closeMobileActionSheet(); 
+
+    // <-- Added smooth scroll to the form area after a short delay to allow the sheet to close
+    setTimeout(() => {
+      if (formTopRef.current) {
+        // Adjust scroll position slightly higher if you have a sticky header
+        const yOffset = -80; 
+        const y = formTopRef.current.getBoundingClientRect().top + window.pageYOffset + yOffset;
+        window.scrollTo({ top: y, behavior: 'smooth' });
+      }
+    }, 150);
   };
 
   const { mutate: deleteVat, isLoading: isDeleting } = useMutation({
@@ -239,14 +279,13 @@ const VATRef = () => {
 
   const handleDelete = async (row) => {
     try {
-      setIsLoading(true); // Ensure you have a general loading state or use the mutation's state
+      setIsLoading(true); 
       const payload = {
         json_data: {
           vatCode: row.vatCode,
         },
       };
 
-      // 1. Check if used in other tables via SPROC
       const response = await apiClient.post("/checkInUsedVat", payload);
       const sqlRow = response?.data?.data?.[0];
       const rawJsonString = sqlRow?.result || Object.values(sqlRow || {})[0];
@@ -260,7 +299,6 @@ const VATRef = () => {
         );
       }
 
-      // 2. Confirmations
       const confirm = await useSwalDeleteConfirm(
         "Confirm Delete",
         `Are you sure you want to delete Code: ${row.vatCode}?`,
@@ -291,7 +329,7 @@ const VATRef = () => {
       const parsedData = JSON.parse(rawJsonString || '{"result":"0"}');
 
       if (parsedData.result === "1") {
-        updateForm({ vatCode: "" }); // Clear the code on duplicate
+        updateForm({ vatCode: "" });
         setIsLoading(false);
         return useSwalErrorAlert(
           "Duplicate VAT Code",
@@ -313,25 +351,40 @@ const VATRef = () => {
     () => [
       {
         key: "__actions",
-        label: "Actions",
+        label: <span className="hidden md:inline">Actions</span>,
+        width: 50,
         render: (row) => (
-          <div className="flex gap-2 justify-center">
-            {/* Updated Edit Button matching CutoffRef style */}
+          <div className="flex gap-2 justify-center w-full">
             <button
-              onClick={() => handleEdit(row)}
-              className="p-1.5 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-600 hover:text-white transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isMobile) {
+                  openMobileActionSheet(row);
+                } else {
+                  handleEdit(row);
+                }
+              }}
+              className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-blue-50 border border-blue-100 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-colors text-xs"
               title="Edit"
             >
               <FontAwesomeIcon icon={faEdit} />
+              <span className="md:hidden">Edit</span>
             </button>
 
-            {/* Updated Delete Button matching CutoffRef style */}
             <button
-              onClick={() => handleDelete(row)}
-              className="p-1.5 rounded-md bg-red-100 text-red-700 hover:bg-red-600 hover:text-white transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isMobile) {
+                  openMobileActionSheet(row);
+                } else {
+                  handleDelete(row);
+                }
+              }}
+              className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-red-50 border border-red-100 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors text-xs"
               title="Delete"
             >
               <FontAwesomeIcon icon={faTrashAlt} />
+              <span className="md:hidden">Delete</span>
             </button>
           </div>
         ),
@@ -364,7 +417,7 @@ const VATRef = () => {
         key: "vatRate",
         label: "VAT Rate (%)",
         sortable: true,
-        className: "text-right font-mono",
+        className: "text-right",
         render: (row) => {
           const rate = parseFloat(row.vatRate || 0);
           return `${rate.toFixed(2)}%`;
@@ -384,7 +437,7 @@ const VATRef = () => {
       { key: "acctCode", label: "Account Code", sortable: true },
       { key: "acctName", label: "Account Name", sortable: true },
     ],
-    [dropdowns, handleEdit, handleDelete],
+    [dropdowns, isMobile], 
   );
 
   useEffect(() => {
@@ -446,6 +499,7 @@ const VATRef = () => {
       {/* Header Section */}
       <div className="global-ref-header-ui">
         <div className="w-full flex flex-col gap-3 md:grid md:grid-cols-3 md:items-center md:gap-0">
+          
           {/* 1) Title */}
           <div className="w-full md:w-auto md:justify-start flex">
             <h1 className="global-ref-headertext-ui w-full md:w-auto truncate text-center md:text-left">
@@ -453,36 +507,35 @@ const VATRef = () => {
             </h1>
           </div>
 
-          {/* Middle: spacer (no tabs) */}
+          {/* Middle: spacer */}
           <div className="hidden md:flex justify-center w-full" />
 
           {/* 3) Buttons + Info */}
           <div className="w-full md:w-auto flex md:justify-end">
             <div className="w-full md:w-auto flex items-center justify-center md:justify-end gap-2 flex-wrap">
+              
               {/* ButtonBar: allow wrapping on mobile */}
               <div className="flex flex-wrap justify-center md:justify-end gap-2">
                 <ButtonBar
                   buttons={[
                     {
                       key: "add",
-                      label: <span className="hidden sm:inline ml-1">Add</span>,
+                      label: <span className="sm:inline ml-1">Add</span>,
                       icon: faPlus,
                       onClick: () => {
                         resetForm();
                         setIsEditing(true);
                       },
                       className:
-                        "flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
+                        "flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
                     },
                     {
                       key: "save",
-                      label: (
-                        <span className="hidden sm:inline ml-1">Save</span>
-                      ),
+                      label: <span className="sm:inline ml-1">Save</span>,
                       icon: faSave,
                       onClick: handleSave,
                       disabled: !isEditing || isSaving,
-                      className: `flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md transition-all
+                      className: `flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md transition-all
                         ${
                           !isEditing || isSaving
                             ? "bg-blue-500 opacity-50 cursor-not-allowed text-white"
@@ -491,13 +544,11 @@ const VATRef = () => {
                     },
                     {
                       key: "reset",
-                      label: (
-                        <span className="hidden sm:inline ml-1">Reset</span>
-                      ),
+                      label: <span className="sm:inline ml-1">Reset</span>,
                       icon: faUndo,
                       onClick: resetForm,
                       className:
-                        "flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
+                        "flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
                     },
                   ]}
                 />
@@ -507,13 +558,13 @@ const VATRef = () => {
               <div ref={guideRef} className="relative">
                 <button
                   onClick={() => setOpenGuide((v) => !v)}
-                  className="bg-blue-600 text-white h-8 w-8 sm:w-auto sm:h-8 sm:px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
+                  className="bg-blue-600 text-white h-7 w-16 sm:w-auto sm:h-8 sm:px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
                 >
                   <FontAwesomeIcon
                     icon={faInfoCircle}
                     className="text-[12px]"
                   />
-                  <span className="hidden sm:inline ml-1 text-[11px] font-medium">
+                  <span className="sm:inline ml-1 text-[11px] font-medium">
                     Info
                   </span>
                   <FontAwesomeIcon
@@ -559,10 +610,11 @@ const VATRef = () => {
       </div>
 
       {/* Main Content */}
-      <div className="mt-24 flex flex-col lg:flex-row lg:items-stretch gap-2">
-        {/* LEFT DIV: Main Form Fields (Takes 75% of width on large screens) */}
+      {/* Attached the ref to the top div of the form content so it scrolls properly */}
+      <div ref={formTopRef} className="mt-24 flex flex-col lg:flex-row lg:items-stretch gap-2">
+        {/* LEFT DIV: Main Form Fields */}
         <div className="flex-1 bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-100 dark:border-gray-700 shadow-lg grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-          {/* Sub-Column 1 (Internal Grid) */}
+          {/* Sub-Column 1 */}
           <div className="space-y-6">
             <FieldRenderer
               label="VAT Code"
@@ -611,7 +663,7 @@ const VATRef = () => {
             />
           </div>
 
-          {/* Sub-Column 2 (Internal Grid) */}
+          {/* Sub-Column 2 */}
           <div className="space-y-6">
             <FieldRenderer
               label="VAT Rate (%)"
@@ -621,14 +673,10 @@ const VATRef = () => {
               placeholder="0.00"
               step="0.01"
               onChange={(v) => {
-                // Prevent negative rates immediately during typing
                 const numericValue = Math.max(0, parseFloat(v) || 0);
-                // If user is still typing (e.g., just a dot), we allow the string 'v'
-                // but we'll clean it up on blur
                 updateForm({ vatRate: v });
               }}
               onBlur={(e) => {
-                // Force formatting and ensure no negatives/nulls on exit
                 const val = parseFloat(e.target.value || 0);
                 const sanitized = Math.max(0, val).toFixed(2);
                 updateForm({ vatRate: sanitized });
@@ -682,6 +730,7 @@ const VATRef = () => {
           isLoading={isListLoading}
           onRowDoubleClick={handleEdit}
           itemsPerPage={50}
+          onMobileRowOpen={openMobileActionSheet}
         />
       </div>
 
@@ -697,6 +746,61 @@ const VATRef = () => {
           }
         }}
       />
+
+      {/* Mobile Action Sheet Overlay */}
+      {isMobileActionSheetMounted && (
+        <div className="fixed inset-0 z-[120] md:hidden">
+          <div
+            className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${
+              isMobileActionSheetOpen ? "opacity-100" : "opacity-0"
+            }`}
+            onClick={closeMobileActionSheet}
+          />
+
+          <div
+            className={`absolute bottom-0 left-0 right-0 rounded-t-2xl bg-white shadow-2xl p-4 transform transition-transform duration-300 ease-out ${
+              isMobileActionSheetOpen ? "translate-y-0" : "translate-y-full"
+            }`}
+          >
+            <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4" />
+
+            <div className="mb-3">
+              <h2 className="text-sm font-bold text-gray-800">VAT Actions</h2>
+              <p className="text-xs text-gray-500">
+                {selectedMobileRow?.vatCode} {selectedMobileRow?.vatName ? `- ${selectedMobileRow.vatName}` : ""}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <button
+                onClick={() => handleEdit(selectedMobileRow)}
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-blue-50 text-blue-600 py-3 text-sm font-medium hover:bg-blue-600 hover:text-white transition-colors"
+              >
+                <FontAwesomeIcon icon={faEdit} />
+                Edit
+              </button>
+
+              <button
+                onClick={() => {
+                  handleDelete(selectedMobileRow);
+                  closeMobileActionSheet();
+                }}
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-red-50 text-red-600 py-3 text-sm font-medium hover:bg-red-600 hover:text-white transition-colors"
+              >
+                <FontAwesomeIcon icon={faTrashAlt} />
+                Delete
+              </button>
+
+              <button
+                onClick={closeMobileActionSheet}
+                className="w-full rounded-lg bg-gray-100 text-gray-700 py-3 text-sm font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
