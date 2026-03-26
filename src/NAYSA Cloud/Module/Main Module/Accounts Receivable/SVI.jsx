@@ -64,11 +64,13 @@ import {
 } from '@/NAYSA Cloud/Global/procedure';
 
 import {
-  useGetCurrentDay,
+  useGetCurrentDayV2,
   useFormatToDate,
-  usehandleDateChange,
-  usehandleDateBlur,
+  useformatToDatev2
 } from '@/NAYSA Cloud/Global/dates';
+
+import DateFormatInput from '@/NAYSA Cloud/Global/DateFormatInput.jsx';
+
 
 import {
   useHandlePrint,
@@ -132,7 +134,7 @@ const SVI = () => {
     documentSeries: "Auto",
     documentDocLen: 8,
     documentID: null,
-    documentDate:useGetCurrentDay(),   
+    documentDate:useGetCurrentDayV2(),   
     documentNo: "",
     documentStatus:"",
     status: "OPEN",
@@ -501,7 +503,7 @@ useEffect(() => {
       branchCode: currentUserRow?.branchCode||"",
       branchName: currentUserRow?.branchName||"",
       userCode:currentUserRow?.userCode||"",
-      documentDate:useGetCurrentDay(),
+      documentDate:useGetCurrentDayV2(),
       currCode:companyInfo?.currCode||"",
       glCurrDefault:companyInfo?.currCode||"",
       currName:companyInfo?.currName||"",
@@ -639,7 +641,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       creditFx2: formatNumber(glRow.creditFx2),
     }));
 
-  
+    console.log(data)
     // Update state with fetched data
     updateState({
       documentStatus: data.sviStatus,
@@ -649,12 +651,14 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       documentNo: data.sviNo,
       branchCode: data.branchCode,
       branchName:data.branchName,
-      documentDate: useFormatToDate(data.sviDate),
+      documentDate: useformatToDatev2(data.sviDate),
       selectedSVIType: data.svitranType,
       custCode: data.custCode,
       custName: data.custName,
       attention:data.attention,
       refDocNo1: data.refDocNo1,
+      fromDate:useformatToDatev2(data.fromDate),
+      toDate:useformatToDatev2(data.toDate),
       refDocNo2: data.refDocNo2,
       currCode: data.currCode,
       currName: data.currName,
@@ -705,12 +709,28 @@ const handleCurrRateNoBlur = (e) => {
 
 
 
+const moveFocusBeforeSave = () => {
+  const remarksEl = document.getElementById("remarks");
+  if (remarksEl) {
+    remarksEl.focus();
+    return true;
+  }
+  return false;
+};
+
+
+
  const handleActivityOption = async (action) => {
+  if (action === "Upsert") {
+      moveFocusBeforeSave();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+
   if (action === "Upsert" && detailRowsGL.length === 0) {
     updateState({ triggerGLEntries: true });
     return;
   }
-
 
   if (documentStatus === '') {
    
@@ -1069,7 +1089,7 @@ const handleCopy = async () => {
                   documentID:"",
                   documentStatus:"",
                   status:"OPEN",
-                  documentDate:useGetCurrentDay(), 
+                  documentDate:useGetCurrentDayV2(), 
                   noReprints:"0",
      });
   }
@@ -1864,14 +1884,22 @@ return (
 
                     {/* SVI Date Picker */}
                     <div className="relative">
-                        <input type="date"
+                        {/* <input type="date"
                             id="SVIDate"
                             className="peer global-tran-textbox-ui"
                             value={documentDate}
                             onChange={(e) => updateState({ documentDate: e.target.value })} 
                             disabled={isFormDisabled} 
-                        />
-                        <label htmlFor="SVIDate" className="global-tran-floating-label">SVI Date</label>
+                        /> */}
+
+                    <DateFormatInput
+                        id="documentDate"
+                        value={documentDate}
+                        updateState={updateState}
+                        disabled={isFormDisabled}
+                      />
+
+                        <label htmlFor="documentDate" className="global-tran-floating-label">SVI Date</label>
                     </div>
 
                     {/* Customer Code */}
@@ -2037,27 +2065,27 @@ return (
                     </div>
 
                     <div className="relative">
-                        <input type="date"
-                            id="fromDate" value={fromDate} 
-                            maxLength={10}
-                            inputMode="numeric"
-                            onChange={(e) => usehandleDateChange(e.target.value, "fromDate", updateState)}
-                            onBlur={() => usehandleDateBlur(state.fromDate || "", "fromDate", updateState)}
-                            className="peer global-tran-textbox-ui"
-                            disabled={isFormDisabled} 
-                        />
-                        <label htmlFor="fromDate" className="global-tran-floating-label">From Date</label>
+                      <DateFormatInput
+                        id="fromDate"
+                        value={fromDate}
+                        updateState={updateState}
+                        disabled={isFormDisabled}
+                        // onBlurCustom={}
+                      />
+                    <label htmlFor="fromDate" className="global-tran-floating-label">From Date</label>
                     </div>
 
                     <div className="relative">
-                        <input type="date"
-                            id="toDate" value={toDate} onChange={(e) => setToDate(e.target.value)}
-                            className="peer global-tran-textbox-ui"
-                            disabled={isFormDisabled} 
-                        />
+                      <DateFormatInput
+                        id="toDate"
+                        value={toDate}
+                        updateState={updateState}
+                        disabled={isFormDisabled}
+                      />
                         <label htmlFor="toDate" className="global-tran-floating-label">To Date</label>
                     </div>
                 </div>
+
 
                 {/* Remarks Section - Now inside the 3-column container, spanning all 3 */}
                 <div className="col-span-full">
@@ -2870,7 +2898,7 @@ return (
                 <th className="global-tran-th-ui w-[2000px]">Particulars</th>
                 <th className="global-tran-th-ui">VAT Code</th>
                 <th className="global-tran-th-ui">VAT Name</th>
-                <th className="global-tran-th-ui">ATC Code</th>
+                <th className="global-tran-th-ui">ATC</th>
                 <th className="global-tran-th-ui ">ATC Name</th>
 
                 <th className="global-tran-th-ui">Debit ({glCurrDefault})</th>

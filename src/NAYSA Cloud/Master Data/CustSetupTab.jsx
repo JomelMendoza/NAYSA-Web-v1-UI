@@ -34,6 +34,7 @@ const CustSetupTab = forwardRef(
       isLoading,
       isEditing,
       form = {},
+      generationMode = "S", // <-- Added generationMode prop
       onChangeForm,
       onSelectCustomerCode,
       sltypeOptions = [],
@@ -84,6 +85,9 @@ const CustSetupTab = forwardRef(
     const isReadOnly = !isEditing;
     const isDisabled = isReadOnly || isLoading;
 
+    // Helper variable to determine if we are manually adding a new code
+    const isManualNew = form.__isNew && generationMode === "M";
+
     const openCustomerLookup = () => {
       if (isLoading) return;
       toggleLookup("cust", true);
@@ -121,10 +125,22 @@ const CustSetupTab = forwardRef(
               <FieldRenderer
                 label="Customer Code"
                 required
-                type="lookup"
+                // Switch to a normal text field if it's a new Manual record
+                type={isManualNew ? "text" : "lookup"}
                 value={form?.custCode || ""}
-                onLookup={openCustomerLookup}
-                readOnly={true}
+                // Only allow typing if it's a new Manual record
+                onChange={
+                  isManualNew
+                    ? (v) => {
+                        const val = getValue(v);
+                        onChangeForm({ custCode: val });
+                      }
+                    : undefined
+                }
+                // Only trigger the lookup modal if NOT creating a new Manual record
+                onLookup={isManualNew ? undefined : openCustomerLookup}
+                // Unlock the field if it's a new Manual record
+                readOnly={!isManualNew}
                 disabled={isLoading}
                 maxLength={getLen("cust_code", 20)}
               />
@@ -701,67 +717,6 @@ const CustSetupTab = forwardRef(
                     disabled={isDisabled}
                   />
                 </div>
-
-                {/* <div className="mt-6">
-                  <SectionHeader title="SUPPLEMENTARY INFORMATION" />
-                </div>
-
-                <div className="space-y-3">
-                  <FieldRenderer
-                    label="Code 1"
-                    type="text"
-                    value={form?.shipmentCode1 || ""}
-                    onChange={(v) =>
-                      onChangeForm({ shipmentCode1: getValue(v) })
-                    }
-                    readOnly={isReadOnly}
-                    disabled={isDisabled}
-                  />
-
-                  <FieldRenderer
-                    label="Code 2"
-                    type="text"
-                    value={form?.shipmentCode2 || ""}
-                    onChange={(v) =>
-                      onChangeForm({ shipmentCode2: getValue(v) })
-                    }
-                    readOnly={isReadOnly}
-                    disabled={isDisabled}
-                  />
-
-                  <FieldRenderer
-                    label="Code 3"
-                    type="text"
-                    value={form?.shipmentCode3 || ""}
-                    onChange={(v) =>
-                      onChangeForm({ shipmentCode3: getValue(v) })
-                    }
-                    readOnly={isReadOnly}
-                    disabled={isDisabled}
-                  />
-
-                  <FieldRenderer
-                    label="Code 4"
-                    type="text"
-                    value={form?.shipmentCode4 || ""}
-                    onChange={(v) =>
-                      onChangeForm({ shipmentCode4: getValue(v) })
-                    }
-                    readOnly={isReadOnly}
-                    disabled={isDisabled}
-                  />
-
-                  <FieldRenderer
-                    label="Destination 2"
-                    type="text"
-                    value={form?.destination2 || ""}
-                    onChange={(v) =>
-                      onChangeForm({ destination2: getValue(v) })
-                    }
-                    readOnly={isReadOnly}
-                    disabled={isDisabled}
-                  /> */}
-                {/* </div> */}
               </>
             )}
           </Card>

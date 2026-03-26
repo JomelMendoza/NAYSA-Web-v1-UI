@@ -3,17 +3,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer";
-import ButtonBar from "@/NAYSA Cloud/Global/ButtonBar";
-import { Edit, Trash2 } from "lucide-react";
+import { Plus, Save, Undo2, Edit, Trash2 } from "lucide-react";
 import RegistrationInfo from "@/NAYSA Cloud/Global/RegistrationInfo";
 import SearchGlobalReferenceTable from "@/NAYSA Cloud/Lookup/SearchGlobalReferenceTable";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faPlus,
-  faSave,
-  faUndo,
-  faTrashAlt,
   faEdit,
+  faTrashAlt,
 } from "@fortawesome/free-solid-svg-icons";
 
 import {
@@ -85,9 +81,23 @@ export const SalesRep = () => {
   const codeInputRef = useRef(null);
   const guideRef = useRef(null);
 
+  // --- MOBILE ACTION SHEET STATES ---
+  const [isMobile, setIsMobile] = useState(false);
+  const [isMobileActionSheetMounted, setIsMobileActionSheetMounted] = useState(false);
+  const [isMobileActionSheetOpen, setIsMobileActionSheetOpen] = useState(false);
+  const [selectedMobileRow, setSelectedMobileRow] = useState(null);
+
   useEffect(() => {
     document.title = title;
   }, [title]);
+
+  // --- MOBILE DETECTOR EFFECT ---
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   const setField = (key, value) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -95,6 +105,25 @@ export const SalesRep = () => {
   const resetUI = useCallback(() => {
     setForm(emptyForm);
     setIsEditing(false);
+  }, []);
+
+  // --- MOBILE ACTION SHEET HANDLERS ---
+  const openMobileActionSheet = useCallback((row) => {
+    setSelectedMobileRow(row);
+    setIsMobileActionSheetMounted(true);
+
+    requestAnimationFrame(() => {
+      setIsMobileActionSheetOpen(true);
+    });
+  }, []);
+
+  const closeMobileActionSheet = useCallback(() => {
+    setIsMobileActionSheetOpen(false);
+
+    setTimeout(() => {
+      setIsMobileActionSheetMounted(false);
+      setSelectedMobileRow(null);
+    }, 300);
   }, []);
 
   const startNew = () => {
@@ -110,6 +139,7 @@ export const SalesRep = () => {
       __existing: true,
     });
     setIsEditing(true);
+    closeMobileActionSheet(); // Close sheet if opened from mobile
     setTimeout(() => codeInputRef.current?.focus?.(), 0);
   };
 
@@ -279,6 +309,7 @@ export const SalesRep = () => {
 
     try {
       await deleteMutation.mutateAsync(code);
+      closeMobileActionSheet(); // Close sheet if opened from mobile
     } catch {}
   };
 
@@ -293,78 +324,83 @@ export const SalesRep = () => {
 
   const columns = useMemo(
     () => [
-      { key: "salesRepCode", label: "Agent Code", sortable: true },
-      { key: "salesRepName", label: "Agent Name", sortable: true },
-      { key: "salesRepType", label: "Agent Type", sortable: true },
-      { key: "salesRepBranch", label: "Branch", sortable: true },
       {
         key: "__actions",
-        label: "Actions",
+        label: <span className="hidden md:inline">Actions</span>,
         render: (row) => (
-          <div className="flex justify-center gap-2">
+          <div className="flex justify-center gap-2 w-full">
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                startEdit(row);
+                if (isMobile) openMobileActionSheet(row);
+                else startEdit(row);
               }}
-              className="rounded-md border border-blue-200 bg-blue-50 p-1 text-blue-600 transition-colors hover:bg-blue-600 hover:text-white"
+              className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-blue-50 border border-blue-100 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-colors text-xs"
             >
               <FontAwesomeIcon icon={faEdit} />
+              <span className="md:hidden">Edit</span>
             </button>
             <button
               type="button"
               onClick={async (e) => {
                 e.stopPropagation();
-                await handleDelete(row);
+                if (isMobile) openMobileActionSheet(row);
+                else await handleDelete(row);
               }}
-              className="rounded-md border border-red-200 bg-red-50 p-1 text-red-600 transition-colors hover:bg-red-600 hover:text-white"
+              className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-red-50 border border-red-100 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors text-xs"
             >
               <FontAwesomeIcon icon={faTrashAlt} />
+              <span className="md:hidden">Delete</span>
             </button>
           </div>
         ),
       },
+      { key: "salesRepCode", label: "Agent Code", sortable: true },
+      { key: "salesRepName", label: "Agent Name", sortable: true },
+      { key: "salesRepType", label: "Agent Type", sortable: true },
+      { key: "salesRepBranch", label: "Branch", sortable: true },
     ],
-    []
+    [isMobile, openMobileActionSheet]
   );
 
   return (
     <div className="rounded-lg bg-white p-4 shadow-sm">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-bold">{title}</h1>
 
-        <div className="flex gap-3 items-center">
+        <div className="flex flex-col sm:flex-row gap-3 items-center w-full sm:w-auto">
           <input
-            className="global-tran-textbox-ui w-64"
+            className="global-tran-textbox-ui w-full sm:w-64"
             placeholder="Search..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <ButtonBar
-            buttons={[
-              {
-                key: "add",
-                label: "Add",
-                icon: faPlus,
-                onClick: startNew,
-                disabled: isEditing && !form.__existing,
-              },
-              {
-                key: "save",
-                label: "Save",
-                icon: faSave,
-                onClick: handleSave,
-                disabled: !isEditing || upsertMutation.isPending,
-              },
-              {
-                key: "reset",
-                label: "Reset",
-                icon: faUndo,
-                onClick: resetUI,
-              },
-            ]}
-          />
+          <div className="flex gap-2 w-full sm:w-auto justify-end">
+            <button
+              type="button"
+              onClick={startNew}
+              disabled={isEditing && !form.__existing}
+              className="flex flex-1 sm:flex-none items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-white hover:bg-blue-700 disabled:opacity-50 text-xs"
+            >
+              <Plus size={16} /> <span className="hidden sm:inline">Add</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={!isEditing || upsertMutation.isPending}
+              className="flex flex-1 sm:flex-none items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-white hover:bg-blue-700 disabled:opacity-50 text-xs"
+            >
+              <Save size={16} /> <span className="hidden sm:inline">Save</span>
+            </button>
+            <button
+              type="button"
+              onClick={resetUI}
+              className="flex flex-1 sm:flex-none items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-white hover:bg-blue-700 text-xs"
+            >
+              <Undo2 size={16} /> <span className="hidden sm:inline">Reset</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -372,7 +408,7 @@ export const SalesRep = () => {
         <div className="flex h-fit max-w-lg flex-col gap-6">
           <section>
             <SectionHeader title="Basic Information" />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FieldRenderer
                 label="Agent Code"
                 required
@@ -423,9 +459,66 @@ export const SalesRep = () => {
             onRowDoubleClick={startEdit}
             showGlobalSearch={false}
             onRefresh={() => salesRepQuery.refetch()}
+            onMobileRowOpen={openMobileActionSheet} // Piped into global table!
           />
         </div>
       </div>
+
+      {/* MOBILE ACTION SHEET COMPONENT */}
+      {isMobileActionSheetMounted && (
+        <div className="fixed inset-0 z-[120] md:hidden">
+          <div
+            className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${
+              isMobileActionSheetOpen ? "opacity-100" : "opacity-0"
+            }`}
+            onClick={closeMobileActionSheet}
+          />
+
+          <div
+            className={`absolute bottom-0 left-0 right-0 rounded-t-2xl bg-white shadow-2xl p-4 transform transition-transform duration-300 ease-out ${
+              isMobileActionSheetOpen ? "translate-y-0" : "translate-y-full"
+            }`}
+          >
+            <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4" />
+
+            <div className="mb-3">
+              <h2 className="text-sm font-bold text-gray-800">Agent Actions</h2>
+              <p className="text-xs text-gray-500">
+                {selectedMobileRow?.salesRepCode} {selectedMobileRow?.salesRepName ? `- ${selectedMobileRow.salesRepName}` : ""}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <button
+                onClick={() => startEdit(selectedMobileRow)}
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-blue-50 text-blue-600 py-3 text-sm font-medium hover:bg-blue-600 hover:text-white transition-colors"
+              >
+                <FontAwesomeIcon icon={faEdit} />
+                Edit
+              </button>
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete(selectedMobileRow);
+                }}
+                className="w-full flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-red-50 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors text-xs"
+                title="Delete"
+              >
+                <FontAwesomeIcon icon={faTrashAlt} />
+                <span className="md:hidden">Delete</span>
+              </button>
+
+              <button
+                onClick={closeMobileActionSheet}
+                className="w-full rounded-lg bg-gray-100 text-gray-700 py-3 text-sm font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

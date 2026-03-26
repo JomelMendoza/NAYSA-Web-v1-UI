@@ -3,6 +3,17 @@ export const useGetCurrentDay = () => new Date().toISOString().split('T')[0];
 
 
 
+export const useGetCurrentDayV2 = () => {
+  const today = new Date();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  const year = today.getFullYear();
+  const value = `${month}/${day}/${year}`;
+  return value;
+};
+
+
+
 export function useFormatToDate(value) {
   if (!value) return "";
   if (typeof value === "string") {
@@ -42,90 +53,110 @@ export function useReturnToDate(value) {
 
 
 
+export const useformatToDatev2 = (value) => {
+  if (!value) return "";
 
+  const raw = String(value).trim();
 
-export const formatDateInput = (value) => {
-  const digits = String(value || "")
-    .replace(/\D/g, "")
-    .slice(0, 8);
+  const datePart = raw.includes("T") ? raw.split("T")[0] : raw;
 
-  if (digits.length <= 2) return digits;
-  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
-  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)}`;
+  const parts = datePart.split("-");
+  if (parts.length !== 3) return "";
+
+  const [year, month, day] = parts;
+
+  if (!year || !month || !day) return "";
+
+  return `${month}/${day}/${year}`;
 };
 
-export const isValidDateString = (value) => {
-  if (value === "") return true;
 
-  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(value)) return false;
 
-  const [month, day, year] = value.split("/").map(Number);
 
-  if (year < 1900 || year > 2099) return false;
-  if (month < 1 || month > 12) return false;
-  if (day < 1 || day > 31) return false;
 
-  const date = new Date(year, month - 1, day);
+// export const formatDateInput = (value) => {
+//   const digits = String(value || "")
+//     .replace(/\D/g, "")
+//     .slice(0, 8);
 
-  return (
-    date.getFullYear() === year &&
-    date.getMonth() === month - 1 &&
-    date.getDate() === day
-  );
-};
+//   if (digits.length <= 2) return digits;
+//   if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+//   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)}`;
+// };
 
-const applyDateValue = (fieldNameOrSetter, updateState, value) => {
-  if (typeof fieldNameOrSetter === "function") {
-    fieldNameOrSetter(value);
-    return;
-  }
+// export const isValidDateString = (value) => {
+//   if (value === "") return true;
 
-  if (updateState && typeof fieldNameOrSetter === "string") {
-    updateState({ [fieldNameOrSetter]: value });
-  }
-};
+//   if (!/^\d{2}\/\d{2}\/\d{4}$/.test(value)) return false;
 
-export const usehandleDateChange = (value, fieldNameOrSetter, updateState) => {
-  const rawValue = String(value || "");
+//   const [month, day, year] = value.split("/").map(Number);
 
-  if (rawValue === "") {
-    applyDateValue(fieldNameOrSetter, updateState, "");
-    return;
-  }
+//   if (year < 1900 || year > 2099) return false;
+//   if (month < 1 || month > 12) return false;
+//   if (day < 1 || day > 31) return false;
 
-  // do not allow characters other than digits and /
-  if (!/^[0-9/]*$/.test(rawValue)) return;
+//   const date = new Date(year, month - 1, day);
 
-  // absolute max length for MM/dd/yyyy
-  if (rawValue.length > 10) return;
+//   return (
+//     date.getFullYear() === year &&
+//     date.getMonth() === month - 1 &&
+//     date.getDate() === day
+//   );
+// };
 
-  const parts = rawValue.split("/");
+// const applyDateValue = (fieldNameOrSetter, updateState, value) => {
+//   if (typeof fieldNameOrSetter === "function") {
+//     fieldNameOrSetter(value);
+//     return;
+//   }
 
-  // month max 2 digits
-  if (parts[0]?.length > 2) return;
+//   if (updateState && typeof fieldNameOrSetter === "string") {
+//     updateState({ [fieldNameOrSetter]: value });
+//   }
+// };
 
-  // day max 2 digits
-  if (parts[1]?.length > 2) return;
+// export const usehandleDateChange = (value, fieldNameOrSetter, updateState) => {
+//   const rawValue = String(value || "");
 
-  // year max 4 digits
-  if (parts[2]?.length > 4) return;
+//   if (rawValue === "") {
+//     applyDateValue(fieldNameOrSetter, updateState, "");
+//     return;
+//   }
 
-  const formatted = formatDateInput(rawValue);
-  const formattedParts = formatted.split("/");
+//   // do not allow characters other than digits and /
+//   if (!/^[0-9/]*$/.test(rawValue)) return;
 
-  if (formattedParts[0] && Number(formattedParts[0]) > 12) return;
-  if (formattedParts[1] && Number(formattedParts[1]) > 31) return;
+//   // absolute max length for MM/dd/yyyy
+//   if (rawValue.length > 10) return;
 
-  if (formattedParts[2] && formattedParts[2].length === 4) {
-    const year = Number(formattedParts[2]);
-    if (year < 1900 || year > 2099) return;
-  }
+//   const parts = rawValue.split("/");
 
-  applyDateValue(fieldNameOrSetter, updateState, formatted);
-};
+//   // month max 2 digits
+//   if (parts[0]?.length > 2) return;
 
-export const usehandleDateBlur = (value, fieldNameOrSetter, updateState) => {
-  if (!isValidDateString(value)) {
-    applyDateValue(fieldNameOrSetter, updateState, "");
-  }
-};
+//   // day max 2 digits
+//   if (parts[1]?.length > 2) return;
+
+//   // year max 4 digits
+//   if (parts[2]?.length > 4) return;
+
+//   const formatted = formatDateInput(rawValue);
+//   const formattedParts = formatted.split("/");
+
+//   if (formattedParts[0] && Number(formattedParts[0]) > 12) return;
+//   if (formattedParts[1] && Number(formattedParts[1]) > 31) return;
+
+//   if (formattedParts[2] && formattedParts[2].length === 4) {
+//     const year = Number(formattedParts[2]);
+//     if (year < 1900 || year > 2099) return;
+//   }
+
+//   applyDateValue(fieldNameOrSetter, updateState, formatted);
+// };
+
+// export const usehandleDateBlur = (value, fieldNameOrSetter, updateState) => {
+//   if (!isValidDateString(value)) {
+//     applyDateValue(fieldNameOrSetter, updateState, "");
+//   }
+// };
+

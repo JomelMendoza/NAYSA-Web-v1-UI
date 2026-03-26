@@ -1,4 +1,3 @@
-// SearchGlobalReferenceTable.jsx
 import React, {
   useEffect,
   useMemo,
@@ -17,26 +16,30 @@ import {
   faChevronDown,
   faTimes,
   faLayerGroup,
-  faCompressArrowsAlt,
-  faExpandArrowsAlt,
   faFileExcel,
   faColumns,
   faFilePdf,
   faFileImage,
   faFileExport,
   faFileCsv,
+  faSyncAlt,
 } from "@fortawesome/free-solid-svg-icons";
 
 import { reftables } from "@/NAYSA Cloud/Global/reftable";
 import { exportGenericQueryExcel } from "@/NAYSA Cloud/Global/report";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
-import { formatNumber, parseFormattedNumber } from "@/NAYSA Cloud/Global/behavior.jsx";
+import {
+  formatNumber,
+  parseFormattedNumber,
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 import { useReturnToDate } from "@/NAYSA Cloud/Global/dates";
 import Swal from "sweetalert2";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
-const TableLoader = () => <div className="global-ref-norecords-ui">Loading...</div>;
+const TableLoader = () => (
+  <div className="global-ref-norecords-ui">Loading...</div>
+);
 
 const parseAutoFillGrid = (value) => {
   if (typeof value === "boolean") return value;
@@ -55,13 +58,20 @@ const SearchGlobalReferenceTable = forwardRef(
       data = [],
       itemsPerPage = 50,
       showFilters = true,
+      // ✅ ADDED: Background props to control UI visibility without user toggles
+      showGlobalSearch = true, 
+      showGroupBy = true,
       docType,
       onRowDoubleClick,
+      onRowClick, // Added to ensure compatibility with parent components
+      selectedRow, // Added to ensure compatibility with parent components
       className = "",
       initialState,
       onStateChange,
       totalExemptions = ["rate", "percent", "ratio", "id", "code"],
       isLoading = false,
+      isFetching = false,
+      onRefresh,
       tableSize = "Full",
       onMobileRowOpen,
       autoFillGrid: autoFillGridProp = undefined,
@@ -71,7 +81,6 @@ const SearchGlobalReferenceTable = forwardRef(
     const scrollRef = useRef(null);
     const exportContainerRef = useRef(null);
 
-    // ✅ Mobile detection + view toggle
     const [isMobile, setIsMobile] = useState(false);
     const [forceTableView, setForceTableView] = useState(false);
     const useCardView = isMobile && !forceTableView;
@@ -87,7 +96,7 @@ const SearchGlobalReferenceTable = forwardRef(
     }, [autoFillGridProp]);
 
     useEffect(() => {
-      const checkSmall = () => setIsMobileView(window.innerWidth < 640); // Tailwind sm
+      const checkSmall = () => setIsMobileView(window.innerWidth < 640);
       checkSmall();
 
       window.addEventListener("resize", checkSmall);
@@ -103,8 +112,9 @@ const SearchGlobalReferenceTable = forwardRef(
     }, []);
 
     const [filters, setFilters] = useState(() => initialState?.filters || {});
-    const [globalSearch, setGlobalSearch] = useState(() => initialState?.globalSearch || "");
-
+    const [globalSearch, setGlobalSearch] = useState(
+      () => initialState?.globalSearch || "",
+    );
 
     const [sortConfig, setSortConfig] = useState(
       () => initialState?.sortConfig || { key: null, direction: null },
@@ -113,7 +123,6 @@ const SearchGlobalReferenceTable = forwardRef(
       () => Number(initialState?.currentPage) || 1,
     );
 
-    // ✅ Rows per page (supports: 10/20/50/100) — (All not shown in dropdown)
     const [rowsPerPage, setRowsPerPage] = useState(() => {
       const init = Number(initialState?.itemsPerPage ?? itemsPerPage ?? 50);
       return Number.isFinite(init) ? init : 50;
@@ -125,6 +134,7 @@ const SearchGlobalReferenceTable = forwardRef(
     const [draggedCol, setDraggedCol] = useState(null);
 
     const [colWidths, setColWidths] = useState({});
+    const [manualResizedCols, setManualResizedCols] = useState({});
     const resizingRef = useRef(null);
 
     const [userHiddenCols, setUserHiddenCols] = useState(
@@ -136,7 +146,8 @@ const SearchGlobalReferenceTable = forwardRef(
 
     const { companyInfo, currentUserRow } = useAuth();
 
-    // ✅ keep columnOrder in sync with columns (dynamic cols like __actions)
+    const isInitialLoading = isLoading && (!data || data.length === 0);
+
     useEffect(() => {
       const keys = (columns || []).map((c) => c.key).filter(Boolean);
       if (!keys.length) return;
@@ -153,7 +164,6 @@ const SearchGlobalReferenceTable = forwardRef(
       });
     }, [columns]);
 
-    // notify parent
     useEffect(() => {
       onStateChange?.({
         filters,
@@ -162,7 +172,7 @@ const SearchGlobalReferenceTable = forwardRef(
         groupBy,
         userHiddenCols,
         itemsPerPage: rowsPerPage,
-        globalSearch, // ✅ add
+        globalSearch,
         autoFillGrid: autoFillGrid ? "True" : "False",
       });
     }, [
@@ -172,18 +182,11 @@ const SearchGlobalReferenceTable = forwardRef(
       groupBy,
       userHiddenCols,
       rowsPerPage,
-      globalSearch,   // ✅ add
+      globalSearch,
       autoFillGrid,
       onStateChange,
     ]);
 
-    // reset expansions when grouping changes
-    // useEffect(() => {
-    //   setExpandedGroups({});
-    //   setCurrentPage(1);
-    // }, [isMobile, groupBy]);
-
-    // clear grouping if data becomes empty
     useEffect(() => {
       if (!data || data.length === 0) {
         if (groupBy.length > 0) setGroupBy([]);
@@ -191,11 +194,9 @@ const SearchGlobalReferenceTable = forwardRef(
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [data]);
 
-    // Close menus when clicking outside (mobile friendly)
     useEffect(() => {
       const onDown = (e) => {
         const t = e.target;
-        // close export/columns when clicking outside (simple approach)
         if (!t.closest?.("[data-sgrt-export]")) setShowExportMenu(false);
         if (!t.closest?.("[data-sgrt-cols]")) setShowColumnChooser(false);
       };
@@ -207,13 +208,16 @@ const SearchGlobalReferenceTable = forwardRef(
       };
     }, []);
 
-    // --- Utilities ---
     const parseNumber = (v) => {
       if (typeof parseFormattedNumber === "function") {
         const n = parseFormattedNumber(v);
-        return typeof n === "number" ? n : Number(String(v ?? "").replace(/,/g, ""));
+        return typeof n === "number"
+          ? n
+          : Number(String(v ?? "").replace(/,/g, ""));
       }
-      return typeof v === "number" ? v : Number(String(v ?? "").replace(/,/g, ""));
+      return typeof v === "number"
+        ? v
+        : Number(String(v ?? "").replace(/,/g, ""));
     };
 
     const formatValue = (value, col) => {
@@ -221,7 +225,8 @@ const SearchGlobalReferenceTable = forwardRef(
       switch (col?.renderType) {
         case "number":
         case "currency": {
-          const digits = typeof col?.roundingOff === "number" ? col.roundingOff : 2;
+          const digits =
+            typeof col?.roundingOff === "number" ? col.roundingOff : 2;
           return typeof formatNumber === "function"
             ? formatNumber(value, digits)
             : Number(parseNumber(value)).toLocaleString("en-US", {
@@ -232,7 +237,9 @@ const SearchGlobalReferenceTable = forwardRef(
         case "date": {
           try {
             const datePart = String(value).split("T")[0];
-            return typeof useReturnToDate === "function" ? useReturnToDate(datePart) : datePart;
+            return typeof useReturnToDate === "function"
+              ? useReturnToDate(datePart)
+              : datePart;
           } catch {
             return String(value);
           }
@@ -243,8 +250,10 @@ const SearchGlobalReferenceTable = forwardRef(
     };
 
     const extractTextFromNode = (node) => {
-      if (node === null || node === undefined || typeof node === "boolean") return "";
-      if (typeof node === "string" || typeof node === "number") return String(node);
+      if (node === null || node === undefined || typeof node === "boolean")
+        return "";
+      if (typeof node === "string" || typeof node === "number")
+        return String(node);
       if (Array.isArray(node)) {
         return node
           .map(extractTextFromNode)
@@ -271,16 +280,22 @@ const SearchGlobalReferenceTable = forwardRef(
       return formatValue(row?.[col.key], col);
     };
 
-    // --- Columns processing ---
     const orderedCols = useMemo(() => {
       if (columnOrder.length === 0) return columns;
       return columnOrder.map((key) => columns.find((c) => c.key === key)).filter(Boolean);
     }, [columns, columnOrder]);
 
-    const baseVisibleColumns = useMemo(() => orderedCols.filter((c) => !c.hidden), [orderedCols]);
+    const baseVisibleColumns = useMemo(
+      () => orderedCols.filter((c) => !c.hidden),
+      [orderedCols],
+    );
+
     const effectiveGroupBy = isMobile ? [] : groupBy;
     const isGroupedView = effectiveGroupBy.length > 0;
-    const groupedKeysSet = useMemo(() => new Set(effectiveGroupBy), [effectiveGroupBy]);
+    const groupedKeysSet = useMemo(
+      () => new Set(effectiveGroupBy),
+      [effectiveGroupBy],
+    );
 
     const visibleCols = useMemo(
       () =>
@@ -290,7 +305,6 @@ const SearchGlobalReferenceTable = forwardRef(
       [baseVisibleColumns, userHiddenCols, groupedKeysSet],
     );
 
-    // ✅ treat "__actions" / Actions column as non-exportable
     const isActionColumn = (c) =>
       c?.key === "__actions" ||
       c?.renderType === "actions" ||
@@ -301,20 +315,24 @@ const SearchGlobalReferenceTable = forwardRef(
       [visibleCols],
     );
 
-    const exportColumns = useMemo(() => (columns || []).filter((c) => !isActionColumn(c)), [columns]);
+    const exportColumns = useMemo(
+      () => (columns || []).filter((c) => !isActionColumn(c)),
+      [columns],
+    );
 
     const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 
-    // estimate width by character length (simple + fast)
     const estimatePx = (text) => {
       const s = String(text ?? "");
       return s.length * 7 + 40;
     };
 
     const headerCellWrap = "w-full min-w-0 whitespace-normal break-words";
-    const hasActionCol = useMemo(() => visibleCols.some((c) => isActionColumn(c)), [visibleCols]);
+    const hasActionCol = useMemo(
+      () => visibleCols.some((c) => isActionColumn(c)),
+      [visibleCols],
+    );
 
-    // --- Drag/drop ---
     const handleColDragStart = (e, key) => {
       setDraggedCol(key);
       e.dataTransfer.effectAllowed = "move";
@@ -325,6 +343,13 @@ const SearchGlobalReferenceTable = forwardRef(
       if (!draggedCol) return;
 
       if (isDropZone) {
+        const draggedColDef = columns.find((c) => c.key === draggedCol);
+
+        if (isActionColumn(draggedColDef)) {
+          setDraggedCol(null);
+          return;
+        }
+
         setGroupBy((prev) => (prev.includes(draggedCol) ? prev : [...prev, draggedCol]));
       } else {
         if (groupBy.includes(draggedCol)) return;
@@ -344,7 +369,6 @@ const SearchGlobalReferenceTable = forwardRef(
       setDraggedCol(null);
     };
 
-    // --- Sorting ---
     const handleSort = useCallback((key, sortable) => {
       if (sortable === false) return;
       setSortConfig((prev) => {
@@ -357,9 +381,10 @@ const SearchGlobalReferenceTable = forwardRef(
       setCurrentPage(1);
     }, []);
 
-    // --- Filtering + sorting data ---
     const filteredData = useMemo(() => {
-      const active = Object.entries(filters).filter(([, v]) => String(v || "").trim() !== "");
+      const active = Object.entries(filters).filter(
+        ([, v]) => String(v || "").trim() !== "",
+      );
       let rows = Array.isArray(data) ? data : [];
 
       if (active.length) {
@@ -370,21 +395,22 @@ const SearchGlobalReferenceTable = forwardRef(
         );
       }
 
-      // ✅ Global search across all visible columns
       const q = String(globalSearch || "").trim().toLowerCase();
       if (q) {
         const keys = (visibleCols || []).map((c) => c.key).filter(Boolean);
 
         rows = rows.filter((r) =>
-          keys.some((k) => String(r?.[k] ?? "").toLowerCase().includes(q))
+          keys.some((k) => String(r?.[k] ?? "").toLowerCase().includes(q)),
         );
       }
 
       if (sortConfig?.key && sortConfig?.direction) {
         const { key, direction } = sortConfig;
         const col = columns.find((c) => c.key === key);
-        const isNumeric = col?.renderType === "number" || col?.renderType === "currency";
-        const norm = (val) => (isNumeric ? parseNumber(val) || 0 : String(val ?? "").toLowerCase());
+        const isNumeric =
+          col?.renderType === "number" || col?.renderType === "currency";
+        const norm = (val) =>
+          isNumeric ? parseNumber(val) || 0 : String(val ?? "").toLowerCase();
 
         rows = [...rows].sort((a, b) => {
           const A = norm(a?.[key]);
@@ -403,54 +429,50 @@ const SearchGlobalReferenceTable = forwardRef(
         return cleanRow;
       });
     }, [data, filters, globalSearch, visibleCols, sortConfig, columns]);
-const autoColWidths = useMemo(() => {
-  const MIN = 60;
-  const MAX = 400;
-  const SAMPLE = 80;
 
-  const sampleRows = (Array.isArray(filteredData) ? filteredData : []).slice(0, SAMPLE);
-  const out = {};
+    const autoColWidths = useMemo(() => {
+      const MIN = 60;
+      const MAX = 400;
+      const SAMPLE = 80;
 
-  visibleCols.forEach((col) => {
-    let w = estimatePx(col.label || "");
+      const sampleRows = (Array.isArray(filteredData) ? filteredData : []).slice(0, SAMPLE);
+      const out = {};
 
-    for (const r of sampleRows) {
-      let str = "";
+      visibleCols.forEach((col) => {
+        let w = estimatePx(col.label || "");
 
-      if (col.autoWidthValue) {
-        str = String(col.autoWidthValue(r) ?? "");
-      } else if (typeof col.render === "function") {
-        str = String(r?.[col.key] ?? "");
-      } else {
-        str = String(formatValue(r?.[col.key], col) ?? "");
-      }
+        for (const r of sampleRows) {
+          let str = "";
 
-      w = Math.max(w, estimatePx(str));
-    }
+          if (col.autoWidthValue) {
+            str = String(col.autoWidthValue(r) ?? "");
+          } else if (typeof col.render === "function") {
+            str = String(r?.[col.key] ?? "");
+          } else {
+            str = String(formatValue(r?.[col.key], col) ?? "");
+          }
 
-    const colBase = Number(col.width);
-    if (Number.isFinite(colBase)) w = Math.max(w, colBase);
+          w = Math.max(w, estimatePx(str));
+        }
 
-    out[col.key] = clamp(w, MIN, MAX);
-  });
+        const colBase = Number(col.width);
+        if (Number.isFinite(colBase)) w = Math.max(w, colBase);
 
-  return out;
-}, [visibleCols, filteredData]);
+        out[col.key] = clamp(w, MIN, MAX);
+      });
 
+      return out;
+    }, [visibleCols, filteredData]);
 
+    const getColWidth = (col) => {
+      const manualWidth = colWidths[col.key];
+      const isManual = manualResizedCols[col.key];
+      const autoWidth = autoColWidths[col.key];
+      const defaultWidth = col.width || 140;
 
-    const [manualResizedCols, setManualResizedCols] = useState({});
-
-const getColWidth = (col) => {
-  const manualWidth = colWidths[col.key];
-  const isManual = manualResizedCols[col.key];
-  const autoWidth = autoColWidths[col.key];
-  const defaultWidth = col.width || 140;
-
-  if (isManual && manualWidth) return manualWidth;
-  return autoWidth || defaultWidth;
-};
-
+      if (isManual && manualWidth) return manualWidth;
+      return autoWidth || defaultWidth;
+    };
 
     const getStickyLeftOffset = (index) => {
       if (index <= 0) return 0;
@@ -462,7 +484,7 @@ const getColWidth = (col) => {
       }
       return offset;
     };
-    
+
     const shouldSumColumn = (col) => {
       const noTotalKeys = ["unitcost", "currrate", "unitprice", "runbal"];
       if (!col) return false;
@@ -473,7 +495,9 @@ const getColWidth = (col) => {
       if (noTotalKeys.includes(key)) return false;
       if (col.renderType !== "number" && col.renderType !== "currency") return false;
 
-      if (totalExemptions.some((ex) => label.includes(ex) || key.includes(ex))) return false;
+      if (totalExemptions.some((ex) => label.includes(ex) || key.includes(ex))) {
+        return false;
+      }
 
       return true;
     };
@@ -482,13 +506,15 @@ const getColWidth = (col) => {
       const sums = {};
       exportVisibleCols.forEach((col) => {
         if (shouldSumColumn(col)) {
-          sums[col.key] = (rows || []).reduce((acc, r) => acc + (parseNumber(r?.[col.key]) || 0), 0);
+          sums[col.key] = (rows || []).reduce(
+            (acc, r) => acc + (parseNumber(r?.[col.key]) || 0),
+            0,
+          );
         }
       });
       return sums;
     };
 
-    // --- Grouping ---
     const resolveGroupDisplayValue = useCallback(
       (row, groupKey) => {
         const groupedCol = columns.find((c) => c.key === groupKey);
@@ -505,14 +531,22 @@ const getColWidth = (col) => {
 
         for (const candidate of labelKeyCandidates) {
           const candidateValue = row?.[candidate];
-          if (candidateValue !== undefined && candidateValue !== null && String(candidateValue).trim() !== "") {
+          if (
+            candidateValue !== undefined &&
+            candidateValue !== null &&
+            String(candidateValue).trim() !== ""
+          ) {
             return String(candidateValue);
           }
         }
 
         if (typeof groupedCol.groupDisplayValue === "function") {
           const customValue = groupedCol.groupDisplayValue(row);
-          if (customValue !== undefined && customValue !== null && String(customValue).trim() !== "") {
+          if (
+            customValue !== undefined &&
+            customValue !== null &&
+            String(customValue).trim() !== ""
+          ) {
             return String(customValue);
           }
         }
@@ -529,12 +563,7 @@ const getColWidth = (col) => {
       return node?.path || `${node.key}-${node.rawValue ?? node.value}-${node.level}`;
     }
 
-    const groupData = (
-      rows,
-      level = 0,
-      activeGroupBy = [],
-      parentPath = "",
-    ) => {
+    const groupData = (rows, level = 0, activeGroupBy = [], parentPath = "") => {
       if (level >= activeGroupBy.length) return rows.map((r) => ({ ...r }));
 
       const groupKey = activeGroupBy[level];
@@ -655,7 +684,6 @@ const getColWidth = (col) => {
       return expandAll(groupedStructure);
     }, [filteredData, groupedStructure, effectiveGroupBy]);
 
-    // --- Pagination ---
     const effectiveRowsPerPage = isMobileView ? 0 : rowsPerPage;
 
     const totalItems =
@@ -707,6 +735,7 @@ const getColWidth = (col) => {
 
     const grandTotals = useMemo(() => ({}), []);
     const hasDataFiltered = Array.isArray(filteredData) && filteredData.length > 0;
+    const hasOriginalData = Array.isArray(data) && data.length > 0;
 
     const collectGroupKeys = (nodes) => {
       const keys = [];
@@ -810,7 +839,6 @@ const getColWidth = (col) => {
       setUserHiddenCols((prev) => prev.filter((k) => !groupBy.includes(k)));
     };
 
-    // --- Column resize ---
     const handleMouseMove = useCallback((e) => {
       if (!resizingRef.current) return;
 
@@ -868,13 +896,11 @@ const getColWidth = (col) => {
       return sanitizeFileName(`${title}_${getDateTimeStamp()}`);
     };
 
-    // --- Export handlers ---
     const handleExportExcel = async () => {
       if (!hasDataFiltered) return;
 
       const defaultFileName = getDefaultExportFileName();
       const { value: fileName } = await Swal.fire({
-        // title: "Export Excel File Name:",
         input: "text",
         inputLabel: "Export Excel File Name:",
         inputValue: defaultFileName,
@@ -901,7 +927,7 @@ const getColWidth = (col) => {
         normalizedExportData,
         grandTotals,
         exportVisibleCols,
-        [], // disable grouping in exporter
+        [],
         exportColumns,
         {},
         7,
@@ -918,7 +944,6 @@ const getColWidth = (col) => {
 
       const defaultFileName = getDefaultExportFileName();
       const { value: fileName } = await Swal.fire({
-        // title: "Enter File Name",
         input: "text",
         inputLabel: "Export CSV File Name:",
         inputValue: defaultFileName,
@@ -981,7 +1006,6 @@ const getColWidth = (col) => {
 
       const defaultFileName = getDefaultExportFileName();
       const { value: fileName } = await Swal.fire({
-        // title: "Enter File Name",
         input: "text",
         inputLabel: "Export PDF File Name:",
         inputValue: defaultFileName,
@@ -993,7 +1017,10 @@ const getColWidth = (col) => {
       });
       if (!fileName) return;
 
-      const canvas = await html2canvas(exportContainerRef.current, { scale: 2, useCORS: true });
+      const canvas = await html2canvas(exportContainerRef.current, {
+        scale: 2,
+        useCORS: true,
+      });
 
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("l", "mm", "a4");
@@ -1016,7 +1043,6 @@ const getColWidth = (col) => {
 
       const defaultFileName = getDefaultExportFileName();
       const { value: fileName } = await Swal.fire({
-        // title: "Enter File Name",
         input: "text",
         inputLabel: "Export Image File Name:",
         inputValue: defaultFileName,
@@ -1028,7 +1054,10 @@ const getColWidth = (col) => {
       });
       if (!fileName) return;
 
-      const canvas = await html2canvas(exportContainerRef.current, { scale: 2, useCORS: true });
+      const canvas = await html2canvas(exportContainerRef.current, {
+        scale: 2,
+        useCORS: true,
+      });
       const imgData = canvas.toDataURL("image/png");
       const link = document.createElement("a");
       link.href = imgData;
@@ -1038,7 +1067,6 @@ const getColWidth = (col) => {
       document.body.removeChild(link);
     };
 
-    // --- Imperative API ---
     useImperativeHandle(ref, () => ({
       getState: () => ({
         filters,
@@ -1047,7 +1075,7 @@ const getColWidth = (col) => {
         groupBy,
         userHiddenCols,
         itemsPerPage: rowsPerPage,
-        globalSearch, // ✅ add
+        globalSearch,
         autoFillGrid: autoFillGrid ? "True" : "False",
       }),
       setAutoFillGrid: (value) => setAutoFillGrid(parseAutoFillGrid(value)),
@@ -1060,7 +1088,7 @@ const getColWidth = (col) => {
         setCurrentPage(1);
         setUserHiddenCols([]);
         setRowsPerPage(Number(itemsPerPage) || 50);
-        setGlobalSearch(""); // ✅ add
+        setGlobalSearch("");
         setAutoFillGrid(parseAutoFillGrid(autoFillGridProp ?? initialState?.autoFillGrid));
       },
       resetFilters: () => setFilters({}),
@@ -1069,16 +1097,12 @@ const getColWidth = (col) => {
       setCardView: (on) => setForceTableView(!on),
     }));
 
-    const isLoadingColumns = isLoading || columns.length === 0;
-
-    // Column chooser helpers
     const allChooserKeys = baseVisibleColumns.map((c) => c.key);
     const allChecked = userHiddenCols.length === 0;
     const toggleSelectAll = () => {
       if (allChecked) setUserHiddenCols(allChooserKeys);
       else setUserHiddenCols([]);
     };
-
 
     const handleRowOpen = (row) => {
       if (isMobile) {
@@ -1091,99 +1115,105 @@ const getColWidth = (col) => {
     const filterInputClass =
       "w-full min-w-0 px-2 py-1 text-[11px] rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-300";
 
-    // ✅ Mobile Card renderer
-const renderMobileCard = (row, idx) => {
-  if (row?.isGroup) {
-    const uniqueId = getGroupNodeId(row);
-    const isExpanded = expandedGroups[uniqueId];
+    const renderMobileCard = (row, idx) => {
+      if (row?.isGroup) {
+        const uniqueId = getGroupNodeId(row);
+        const isExpanded = expandedGroups[uniqueId];
 
-    return (
-      <div
-        key={`g-${uniqueId}`}
-        className="rounded-lg border bg-gray-100 p-4 cursor-pointer"
-        onClick={() => toggleGroup(row)}
-      >
-        <div className="flex items-center">
-          <FontAwesomeIcon
-            icon={isExpanded ? faChevronDown : faChevronRight}
-            className="mr-2 text-gray-500"
-          />
-          <span className="mr-2 text-gray-600">
-            {columns.find((c) => c.key === row.key)?.label}:
-          </span>
-          <span className="mr-2 font-bold">{row.value}</span>
-          <span className="bg-blue-200 text-blue-800 text-[10px] px-2 rounded-full">
-            {row.count}
-          </span>
-        </div>
-      </div>
-    );
-  }
-
-  const firstCols = visibleCols.slice(0, 4);
-  const otherCols = visibleCols.slice(4);
-
-  return (
-    <div
-      key={row.__idx ?? idx}
-      className="rounded-lg border bg-white shadow-sm p-3 cursor-pointer active:scale-[0.99] transition"
-      onClick={() => handleRowOpen(row)}
-    >
-      <div className="space-y-1">
-        {firstCols.map((col) => (
+        return (
           <div
-              key={col.key}
-              className={`flex items-start justify-between gap-1 ${
-                col.key === "__actions" ? "flex-col items-stretch mb-2" : ""
-              }`}
-            >
-            <span
-              className={`text-[10px] font-semibold text-gray-600 ${
-                col.key === "__actions" ? "min-w-0 mb-1" : "min-w-[110px]"
-              }`}
-            >{col.label}</span>
-            <div className="text-[10px] text-gray-800 text-left break-words flex-1">
-              {typeof col.render === "function"
-                ? col.render(row)
-                : formatValue(row[col.key], col)}
+            key={`g-${uniqueId}`}
+            className="rounded-lg border bg-gray-100 p-4 cursor-pointer"
+            onClick={() => toggleGroup(row)}
+          >
+            <div className="flex items-center">
+              <FontAwesomeIcon
+                icon={isExpanded ? faChevronDown : faChevronRight}
+                className="mr-2 text-gray-500"
+              />
+              <span className="mr-2 text-gray-600">
+                {columns.find((c) => c.key === row.key)?.label}:
+              </span>
+              <span className="mr-2 font-bold">{row.value}</span>
+              <span className="bg-blue-200 text-blue-800 text-[10px] px-2 rounded-full">
+                {row.count}
+              </span>
             </div>
           </div>
-        ))}
+        );
+      }
 
-        {otherCols.length > 0 && (
-          <div className="pt-2 border-t border-gray-100 space-y-1">
-            {otherCols.map((col) => (
-              <div key={col.key} className="flex items-start justify-between gap-1">
-                <span className="text-[10px] font-semibold text-gray-600 min-w-[110px]">
+      const firstCols = visibleCols.slice(0, 4);
+      const otherCols = visibleCols.slice(4);
+      const isSelected = selectedRow && row && (selectedRow.id === row.id || selectedRow.key === row.key);
+
+      return (
+        <div
+          key={row.__idx ?? idx}
+          className={`rounded-lg border shadow-sm p-3 cursor-pointer active:scale-[0.99] transition ${
+            isSelected ? "bg-blue-50 border-blue-200" : "bg-white"
+          }`}
+          onClick={() => {
+            if (onRowClick) onRowClick(row);
+            handleRowOpen(row);
+          }}
+        >
+          <div className="space-y-1">
+            {firstCols.map((col) => (
+              <div
+                key={col.key}
+                className={`flex items-start justify-between gap-1 ${
+                  col.key === "__actions" ? "flex-col items-stretch mb-2" : ""
+                }`}
+              >
+                <span
+                  className={`text-[10px] font-semibold text-gray-600 ${
+                    col.key === "__actions" ? "min-w-0 mb-1" : "min-w-[110px]"
+                  }`}
+                >
                   {col.label}
                 </span>
-                  <div
-                    className={`text-[10px] text-gray-800 text-left break-words ${
-                      col.key === "__actions" ? "w-full" : "flex-1"
-                    }`}
-                  >
+                <div className="text-[10px] text-gray-800 text-left break-words flex-1">
                   {typeof col.render === "function"
                     ? col.render(row)
                     : formatValue(row[col.key], col)}
                 </div>
               </div>
             ))}
+
+            {otherCols.length > 0 && (
+              <div className="pt-2 border-t border-gray-100 space-y-1">
+                {otherCols.map((col) => (
+                  <div key={col.key} className="flex items-start justify-between gap-1">
+                    <span className="text-[10px] font-semibold text-gray-600 min-w-[110px]">
+                      {col.label}
+                    </span>
+                    <div
+                      className={`text-[10px] text-gray-800 text-left break-words ${
+                        col.key === "__actions" ? "w-full" : "flex-1"
+                      }`}
+                    >
+                      {typeof col.render === "function"
+                        ? col.render(row)
+                        : formatValue(row[col.key], col)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
-    </div>
-  );
-};
+        </div>
+      );
+    };
 
     return (
       <div
         className={[
-          "global-tran-table-main-div-ui flex flex-col flex-1s min-h-[330px] overflow-hidden",
+          "global-tran-table-main-div-ui flex flex-col flex-1 min-h-[330px] overflow-hidden",
           className,
         ].join(" ")}
       >
-        {/* TOP BAR */}
-        {hasDataFiltered && (
+        {hasOriginalData && (
           <div
             className="
               p-2 rounded-md
@@ -1196,30 +1226,29 @@ const renderMobileCard = (row, idx) => {
               if (!isMobile) handleColDrop(e, null, true);
             }}
           >
-            {!isMobile && (
+            {/* GROUP BY SECTION (Controlled by background prop showGroupBy) */}
+            {!isMobile && showGroupBy && (
               <div className="flex-1 flex flex-wrap gap-2 items-center min-w-0">
-                <div className="text-xs font-bold text-gray-600 flex items-center">
-                  <FontAwesomeIcon icon={faLayerGroup} className="mr-2" />
-                  Group By:
-                </div>
-
                 {groupBy.length === 0 && (
                   <div
-                  className={`text-gray-400 italic border border-dashed border-gray-300 rounded py-1
-                    ${tableSize === "Half"
-                      ? "text-[8px] sm:text-[9px] w-18 px-4"
-                      : "text-[10px] sm:text-xs px-20"
+                    className={`text-gray-400 italic border border-dashed border-gray-300 rounded ${
+                      tableSize === "Half"
+                        ? "text-[8px] sm:text-[9px] w-18 px-2 py-1.5"
+                        : "text-[10px] sm:text-xs px-8 py-2"
                     }`}
-                >
-                  Drag Header Here...
-                </div>
+                  >
+                    <FontAwesomeIcon icon={faLayerGroup} className="mr-1" />
+                    Drag column here to Group by
+                  </div>
                 )}
 
                 {groupBy.map((gKey) => (
                   <div
                     key={gKey}
                     className={`flex items-center bg-blue-100 text-blue-800 rounded border border-blue-200 max-w-full ${
-                      tableSize === "Half" ? "text-[10px] px-1.5 py-0.5" : "text-xs px-2 py-1"
+                      tableSize === "Half"
+                        ? "text-[10px] px-1.5 py-0.5"
+                        : "text-xs px-2 py-1"
                     }`}
                   >
                     <span className="truncate">
@@ -1239,8 +1268,11 @@ const renderMobileCard = (row, idx) => {
               </div>
             )}
 
-            <div className="flex items-center gap-2 flex-wrap justify-end w-full md:w-auto">
-              {!isMobile && groupBy.length > 0 && (
+            {/* CONTROLS SECTION (Right Side) */}
+            <div className={`flex items-center gap-2 flex-wrap justify-end w-full md:w-auto ${!isMobile && showGroupBy ? "" : "ml-auto"}`}>
+              
+              {/* EXPAND/COLLAPSE ALL GROUPS */}
+              {!isMobile && showGroupBy && groupBy.length > 0 && (
                 <div className="flex items-center gap-2">
                   <label
                     className={`inline-flex items-center cursor-pointer select-none ${
@@ -1285,63 +1317,68 @@ const renderMobileCard = (row, idx) => {
                   </label>
 
                   <button
-  type="button"
-  onClick={handleRemoveAllGroups}
-  className={`font-medium text-white bg-red-600 border rounded-md hover:bg-red-700 active:scale-[0.98] transition ${
-    tableSize === "Half"
-      ? "h-7 text-[10px] px-2 py-1"
-      : "h-8 text-xs px-3 py-1"
-  }`}
-  title="Remove All Groups"
->
-  <FontAwesomeIcon
-    icon={faTimes}
-    className={`mr-1 text-white ${tableSize === "Half" ? "text-[10px]" : "text-sm"}`}
-  />
-  Remove
-</button>
+                    type="button"
+                    onClick={handleRemoveAllGroups}
+                    className={`font-medium text-white bg-red-600 border rounded-md hover:bg-red-700 active:scale-[0.98] transition ${
+                      tableSize === "Half"
+                        ? "h-7 text-[10px] px-2 py-1"
+                        : "h-8 text-xs px-3 py-1"
+                    }`}
+                    title="Remove All Groups"
+                  >
+                    <FontAwesomeIcon
+                      icon={faTimes}
+                      className={`mr-1 text-white ${
+                        tableSize === "Half" ? "text-[10px]" : "text-sm"
+                      }`}
+                    />
+                    Remove
+                  </button>
                 </div>
               )}
 
-              <div className="flex items-center gap-2 w-full md:w-auto">
-                <input
-                  type="text"
-                  value={globalSearch}
-                  onChange={(e) => {
-                    setGlobalSearch(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  placeholder="Search all columns..."
-                  className={`w-full rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-300
-                      ${tableSize === "Half"
-                        ? "h-7 md:w-32 px-2 text-[11px]"
-                        : "h-8 md:w-64 px-3 text-xs"
-                      }`}
-                  />
-
-                {globalSearch?.trim() && (
-                  <button
-                    type="button"
-                    className={`rounded-md bg-gray-200 hover:bg-gray-300 ${tableSize === "Half" ? "h-7 px-2 text-[10px]" : "h-8 px-3 text-xs"}`}
-                    onClick={() => {
-                      setGlobalSearch("");
+              {/* QUICK SEARCH (Controlled by background prop showGlobalSearch) */}
+              {showGlobalSearch && (
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                  <input
+                    type="text"
+                    value={globalSearch}
+                    onChange={(e) => {
+                      setGlobalSearch(e.target.value);
                       setCurrentPage(1);
                     }}
-                    title="Clear search"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
+                    placeholder="Quick Search..."
+                    className={`w-full rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-300 ${
+                      tableSize === "Half"
+                        ? "h-7 md:w-24 px-2 text-[11px]"
+                        : "h-8 md:w-64 px-3 text-xs"
+                    }`}
+                  />
 
+                  {globalSearch?.trim() && (
+                    <button
+                      type="button"
+                      className={`rounded-md bg-gray-200 hover:bg-gray-300 shrink-0 ${
+                        tableSize === "Half" ? "h-7 px-2 text-[10px]" : "h-8 px-3 text-xs"
+                      }`}
+                      onClick={() => {
+                        setGlobalSearch("");
+                        setCurrentPage(1);
+                      }}
+                      title="Clear search"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* AUTO FIT SWITCH */}
               {!isMobile && (
                 <label
-                  // className="inline-flex items-center cursor-pointer select-none"
-                  className={`inline-flex items-center cursor-pointer select-none
-                      ${tableSize === "Half"
-                        ? "h-7"
-                        : "h-8"
-                      }`}
+                  className={`inline-flex items-center cursor-pointer select-none shrink-0 ${
+                    tableSize === "Half" ? "h-7" : "h-8"
+                  }`}
                   title={autoFillGrid ? "Disable auto fit" : "Enable auto fit"}
                 >
                   <input
@@ -1351,21 +1388,19 @@ const renderMobileCard = (row, idx) => {
                     className="sr-only"
                   />
 
-                  {/* <div
-                    className={`relative w-20 h-7 rounded-full transition-colors duration-200 ${
-                      autoFillGrid ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-600" 
-                    }`}
-                  > */}
-<div
-  className={`relative rounded-full transition-colors duration-200 ${
-    autoFillGrid ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-600"
-  } ${tableSize === "Half" ? "w-20 h-7" : "w-20 h-8"}`}
->
-                    
+                  <div
+                    className={`relative rounded-full transition-colors duration-200 ${
+                      autoFillGrid ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-600"
+                    } ${tableSize === "Half" ? "w-20 h-7" : "w-20 h-8"}`}
+                  >
                     <span
                       className={`absolute top-[2px] rounded-full bg-white shadow-md transition-all duration-200 ${
-                        autoFillGrid ? "left-[50px]" : "left-[2px]"
-  } ${tableSize === "Half" ? "w-6 h-6" : "w-7 h-7"}`}
+                        autoFillGrid
+                          ? tableSize === "Half"
+                            ? "left-[55px]"
+                            : "left-[50px]"
+                          : "left-[2px]"
+                      } ${tableSize === "Half" ? "w-6 h-6" : "w-7 h-7"}`}
                     />
 
                     <span
@@ -1381,18 +1416,38 @@ const renderMobileCard = (row, idx) => {
                 </label>
               )}
 
+              {/* REFRESH */}
+              {onRefresh && (
+                <div className="relative flex-1 md:flex-none min-w-[40px]">
+                  <button
+                    type="button"
+                    onClick={onRefresh}
+                    className={`w-full text-xs font-medium text-white bg-blue-600 border border-slate-300 rounded-md hover:bg-slate-50 hover:text-blue-600 active:scale-[0.98] transition flex items-center justify-center ${
+                      tableSize === "Half" ? "h-7 px-2 py-1" : "h-8 px-3 py-2"
+                    }`}
+                    title="Refresh Data"
+                  >
+                    <FontAwesomeIcon
+                      icon={faSyncAlt}
+                      spin={isFetching}
+                      className="mr-1 md:mr-0 lg:mr-1"
+                    />
+                    <span className={` ${tableSize === "Half" ? "inline lg:hidden" : "hidden lg:inline"}`}>Refresh</span>
+                  </button>
+                </div>
+              )}
+
               {/* EXPORT */}
               <div className="relative flex-1 md:flex-none min-w-[80px]" data-sgrt-export>
                 <button
                   type="button"
                   onClick={() => hasDataFiltered && setShowExportMenu((p) => !p)}
                   disabled={!hasDataFiltered}
-                  // className="w-full px-3 py-2 h-8 text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 active:scale-[0.98] transition"
-                  className={`w-full text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 active:scale-[0.98] transition
-                      ${tableSize === "Half"
-                        ? "h-7 md:w-38 px-3 py-1"
-                        : "h-8 md:w-[80px] px-3 py-2"
-                      }`}
+                  className={`w-full text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 active:scale-[0.98] transition flex items-center justify-center ${
+                    tableSize === "Half"
+                      ? "h-7 md:w-38 px-3 py-1"
+                      : "h-8 md:w-[80px] px-3 py-2"
+                  }`}
                 >
                   <FontAwesomeIcon icon={faFileExport} className="mr-1" />
                   Export
@@ -1400,70 +1455,82 @@ const renderMobileCard = (row, idx) => {
 
                 {showExportMenu && (
                   <div className="absolute right-0 mt-1 min-w-[80px] rounded-lg shadow-lg bg-white ring-1 ring-black/10 z-[60] overflow-hidden">
-  <button
-    type="button"
-    onClick={async () => {
-      setShowExportMenu(false);
-      await handleExportExcel();
-    }}
-    className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors
-      ${tableSize === "Half"
-        ? "h-7 text-xs px-2"
-        : "h-8 text-sm px-4"
-      }`}
-  >
-    <FontAwesomeIcon icon={faFileExcel} className={`mr-2 text-green-600 ${tableSize === "Half" ? "text-xs" : "text-sm"}`} />
-    Excel
-  </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setShowExportMenu(false);
+                        await handleExportExcel();
+                      }}
+                      className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors ${
+                        tableSize === "Half" ? "h-7 text-xs px-2" : "h-8 text-sm px-4"
+                      }`}
+                    >
+                      <FontAwesomeIcon
+                        icon={faFileExcel}
+                        className={`mr-2 text-green-600 ${
+                          tableSize === "Half" ? "text-xs" : "text-sm"
+                        }`}
+                      />
+                      Excel
+                    </button>
 
-  <button
-    type="button"
-    onClick={async () => {
-      setShowExportMenu(false);
-      await handleExportCsv();
-    }}
-    className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors
-      ${tableSize === "Half"
-        ? "h-7 text-xs px-2"
-        : "h-8 text-sm px-4"
-      }`}
-  >
-    <FontAwesomeIcon icon={faFileCsv} className={`mr-2 text-emerald-600 ${tableSize === "Half" ? "text-xs" : "text-sm"}`} />
-    CSV
-  </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setShowExportMenu(false);
+                        await handleExportCsv();
+                      }}
+                      className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors ${
+                        tableSize === "Half" ? "h-7 text-xs px-2" : "h-8 text-sm px-4"
+                      }`}
+                    >
+                      <FontAwesomeIcon
+                        icon={faFileCsv}
+                        className={`mr-2 text-emerald-600 ${
+                          tableSize === "Half" ? "text-xs" : "text-sm"
+                        }`}
+                      />
+                      CSV
+                    </button>
 
-  <button
-    type="button"
-    onClick={async () => {
-      setShowExportMenu(false);
-      await handleExportPdf();
-    }}
-    className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors
-      ${tableSize === "Half"
-        ? "h-7 text-xs px-2"
-        : "h-8 text-sm px-4"
-      }`}
-  >
-    <FontAwesomeIcon icon={faFilePdf} className={`mr-2 text-red-600 ${tableSize === "Half" ? "text-xs" : "text-sm"}`} />
-    PDF
-  </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setShowExportMenu(false);
+                        await handleExportPdf();
+                      }}
+                      className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors ${
+                        tableSize === "Half" ? "h-7 text-xs px-2" : "h-8 text-sm px-4"
+                      }`}
+                    >
+                      <FontAwesomeIcon
+                        icon={faFilePdf}
+                        className={`mr-2 text-red-600 ${
+                          tableSize === "Half" ? "text-xs" : "text-sm"
+                        }`}
+                      />
+                      PDF
+                    </button>
 
-  <button
-    type="button"
-    onClick={async () => {
-      setShowExportMenu(false);
-      await handleExportImage();
-    }}
-    className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors
-      ${tableSize === "Half"
-        ? "h-7 text-xs px-2"
-        : "h-8 text-sm px-4"
-      }`}
-  >
-    <FontAwesomeIcon icon={faFileImage} className={`mr-2 text-blue-600 ${tableSize === "Half" ? "text-xs" : "text-sm"}`} />
-    Image
-  </button>
-</div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setShowExportMenu(false);
+                        await handleExportImage();
+                      }}
+                      className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors ${
+                        tableSize === "Half" ? "h-7 text-xs px-2" : "h-8 text-sm px-4"
+                      }`}
+                    >
+                      <FontAwesomeIcon
+                        icon={faFileImage}
+                        className={`mr-2 text-blue-600 ${
+                          tableSize === "Half" ? "text-xs" : "text-sm"
+                        }`}
+                      />
+                      Image
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -1472,12 +1539,11 @@ const renderMobileCard = (row, idx) => {
                 <button
                   type="button"
                   onClick={() => setShowColumnChooser((p) => !p)}
-                  // className="w-full px-3 py-2 h-8 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-[0.98] transition"
-                  className={`w-full text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-[0.98] transition
-                    ${tableSize === "Half"
+                  className={`w-full text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-[0.98] transition flex items-center justify-center ${
+                    tableSize === "Half"
                       ? "h-7 text-xs px-2 py-1"
                       : "h-8 text-sm px-3 py-2"
-                    }`}
+                  }`}
                 >
                   <FontAwesomeIcon icon={faColumns} className="mr-1" />
                   Columns
@@ -1526,9 +1592,8 @@ const renderMobileCard = (row, idx) => {
           </div>
         )}
 
-        {/* TABLE / CARD VIEW */}
         <div className="global-tran-table-main-sub-div-ui flex flex-col flex-1 min-h-[481px] relative">
-          {isLoadingColumns ? (
+          {isInitialLoading ? (
             <TableLoader />
           ) : useCardView ? (
             <div className="flex-1 overflow-auto space-y-2 p-2">
@@ -1557,23 +1622,32 @@ const renderMobileCard = (row, idx) => {
                       const leftOffset = getStickyLeftOffset(index);
                       const colWidth = getColWidth(col);
                       const isManual = manualResizedCols[col.key];
+                      const actionCol = isActionColumn(col);
 
                       return (
                         <th
                           key={col.key}
-                          className={`global-tran-th-ui bg-blue-100 cursor-pointer select-none relative ${
+                          className={`global-tran-th-ui bg-blue-100 select-none relative ${
                             isStickyLeft ? "sticky z-40" : ""
-                          }${col.className || ""}`}
-                          draggable={!isMobile && !groupBy.includes(col.key)}
-                          onDragStart={(e) => !isMobile && handleColDragStart(e, col.key)}
+                          } ${actionCol ? "cursor-default" : "cursor-pointer"} ${col.className || ""}`}
+                          draggable={!isMobile && showGroupBy && !groupBy.includes(col.key) && !actionCol}
+                          onDragStart={(e) => {
+                            if (!isMobile && showGroupBy && !actionCol) handleColDragStart(e, col.key);
+                          }}
                           onDragOver={(e) => {
-                            if (!isMobile) e.preventDefault();
+                            if (!isMobile && showGroupBy) e.preventDefault();
                           }}
                           onDrop={(e) => {
-                            if (!isMobile) handleColDrop(e, col.key);
+                            if (!isMobile && showGroupBy) handleColDrop(e, col.key);
                           }}
                           onClick={() => handleSort(col.key, col.sortable)}
-                          title={!isMobile ? "Click to sort • Drag to reorder/group" : "Click to sort"}
+                          title={
+                            !isMobile && showGroupBy && !actionCol
+                              ? "Click to sort • Drag to reorder/group"
+                              : col.sortable
+                                ? "Click to sort"
+                                : ""
+                          }
                           style={{
                             ...(autoFillGrid && !isManual && !col.width
                               ? {}
@@ -1608,7 +1682,7 @@ const renderMobileCard = (row, idx) => {
                     })}
                   </tr>
 
-                  {showFilters && hasDataFiltered && (
+                  {showFilters && hasOriginalData && (
                     <tr className="sticky top-[34px] z-20 bg-white">
                       {visibleCols.map((col, index) => {
                         const isStickyLeft = index < 3;
@@ -1652,11 +1726,7 @@ const renderMobileCard = (row, idx) => {
                 <tbody>
                   {!hasDataFiltered ? (
                     <tr>
-                      <td
-                        // colSpan={visibleCols.length + (hasActionCol ? 1 : 0)}
-                        colSpan={visibleCols.length}
-                        className="global-ref-norecords-ui"
-                      >
+                      <td colSpan={visibleCols.length} className="global-ref-norecords-ui">
                         {Array.isArray(data) && data.length > 0 ? "No records found" : "No data"}
                       </td>
                     </tr>
@@ -1672,7 +1742,6 @@ const renderMobileCard = (row, idx) => {
                             onClick={() => toggleGroup(row)}
                           >
                             <td
-                              // colSpan={visibleCols.length + (hasActionCol ? 1 : 0)}
                               colSpan={visibleCols.length}
                               className="global-tran-td-ui font-semibold text-blue-900"
                             >
@@ -1699,18 +1768,20 @@ const renderMobileCard = (row, idx) => {
 
                       return (
                         <tr
-                            key={row.__idx ?? idx}
-                            className="global-tran-tr-ui hover:bg-gray-50 cursor-pointer"
-                            onClick={() => {
-                              if (isMobile) handleRowOpen(row);
-                            }}
-                            onDoubleClick={() => {
-                              if (!isMobile) handleRowOpen(row);
-                            }}
+                          key={row.__idx ?? idx}
+                          className="global-tran-tr-ui hover:bg-gray-50 cursor-pointer"
+                          onClick={() => {
+                            if (onRowClick) onRowClick(row);
+                            if (isMobile) handleRowOpen(row);
+                          }}
+                          onDoubleClick={() => {
+                            if (!isMobile) handleRowOpen(row);
+                          }}
                         >
-                          {visibleCols.map((col, index) => {                           
+                          {visibleCols.map((col, index) => {
                             const isStickyLeft = index < 3;
-                            const leftOffset = getStickyLeftOffset(index);                            
+                            const leftOffset = getStickyLeftOffset(index);
+
                             return (
                               <td
                                 key={col.key}
@@ -1721,7 +1792,7 @@ const renderMobileCard = (row, idx) => {
                                 } ${col.className || ""}`}
                                 style={{
                                   width: getColWidth(col),
-                                  minWidth: col.width ? col.width : (autoFillGrid ? 120 : 90),
+                                  minWidth: col.width ? col.width : autoFillGrid ? 120 : 90,
                                   left: isStickyLeft ? leftOffset : undefined,
                                 }}
                               >
@@ -1743,116 +1814,122 @@ const renderMobileCard = (row, idx) => {
           )}
         </div>
 
+        {hasDataFiltered && !isMobileView && (
+          <div
+            className="
+              border-t bg-white shrink-0
+              px-3 py-2 sm:px-2
+              flex flex-col gap-3
+              lg:flex-row lg:items-center lg:justify-between
+            "
+          >
+            <div className="text-[11px] sm:text-xs text-gray-600 text-center lg:text-left flex items-center justify-center lg:justify-start gap-2">
+              <div>
+                Showing{" "}
+                <span className="font-semibold text-gray-900">
+                  {effectiveRowsPerPage > 0 ? (safePage - 1) * effectiveRowsPerPage + 1 : 1}
+                </span>
+                –
+                <span className="font-semibold text-gray-900">
+                  {effectiveRowsPerPage > 0
+                    ? Math.min(safePage * effectiveRowsPerPage, totalItems)
+                    : totalItems}
+                </span>{" "}
+                of <span className="font-semibold text-gray-900">{totalItems}</span>
+              </div>
 
-{/* PAGINATION FOOTER */}
-{hasDataFiltered && !isMobileView && (
-  <div
-    className="
-      border-t bg-white shrink-0
-      px-3 py-2 sm:px-2
-      flex flex-col gap-3
-      lg:flex-row lg:items-center lg:justify-between
-    "
-  >
-    <div className="text-[11px] sm:text-xs text-gray-600 text-center lg:text-left">
-      Showing{" "}
-      <span className="font-semibold text-gray-900">
-        {effectiveRowsPerPage > 0 ? (safePage - 1) * effectiveRowsPerPage + 1 : 1}
-      </span>
-      –
-      <span className="font-semibold text-gray-900">
-        {effectiveRowsPerPage > 0
-          ? Math.min(safePage * effectiveRowsPerPage, totalItems)
-          : totalItems}
-      </span>{" "}
-      of <span className="font-semibold text-gray-900">{totalItems}</span>
-    </div>
+              {isFetching && (
+                <span className="text-[10px] text-blue-500 animate-pulse font-bold flex items-center gap-1 uppercase ml-2">
+                  <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                  Syncing...
+                </span>
+              )}
+            </div>
 
-    <div
-      className="
-        flex flex-col sm:flex-row sm:flex-wrap
-        items-stretch sm:items-center
-        justify-center lg:justify-end
-        gap-2 sm:gap-2
-        w-full lg:w-auto
-      "
-    >
-      <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
-        <span className="text-[11px] sm:text-xs text-gray-600 whitespace-nowrap">
-          Rows per page
-        </span>
+            <div
+              className="
+                flex flex-col sm:flex-row sm:flex-wrap
+                items-stretch sm:items-center
+                justify-center lg:justify-end
+                gap-2 sm:gap-2
+                w-full lg:w-auto
+              "
+            >
+              <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
+                <span className="text-[11px] sm:text-xs text-gray-600 whitespace-nowrap">
+                  Rows per page
+                </span>
 
-        <select
-          className="
-            global-tran-textbox-ui global-tran-textbox-enabled
-            h-8 min-w-[70px] w-20
-            rounded-md sm:text-xs
-          "
-          value={rowsPerPage}
-          onChange={(e) => {
-            setRowsPerPage(Number(e.target.value));
-            setCurrentPage(1);
-          }}
-        >
-          {[10, 20, 50, 100, 200, 500, 1000].map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
-      </div>
+                <select
+                  className="
+                    global-tran-textbox-ui global-tran-textbox-enabled
+                    h-8 min-w-[70px] w-20
+                    rounded-md sm:text-xs
+                  "
+                  value={rowsPerPage}
+                  onChange={(e) => {
+                    setRowsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                >
+                  {[10, 20, 50, 100, 200, 500, 1000].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-      <div
-        className="
-          flex items-center justify-between sm:justify-end
-          gap-2 sm:gap-3
-          w-full sm:w-auto
-        "
-      >
-        <button
-          className="
-            global-tran-btn-ui
-            h-8 px-3 sm:px-4
-            min-w-[80px]
-            rounded-md
-            hover:bg-blue-100 hover:text-blue-800
-            text-xs sm:text-sm
-            active:scale-[0.98] transition
-            disabled:opacity-50 disabled:cursor-not-allowed
-          "
-          disabled={safePage <= 1}
-          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-        >
-          Prev
-        </button>
+              <div
+                className="
+                  flex items-center justify-between sm:justify-end
+                  gap-2 sm:gap-3
+                  w-full sm:w-auto
+                "
+              >
+                <button
+                  className="
+                    global-tran-btn-ui
+                    h-8 px-3 sm:px-4
+                    min-w-[80px]
+                    rounded-md
+                    hover:bg-blue-100 hover:text-blue-800
+                    text-xs sm:text-sm
+                    active:scale-[0.98] transition
+                    disabled:opacity-50 disabled:cursor-not-allowed
+                  "
+                  disabled={safePage <= 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                >
+                  Prev
+                </button>
 
-        <div className="text-[11px] sm:text-xs text-gray-700 whitespace-nowrap">
-          Page <span className="font-semibold">{safePage}</span> /{" "}
-          <span className="font-semibold">{totalPages}</span>
-        </div>
+                <div className="text-[11px] sm:text-xs text-gray-700 whitespace-nowrap">
+                  Page <span className="font-semibold">{safePage}</span> /{" "}
+                  <span className="font-semibold">{totalPages}</span>
+                </div>
 
-        <button
-          className="
-            global-tran-btn-ui
-            h-8 px-3 sm:px-4
-            min-w-[80px]
-            rounded-md
-            hover:bg-blue-100 hover:text-blue-800
-            text-xs sm:text-sm
-            active:scale-[0.98] transition
-            disabled:opacity-50 disabled:cursor-not-allowed
-          "
-          disabled={safePage >= totalPages}
-          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-        >
-          Next
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+                <button
+                  className="
+                    global-tran-btn-ui
+                    h-8 px-3 sm:px-4
+                    min-w-[80px]
+                    rounded-md
+                    hover:bg-blue-100 hover:text-blue-800
+                    text-xs sm:text-sm
+                    active:scale-[0.98] transition
+                    disabled:opacity-50 disabled:cursor-not-allowed
+                  "
+                  disabled={safePage >= totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
-        {/* HIDDEN EXPORT TABLE (PDF/IMAGE) */}
         {hasDataFiltered && (
           <div
             ref={exportContainerRef}

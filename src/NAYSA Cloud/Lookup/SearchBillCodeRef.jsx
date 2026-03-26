@@ -83,7 +83,7 @@ const BillCodeLookupModal = ({ isOpen, onClose, customParam }) => {
                 <div className="flex items-center justify-between p-4 border-b bg-slate-50">
                     <div className="flex items-center gap-3">
                         <div className="relative">
-                            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-tight">Select Bill Code</h2>
+                            <h2 className="text-sm font-bold text-blue-800 uppercase tracking-tight">Select Bill Code</h2>
                             {/* Visual indicator for auto-refresh */}
                             <div className="absolute -top-1 -right-4 flex h-2 w-2">
                                 <span className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 ${isFetching ? 'block' : 'hidden'}`}></span>

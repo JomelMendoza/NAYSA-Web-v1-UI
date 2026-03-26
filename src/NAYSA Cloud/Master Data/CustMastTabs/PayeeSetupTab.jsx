@@ -59,11 +59,12 @@ const PayeeSetupTab = forwardRef(
       isLoading,
       isEditing,
       form = {},
+      generationMode = "S", // <-- Added generationMode prop
       sltypeOptions = [],
       sourceOptions = [],
       activeOptions = [],
       onChangeForm,
-      onSelectCustomerCode, // kept as-is so no parent change needed
+      onSelectCustomerCode,
       payeeTypeOptions = [],
       taxClassOptions = [],
     },
@@ -92,6 +93,9 @@ const PayeeSetupTab = forwardRef(
 
     const isReadOnly = !isEditing;
     const isDisabled = isReadOnly || isLoading;
+
+    // Helper variable to determine if we are manually adding a new code
+    const isManualNew = form.__isNew && generationMode === "M";
 
     const sl = useMemo(
       () => normalizeUpper(form?.sltypeCode || "SU"),
@@ -397,10 +401,22 @@ const PayeeSetupTab = forwardRef(
               <FieldRenderer
                 label="Payee Code"
                 required
-                type="lookup"
+                // Switch to a normal text field if it's a new Manual record
+                type={isManualNew ? "text" : "lookup"}
                 value={form[f.code] || ""}
-                onLookup={openPayeeLookup}
-                readOnly={true}
+                // Only allow typing if it's a new Manual record
+                onChange={
+                  isManualNew
+                    ? (v) => {
+                        const val = getValue(v);
+                        onChangeForm({ [f.code]: val, custCode: val });
+                      }
+                    : undefined
+                }
+                // Only trigger the lookup modal if NOT creating a new Manual record
+                onLookup={isManualNew ? undefined : openPayeeLookup}
+                // Unlock the field if it's a new Manual record
+                readOnly={!isManualNew}
                 disabled={isLoading}
                 maxLength={getLen(col.code, 20)}
               />

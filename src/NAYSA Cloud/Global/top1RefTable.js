@@ -192,7 +192,7 @@ export async function useTopVatAmount(vatCode, grossAmt) {
   try {
     const response = await fetchData("getVat", { VAT_CODE: vatCode });
     if (!response.success) return 0;
-    console.log(response)
+ 
 
     const [result] = JSON.parse(response.data[0].result);
     if (!result) return 0;

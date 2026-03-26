@@ -84,7 +84,7 @@ import {
   parseFormattedNumber,
   useSwalshowSaveSuccessDialog,
   useSwalHandleOpenSpecsModal,
-} from '@/NAYSA Cloud/Global/behavior';
+} from '@/NAYSA Cloud/Global/behavior.jsx';
 
 
 
@@ -716,7 +716,24 @@ const handleCurrRateNoBlur = (e) => {
 
 
 
+ 
+const moveFocusBeforeSave = () => {
+  const remarksEl = document.getElementById("remarks");
+  if (remarksEl) {
+    remarksEl.focus();
+    return true;
+  }
+  return false;
+};
+
+
+
  const handleActivityOption = async (action) => {
+  if (action === "Upsert") {
+      moveFocusBeforeSave();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
   if (action === "Upsert" && detailRowsGL.length === 0) {
     updateState({ triggerGLEntries: true });
     return;
@@ -2863,7 +2880,7 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                 <th className="global-tran-th-ui w-[2000px]">Particulars</th>
                 <th className="global-tran-th-ui">VAT Code</th>
                 <th className="global-tran-th-ui">VAT Name</th>
-                <th className="global-tran-th-ui">ATC Code</th>
+                <th className="global-tran-th-ui">ATC</th>
                 <th className="global-tran-th-ui ">ATC Name</th>
 
                 <th className="global-tran-th-ui">Debit ({glCurrDefault})</th>

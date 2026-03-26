@@ -285,7 +285,8 @@ const PayTermRef = forwardRef((props, ref) => {
         json_data: { paytermCode, userCode },
       });
     },
-    onSuccess: async (response) => {
+    // Fix: Added paytermCode as the second parameter here so it reads the variable passed in
+    onSuccess: async (response, paytermCode) => {
       const sqlRow = response?.data?.data?.[0] || {};
       const errorcount = Number(sqlRow.errorcount ?? 0);
       const errormsg = String(sqlRow.errormsg ?? "");
@@ -296,7 +297,11 @@ const PayTermRef = forwardRef((props, ref) => {
       }
 
       queryClient.invalidateQueries({ queryKey: ["paytermList"] });
-      await useSwalDeleteRecord("Deleted");
+      
+      await useSwalDeleteRecord(
+        "Deleted", 
+        `Payment Term Code ${paytermCode} has been successfully removed.`
+      );
 
       resetForm(DEFAULT_FORM);
       setIsEditing(false);
@@ -546,7 +551,6 @@ const PayTermRef = forwardRef((props, ref) => {
             disabled={!isEditing}
           />
 
-
           <RegistrationInfo data={form} layout="stacked" />
         </Card>
 
@@ -558,6 +562,7 @@ const PayTermRef = forwardRef((props, ref) => {
             columns={tableColumns}
             data={tableData}
             isLoading={isInitialLoading}
+            docType="Payment Terms"
             itemsPerPage={10}
             onRowDoubleClick={handleEdit}
             onRowClick={(row) => setSelectedRow(row)}
