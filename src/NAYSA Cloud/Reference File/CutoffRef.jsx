@@ -64,6 +64,7 @@ const CutoffRef = () => {
   const { user } = useAuth();
   const docType = "CutoffRef";
   const guideRef = useRef(null);
+  const formTopRef = useRef(null); // <-- Added for smooth scroll
   const pdfLink = reftablesPDFGuide[docType];
   const videoLink = reftablesVideoGuide[docType];
 
@@ -78,6 +79,39 @@ const CutoffRef = () => {
   const [selectedYear, setSelectedYear] = useState(
     new Date().getFullYear().toString(), // Defaults to current year (e.g., "2026")
   );
+
+  // --- Mobile Action Sheet State ---
+  const [isMobile, setIsMobile] = useState(false);
+  const [isMobileActionSheetMounted, setIsMobileActionSheetMounted] = useState(false);
+  const [isMobileActionSheetOpen, setIsMobileActionSheetOpen] = useState(false);
+  const [selectedMobileRow, setSelectedMobileRow] = useState(null);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  const openMobileActionSheet = (row) => {
+    setSelectedMobileRow(row);
+    setIsMobileActionSheetMounted(true);
+
+    requestAnimationFrame(() => {
+      setIsMobileActionSheetOpen(true);
+    });
+  };
+
+  const closeMobileActionSheet = () => {
+    setIsMobileActionSheetOpen(false);
+
+    setTimeout(() => {
+      setIsMobileActionSheetMounted(false);
+      setSelectedMobileRow(null);
+    }, 300);
+  };
+
 
   const toggleModal = (name, isOpen) =>
     setModals((prev) => ({ ...prev, [name]: isOpen }));
@@ -117,8 +151,8 @@ const CutoffRef = () => {
           .toLocaleString("default", { month: "long" })
           .toUpperCase();
         updates.cutoffName = `${monthName} ${year}`;
-        updates.fromDate = formatLocal(startDate); // Result: 2027-01-01
-        updates.toDate = formatLocal(endDate); // Result: 2027-01-31
+        updates.fromDate = formatLocal(startDate); 
+        updates.toDate = formatLocal(endDate); 
       }
     }
     updateForm(updates);
@@ -207,8 +241,45 @@ const CutoffRef = () => {
       return useSwalErrorAlert("Validation Error", "All fields are required.");
     }
 
-    // 2. Final Duplicate Check for New Records
-    // We perform this ONLY if it's a new record (no selectedCutoffCode)
+    // --- DATE MATCHING VALIDATION ---
+    // Extract Years
+    const codeYear = formData.cutoffCode.substring(0, 4);
+    const startYear = formData.fromDate.substring(0, 4);
+    const endYear = formData.toDate.substring(0, 4);
+
+    // Extract Months (YYYYMM for code, YYYY-MM-DD for dates)
+    const codeMonth = formData.cutoffCode.substring(4, 6);
+    const startMonth = formData.fromDate.substring(5, 7);
+    const endMonth = formData.toDate.substring(5, 7);
+
+    // Validate Year
+    if (codeYear !== startYear || codeYear !== endYear) {
+      return useSwalErrorAlert(
+        "Invalid Dates",
+        `The Start and End Date years must match the first 4 digits of the Cut Off Code (${codeYear}).`
+      );
+    }
+
+    // Validate Month
+    if (codeMonth !== startMonth || codeMonth !== endMonth) {
+      return useSwalErrorAlert(
+        "Invalid Dates",
+        `The Start and End Date months must match the last 2 digits of the Cut Off Code (${codeMonth}).`
+      );
+    }
+    // --------------------------------
+
+    // 2. Date Range Validation
+    const start = new Date(formData.fromDate);
+    const end = new Date(formData.toDate);
+    if (start > end) {
+      return useSwalErrorAlert(
+        "Invalid Date Range",
+        "Start Date cannot be later than End Date.",
+      );
+    }
+
+    // 3. Final Duplicate Check for New Records
     if (!selectedCutoffCode) {
       try {
         setIsLoading(true);
@@ -224,8 +295,6 @@ const CutoffRef = () => {
 
         if (parsedData.result === "1") {
           setIsLoading(false);
-          // We only show this alert if the user managed to click save
-          // before the onBlur validation finished or if onBlur was bypassed.
           return useSwalErrorAlert(
             "Duplicate Error",
             `The Cut Off Code ${formData.cutoffCode} is already used.`,
@@ -236,16 +305,6 @@ const CutoffRef = () => {
       } finally {
         setIsLoading(false);
       }
-    }
-
-    // 3. Date Range Validation
-    const start = new Date(formData.fromDate);
-    const end = new Date(formData.toDate);
-    if (start > end) {
-      return useSwalErrorAlert(
-        "Invalid Date Range",
-        "Start Date cannot be later than End Date.",
-      );
     }
 
     // 4. Proceed with Save
@@ -263,13 +322,16 @@ const CutoffRef = () => {
     saveCutOff(payload);
   };
 
-  // --- MUTATION: UPSERT ---
 
   const resetForm = () => {
     setFormData(INITIAL_FORM);
     setRegistrationInfo(INITIAL_REG);
     setIsEditing(false);
-    setSelectedCutoffCode(null); // Clear the lock
+    setSelectedCutoffCode(null); 
+
+    if (formTopRef.current) {
+      formTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
   const handleEdit = (row) => {
@@ -279,7 +341,7 @@ const CutoffRef = () => {
 
     setFormData({
       ...INITIAL_FORM,
-      ...row, // Ensure row.cutoffName exists here
+      ...row, 
       fromDate: formattedFromDate,
       toDate: formattedToDate,
     });
@@ -291,9 +353,18 @@ const CutoffRef = () => {
       lastUpdatedDate: row.lastUpdatedDate,
     });
 
-    // This is the key: setting this makes the field disabled
     setSelectedCutoffCode(row.cutoffCode);
     setIsEditing(true);
+    closeMobileActionSheet(); 
+
+    // Smooth scroll to form
+    setTimeout(() => {
+      if (formTopRef.current) {
+        const yOffset = -80; 
+        const y = formTopRef.current.getBoundingClientRect().top + window.pageYOffset + yOffset;
+        window.scrollTo({ top: y, behavior: 'smooth' });
+      }
+    }, 150);
   };
 
   const { mutate: deleteCutoff, isLoading: isDeleting } = useMutation({
@@ -311,60 +382,59 @@ const CutoffRef = () => {
   });
 
   const handleDelete = async (row) => {
-    // 1. Check if the status is Closed ('C')
-    if (row.status === "C") {
+  if (row.status === "C") {
+    return useSwalErrorAlert(
+      "Cannot Delete",
+      `Cut Off Code ${row.cutoffCode} is currently CLOSED and cannot be deleted.`,
+    );
+  }
+
+  try {
+    setIsLoading(true);
+
+    const payload = {
+      json_data: {
+        cutoffCode: row.cutoffCode,
+      },
+    };
+
+    const response = await apiClient.post("/checkInUsedCutOff", payload);
+
+    const sqlRow = response?.data?.data?.[0];
+    const rawJsonString = sqlRow?.result || Object.values(sqlRow || {})[0];
+    const parsedData = JSON.parse(rawJsonString || '{"result":"0"}');
+
+    if (parsedData.result === "1") {
       return useSwalErrorAlert(
         "Cannot Delete",
-        `Cut Off Code ${row.cutoffCode} is currently CLOSED and cannot be deleted.`,
+        `Cut Off Code ${row.cutoffCode} was already used.`,
       );
     }
 
-    try {
-      setIsLoading(true);
-      const payload = {
-        json_data: {
-          cutoffCode: row.cutoffCode,
-        },
-      };
+    const confirm = await useSwalDeleteConfirm(
+      "Confirm Delete",
+      `Are you sure you want to delete Code: ${row.cutoffCode}?`,
+    );
 
-      // 2. Check if used in other tables via SPROC
-      const response = await apiClient.post("/checkInUsedCutOff", payload);
-      const sqlRow = response?.data?.data?.[0];
-      const rawJsonString = sqlRow?.result || Object.values(sqlRow || {})[0];
-      const parsedData = JSON.parse(rawJsonString || '{"result":"0"}');
-
-      if (parsedData.result === "1") {
-        setIsLoading(false);
-        return useSwalErrorAlertAPI(
-          `Cannot Delete Cut Off Code: ${row.cutoffCode}`,
-          `Code was already used.`,
-        );
-      }
-
-      // 3. Confirmations
-      const confirm = await useSwalDeleteConfirm(
-        "Confirm Delete",
-        `Are you sure you want to delete Code: ${row.cutoffCode}?`,
-      );
-
-      if (confirm.isConfirmed) {
-        deleteCutoff(payload);
-      }
-    } catch (error) {
-      useSwalErrorAlertAPI("System Error", error);
-    } finally {
-      setIsLoading(false);
+    if (confirm.isConfirmed) {
+      deleteCutoff(payload);
     }
-  };
+  } catch (error) {
+    useSwalErrorAlertAPI(
+      "System Error",
+      error?.response?.data?.message || error?.message || "Delete check failed.",
+    );
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // --- VALIDATION: Check for Duplicate Code ---
   const handleCheckDuplicate = async (code) => {
-    // Only skip if we have a selectedCutoffCode (meaning it's an existing record being updated)
     if (selectedCutoffCode) return;
     if (!code) return;
 
     try {
-      // setIsLoading(true);
       const payload = { json_data: { cutoffCode: code } };
       const response = await apiClient.post("/checkDuplicateCutOff", payload);
 
@@ -373,7 +443,6 @@ const CutoffRef = () => {
       const parsedData = JSON.parse(rawJsonString || '{"result":"0"}');
 
       if (parsedData.result === "1") {
-        // Clear the code so the user cannot save a duplicate
         updateForm({ cutoffCode: "" });
         setIsLoading(false);
         return useSwalErrorAlertAPI(
@@ -399,25 +468,40 @@ const CutoffRef = () => {
     () => [
       {
         key: "__actions",
-        label: "Actions",
+        label: <span className="hidden md:inline">Actions</span>,
+        width: 50,
         render: (row) => (
-          <div className="flex gap-2 justify-center">
-            {/* Updated Edit Button matching RCMast style */}
+          <div className="flex gap-2 justify-center w-full">
             <button
-              onClick={() => handleEdit(row)}
-              className="p-1.5 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-600 hover:text-white transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isMobile) {
+                  openMobileActionSheet(row);
+                } else {
+                  handleEdit(row);
+                }
+              }}
+              className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-blue-50 border border-blue-100 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-colors text-xs"
               title="Edit"
             >
               <FontAwesomeIcon icon={faEdit} />
+              <span className="md:hidden">Edit</span>
             </button>
 
-            {/* Updated Delete Button matching RCMast style */}
             <button
-              onClick={() => handleDelete(row)}
-              className="p-1.5 rounded-md bg-red-100 text-red-700 hover:bg-red-600 hover:text-white transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isMobile) {
+                  openMobileActionSheet(row);
+                } else {
+                  handleDelete(row);
+                }
+              }}
+              className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-red-50 border border-red-100 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors text-xs"
               title="Delete"
             >
               <FontAwesomeIcon icon={faTrashAlt} />
+              <span className="md:hidden">Delete</span>
             </button>
           </div>
         ),
@@ -457,7 +541,7 @@ const CutoffRef = () => {
         },
       },
     ],
-    [handleEdit, handleDelete],
+    [isMobile],
   );
 
 
@@ -485,7 +569,7 @@ const CutoffRef = () => {
     let mounted = true;
 
     (async () => {
-      const res = await useFieldLenghtCheck("VAT_REF");
+      const res = await useFieldLenghtCheck("CUTOFF_REF");
       if (mounted) setTblFieldArray(res || []);
     })();
 
@@ -528,73 +612,76 @@ const CutoffRef = () => {
 
           <div className="w-full md:w-auto flex md:justify-end">
             <div className="w-full md:w-auto flex items-center justify-center md:justify-end gap-2 flex-wrap">
-              <ButtonBar
-                buttons={[
-                  {
-                    key: "add",
-                    label: <span className="hidden sm:inline ml-1">Add</span>,
-                    icon: faPlus,
-                    onClick: () => {
-                      resetForm();
-                      setIsEditing(true);
+              
+              <div className="flex flex-wrap justify-center md:justify-end gap-2">
+                <ButtonBar
+                  buttons={[
+                    {
+                      key: "add",
+                      label: <span className="sm:inline ml-1">Add</span>,
+                      icon: faPlus,
+                      onClick: () => {
+                        resetForm();
+                        setIsEditing(true);
 
-                      // 1. Find the highest existing Cut Off Code
-                      if (accounts.length > 0) {
-                        const maxCode = Math.max(
-                          ...accounts.map((item) => parseInt(item.cutoffCode)),
-                        );
-                        const codeStr = maxCode.toString();
+                        // 1. Find the highest existing Cut Off Code
+                        if (accounts.length > 0) {
+                          const maxCode = Math.max(
+                            ...accounts.map((item) => parseInt(item.cutoffCode)),
+                          );
+                          const codeStr = maxCode.toString();
 
-                        let year = parseInt(codeStr.substring(0, 4));
-                        let month = parseInt(codeStr.substring(4, 6));
+                          let year = parseInt(codeStr.substring(0, 4));
+                          let month = parseInt(codeStr.substring(4, 6));
 
-                        // 2. Increment Month logic
-                        if (month === 12) {
-                          month = 1;
-                          year += 1;
-                        } else {
-                          month += 1;
+                          // 2. Increment Month logic
+                          if (month === 12) {
+                            month = 1;
+                            year += 1;
+                          } else {
+                            month += 1;
+                          }
+
+                          // 3. Format back to YYYYMM (with leading zero for month)
+                          const nextCode = `${year}${String(month).padStart(2, "0")}`;
+
+                          // 4. Trigger handleCodeChange to auto-fill Name and Dates
+                          handleCodeChange(nextCode);
                         }
-
-                        // 3. Format back to YYYYMM (with leading zero for month)
-                        const nextCode = `${year}${String(month).padStart(2, "0")}`;
-
-                        // 4. Trigger handleCodeChange to auto-fill Name and Dates
-                        handleCodeChange(nextCode);
-                      }
+                      },
+                      className:
+                        "flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
                     },
-                    className:
-                      "flex items-center justify-center h-8 px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
-                  },
-                  {
-                    key: "save",
-                    label: <span className="hidden sm:inline ml-1">Save</span>,
-                    icon: faSave,
-                    onClick: handleSave,
-                    disabled: !isEditing || isSaving,
-                    className: `flex items-center justify-center h-8 px-4 text-[11px] font-medium rounded-md transition-all ${!isEditing || isSaving ? "bg-blue-500 opacity-50 cursor-not-allowed text-white" : "bg-blue-600 text-white hover:bg-blue-700"}`,
-                  },
-                  {
-                    key: "reset",
-                    label: <span className="hidden sm:inline ml-1">Reset</span>,
-                    icon: faUndo,
-                    onClick: resetForm,
-                    className:
-                      "flex items-center justify-center h-8 px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
-                  },
-                ]}
-              />
+                    {
+                      key: "save",
+                      label: <span className="sm:inline ml-1">Save</span>,
+                      icon: faSave,
+                      onClick: handleSave,
+                      disabled: !isEditing || isSaving,
+                      className: `flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md transition-all ${!isEditing || isSaving ? "bg-blue-500 opacity-50 cursor-not-allowed text-white" : "bg-blue-600 text-white hover:bg-blue-700"}`,
+                    },
+                    {
+                      key: "reset",
+                      label: <span className="sm:inline ml-1">Reset</span>,
+                      icon: faUndo,
+                      onClick: resetForm,
+                      className:
+                        "flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
+                    },
+                  ]}
+                />
+              </div>
 
               <div ref={guideRef} className="relative">
                 <button
                   onClick={() => setOpenGuide((v) => !v)}
-                  className="bg-blue-600 text-white h-8 px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
+                  className="bg-blue-600 text-white h-7 w-16 sm:w-auto sm:h-8 sm:px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
                 >
                   <FontAwesomeIcon
                     icon={faInfoCircle}
                     className="text-[12px]"
                   />
-                  <span className="hidden sm:inline ml-1 text-[11px] font-medium">
+                  <span className="sm:inline ml-1 text-[11px] font-medium">
                     Info
                   </span>
                   <FontAwesomeIcon
@@ -633,9 +720,10 @@ const CutoffRef = () => {
         </div>
       </div>
 
-      {/* NEW LAYOUT: SIDE-BY-SIDE */}
-      <div className="mt-24 flex flex-col xl:flex-row gap-4 px-4 h-[calc(100vh-130px)]">
-        <div className="w-full xl:w-[400px] flex flex-col gap-4 h-fit">
+      {/* SIDE-BY-SIDE LAYOUT */}
+      <div ref={formTopRef} className="mt-24 flex flex-col xl:flex-row gap-4 px-4 h-auto xl:h-[calc(100vh-130px)]">
+        <div className="w-full xl:w-[400px] flex flex-col gap-4 h-fit shrink-0">
+          
           {/* Entry Details Card */}
           <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-100 dark:border-gray-700 shadow-lg">
             <h2 className="text-sm font-bold text-blue-600 mb-6 uppercase tracking-wider border-b pb-2 flex justify-between items-center">
@@ -673,23 +761,19 @@ const CutoffRef = () => {
                 value={formData.cutoffCode || ""}
                 disabled={!isEditing || !!selectedCutoffCode} // Field is locked during edit
                 onChange={(v) => handleCodeChange(v)}
-                onBlur={(e) => handleCheckDuplicate(e.target.value)} // <--- This triggers the check
-                maxLength={6}
+                onBlur={(e) => handleCheckDuplicate(e.target.value)} 
+                maxLength={getMax("CUTOFF_CODE")}
               />
-              {/* ... rest of your fields (Cut Off Name, Dates, Status) */}
               <FieldRenderer
                 label="Cut Off Name"
                 required
                 type="text"
                 value={formData.cutoffName || ""}
-                // Ensure it is enabled when isEditing is true
                 disabled={!isEditing}
-                // Use functional update to ensure state is captured correctly
                 onChange={(v) =>
                   setFormData((prev) => ({ ...prev, cutoffName: v }))
                 }
-                // Change this from getMax("CUTOFF_NAME") to a number like 50 for testing
-                maxLength={50}
+                maxLength={getMax("CUTOFF_NAME")}
               />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FieldRenderer
@@ -698,16 +782,12 @@ const CutoffRef = () => {
                   type="date"
                   value={formData.fromDate || ""}
                   disabled={!isEditing}
+                  max="9999-12-31" 
                   onChange={(v) => {
+                    if (v && v.split('-')[0].length > 4) return;
                     updateForm({ fromDate: v });
-                    if (
-                      formData.toDate &&
-                      new Date(v) > new Date(formData.toDate)
-                    ) {
-                      // Optional: Trigger a small toast or temporary warning here
-                      console.warn("Start date is after end date");
-                    }
                   }}
+                  maxLength={getMax("FROM_DATE")}
                 />
                 <FieldRenderer
                   label="End Date"
@@ -715,16 +795,12 @@ const CutoffRef = () => {
                   type="date"
                   value={formData.toDate || ""}
                   disabled={!isEditing}
+                  max="9999-12-31" 
                   onChange={(v) => {
+                    if (v && v.split('-')[0].length > 4) return;
                     updateForm({ toDate: v });
-                    if (
-                      formData.fromDate &&
-                      new Date(formData.fromDate) > new Date(v)
-                    ) {
-                      // Optional: Trigger a small toast or temporary warning here
-                      console.warn("End date is before start date");
-                    }
                   }}
+                  maxLength={getMax("TO_DATE")}
                 />
               </div>
               <FieldRenderer
@@ -742,27 +818,81 @@ const CutoffRef = () => {
             </div>
           </div>
 
-          {/* Registration Information Card - Added extra bottom margin/padding */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 mb-8">
+          {/* Registration Information Card */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 mb-8 xl:mb-0">
             <RegistrationInfo layout="stacked" data={registrationInfo} />
           </div>
         </div>
 
-        {/* RIGHT SIDE: Global Reference Table (Flexible Width) */}
         {/* RIGHT SIDE: Global Reference Table */}
-        <div className="flex-1 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-lg overflow-hidden flex flex-col">
+        <div className="flex-1 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-lg overflow-hidden flex flex-col global-tran-table-main-div-ui mt-0">
           <SearchGlobalReferenceTable
             columns={columns}
             data={filteredAccounts}
             isLoading={isListLoading}
-            /* ADD OR UPDATE THIS PROP */
             docType="Cut Off Codes"
             fileName={`Cutoff_Reference_${selectedYear}_${new Date().toISOString().split("T")[0]}`}
             title="Cut off Reference Records"
             tableSize="Half"
+            onMobileRowOpen={openMobileActionSheet} // <-- Hooked up action sheet
           />
         </div>
       </div>
+
+      {/* Mobile Action Sheet Overlay */}
+      {isMobileActionSheetMounted && (
+        <div className="fixed inset-0 z-[120] md:hidden">
+          <div
+            className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${
+              isMobileActionSheetOpen ? "opacity-100" : "opacity-0"
+            }`}
+            onClick={closeMobileActionSheet}
+          />
+
+          <div
+            className={`absolute bottom-0 left-0 right-0 rounded-t-2xl bg-white shadow-2xl p-4 transform transition-transform duration-300 ease-out ${
+              isMobileActionSheetOpen ? "translate-y-0" : "translate-y-full"
+            }`}
+          >
+            <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4" />
+
+            <div className="mb-3">
+              <h2 className="text-sm font-bold text-gray-800">Cut Off Actions</h2>
+              <p className="text-xs text-gray-500">
+                {selectedMobileRow?.cutoffCode} {selectedMobileRow?.cutoffName ? `- ${selectedMobileRow.cutoffName}` : ""}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <button
+                onClick={() => handleEdit(selectedMobileRow)}
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-blue-50 text-blue-600 py-3 text-sm font-medium hover:bg-blue-600 hover:text-white transition-colors"
+              >
+                <FontAwesomeIcon icon={faEdit} />
+                Edit
+              </button>
+
+              <button
+                onClick={() => {
+                  handleDelete(selectedMobileRow);
+                  closeMobileActionSheet();
+                }}
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-red-50 text-red-600 py-3 text-sm font-medium hover:bg-red-600 hover:text-white transition-colors"
+              >
+                <FontAwesomeIcon icon={faTrashAlt} />
+                Delete
+              </button>
+
+              <button
+                onClick={closeMobileActionSheet}
+                className="w-full rounded-lg bg-gray-100 text-gray-700 py-3 text-sm font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

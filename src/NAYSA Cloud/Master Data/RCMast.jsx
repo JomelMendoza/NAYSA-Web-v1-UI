@@ -13,6 +13,7 @@ import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 import SearchGlobalReferenceTable from "@/NAYSA Cloud/Lookup/SearchGlobalReferenceTable";
 import RCType from "@/NAYSA Cloud/Reference File/RCRef.jsx";
 import SearchRcRef from "@/NAYSA Cloud/Lookup/SearchRcRef.jsx";
+import SearchRCGroup from "@/NAYSA Cloud/Lookup/SearchRCGroup.jsx";
 
 // Icons & Globals
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -72,11 +73,13 @@ const RCMast = () => {
   const { user } = useAuth();
   const docType = "RCMast";
   const guideRef = useRef(null);
+  const formTopRef = useRef(null); // <-- Added for smooth scroll
   const pdfLink = reftablesPDFGuide[docType];
   const videoLink = reftablesVideoGuide[docType];
 
   const [form, setForm] = useState(INITIAL_FORM);
   const [isRcTypeModalOpen, setRcTypeModalOpen] = useState(false);
+  const [isGroupModalOpen, setGroupModalOpen] = useState(false);
   const [registrationInfo, setRegistrationInfo] = useState(INITIAL_REG);
   const [modals, setModals] = useState({ rcType: false, guide: false });
   const [isEditing, setIsEditing] = useState(false);
@@ -85,6 +88,38 @@ const RCMast = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isOpenGuide, setOpenGuide] = useState(false);
   const [tblFieldArray, setTblFieldArray] = useState([]);
+
+  // --- Mobile Action Sheet State ---
+  const [isMobile, setIsMobile] = useState(false);
+  const [isMobileActionSheetMounted, setIsMobileActionSheetMounted] = useState(false);
+  const [isMobileActionSheetOpen, setIsMobileActionSheetOpen] = useState(false);
+  const [selectedMobileRow, setSelectedMobileRow] = useState(null);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  const openMobileActionSheet = (row) => {
+    setSelectedMobileRow(row);
+    setIsMobileActionSheetMounted(true);
+
+    requestAnimationFrame(() => {
+      setIsMobileActionSheetOpen(true);
+    });
+  };
+
+  const closeMobileActionSheet = () => {
+    setIsMobileActionSheetOpen(false);
+
+    setTimeout(() => {
+      setIsMobileActionSheetMounted(false);
+      setSelectedMobileRow(null);
+    }, 300);
+  };
 
   const toggleModal = (name, isOpen) =>
     setModals((prev) => ({ ...prev, [name]: isOpen }));
@@ -110,19 +145,9 @@ const RCMast = () => {
       const raw = data?.data?.[0]?.result || data?.result;
       return raw ? JSON.parse(raw) : [];
     },
+    staleTime: 0,
+    refetchInterval: 1000 * 20,
   });
-
-  // --- MEMOIZED GROUP OPTIONS ---
-  const groupOptions = useMemo(() => {
-    const filtered = (accounts || [])
-      .filter((acc) => acc.rcGroup === "Y")
-      .map((acc) => ({
-        value: acc.rcCode,
-        label: `(${acc.rcCode}) - ${acc.rcName || ""}`,
-      }));
-
-    return [{ value: "N", label: "--- None ---" }, ...filtered];
-  }, [accounts]);
 
   // --- MUTATIONS ---
   const { mutate: saveRC, isLoading: isSaving } = useMutation({
@@ -175,6 +200,10 @@ const RCMast = () => {
     setRegistrationInfo(INITIAL_REG);
     setSelectedRcCode(null);
     setIsEditing(false);
+
+    if (formTopRef.current) {
+      formTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
   const updateForm = (updates) => setForm((prev) => ({ ...prev, ...updates }));
@@ -189,11 +218,20 @@ const RCMast = () => {
       lastUpdatedDate: row.lastUpdatedDate,
     });
     setIsEditing(true);
+    closeMobileActionSheet(); 
+
+    // Smooth scroll to form
+    setTimeout(() => {
+      if (formTopRef.current) {
+        const yOffset = -80; 
+        const y = formTopRef.current.getBoundingClientRect().top + window.pageYOffset + yOffset;
+        window.scrollTo({ top: y, behavior: 'smooth' });
+      }
+    }, 150);
   };
 
   const handleDelete = async (row) => {
     try {
-      // setIsLoading(true);
       const payload = {
         json_data: {
           rcCode: row.rcCode,
@@ -231,7 +269,6 @@ const RCMast = () => {
     }
   };
 
-  // REMOVED setIsLoading changes here to prevent loading overlay on blur
   const handleCheckDuplicate = async (code) => {
     if (isEditing && selectedRcCode) return;
     if (!code) return;
@@ -262,22 +299,40 @@ const RCMast = () => {
     () => [
       {
         key: "__actions",
-        label: "Actions",
+        label: <span className="hidden md:inline">Actions</span>,
+        width: 50,
         render: (row) => (
-          <div className="flex gap-2 justify-center">
+          <div className="flex gap-2 justify-center w-full">
             <button
-              onClick={() => handleEdit(row)}
-              className="p-1.5 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-600 hover:text-white transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isMobile) {
+                  openMobileActionSheet(row);
+                } else {
+                  handleEdit(row);
+                }
+              }}
+              className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-blue-50 border border-blue-100 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-colors text-xs"
               title="Edit"
             >
               <FontAwesomeIcon icon={faEdit} />
+              <span className="md:hidden">Edit</span>
             </button>
+
             <button
-              onClick={() => handleDelete(row)}
-              className="p-1.5 rounded-md bg-red-100 text-red-700 hover:bg-red-600 hover:text-white transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isMobile) {
+                  openMobileActionSheet(row);
+                } else {
+                  handleDelete(row);
+                }
+              }}
+              className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-red-50 border border-red-100 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors text-xs"
               title="Delete"
             >
               <FontAwesomeIcon icon={faTrashAlt} />
+              <span className="md:hidden">Delete</span>
             </button>
           </div>
         ),
@@ -308,7 +363,7 @@ const RCMast = () => {
         render: (row) => (row.active === "Y" ? "Yes" : "No"),
       },
     ],
-    [dropdowns, deleteRcMast],
+    [dropdowns, deleteRcMast, isMobile],
   );
 
   useEffect(() => {
@@ -338,6 +393,12 @@ const RCMast = () => {
   }, []);
 
   const getMax = (col) => useGetFieldLength(tblFieldArray, col);
+
+  // --- Calculate Group Code Display Value ---
+  const selectedGroup = accounts.find((a) => a.rcCode === form.groupCode);
+  const displayGroupValue = selectedGroup 
+    ? `(${selectedGroup.rcCode}) - ${selectedGroup.rcName || "Unnamed Group"}` 
+    : form.groupCode || "";
 
   return (
     <div className="global-ref-main-div-ui">
@@ -400,52 +461,54 @@ const RCMast = () => {
           {/* Right: Buttons + Info */}
           <div className="w-full md:w-auto flex md:justify-end">
             <div className="w-full md:w-auto flex items-center justify-center md:justify-end gap-2 flex-wrap">
-              <ButtonBar
-                buttons={[
-                  {
-                    key: "add",
-                    label: <span className="hidden sm:inline ml-1">Add</span>,
-                    icon: faPlus,
-                    onClick: () => {
-                      resetForm();
-                      setIsEditing(true);
-                      setActiveTab("rcMast"); // Jump back to data entry if adding
+              <div className="flex flex-wrap justify-center md:justify-end gap-2">
+                <ButtonBar
+                  buttons={[
+                    {
+                      key: "add",
+                      label: <span className="sm:inline ml-1">Add</span>,
+                      icon: faPlus,
+                      onClick: () => {
+                        resetForm();
+                        setIsEditing(true);
+                        setActiveTab("rcMast"); // Jump back to data entry if adding
+                      },
+                      className:
+                        "flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
                     },
-                    className:
-                      "flex items-center justify-center h-8 px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
-                  },
-                  {
-                    key: "save",
-                    label: <span className="hidden sm:inline ml-1">Save</span>,
-                    icon: faSave,
-                    onClick: () => handleSave(),
-                    disabled: !isEditing || isSaving || activeTab !== "rcMast",
-                    className: `flex items-center justify-center h-8 px-4 text-[11px] font-medium rounded-md transition-all ${
-                      !isEditing || isSaving || activeTab !== "rcMast"
-                        ? "bg-blue-500 opacity-50 cursor-not-allowed text-white"
-                        : "bg-blue-600 text-white hover:bg-blue-700"
-                    }`,
-                  },
-                  {
-                    key: "reset",
-                    label: <span className="hidden sm:inline ml-1">Reset</span>,
-                    icon: faUndo,
-                    onClick: resetForm,
-                    className:
-                      "flex items-center justify-center h-8 px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
-                  },
-                ]}
-              />
+                    {
+                      key: "save",
+                      label: <span className="sm:inline ml-1">Save</span>,
+                      icon: faSave,
+                      onClick: () => handleSave(),
+                      disabled: !isEditing || isSaving || activeTab !== "rcMast",
+                      className: `flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md transition-all ${
+                        !isEditing || isSaving || activeTab !== "rcMast"
+                          ? "bg-blue-500 opacity-50 cursor-not-allowed text-white"
+                          : "bg-blue-600 text-white hover:bg-blue-700"
+                      }`,
+                    },
+                    {
+                      key: "reset",
+                      label: <span className="sm:inline ml-1">Reset</span>,
+                      icon: faUndo,
+                      onClick: resetForm,
+                      className:
+                        "flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
+                    },
+                  ]}
+                />
+              </div>
               <div ref={guideRef} className="relative">
                 <button
                   onClick={() => setOpenGuide((v) => !v)}
-                  className="bg-blue-600 text-white h-8 px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
+                  className="bg-blue-600 text-white h-7 w-16 sm:w-auto sm:h-8 sm:px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
                 >
                   <FontAwesomeIcon
                     icon={faInfoCircle}
                     className="text-[12px]"
                   />
-                  <span className="hidden sm:inline ml-1 text-[11px] font-medium">
+                  <span className="sm:inline ml-1 text-[11px] font-medium">
                     Info
                   </span>
                   <FontAwesomeIcon
@@ -515,8 +578,8 @@ const RCMast = () => {
 
       {/* Main Content Area (Top & Bottom Layout) */}
       {activeTab === "rcMast" && (
-        <div className="mt-28 md:mt-24 px-4 flex flex-col gap-4">
-          <div className="flex flex-col lg:flex-row gap-4">
+        <div ref={formTopRef} className="mt-28 md:mt-24 px-4 flex flex-col gap-4">
+          <div className="flex flex-col xl:flex-row gap-4">
             {/* Header Data Entry Groups (Top Left) */}
             <div className="flex-1 bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col md:flex-row gap-6">
               <div className="flex-1 space-y-4">
@@ -582,25 +645,17 @@ const RCMast = () => {
 
                 <FieldRenderer
                   label="Group Code"
-                  type="select"
-                  value={form.groupCode}
+                  type="lookup"
+                  value={displayGroupValue}
                   disabled={!isEditing}
-                  options={(accounts || [])
-                    .filter(
-                      (acc) =>
-                        acc.rcGroup === "Y" && acc.rcCode !== form.rcCode,
-                    )
-                    .map((acc) => ({
-                      value: acc.rcCode,
-                      label: `(${acc.rcCode}) - ${acc.rcName || "Unnamed Group"}`,
-                    }))}
-                  onChange={(v) => updateForm({ groupCode: v })}
+                  onLookup={() => setGroupModalOpen(true)}
+                  readOnly
                 />
               </div>
             </div>
 
             {/* Registration Info (Top Right) */}
-            <div className="w-full lg:w-[320px] shrink-0 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
+            <div className="w-full xl:w-[320px] shrink-0 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
               <RegistrationInfo layout="stacked" data={registrationInfo} />
             </div>
           </div>
@@ -611,11 +666,15 @@ const RCMast = () => {
               docType="RC Master Data"
               columns={columns}
               data={accounts}
-              isLoading={isListLoading}
+              // isLoading={isListLoading}
               onRowDoubleClick={handleEdit}
               itemsPerPage={50}
               title="RC Master Records"
               fileName={`RCMast_Reference_${new Date().toISOString().split("T")[0]}`}
+              onMobileRowOpen={openMobileActionSheet} // Attached Action Sheet Hook
+              isLoading={accounts.isLoading}
+              isFetching={accounts.isFetching}
+              onRefresh={() => accounts.refetch()}
             />
           </div>
         </div>
@@ -632,7 +691,7 @@ const RCMast = () => {
         </div>
       )}
 
-      {/* RC Type Lookup Modal */}
+      {/* Lookup Modals */}
       <SearchRcRef
         isOpen={isRcTypeModalOpen}
         onClose={(row) => {
@@ -645,6 +704,71 @@ const RCMast = () => {
           setRcTypeModalOpen(false);
         }}
       />
+      <SearchRCGroup
+        isOpen={isGroupModalOpen}
+        currentRcCode={form.rcCode}
+        onClose={(selectedCode) => {
+          if (selectedCode !== null) {
+            updateForm({ groupCode: selectedCode });
+          }
+          setGroupModalOpen(false);
+        }}
+      />
+
+      {/* Mobile Action Sheet Overlay */}
+      {isMobileActionSheetMounted && (
+        <div className="fixed inset-0 z-[120] md:hidden">
+          <div
+            className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${
+              isMobileActionSheetOpen ? "opacity-100" : "opacity-0"
+            }`}
+            onClick={closeMobileActionSheet}
+          />
+
+          <div
+            className={`absolute bottom-0 left-0 right-0 rounded-t-2xl bg-white shadow-2xl p-4 transform transition-transform duration-300 ease-out ${
+              isMobileActionSheetOpen ? "translate-y-0" : "translate-y-full"
+            }`}
+          >
+            <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4" />
+
+            <div className="mb-3">
+              <h2 className="text-sm font-bold text-gray-800">Record Actions</h2>
+              <p className="text-xs text-gray-500">
+                {selectedMobileRow?.rcCode} {selectedMobileRow?.rcName ? `- ${selectedMobileRow.rcName}` : ""}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <button
+                onClick={() => handleEdit(selectedMobileRow)}
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-blue-50 text-blue-600 py-3 text-sm font-medium hover:bg-blue-600 hover:text-white transition-colors"
+              >
+                <FontAwesomeIcon icon={faEdit} />
+                Edit
+              </button>
+
+              <button
+                onClick={() => {
+                  handleDelete(selectedMobileRow);
+                  closeMobileActionSheet();
+                }}
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-red-50 text-red-600 py-3 text-sm font-medium hover:bg-red-600 hover:text-white transition-colors"
+              >
+                <FontAwesomeIcon icon={faTrashAlt} />
+                Delete
+              </button>
+
+              <button
+                onClick={closeMobileActionSheet}
+                className="w-full rounded-lg bg-gray-100 text-gray-700 py-3 text-sm font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

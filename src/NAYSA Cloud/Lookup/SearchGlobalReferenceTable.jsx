@@ -1391,13 +1391,13 @@ const SearchGlobalReferenceTable = forwardRef(
                   <div
                     className={`relative rounded-full transition-colors duration-200 ${
                       autoFillGrid ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-600"
-                    } ${tableSize === "Half" ? "w-20 h-7" : "w-20 h-8"}`}
+                    } ${tableSize === "Half" ? "w-16 h-7" : "w-20 h-8"}`}
                   >
                     <span
                       className={`absolute top-[2px] rounded-full bg-white shadow-md transition-all duration-200 ${
                         autoFillGrid
                           ? tableSize === "Half"
-                            ? "left-[55px]"
+                            ? "left-[38px]"
                             : "left-[50px]"
                           : "left-[2px]"
                       } ${tableSize === "Half" ? "w-6 h-6" : "w-7 h-7"}`}
