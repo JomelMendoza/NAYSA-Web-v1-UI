@@ -8,25 +8,32 @@ import React, {
   useCallback,
 } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  Edit,
-  Trash2,
-  Plus,
-  Save,
-  Undo2,
-  Info,
-  ChevronDown,
-  FileText,
-  Video,
-} from "lucide-react";
+  faPlus,
+  faSave,
+  faUndo,
+  faEdit,
+  faTrashAlt,
+  faInfoCircle,
+  faChevronDown,
+  faFilePdf,
+  faVideo,
+} from "@fortawesome/free-solid-svg-icons";
 import Swal from "sweetalert2";
 
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
+
+// FIX: Aliased the imports to remove the "use" prefix so React doesn't crash
 import {
-  useSwalErrorAlert,
-  useSwalSuccessAlert,
-} from "@/NAYSA Cloud/Global/behavior";
+  useSwalErrorAlert as swalErrorAlert,
+  useSwalSuccessAlert as swalSuccessAlert,
+  useSwalErrorAlertAPI as swalErrorAlertAPI,
+  useSwalDeleteConfirm as swalDeleteConfirm,
+  useSwalDeleteRecord as swalDeleteRecord,
+} from "@/NAYSA Cloud/Global/behavior.jsx";
+
 import {
   reftables,
   reftablesPDFGuide,
@@ -35,7 +42,11 @@ import {
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 import SearchGlobalReferenceTable from "@/NAYSA Cloud/Lookup/SearchGlobalReferenceTable.jsx";
 import RegistrationInfo from "@/NAYSA Cloud/Global/RegistrationInfo.jsx";
-// import RCMast from "@/NAYSA Cloud/Master Data/RCMast.jsx";
+import ButtonBar from "@/NAYSA Cloud/Global/ButtonBar.jsx";
+import {
+  useFieldLenghtCheck,
+  useGetFieldLength,
+} from "@/NAYSA Cloud/Global/procedure";
 
 /* ================= HELPERS ================= */
 
@@ -77,13 +88,13 @@ const RcRef = forwardRef(
       setActiveTab = () => {},
       tabs = [],
     },
-    ref
+    ref,
   ) => {
     const { user } = useAuth();
     const queryClient = useQueryClient();
 
     const docType = "RcType";
-    const documentTitle = reftables?.[docType] || "RC Type Codes";
+    const documentTitle = reftables?.[docType] || "RC Type";
     const pdfLink = reftablesPDFGuide?.[docType];
     const videoLink = reftablesVideoGuide?.[docType];
 
@@ -96,8 +107,27 @@ const RcRef = forwardRef(
     const [isEditing, setIsEditing] = useState(false);
     const [isDupCode, setIsDupCode] = useState(false);
     const [isOpenGuide, setIsOpenGuide] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
 
     const [form, setForm] = useState(DEFAULT_FORM);
+
+    // FIX: Moved inside the component!
+    const [tblFieldArray, setTblFieldArray] = useState([]);
+
+    // FIX: Moved inside the component!
+    useEffect(() => {
+      (async () => {
+        // Note: Verify "RC_TYPE" matches your exact database table name
+        const res = await useFieldLenghtCheck("RC_TYPE"); 
+        setTblFieldArray(res || []);
+      })();
+    }, []);
+
+    // FIX: Moved inside the component!
+    const getMax = useCallback(
+      (col) => useGetFieldLength(tblFieldArray, col),
+      [tblFieldArray]
+    );
 
     const setField = (key, value) =>
       setForm((prev) => ({ ...prev, [key]: value }));
@@ -118,9 +148,11 @@ const RcRef = forwardRef(
       };
 
       document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    // --- QUERIES ---
     const rcTypeListQuery = useQuery({
       queryKey: ["rcTypeList"],
       queryFn: async () => {
@@ -132,11 +164,10 @@ const RcRef = forwardRef(
 
     const rcTypes = useMemo(
       () => rcTypeListQuery.data || [],
-      [rcTypeListQuery.data]
+      [rcTypeListQuery.data],
     );
 
-    const isInitialLoading = rcTypeListQuery.isLoading;
-
+    // --- MUTATIONS ---
     const saveMutation = useMutation({
       mutationFn: async (payload) => {
         return apiClient.post("/upsertRcType", {
@@ -149,38 +180,44 @@ const RcRef = forwardRef(
         const errormsg = String(sqlRow.errormsg ?? sqlRow.ERRORMSG ?? "");
 
         if (errorcount > 0) {
-          useSwalErrorAlert("Error", errormsg);
+          swalErrorAlert("Error", errormsg);
           return;
         }
 
         queryClient.invalidateQueries({ queryKey: ["rcTypeList"] });
-        useSwalSuccessAlert("Success!", "RC Type saved successfully.");
-        setIsEditing(false);
-        setSelectedRow(null);
-        setIsDupCode(false);
-        resetForm(DEFAULT_FORM);
+        swalSuccessAlert("Success!", "Record saved successfully.");
+        handleReset();
       },
       onError: (error) => {
-        useSwalErrorAlert("System Error", error.message);
+        swalErrorAlertAPI("System Error", error);
       },
     });
 
     const deleteMutation = useMutation({
       mutationFn: async (rcTypeCode) => {
         return apiClient.post("/deleteRcType", {
-          json_data: { rcTypeCode },
+          json_data: JSON.stringify({ rcTypeCode }),
         });
       },
-      onSuccess: () => {
+      onSuccess: (response) => {
+        const sqlRow = response?.data?.data?.[0] || {};
+        const errorcount = Number(sqlRow.errorcount ?? sqlRow.ERRORCOUNT ?? 0);
+
+        if (errorcount > 0) {
+          swalErrorAlert("Cannot Delete", sqlRow.errormsg);
+          return;
+        }
+
         queryClient.invalidateQueries({ queryKey: ["rcTypeList"] });
-        Swal.fire("Deleted", "RC Type record has been removed.", "success");
+        swalDeleteRecord("Deleted!", "Record deleted successfully.");
         handleReset();
       },
       onError: (error) => {
-        useSwalErrorAlert("System Error", error.message);
+        swalErrorAlertAPI("System Error", error);
       },
     });
 
+    // --- ACTIONS ---
     const startNew = useCallback(() => {
       resetForm(DEFAULT_FORM);
       setIsEditing(true);
@@ -201,22 +238,7 @@ const RcRef = forwardRef(
       if (!c) return false;
 
       const res = await apiClient.post("/checkDuplicateRcType", {
-        json_data: { rcTypeCode: c },
-      });
-
-      const row0 = res?.data?.data?.[0] || {};
-      const raw = row0?.result ?? row0?.[""] ?? '{"result":"0"}';
-      const parsed = JSON.parse(raw);
-
-      return String(parsed?.result) === "1";
-    };
-
-    const checkInUsed = async (rcTypeCode) => {
-      const c = String(rcTypeCode || "").trim();
-      if (!c) return false;
-
-      const res = await apiClient.post("/checkInUsedRcType", {
-        json_data: { rcTypeCode: c },
+        json_data: JSON.stringify({ rcTypeCode: c }),
       });
 
       const row0 = res?.data?.data?.[0] || {};
@@ -246,10 +268,9 @@ const RcRef = forwardRef(
 
       if (dup) {
         setIsDupCode(true);
-        Swal.fire(
+        swalErrorAlert(
           "Duplicate Entry",
           `RC Type Code "${code}" is already in use.`,
-          "error"
         );
         setField("rcTypeCode", "");
         setTimeout(() => codeInputRef.current?.focus?.(), 0);
@@ -262,16 +283,17 @@ const RcRef = forwardRef(
       if (!isEditing || saveMutation.isPending) return;
 
       const payload = {
-        rcTypeCode: String(form.rcTypeCode || "").trim().toUpperCase(),
+        rcTypeCode: String(form.rcTypeCode || "")
+          .trim()
+          .toUpperCase(),
         rcTypeName: String(form.rcTypeName || "").trim(),
         userCode: user?.USER_CODE || "ADMIN",
       };
 
       if (!payload.rcTypeCode || !payload.rcTypeName) {
-        Swal.fire(
+        swalErrorAlert(
           "Validation",
           "RC Type Code and RC Type Name are required.",
-          "warning"
         );
         return;
       }
@@ -290,11 +312,11 @@ const RcRef = forwardRef(
           resetForm({ ...DEFAULT_FORM, ...record, __existing: true });
           setIsEditing(true);
           setSelectedRow(row);
-        } catch {
-          Swal.fire("Error", "Could not fetch record", "error");
+        } catch (error) {
+          swalErrorAlertAPI("Fetch Error", error);
         }
       },
-      [resetForm]
+      [resetForm],
     );
 
     const handleDelete = useCallback(
@@ -302,88 +324,56 @@ const RcRef = forwardRef(
         const code = row?.rcTypeCode ?? "";
 
         if (!code) {
-          return Swal.fire("Error", "No record selected.", "error");
+          return swalErrorAlert("Error", "No record selected.");
         }
 
-        const used = await checkInUsed(code);
+        try {
+          // 1. Check if used in other tables via SPROC
+          const res = await apiClient.post("/checkInUsedRcType", {
+            json_data: JSON.stringify({ rcTypeCode: code }),
+          });
 
-        if (used) {
-          return Swal.fire(
-            "Cannot Delete",
-            `RC Type Code "${code}" is already in use.`,
-            "warning"
+          const row0 = res?.data?.data?.[0] || {};
+          const raw = row0?.result ?? row0?.[""] ?? '{"result":"0"}';
+          const parsed = JSON.parse(raw);
+
+          if (String(parsed?.result) === "1") {
+            return swalErrorAlert(
+              "Cannot Delete",
+              `RC Type Code "${code}" is currently in use by other transactions.`,
+            );
+          }
+
+          // 2. Confirmation
+          const confirm = await swalDeleteConfirm(
+            "Confirm Delete",
+            `Are you sure you want to delete RC Type "${code}"?`,
           );
+
+          if (confirm.isConfirmed) {
+            deleteMutation.mutate(code);
+          }
+        } catch (error) {
+          swalErrorAlertAPI("System Error", error);
         }
-
-        const confirm = await Swal.fire({
-          title: "Delete Record?",
-          text: `Are you sure you want to delete RC Type "${code}"?`,
-          icon: "warning",
-          showCancelButton: true,
-          confirmButtonText: "Yes, delete it",
-          cancelButtonText: "Cancel",
-        });
-
-        if (!confirm.isConfirmed) return;
-
-        deleteMutation.mutate(code);
       },
-      [deleteMutation]
+      [deleteMutation],
     );
-
-    const editSelected = useCallback(() => {
-      if (!selectedRow) {
-        return Swal.fire("Info", "Please select a record first.", "info");
-      }
-      handleEdit(selectedRow);
-    }, [selectedRow, handleEdit]);
-
-    const deleteSelected = useCallback(async () => {
-      if (!selectedRow) {
-        return Swal.fire("Info", "Please select a record first.", "info");
-      }
-      await handleDelete(selectedRow);
-    }, [selectedRow, handleDelete]);
-
-    const exportData = useCallback(() => {
-      tableRef.current?.getState?.();
-    }, []);
-
-    const openInfo = useCallback(() => {
-      const htmlParts = [];
-
-      if (pdfLink) {
-        htmlParts.push(
-          `<div style="margin-bottom:8px;"><a href="${pdfLink}" target="_blank" rel="noopener noreferrer">Open PDF Guide</a></div>`
-        );
-      }
-
-      if (videoLink) {
-        htmlParts.push(
-          `<div><a href="${videoLink}" target="_blank" rel="noopener noreferrer">Open Video Guide</a></div>`
-        );
-      }
-
-      Swal.fire({
-        title: documentTitle,
-        html:
-          htmlParts.join("") ||
-          "<div>No guide or video link is available for this reference.</div>",
-        icon: "info",
-      });
-    }, [documentTitle, pdfLink, videoLink]);
 
     useImperativeHandle(ref, () => ({
       startNew,
-      edit: editSelected,
-      editSelected,
-      deleteSelected,
+      editSelected: () =>
+        selectedRow
+          ? handleEdit(selectedRow)
+          : swalErrorAlert("Info", "Select a record first."),
+      deleteSelected: () =>
+        selectedRow
+          ? handleDelete(selectedRow)
+          : swalErrorAlert("Info", "Select a record first."),
       save: handleSave,
       reset: handleReset,
       refresh: () =>
         queryClient.invalidateQueries({ queryKey: ["rcTypeList"] }),
-      exportData,
-      openInfo,
     }));
 
     const tableColumns = useMemo(
@@ -392,18 +382,19 @@ const RcRef = forwardRef(
           key: "__actions",
           label: "Actions",
           sortable: false,
-          width: 140,
+          width: 100,
           render: (row) => (
-            <div className="flex items-center justify-center gap-2">
+            <div className="flex gap-2 justify-center">
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleEdit(row);
                 }}
-                className="p-1 rounded-md bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-600 hover:text-white transition-colors"
+                className="p-1.5 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-600 hover:text-white transition-colors"
+                title="Edit"
               >
-                <Edit size={16} />
+                <FontAwesomeIcon icon={faEdit} />
               </button>
               <button
                 type="button"
@@ -411,29 +402,28 @@ const RcRef = forwardRef(
                   e.stopPropagation();
                   handleDelete(row);
                 }}
-                className="p-1 rounded-md bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white transition-colors"
+                className="p-1.5 rounded-md bg-red-100 text-red-700 hover:bg-red-600 hover:text-white transition-colors"
+                title="Delete"
               >
-                <Trash2 size={16} />
+                <FontAwesomeIcon icon={faTrashAlt} />
               </button>
             </div>
           ),
         },
         {
           key: "rcTypeCode",
-          label: "Code",
+          label: "RC Type Code",
           sortable: true,
           width: 140,
-          render: (row) => row?.rcTypeCode,
         },
         {
           key: "rcTypeName",
-          label: "Name",
+          label: "RC Type Name",
           sortable: true,
           width: 360,
-          render: (row) => row?.rcTypeName,
         },
       ],
-      [handleEdit, handleDelete]
+      [handleEdit, handleDelete],
     );
 
     const tableData = useMemo(
@@ -441,10 +431,8 @@ const RcRef = forwardRef(
         (Array.isArray(rcTypes) ? rcTypes : []).map((row, index) => ({
           ...row,
           __idx: index,
-          rcTypeCode: row?.rcTypeCode,
-          rcTypeName: row?.rcTypeName,
         })),
-      [rcTypes]
+      [rcTypes],
     );
 
     const registrationData = useMemo(
@@ -454,172 +442,230 @@ const RcRef = forwardRef(
         lastUpdatedBy: form?.lastUpdatedBy,
         lastUpdatedDate: form?.lastUpdatedDate,
       }),
-      [form]
+      [form],
     );
 
-    // if (activeTab === "rcMast") {
-    //   return (
-    //     <RCMast
-    //       embedded={embedded}
-    //       activeTab={activeTab}
-    //       setActiveTab={setActiveTab}
-    //       tabs={tabs}
-    //     />
-    //   );
-    // }
+    const isLoadingState =
+      rcTypeListQuery.isLoading ||
+      saveMutation.isPending ||
+      deleteMutation.isPending ||
+      isLoading;
 
     return (
       <div className={embedded ? "w-full" : "global-ref-main-div-ui"}>
-        <div className="global-ref-header-ui mb-4">
-          <div className="w-full flex flex-col gap-3 md:grid md:grid-cols-3 md:items-center">
-            <div className="flex flex-col">
-              <h1 className="global-ref-headertext-ui text-center md:text-left">
-                {reftables?.[docType] || "RC Reference Type"}
+        {/* Modern Loading Overlay */}
+        {isLoadingState && (
+          <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-[2px] flex items-center justify-center">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-4">
+              <div className="relative">
+                <div className="w-12 h-12 border-4 border-blue-100 dark:border-gray-700 rounded-full"></div>
+                <div className="absolute top-0 left-0 w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+              <span className="text-sm font-semibold animate-pulse">
+                {saveMutation.isPending
+                  ? "Saving..."
+                  : deleteMutation.isPending
+                    ? "Deleting..."
+                    : "Loading..."}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Header Section */}
+        <div className="global-ref-header-ui mb-0">
+          <div className="w-full flex flex-col gap-3 md:grid md:grid-cols-3 md:items-center md:gap-0">
+            <div className="w-full md:w-auto md:justify-start flex">
+              <h1 className="global-ref-headertext-ui w-full md:w-auto truncate text-center md:text-left">
+                {documentTitle}
               </h1>
             </div>
 
-            <div className="flex gap-4 justify-center items-end h-full">
+            {/* Middle: Tabs centered */}
+            <div className="hidden md:flex justify-center items-end gap-4 h-full w-full">
               <button
-  type="button"
-  onClick={() => setActiveTab("rcMast")}
-  className={`text-[11px] font-bold pb-1 border-b-2 transition-all ${
-    activeTab === "rcMast"
-      ? "border-blue-600 text-blue-600"
-      : "border-transparent text-gray-400 hover:text-gray-600"
-  }`}
->
-  RC Master
-</button>
-
-<button
-  type="button"
-  onClick={() => setActiveTab("rctype")}
-  className={`text-[11px] font-bold pb-1 border-b-2 transition-all ${
-    activeTab === "rctype"
-      ? "border-blue-600 text-blue-600"
-      : "border-transparent text-gray-400 hover:text-gray-600"
-  }`}
->
-  RC Reference Type
-</button>
+                onClick={() => setActiveTab("rcMast")}
+                className={`text-[11px] font-bold pb-1 border-b-2 transition-all ${
+                  activeTab === "rcMast"
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-gray-400 hover:text-gray-600"
+                }`}
+              >
+                RC Master Data
+              </button>
+              <button
+                onClick={() => setActiveTab("rctype")}
+                className={`text-[11px] font-bold pb-1 border-b-2 transition-all ${
+                  activeTab === "rctype"
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-gray-400 hover:text-gray-600"
+                }`}
+              >
+                RC Type
+              </button>
             </div>
 
-            <div className="flex items-center justify-center md:justify-end gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={startNew}
-                className="bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm hover:bg-blue-700 transition-all flex items-center gap-1"
-              >
-                <Plus size={14} />
-                <span className="hidden sm:inline">Add</span>
-              </button>
+            {/* Right: Buttons + Info */}
+            <div className="w-full md:w-auto flex md:justify-end">
+              <div className="w-full md:w-auto flex items-center justify-center md:justify-end gap-2 flex-wrap">
+                <ButtonBar
+                  buttons={[
+                    {
+                      key: "add",
+                      label: <span className="hidden sm:inline ml-1">Add</span>,
+                      icon: faPlus,
+                      onClick: startNew,
+                      className:
+                        "flex items-center justify-center h-8 px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
+                    },
+                    {
+                      key: "save",
+                      label: (
+                        <span className="hidden sm:inline ml-1">Save</span>
+                      ),
+                      icon: faSave,
+                      onClick: handleSave,
+                      disabled: !isEditing || saveMutation.isPending,
+                      className: `flex items-center justify-center h-8 px-4 text-[11px] font-medium rounded-md transition-all ${
+                        !isEditing || saveMutation.isPending
+                          ? "bg-blue-500 opacity-50 cursor-not-allowed text-white"
+                          : "bg-blue-600 text-white hover:bg-blue-700"
+                      }`,
+                    },
+                    {
+                      key: "reset",
+                      label: (
+                        <span className="hidden sm:inline ml-1">Reset</span>
+                      ),
+                      icon: faUndo,
+                      onClick: handleReset,
+                      className:
+                        "flex items-center justify-center h-8 px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
+                    },
+                  ]}
+                />
+                <div ref={guideRef} className="relative">
+                  <button
+                    onClick={() => setIsOpenGuide((v) => !v)}
+                    className="bg-blue-600 text-white h-8 px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
+                  >
+                    <FontAwesomeIcon
+                      icon={faInfoCircle}
+                      className="text-[12px]"
+                    />
+                    <span className="hidden sm:inline ml-1 text-[11px] font-medium">
+                      Info
+                    </span>
+                    <FontAwesomeIcon
+                      icon={faChevronDown}
+                      className="hidden sm:inline text-[10px] opacity-80"
+                    />
+                  </button>
 
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={!isEditing || saveMutation.isPending}
-                className="bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-              >
-                <Save size={14} />
-                <span className="hidden sm:inline">
-                  {saveMutation.isPending ? "Saving..." : "Save"}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleReset}
-                className="bg-gray-500 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm hover:bg-gray-600 transition-all flex items-center gap-1"
-              >
-                <Undo2 size={14} />
-                <span className="hidden sm:inline">Reset</span>
-              </button>
-
-              <div ref={guideRef} className="relative">
-                <button
-                  type="button"
-                  onClick={() => setIsOpenGuide((v) => !v)}
-                  className="bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
-                >
-                  <Info size={14} />
-                  <span className="hidden sm:inline">Info</span>
-                  <ChevronDown size={12} className="hidden sm:inline" />
-                </button>
-
-                {isOpenGuide && (
-                  <div className="absolute right-0 mt-2 w-52 rounded-md shadow-xl bg-white ring-1 ring-black/10 z-[60] overflow-hidden">
-                    {pdfLink && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          window.open(pdfLink, "_blank");
-                          setIsOpenGuide(false);
-                        }}
-                        className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 border-b border-gray-100"
-                      >
-                        <FileText size={14} className="inline mr-2 text-red-500" />
-                        PDF Guide
-                      </button>
-                    )}
-
-                    {videoLink && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          window.open(videoLink, "_blank");
-                          setIsOpenGuide(false);
-                        }}
-                        className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50"
-                      >
-                        <Video size={14} className="inline mr-2 text-blue-500" />
-                        Video Guide
-                      </button>
-                    )}
-
-                    {!pdfLink && !videoLink && (
-                      <div className="px-4 py-2 text-xs text-gray-500">
-                        No guide available.
-                      </div>
-                    )}
-                  </div>
-                )}
+                  {isOpenGuide && (
+                    <div className="absolute right-0 mt-2 w-52 rounded-md shadow-xl bg-white ring-1 ring-black/10 z-[60] dark:bg-gray-800 overflow-hidden">
+                      {pdfLink && (
+                        <button
+                          onClick={() => {
+                            window.open(pdfLink, "_blank");
+                            setIsOpenGuide(false);
+                          }}
+                          className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900 border-b border-gray-100 dark:border-gray-700"
+                        >
+                          <FontAwesomeIcon
+                            icon={faFilePdf}
+                            className="mr-2 text-red-500"
+                          />{" "}
+                          PDF Guide
+                        </button>
+                      )}
+                      {videoLink && (
+                        <button
+                          onClick={() => {
+                            window.open(videoLink, "_blank");
+                            setIsOpenGuide(false);
+                          }}
+                          className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900"
+                        >
+                          <FontAwesomeIcon
+                            icon={faVideo}
+                            className="mr-2 text-blue-500"
+                          />{" "}
+                          Video Guide
+                        </button>
+                      )}
+                      {!pdfLink && !videoLink && (
+                        <div className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">
+                          No guide available.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
+            </div>
+
+            {/* Mobile Only: Tabs centered (Shown below title/buttons on small screens) */}
+            <div className="flex md:hidden justify-center items-end gap-4 w-full mt-2">
+              <button
+                onClick={() => setActiveTab("rcMast")}
+                className={`text-[11px] font-bold pb-1 border-b-2 transition-all ${
+                  activeTab === "rcMast"
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-gray-400 hover:text-gray-600"
+                }`}
+              >
+                RC Master Data
+              </button>
+              <button
+                onClick={() => setActiveTab("rctype")}
+                className={`text-[11px] font-bold pb-1 border-b-2 transition-all ${
+                  activeTab === "rctype"
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-gray-400 hover:text-gray-600"
+                }`}
+              >
+                RC Type
+              </button>
             </div>
           </div>
         </div>
 
-        <div className="w-full max-w-[905px] mx-auto px-4">
+        {/* Main Content Area (Left and Right Layout) */}
+        <div className="mt-4 md:mt-0 px-9 flex flex-col gap-4">
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-            <div className="xl:col-span-4">
-              <div className="flex flex-col gap-4">
-                <div className="border rounded-lg p-4 bg-white">
-                  <div className="grid grid-cols-1 gap-4">
-                    <FieldRenderer
-                      label="RC Type Code"
-                      required
-                      value={form.rcTypeCode}
-                      inputRef={codeInputRef}
-                      onChange={(e) =>
-                        setField(
-                          "rcTypeCode",
-                          String(e.target.value || "").toUpperCase()
-                        )
-                      }
-                      onBlur={handleRcTypeCodeValidate}
-                      onKeyDown={handleRcTypeCodeValidate}
-                      disabled={!isEditing || form.__existing}
-                    />
+            {/* Left Column (col-span-4): Data Entry & Registration Info */}
+            <div className="xl:col-span-3 flex flex-col gap-5">
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
+                <FieldRenderer
+                  label="RC Type Code"
+                  required
+                  value={form.rcTypeCode}
+                  inputRef={codeInputRef}
+                  onChange={(e) => {
+                    const val = e?.target?.value ?? e ?? "";
+                    setField("rcTypeCode", String(val).toUpperCase());
+                  }}
+                  onBlur={handleRcTypeCodeValidate}
+                  onKeyDown={handleRcTypeCodeValidate}
+                  disabled={!isEditing || form.__existing}
+                  maxLength={getMax("RCTYPE_CODE")} 
+                />
 
-                    <FieldRenderer
-                      label="RC Type Name"
-                      required
-                      value={form.rcTypeName}
-                      onChange={(e) => setField("rcTypeName", e.target.value)}
-                      disabled={!isEditing || saveMutation.isPending}
-                    />
-                  </div>
-                </div>
+                <FieldRenderer
+                  label="RC Type Name"
+                  required
+                  value={form.rcTypeName}
+                  onChange={(e) => {
+                    const val = e?.target?.value ?? e ?? "";
+                    setField("rcTypeName", String(val));
+                  }}
+                  disabled={!isEditing || saveMutation.isPending}
+                  maxLength={getMax("RCTYPE_NAME")} 
+                />
+              </div>
 
+              <div className="w-full bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
                 <RegistrationInfo
                   data={registrationData}
                   layout="stacked"
@@ -628,21 +674,23 @@ const RcRef = forwardRef(
               </div>
             </div>
 
-            <div className="xl:col-span-8 flex items-start">
-              <div className="w-full h-[426px] border rounded-lg p-2 min-w-0 bg-white">
+            {/* Right Column (col-span-8): Data Table */}
+            <div className="xl:col-span-8 flex flex-col gap-4">
+              <div className="global-tran-table-main-div-ui bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden h-[500px]">
                 <SearchGlobalReferenceTable
                   ref={tableRef}
-                  docType={docType}
+                  docType="RC Type"
                   columns={tableColumns}
                   data={tableData}
-                  itemsPerPage={10}
+                  itemsPerPage={15}
                   showFilters
-                  isLoading={isInitialLoading}
                   className="h-full"
                   onRowDoubleClick={handleEdit}
                   selectedRow={selectedRow}
                   onRowClick={(row) => setSelectedRow(row)}
-          
+                  tableSize="half"
+                  title="RC Types"
+                  fileName={`RcType_Reference_${new Date().toISOString().split("T")[0]}`}
                 />
               </div>
             </div>
@@ -650,7 +698,7 @@ const RcRef = forwardRef(
         </div>
       </div>
     );
-  }
+  },
 );
 
 export default RcRef;

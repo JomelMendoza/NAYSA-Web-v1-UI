@@ -15,7 +15,7 @@ import RCLookupModal from "../../../Lookup/SearchRCMast.jsx";
 import VATLookupModal from "../../../Lookup/SearchVATRef.jsx";
 import ATCLookupModal from "../../../Lookup/SearchATCRef.jsx";
 import SLMastLookupModal from "../../../Lookup/SearchSLMast.jsx";
-import BankLookupModal from "../../../Lookup/SearchBankMast.jsx";
+import BankMastLookupModal from "../../../Lookup/SearchBankMast.jsx";
 import CancelTranModal from "../../../Lookup/SearchCancelRef.jsx";
 import PostTranModal from "../../../Lookup/SearchPostRef.jsx";
 import AttachDocumentModal from "../../../Lookup/SearchAttachment.jsx";
@@ -42,6 +42,7 @@ import {
   useTopVatRow,
   useTopATCRow,
   useTopRCRow,
+  useTopAccountRow,
   useTopForexRate,
   useTopCurrencyRow,
   useTopHSOption,
@@ -2131,27 +2132,41 @@ const handleCloseBranchModal = (selectedBranch) => {
 
 
 const handleCloseBankModal = async (selectedBank) => {
-    if (selectedBank) {
-    handleSelectBank(selectedBank.bankCode);
-  };
-    updateState({ bankModalOpen: false });
+  
+  //   if (selectedBank) {
+  //   handleSelectBank(selectedBank.bankCode);
+  // };
+  //   updateState({ bankModalOpen: false });
+
+    if (selectedBank && selectedBank !== null) {
+     const result = await useTopAccountRow(selectedBank.acctCode);
+     if (result) {   
+      updateState({ bankCode: selectedBank.bankCode,
+                    depAcctName:result.acctName,
+                    bankAcctNo:selectedBank.bankAcctNo,
+                    checkNo: selectedBank.nextCheckNo
+             });
+    }  
+  }
+  updateState({ bankModalOpen: false});  
+
 }
 
 
 
-  const handleSelectBank = async (bankCode) => {
-    if (bankCode) {
+  // const handleSelectBank = async (bankCode) => {
+  //   if (bankCode) {
 
-     const result = await useTopBankRow(bankCode);
-      if (result) {
-      updateState({
-        bankCode:result.bankCode,
-        bankAcctNo:result.bankAcctNo,
-        checkNo: result.nextCheckNo 
-        })     
-      }
-    }
-  };
+  //    const result = await useTopBankRow(bankCode);
+  //     if (result) {
+  //     updateState({
+  //       bankCode:result.bankCode,
+  //       bankAcctNo:result.bankAcctNo,
+  //       checkNo: result.nextCheckNo 
+  //       })     
+  //     }
+  //   }
+  // };
 
   
   
@@ -4022,7 +4037,7 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
 )}
 
 {bankModalOpen && (
-  <BankLookupModal
+  <BankMastLookupModal
     isOpen={bankModalOpen}
     onClose={handleCloseBankModal}
   />

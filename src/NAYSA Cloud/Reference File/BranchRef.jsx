@@ -313,6 +313,7 @@ const handleCheckDuplicate = async (code) => {
 {
         key: "__actions",
         label: "Actions",
+        width: 80,
         render: (row) => (
           <div className="flex gap-2 justify-center">
             <button
@@ -336,27 +337,30 @@ const handleCheckDuplicate = async (code) => {
         ),
       },
 
-      { key: "branchCode", label: "Branch Code", sortable: true },
-      { key: "branchName", label: "Branch Name", sortable: true , className: "min-w-[200px]"},
+      { key: "branchCode", label: "Branch Code", sortable: true , width: 120 },
+      { key: "branchName", label: "Branch Name", sortable: true , width: 280 },
       {
         key: "address",
         label: "Address",
         sortable: true,
+        width: 400 ,
         render: (row) => getAddress(row),
       },
-      { key: "zipCode", label: "Zip Code", sortable: true },
-      { key: "branchTin", label: "TIN", sortable: true },
-      { key: "telNo", label: "Contact No.", sortable: true },
+      { key: "zipCode", label: "Zip Code", sortable: true, width: 100 },
+      { key: "branchTin", label: "TIN", sortable: true, width: 100 },
+      { key: "telNo", label: "Contact No.", sortable: true, width: 100 },
       {
         key: "main",
         label: "Main / Branch",
         sortable: true,
+        width: 100 ,
         render: (row) => getBranchTypeLabel(row.main),
       },
       {
         key: "active",
         label: "Active",
         sortable: true,
+        width: 100 ,
         render: (row) => getActiveLabel(row.active),
       },
       
@@ -609,7 +613,7 @@ const handleCheckDuplicate = async (code) => {
           isLoading={isListLoading}
           onRowDoubleClick={handleEdit}
           itemsPerPage={50}
-          autoFillGrid="True"
+          // autoFillGrid="True"
         />
       </div>
     </div>

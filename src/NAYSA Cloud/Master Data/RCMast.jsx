@@ -11,8 +11,8 @@ import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 
 // Import Lookup Modals
 import SearchGlobalReferenceTable from "@/NAYSA Cloud/Lookup/SearchGlobalReferenceTable";
-
 import RCType from "@/NAYSA Cloud/Reference File/RCRef.jsx";
+import SearchRcRef from "@/NAYSA Cloud/Lookup/SearchRcRef.jsx";
 
 // Icons & Globals
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -44,8 +44,6 @@ import {
   useFieldLenghtCheck,
   useGetFieldLength,
 } from "@/NAYSA Cloud/Global/procedure";
-
-import SearchRcRef from "@/NAYSA Cloud/Lookup/SearchRcRef.jsx";
 
 // UI Helpers
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer";
@@ -84,13 +82,9 @@ const RCMast = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [selectedRcCode, setSelectedRcCode] = useState(null);
   const [activeTab, setActiveTab] = useState("rcMast");
-  const [isLoading, setIsLoading] = useState(false); // Add this line
+  const [isLoading, setIsLoading] = useState(false);
   const [isOpenGuide, setOpenGuide] = useState(false);
   const [tblFieldArray, setTblFieldArray] = useState([]);
-  const setField = (key, value) =>
-    setForm((prev) => ({ ...prev, [key]: value }));
-
-  const [vatAcct, setRcType] = useState(null);
 
   const toggleModal = (name, isOpen) =>
     setModals((prev) => ({ ...prev, [name]: isOpen }));
@@ -119,7 +113,6 @@ const RCMast = () => {
   });
 
   // --- MEMOIZED GROUP OPTIONS ---
-  // Place it here, so it has access to 'accounts'
   const groupOptions = useMemo(() => {
     const filtered = (accounts || [])
       .filter((acc) => acc.rcGroup === "Y")
@@ -153,11 +146,10 @@ const RCMast = () => {
     mutationFn: async (payload) =>
       await apiClient.post("/deleteRCMast", payload),
     onSuccess: (response) => {
-      // FIX: Change 'vatList' to 'rcList' to match your Fetch Query Key
       queryClient.invalidateQueries(["rcList"]);
       useSwalDeleteRecord(
         "Deleted!",
-        "The Responsibility Center has been removed.",
+        "Record deleted successfully.",
       );
       resetForm();
     },
@@ -165,14 +157,12 @@ const RCMast = () => {
   });
 
   // --- ACTIONS ---
-
   const handleSave = () => {
     const payload = {
       json_data: JSON.stringify({
         json_data: {
-          // This nesting matches: JSON_VALUE(@params, '$.json_data.rcCode')
           ...form,
-          action: selectedRcCode ? "EDIT" : "ADD", // Fixed variable name
+          action: selectedRcCode ? "EDIT" : "ADD",
           userCode: user?.USER_CODE || "ADMIN",
         },
       }),
@@ -203,10 +193,10 @@ const RCMast = () => {
 
   const handleDelete = async (row) => {
     try {
-      setIsLoading(true);
+      // setIsLoading(true);
       const payload = {
         json_data: {
-          rcCode: row.rcCode, // Ensure this matches what the SPROC expects
+          rcCode: row.rcCode,
         },
       };
 
@@ -214,13 +204,11 @@ const RCMast = () => {
       const response = await apiClient.post("/checkInUsedRCMast", payload);
       const sqlRow = response?.data?.data?.[0];
 
-      // PHP returns { "result": "1" } inside a result string or object
       const rawJsonString = sqlRow?.result || Object.values(sqlRow || {})[0];
       const parsedData = JSON.parse(rawJsonString || '{"result":"0"}');
 
       if (parsedData.result === "1") {
         setIsLoading(false);
-        // FIX: Changed "VAT Code" to "RC Code" to match your module
         return useSwalErrorAlert(
           "Cannot Delete",
           `RC Code ${row.rcCode} is currently in use by other transactions.`,
@@ -234,7 +222,7 @@ const RCMast = () => {
       );
 
       if (confirm.isConfirmed) {
-        deleteRcMast(payload); // FIX: Ensure this calls your mutation
+        deleteRcMast(payload);
       }
     } catch (error) {
       useSwalErrorAlertAPI("System Error", error);
@@ -243,12 +231,12 @@ const RCMast = () => {
     }
   };
 
+  // REMOVED setIsLoading changes here to prevent loading overlay on blur
   const handleCheckDuplicate = async (code) => {
     if (isEditing && selectedRcCode) return;
     if (!code) return;
 
     try {
-      // Send a flat object because the PHP Controller adds the 'json_data' wrapper
       const payload = { rcCode: code };
       const response = await apiClient.post("/checkDuplicateRCMast", {
         json_data: payload,
@@ -259,10 +247,8 @@ const RCMast = () => {
       const parsedData = JSON.parse(rawJsonString || '{"result":"0"}');
 
       if (parsedData.result === "1") {
-        // setIsLoading(false); // Ensure this state exists in your component
-        resetForm();
+        updateForm({ rcCode: "" });
         return useSwalErrorAlert(
-          // Use standard alert if API alert expects an error object
           "Duplicate RC Code",
           `The code '${code}' is already in use.`,
         );
@@ -282,14 +268,14 @@ const RCMast = () => {
             <button
               onClick={() => handleEdit(row)}
               className="p-1.5 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-600 hover:text-white transition-colors"
+              title="Edit"
             >
               <FontAwesomeIcon icon={faEdit} />
             </button>
-
-            {/* Updated Delete Button */}
             <button
               onClick={() => handleDelete(row)}
               className="p-1.5 rounded-md bg-red-100 text-red-700 hover:bg-red-600 hover:text-white transition-colors"
+              title="Delete"
             >
               <FontAwesomeIcon icon={faTrashAlt} />
             </button>
@@ -302,8 +288,13 @@ const RCMast = () => {
         key: "rcTypeCode",
         label: "RC Type",
         sortable: true,
-        render: (row) =>
-          row.rcTypeCode ? `(${row.rcTypeCode}) - ${row.rcTypeName || ""}` : "",
+        render: (row) => (
+          <div className="whitespace-nowrap">
+            {row.rcTypeCode
+              ? `(${row.rcTypeCode}) - ${row.rcTypeName || ""}`
+              : ""}
+          </div>
+        ),
       },
       {
         key: "rcGroup",
@@ -350,129 +341,183 @@ const RCMast = () => {
 
   return (
     <div className="global-ref-main-div-ui">
-      {(isDropdownLoading || isListLoading || isSaving) && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/30 backdrop-blur-sm flex items-center justify-center">
-          <div className="bg-white p-6 rounded-xl shadow-2xl flex flex-col items-center gap-2">
-            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-            <span className="text-xs font-bold">Processing...</span>
+      {/* Updated Modern Overlay */}
+      {(isDropdownLoading ||
+        isListLoading ||
+        isSaving ||
+        isDeleting ||
+        isLoading) && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-[2px] flex items-center justify-center">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-4">
+            <div className="relative">
+              <div className="w-12 h-12 border-4 border-blue-100 dark:border-gray-700 rounded-full"></div>
+              <div className="absolute top-0 left-0 w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+            <span className="text-sm font-semibold animate-pulse">
+              {isSaving
+                ? "Saving..."
+                : isDeleting
+                  ? "Deleting..."
+                  : "Loading..."}
+            </span>
           </div>
         </div>
       )}
 
       {/* Header Section */}
       <div className="global-ref-header-ui">
-        <div className="w-full flex flex-col gap-3 md:grid md:grid-cols-3 md:items-center">
-          {/* Left: Title Only */}
-          <div className="flex flex-col">
-            <h1 className="global-ref-headertext-ui text-center md:text-left">
+        <div className="w-full flex flex-col gap-3 md:grid md:grid-cols-3 md:items-center md:gap-0">
+          <div className="w-full md:w-auto md:justify-start flex">
+            <h1 className="global-ref-headertext-ui w-full md:w-auto truncate text-center md:text-left">
               {reftables[docType] || "RC Master Data"}
             </h1>
           </div>
 
           {/* Middle: Tabs centered */}
-          <div className="flex gap-4 justify-center items-end h-full">
+          <div className="hidden md:flex justify-center items-end gap-4 h-full w-full">
             <button
               onClick={() => setActiveTab("rcMast")}
-              className={`text-[11px] font-bold pb-1 border-b-2 transition-all ${activeTab === "rcMast" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-400 hover:text-gray-600"}`}
+              className={`text-[11px] font-bold pb-1 border-b-2 transition-all ${
+                activeTab === "rcMast"
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-gray-400 hover:text-gray-600"
+              }`}
             >
               RC Master Data
             </button>
             <button
               onClick={() => setActiveTab("rctype")}
-              className={`text-[11px] font-bold pb-1 border-b-2 transition-all ${activeTab === "rctype" ? "border-blue-600 text-blue-600" : "border-transparent text-gray-400 hover:text-gray-600"}`}
+              className={`text-[11px] font-bold pb-1 border-b-2 transition-all ${
+                activeTab === "rctype"
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-gray-400 hover:text-gray-600"
+              }`}
             >
               RC Type
             </button>
           </div>
 
           {/* Right: Buttons + Info */}
-          <div className="flex items-center justify-center md:justify-end gap-2">
-            <ButtonBar
-              buttons={[
-                {
-                  key: "add",
-                  label: <span className="hidden sm:inline ml-1">Add</span>,
-                  icon: faPlus,
-                  onClick: () => {
-                    resetForm();
-                    setIsEditing(true);
+          <div className="w-full md:w-auto flex md:justify-end">
+            <div className="w-full md:w-auto flex items-center justify-center md:justify-end gap-2 flex-wrap">
+              <ButtonBar
+                buttons={[
+                  {
+                    key: "add",
+                    label: <span className="hidden sm:inline ml-1">Add</span>,
+                    icon: faPlus,
+                    onClick: () => {
+                      resetForm();
+                      setIsEditing(true);
+                      setActiveTab("rcMast"); // Jump back to data entry if adding
+                    },
+                    className:
+                      "flex items-center justify-center h-8 px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
                   },
-                  className:
-                    "bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm",
-                },
-
-                {
-                  key: "save",
-                  label: <span className="hidden sm:inline ml-1">Save</span>,
-                  icon: faSave,
-                  onClick: () => handleSave(),
-                  disabled: !isEditing || isSaving || activeTab !== "rcMast",
-                  className:
-                    "bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm disabled:opacity-50",
-                },
-
-                {
-                  key: "reset",
-                  label: <span className="hidden sm:inline ml-1">Reset</span>,
-                  icon: faUndo,
-                  onClick: resetForm,
-                  className:
-                    "bg-gray-500 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm",
-                },
-              ]}
-            />
-            <div ref={guideRef} className="relative">
-              <button
-                onClick={() => setOpenGuide((v) => !v)}
-                // Added px-3, py-1.5, and text-xs font-bold to match ButtonBar styles
-                className="bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-bold shadow-sm flex items-center justify-center gap-1 hover:bg-blue-700 transition-all h-[30px]"
-              >
-                <FontAwesomeIcon icon={faInfoCircle} className="text-[12px]" />
-                <span className="hidden sm:inline ml-1">Info</span>
-                <FontAwesomeIcon
-                  icon={faChevronDown}
-                  className="hidden sm:inline text-[10px] opacity-80"
-                />
-              </button>
-              {isOpenGuide && (
-                <div className="absolute right-0 mt-2 w-52 rounded-md shadow-xl bg-white ring-1 ring-black/10 z-[60] dark:bg-gray-800 overflow-hidden">
-                  <button
-                    onClick={() => {
-                      window.open(pdfLink, "_blank");
-                      setOpenGuide(false);
-                    }}
-                    className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900 border-b border-gray-100 dark:border-gray-700"
-                  >
-                    <FontAwesomeIcon
-                      icon={faFilePdf}
-                      className="mr-2 text-red-500"
-                    />{" "}
-                    PDF Guide
-                  </button>
-                  <button
-                    onClick={() => {
-                      window.open(videoLink, "_blank");
-                      setOpenGuide(false);
-                    }}
-                    className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900"
-                  >
-                    <FontAwesomeIcon
-                      icon={faVideo}
-                      className="mr-2 text-blue-500"
-                    />{" "}
-                    Video Guide
-                  </button>
-                </div>
-              )}
+                  {
+                    key: "save",
+                    label: <span className="hidden sm:inline ml-1">Save</span>,
+                    icon: faSave,
+                    onClick: () => handleSave(),
+                    disabled: !isEditing || isSaving || activeTab !== "rcMast",
+                    className: `flex items-center justify-center h-8 px-4 text-[11px] font-medium rounded-md transition-all ${
+                      !isEditing || isSaving || activeTab !== "rcMast"
+                        ? "bg-blue-500 opacity-50 cursor-not-allowed text-white"
+                        : "bg-blue-600 text-white hover:bg-blue-700"
+                    }`,
+                  },
+                  {
+                    key: "reset",
+                    label: <span className="hidden sm:inline ml-1">Reset</span>,
+                    icon: faUndo,
+                    onClick: resetForm,
+                    className:
+                      "flex items-center justify-center h-8 px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
+                  },
+                ]}
+              />
+              <div ref={guideRef} className="relative">
+                <button
+                  onClick={() => setOpenGuide((v) => !v)}
+                  className="bg-blue-600 text-white h-8 px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
+                >
+                  <FontAwesomeIcon
+                    icon={faInfoCircle}
+                    className="text-[12px]"
+                  />
+                  <span className="hidden sm:inline ml-1 text-[11px] font-medium">
+                    Info
+                  </span>
+                  <FontAwesomeIcon
+                    icon={faChevronDown}
+                    className="hidden sm:inline text-[10px] opacity-80"
+                  />
+                </button>
+                {isOpenGuide && (
+                  <div className="absolute right-0 mt-2 w-52 rounded-md shadow-xl bg-white ring-1 ring-black/10 z-[60] dark:bg-gray-800 overflow-hidden">
+                    <button
+                      onClick={() => {
+                        window.open(pdfLink, "_blank");
+                        setOpenGuide(false);
+                      }}
+                      className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900 border-b border-gray-100 dark:border-gray-700"
+                    >
+                      <FontAwesomeIcon
+                        icon={faFilePdf}
+                        className="mr-2 text-red-500"
+                      />{" "}
+                      PDF Guide
+                    </button>
+                    <button
+                      onClick={() => {
+                        window.open(videoLink, "_blank");
+                        setOpenGuide(false);
+                      }}
+                      className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900"
+                    >
+                      <FontAwesomeIcon
+                        icon={faVideo}
+                        className="mr-2 text-blue-500"
+                      />{" "}
+                      Video Guide
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
+          </div>
+
+          {/* Mobile Only: Tabs centered (Shown below title/buttons on small screens) */}
+          <div className="flex md:hidden justify-center items-end gap-4 w-full mt-2">
+            <button
+              onClick={() => setActiveTab("rcMast")}
+              className={`text-[11px] font-bold pb-1 border-b-2 transition-all ${
+                activeTab === "rcMast"
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-gray-400 hover:text-gray-600"
+              }`}
+            >
+              RC Master Data
+            </button>
+            <button
+              onClick={() => setActiveTab("rctype")}
+              className={`text-[11px] font-bold pb-1 border-b-2 transition-all ${
+                activeTab === "rctype"
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-gray-400 hover:text-gray-600"
+              }`}
+            >
+              RC Type
+            </button>
           </div>
         </div>
       </div>
 
+      {/* Main Content Area (Top & Bottom Layout) */}
       {activeTab === "rcMast" && (
-        <div className="mt-24 px-4 flex flex-col gap-4">
+        <div className="mt-28 md:mt-24 px-4 flex flex-col gap-4">
           <div className="flex flex-col lg:flex-row gap-4">
-            {/* Header Data Entry Groups */}
+            {/* Header Data Entry Groups (Top Left) */}
             <div className="flex-1 bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col md:flex-row gap-6">
               <div className="flex-1 space-y-4">
                 <FieldRenderer
@@ -535,7 +580,6 @@ const RCMast = () => {
                   />
                 </div>
 
-                {/* Removed the form.rcGroup !== "Y" condition here */}
                 <FieldRenderer
                   label="Group Code"
                   type="select"
@@ -555,28 +599,31 @@ const RCMast = () => {
               </div>
             </div>
 
-            {/* Registration Info */}
-            <div className="w-full lg:w-[320px] shrink-0">
+            {/* Registration Info (Top Right) */}
+            <div className="w-full lg:w-[320px] shrink-0 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
               <RegistrationInfo layout="stacked" data={registrationInfo} />
             </div>
           </div>
 
-          {/* Data Table */}
-          <div className="global-tran-table-main-div-ui">
+          {/* Data Table (Bottom) */}
+          <div className="global-tran-table-main-div-ui bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
             <SearchGlobalReferenceTable
-              docType={docType}
+              docType="RC Master Data"
               columns={columns}
               data={accounts}
               isLoading={isListLoading}
               onRowDoubleClick={handleEdit}
               itemsPerPage={50}
+              title="RC Master Records"
+              fileName={`RCMast_Reference_${new Date().toISOString().split("T")[0]}`}
             />
           </div>
         </div>
       )}
 
+      {/* Embedded Component for RC Type Tab */}
       {activeTab === "rctype" && (
-        <div className="mt-24 px-4">
+        <div className="mt-28 md:mt-24 px-4">
           <RCType
             activeTab={activeTab}
             setActiveTab={setActiveTab}
@@ -585,6 +632,7 @@ const RCMast = () => {
         </div>
       )}
 
+      {/* RC Type Lookup Modal */}
       <SearchRcRef
         isOpen={isRcTypeModalOpen}
         onClose={(row) => {

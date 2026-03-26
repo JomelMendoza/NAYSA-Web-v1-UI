@@ -364,7 +364,7 @@ const CutoffRef = () => {
     if (!code) return;
 
     try {
-      setIsLoading(true);
+      // setIsLoading(true);
       const payload = { json_data: { cutoffCode: code } };
       const response = await apiClient.post("/checkDuplicateCutOff", payload);
 
