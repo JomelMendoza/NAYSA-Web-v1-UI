@@ -145,6 +145,8 @@ const RCMast = () => {
       const raw = data?.data?.[0]?.result || data?.result;
       return raw ? JSON.parse(raw) : [];
     },
+    staleTime: 0,
+    refetchInterval: 1000 * 20,
   });
 
   // --- MUTATIONS ---
@@ -664,12 +666,15 @@ const RCMast = () => {
               docType="RC Master Data"
               columns={columns}
               data={accounts}
-              isLoading={isListLoading}
+              // isLoading={isListLoading}
               onRowDoubleClick={handleEdit}
               itemsPerPage={50}
               title="RC Master Records"
               fileName={`RCMast_Reference_${new Date().toISOString().split("T")[0]}`}
               onMobileRowOpen={openMobileActionSheet} // Attached Action Sheet Hook
+              isLoading={accounts.isLoading}
+              isFetching={accounts.isFetching}
+              onRefresh={() => accounts.refetch()}
             />
           </div>
         </div>

@@ -101,7 +101,7 @@ const RcRef = forwardRef(
     const tableRef = useRef(null);
     const enterValidatedRef = useRef(false);
     const guideRef = useRef(null);
-    const formTopRef = useRef(null); // <-- Added for smooth scroll
+    const formTopRef = useRef(null); 
 
     const [selectedRow, setSelectedRow] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -184,7 +184,7 @@ const RcRef = forwardRef(
         const res = await apiClient.get("/rcType");
         return extractRows(res);
       },
-      enabled: activeTab === "rctype" || !embedded, // Fetch if this tab is active or if standalone
+      enabled: activeTab === "rctype" || !embedded, 
     });
 
     const rcTypes = useMemo(
@@ -347,7 +347,6 @@ const RcRef = forwardRef(
           setSelectedRow(row);
           closeMobileActionSheet();
 
-          // Smooth scroll to form
           setTimeout(() => {
             if (formTopRef.current) {
               const yOffset = -80; 
@@ -468,13 +467,21 @@ const RcRef = forwardRef(
           key: "rcTypeCode",
           label: "RC Type Code",
           sortable: true,
-          width: 140,
+          // Fixed width removed to prevent mobile overflow clipping
         },
         {
           key: "rcTypeName",
           label: "RC Type Name",
           sortable: true,
-          width: 360,
+          // Fixed width removed to prevent mobile overflow clipping
+          render: (row) => (
+            <div 
+              className="whitespace-normal break-words min-w-[150px] max-w-[300px] lg:max-w-[400px]"
+              title={row.rcTypeName}
+            >
+              {row.rcTypeName}
+            </div>
+          )
         },
       ],
       [handleEdit, handleDelete, isMobile],
@@ -735,8 +742,10 @@ const RcRef = forwardRef(
             </div>
 
             {/* Right Column (col-span-8 equivalent): Data Table */}
-            <div className="flex-1 flex flex-col gap-4 h-[500px] xl:h-full pb-8 xl:pb-0">
-              <div className="global-tran-table-main-div-ui bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden h-full mt-0">
+            {/* Added min-w-0 and w-full to prevent flexbox from overflowing its parent width on mobile */}
+            <div className="flex-1 flex flex-col gap-4 h-[500px] xl:h-full pb-8 xl:pb-0 min-w-0 w-full overflow-hidden">
+              {/* Added overflow-x-auto here so the table scrolls left/right safely */}
+              <div className="global-tran-table-main-div-ui bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-x-auto overflow-y-hidden h-full mt-0 w-full">
                 <SearchGlobalReferenceTable
                   ref={tableRef}
                   docType="RC Type"
@@ -751,7 +760,7 @@ const RcRef = forwardRef(
                   tableSize="half"
                   title="RC Types"
                   fileName={`RcType_Reference_${new Date().toISOString().split("T")[0]}`}
-                  onMobileRowOpen={openMobileActionSheet} // Attached Action Sheet Hook
+                  onMobileRowOpen={openMobileActionSheet} 
                 />
               </div>
             </div>
