@@ -114,20 +114,19 @@ const RcRef = forwardRef(
     // FIX: Moved inside the component!
     const [tblFieldArray, setTblFieldArray] = useState([]);
 
-    // FIX: Moved inside the component!
-    useEffect(() => {
-      (async () => {
-        // Note: Verify "RC_TYPE" matches your exact database table name
-        const res = await useFieldLenghtCheck("RC_TYPE"); 
-        setTblFieldArray(res || []);
-      })();
-    }, []);
-
-    // FIX: Moved inside the component!
-    const getMax = useCallback(
-      (col) => useGetFieldLength(tblFieldArray, col),
-      [tblFieldArray]
-    );
+     // load max length metadata once
+        useEffect(() => {
+          let mounted = true;
+    
+          (async () => {
+            const res = await useFieldLenghtCheck("RCTYPE_REF");
+            if (mounted) setTblFieldArray(res || []);
+          })();
+    
+          return () => { mounted = false; };
+        }, []);
+    
+        const getMax = (col) => useGetFieldLength(tblFieldArray, col);
 
     const setField = (key, value) =>
       setForm((prev) => ({ ...prev, [key]: value }));

@@ -13,6 +13,7 @@ import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 import SearchGlobalReferenceTable from "@/NAYSA Cloud/Lookup/SearchGlobalReferenceTable";
 import RCType from "@/NAYSA Cloud/Reference File/RCRef.jsx";
 import SearchRcRef from "@/NAYSA Cloud/Lookup/SearchRcRef.jsx";
+import SearchRCGroup from "@/NAYSA Cloud/Lookup/SearchRCGroup.jsx";
 
 // Icons & Globals
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -77,6 +78,7 @@ const RCMast = () => {
 
   const [form, setForm] = useState(INITIAL_FORM);
   const [isRcTypeModalOpen, setRcTypeModalOpen] = useState(false);
+  const [isGroupModalOpen, setGroupModalOpen] = useState(false);
   const [registrationInfo, setRegistrationInfo] = useState(INITIAL_REG);
   const [modals, setModals] = useState({ rcType: false, guide: false });
   const [isEditing, setIsEditing] = useState(false);
@@ -111,18 +113,6 @@ const RCMast = () => {
       return raw ? JSON.parse(raw) : [];
     },
   });
-
-  // --- MEMOIZED GROUP OPTIONS ---
-  const groupOptions = useMemo(() => {
-    const filtered = (accounts || [])
-      .filter((acc) => acc.rcGroup === "Y")
-      .map((acc) => ({
-        value: acc.rcCode,
-        label: `(${acc.rcCode}) - ${acc.rcName || ""}`,
-      }));
-
-    return [{ value: "N", label: "--- None ---" }, ...filtered];
-  }, [accounts]);
 
   // --- MUTATIONS ---
   const { mutate: saveRC, isLoading: isSaving } = useMutation({
@@ -193,7 +183,6 @@ const RCMast = () => {
 
   const handleDelete = async (row) => {
     try {
-      // setIsLoading(true);
       const payload = {
         json_data: {
           rcCode: row.rcCode,
@@ -231,7 +220,6 @@ const RCMast = () => {
     }
   };
 
-  // REMOVED setIsLoading changes here to prevent loading overlay on blur
   const handleCheckDuplicate = async (code) => {
     if (isEditing && selectedRcCode) return;
     if (!code) return;
@@ -338,6 +326,12 @@ const RCMast = () => {
   }, []);
 
   const getMax = (col) => useGetFieldLength(tblFieldArray, col);
+
+  // --- Calculate Group Code Display Value ---
+  const selectedGroup = accounts.find((a) => a.rcCode === form.groupCode);
+  const displayGroupValue = selectedGroup 
+    ? `(${selectedGroup.rcCode}) - ${selectedGroup.rcName || "Unnamed Group"}` 
+    : form.groupCode || "";
 
   return (
     <div className="global-ref-main-div-ui">
@@ -582,19 +576,11 @@ const RCMast = () => {
 
                 <FieldRenderer
                   label="Group Code"
-                  type="select"
-                  value={form.groupCode}
+                  type="lookup"
+                  value={displayGroupValue}
                   disabled={!isEditing}
-                  options={(accounts || [])
-                    .filter(
-                      (acc) =>
-                        acc.rcGroup === "Y" && acc.rcCode !== form.rcCode,
-                    )
-                    .map((acc) => ({
-                      value: acc.rcCode,
-                      label: `(${acc.rcCode}) - ${acc.rcName || "Unnamed Group"}`,
-                    }))}
-                  onChange={(v) => updateForm({ groupCode: v })}
+                  onLookup={() => setGroupModalOpen(true)}
+                  readOnly
                 />
               </div>
             </div>
@@ -645,6 +631,19 @@ const RCMast = () => {
           setRcTypeModalOpen(false);
         }}
       />
+
+      {/* RC Group Lookup Modal */}
+      <SearchRCGroup
+        isOpen={isGroupModalOpen}
+        currentRcCode={form.rcCode}
+        onClose={(selectedCode) => {
+          if (selectedCode !== null) {
+            updateForm({ groupCode: selectedCode });
+          }
+          setGroupModalOpen(false);
+        }}
+      />
+      
     </div>
   );
 };
