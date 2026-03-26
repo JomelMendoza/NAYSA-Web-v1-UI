@@ -1,5 +1,3 @@
-
-
 // SearchGlobalTranHistory.jsx
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -239,15 +237,14 @@ const AllTranHistory = (props) => {
     if (startDateProp && endDateProp) return [new Date(startDateProp), new Date(endDateProp)];
     if (navState.startDate && navState.endDate)
       return [new Date(navState.startDate), new Date(navState.endDate)];
-    return [subDays(new Date(), 6), new Date()];
+    return [startOfMonth(new Date()), endOfMonth(new Date())];
   }, [startDateProp, endDateProp, navState.startDate, navState.endDate]);
 
   const normalizeStatus = (v) => (v === "" ? "All" : v ?? "All");
 
   const [dateRangeType, setDateRangeType] = useState(
     (startDateProp && endDateProp) || (navState.startDate && navState.endDate)
-      ? "Custom Range"
-      : "Last 7 Days"
+      ? "Custom Range": "This Month"
   );
 
   const [dates, setDates] = useState(initialDates());
@@ -275,6 +272,10 @@ const AllTranHistory = (props) => {
   const [showColumnChooser, setShowColumnChooser] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
+  // New features mirrored from ReportTable
+  const [globalSearch, setGlobalSearch] = useState("");
+  const [autoFillGridState, setAutoFillGridState] = useState(false);
+
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth < 768 : false
   );
@@ -299,6 +300,16 @@ const AllTranHistory = (props) => {
         "",
     };
   });
+
+  // Handle external clicks for menus
+  useEffect(() => {
+    const onDown = (e) => {
+      if (!e.target.closest?.("[data-sgrt-export]")) setShowExportMenu(false);
+      if (!e.target.closest?.("[data-sgrt-cols]")) setShowColumnChooser(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
 
   useEffect(() => {
     if (didInitRef.current) return;
@@ -339,7 +350,7 @@ const AllTranHistory = (props) => {
     if (snap) {
       hydratedFromCacheRef.current = true;
       setDates(snap.dates || initialDates());
-      setDateRangeType(snap.dateRangeType || "Last 7 Days");
+      setDateRangeType(snap.dateRangeType || "This Month");
 
       const desired =
         statusProp !== undefined
@@ -410,6 +421,8 @@ const AllTranHistory = (props) => {
       setDates([subDays(today, 6), today]);
     } else if (dateRangeType === "Last 30 Days") {
       setDates([subDays(today, 29), today]);
+    } else if (dateRangeType === "This Month") {
+      setDates([startOfMonth(today), endOfMonth(today)]);
     } else if (dateRangeType === "Custom Range") {
       setDates([null, null]);
     }
@@ -722,12 +735,21 @@ const AllTranHistory = (props) => {
       });
     })();
 
-    if (!sortConfig.key || sortConfig.tabKey !== activeTab) return statusFiltered;
+    let result = statusFiltered;
+
+    // Apply global quick search
+    const q = String(globalSearch || "").trim().toLowerCase();
+    if (q) {
+      const keys = baseColumns.map(c => c.key);
+      result = result.filter(r => keys.some(k => String(r?.[k] ?? "").toLowerCase().includes(q)));
+    }
+
+    if (!sortConfig.key || sortConfig.tabKey !== activeTab) return result;
 
     const col = baseColumns.find((c) => c.key === sortConfig.key);
     const isNum = isNumericColumn(col);
 
-    return [...statusFiltered].sort((a, b) => {
+    return [...result].sort((a, b) => {
       const valA = a?.[sortConfig.key];
       const valB = b?.[sortConfig.key];
 
@@ -741,7 +763,7 @@ const AllTranHistory = (props) => {
       const sB = String(valB ?? "");
       return sortConfig.direction === "asc" ? sA.localeCompare(sB) : sB.localeCompare(sA);
     });
-  }, [currentRows, searchFields, status, sortConfig, activeTab, baseColumns]);
+  }, [currentRows, searchFields, status, sortConfig, activeTab, baseColumns, globalSearch]);
 
   /* ---------------- grouping / totals helpers ---------------- */
   const totalExemptions = ["rate", "percent", "ratio", "id", "code"];
@@ -874,6 +896,24 @@ const AllTranHistory = (props) => {
 
   const grandTotals = useMemo(() => calculateAggregates(filteredData), [filteredData, calculateAggregates]);
 
+  const allGroupKeys = useMemo(() => {
+    if (!activeTab || groupBy.length === 0) return [];
+    const keys = [];
+    const traverse = (nodes) => {
+        nodes.forEach(n => {
+            if (n.isGroup) {
+                keys.push(`${n.key}-${n.value}-${n.level}`);
+                if (Array.isArray(n.children)) traverse(n.children);
+            }
+        });
+    };
+    traverse(groupedStructure);
+    return keys;
+  }, [activeTab, groupBy, groupedStructure]);
+
+  const allExpanded = allGroupKeys.length > 0 && allGroupKeys.every(k => expandedGroups[k]);
+
+
   /* ---------------- handlers ---------------- */
   const handleSearchChange = (e, key) => {
     const { value } = e.target;
@@ -934,9 +974,9 @@ const AllTranHistory = (props) => {
   const handleResetUI = () => {
     hydratedFromCacheRef.current = false;
     const today = new Date();
-    const newDates = [subDays(today, 6), today];
+    const newDates = [startOfMonth(today), endOfMonth(today)];
 
-    setDateRangeType("Last 7 Days");
+    setDateRangeType("This Month");
     setDates(newDates);
     setSearchFields({});
     setStatus("All");
@@ -944,6 +984,7 @@ const AllTranHistory = (props) => {
     setExpandedGroupsByTab((prev) => ({ ...prev, [activeTab]: {} }));
     setUserHiddenColsByTab((prev) => ({ ...prev, [activeTab]: [] }));
     setColWidthsByTab((prev) => ({ ...prev, [activeTab]: {} }));
+    setGlobalSearch("");
 
     if (activeTab) {
       setColumnOrderByTab((prev) => ({
@@ -1214,68 +1255,6 @@ const AllTranHistory = (props) => {
     return `${yyyy}${mm}${dd}_${hh}${mi}${ss}`;
   };
 
-  // const handleExportExcel_All = async () => {
-  //   const tabKeys = Object.keys(tabData || {});
-  //   if (!tabKeys.length) {
-  //     alert("No data to export. Please Apply Filter first.");
-  //     return;
-  //   }
-
-  //   setExporting(true);
-  //   try {
-  //     const now = new Date();
-  //     const datePart = now.toISOString().slice(0, 10).replace(/-/g, "");
-  //     const timePart = now.toTimeString().slice(0, 8).replace(/:/g, "");
-  //     const defaultFileName = `${exportName} ${datePart}_${timePart}`;
-
-  //     const { value: fileName } = await Swal.fire({
-  //       title: "Enter File Name",
-  //       input: "text",
-  //       inputLabel: "Export File Name:",
-  //       inputValue: defaultFileName,
-  //       width: "400px",
-  //       showCancelButton: true,
-  //       confirmButtonText: "Export",
-  //       inputValidator: (value) => {
-  //         if (!value || value.trim() === "") {
-  //           return "File name cannot be empty!";
-  //         }
-  //       },
-  //     });
-
-  //     if (!fileName) return;
-
-  //     const reportName = fileName;
-  //     const start = dates?.[0] ? format(dates[0], "yyyy-MM-dd") : null;
-  //     const end = dates?.[1] ? format(dates[1], "yyyy-MM-dd") : null;
-  //     const sheets = buildJsonSheets();
-  //     const jsonData = toTabbedJson(sheets);
-
-  //     const payload = {
-  //       ReportName: reportName,
-  //       UserCode: currentUserRow?.USER_CODE || currentUserRow?.userCode || "",
-  //       Branch: branchCode || "",
-  //       StartDate: start,
-  //       EndDate: end,
-  //       JsonData: jsonData,
-  //     };
-
-  //     await exportHistoryExcel(
-  //       "/exportHistoryReport",
-  //       JSON.stringify(payload),
-  //       setExporting,
-  //       reportName
-  //     );
-  //   } catch (err) {
-  //     console.error("Error exporting excel:", err);
-  //   } finally {
-  //     setExporting(false);
-  //   }
-  // };
-
-
-
-
   const handleExportExcel_All = async () => {
     const tabKeys = Object.keys(tabData || {});
     if (!tabKeys.length) {
@@ -1289,9 +1268,6 @@ const AllTranHistory = (props) => {
       const datePart = now.toISOString().slice(0, 10).replace(/-/g, "");
       const timePart = now.toTimeString().slice(0, 8).replace(/:/g, "");
       const defaultFileName = `${exportName} ${datePart}_${timePart}`;
-
-
-
 
       const { value: fileName } = await Swal.fire({
         input: "text",
@@ -1310,15 +1286,12 @@ const AllTranHistory = (props) => {
         },
       });
 
-
-
       if (!fileName) return;
       const reportName = fileName.trim();
       const start = dates?.[0] ? format(dates[0], "yyyy-MM-dd") : null;
       const end = dates?.[1] ? format(dates[1], "yyyy-MM-dd") : null;
       const exportData = { Data: {} };
       const columnConfigsMap = {};
-
 
       Object.keys(tabData || {}).forEach((tabKey) => {
         const sheetName = tabKey
@@ -1358,10 +1331,6 @@ const AllTranHistory = (props) => {
     }
   };
 
-
-
-
-
   const handleExportExcel = async () => {
     if (!visibleCols.length || !filteredData.length) return;
 
@@ -1397,8 +1366,6 @@ const AllTranHistory = (props) => {
 
       if (!fileName) return;
 
-
-
       const exportData = groupBy.length > 0 ? groupedStructure : filteredData;
       await exportGenericQueryExcel(
         exportData,
@@ -1420,9 +1387,6 @@ const AllTranHistory = (props) => {
     }
   };
 
-
-
-  
   const handleExportCsv = async () => {
     if (!visibleCols.length || !filteredData.length) return;
 
@@ -1822,6 +1786,7 @@ const AllTranHistory = (props) => {
             value={dateRangeType}
             onChange={(e) => setDateRangeType(e.target.value)}
           >
+            <option>This Month</option>
             <option>Last 7 Days</option>
             <option>Last 30 Days</option>
             <option>Custom Range</option>
@@ -1879,8 +1844,8 @@ const AllTranHistory = (props) => {
           className="flex items-center justify-center bg-green-600 text-white h-[36px] w-[36px] rounded-md text-[10px] font-semibold hover:bg-green-700 shadow-md"
           onClick={handleExportExcel_All}
           disabled={loading || exporting || !filteredData.length}
-          title="Export"
-          aria-label="Export"
+          title="Export All"
+          aria-label="Export All"
         >
           <FontAwesomeIcon icon={faDownload} className="text-[10px]" />
         </button>
@@ -1897,6 +1862,7 @@ const AllTranHistory = (props) => {
                   value={dateRangeType}
                   onChange={(e) => setDateRangeType(e.target.value)}
                 >
+                  <option>This Month</option>
                   <option>Last 7 Days</option>
                   <option>Last 30 Days</option>
                   <option>Custom Range</option>
@@ -1937,7 +1903,7 @@ const AllTranHistory = (props) => {
               </div>
             </div>
 
-            <div className="flex-shrink-0 w-full md:w-auto mt-auto">
+            <div className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-2 w-full md:w-auto mt-auto">
               <button
                 className="flex items-center justify-center bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-blue-700 shadow-md w-full"
                 onClick={handleApplyFilter}
@@ -1946,19 +1912,8 @@ const AllTranHistory = (props) => {
                 <FontAwesomeIcon icon={faFilter} className="mr-2" />
                 {loading ? "Loading..." : "Filter"}
               </button>
-            </div>
-
-            <div className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-2 w-full md:w-auto ml-auto">
-              <button
-                className="flex items-center justify-center bg-green-600 text-white px-6 py-2 rounded-md text-sm font-semibold hover:bg-green-700 shadow-md w-full"
-                onClick={handleExportExcel_All}
-                disabled={loading || exporting || !filteredData.length}
-              >
-                <FontAwesomeIcon icon={faDownload} className="mr-2" />
-                <span className="truncate">{exporting ? "Exporting..." : "Export"}</span>
-              </button>
-              <button
-                className="flex items-center justify-center bg-blue-600 text-white px-6 py-2 rounded-md text-sm font-semibold hover:bg-blue-700 shadow-md w-full"
+                  <button
+                className="flex items-center justify-center bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-blue-700 shadow-md w-full"
                 onClick={handleResetUI}
                 disabled={loading || exporting}
               >
@@ -1966,10 +1921,11 @@ const AllTranHistory = (props) => {
                 <span className="truncate">Reset</span>
               </button>
             </div>
+
+            <div className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-2 w-full md:w-auto ml-auto">
+            </div>
           </div>
         )}
-
-      
 
 <div className="px-4 overflow-x-auto">
   <div className="flex items-center justify-between gap-2 min-w-max">
@@ -2037,48 +1993,33 @@ const AllTranHistory = (props) => {
 
         <div className="bg-white shadow-md rounded-md overflow-hidden p-4">
           {activeTab && visibleCols.length > 0 && filteredData.length > 0 && (
-            <div
-              className="p-2 bg-gray-50 border flex flex-wrap gap-2 items-center min-h-[45px] shrink-0 mb-3"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => handleColDrop(e, null, true)}
-            >
-              <div className="flex-1 flex flex-wrap gap-2 items-center">
-                <div className="text-xs font-bold text-gray-500 flex items-center">
-                  <FontAwesomeIcon icon={faLayerGroup} className="mr-2" />
-                  Group By:
-                </div>
-
-                {groupBy.length === 0 && (
-                  <div className="text-xs text-gray-400 italic border border-dashed border-gray-300 rounded px-3 py-1">
-                    Drag Header Here...
+            <div className="p-2 bg-gray-50 border rounded-md flex flex-col md:flex-row md:items-center md:justify-between gap-2 shrink-0 mb-3"
+                 onDragOver={e => e.preventDefault()}
+                 onDrop={e => handleColDrop(e, null, true)}>
+              
+              <div className="flex-1 flex flex-wrap gap-2 items-center min-w-0">
+                {groupBy.length === 0 && !isMobile && (
+                  <div className="text-gray-400 italic border border-dashed border-gray-300 rounded text-[10px] sm:text-xs px-8 py-2">
+                    <FontAwesomeIcon icon={faLayerGroup} className="mr-1" /> Drag column here to Group
                   </div>
                 )}
-
-                {groupBy.map((gKey) => (
-                  <div
-                    key={gKey}
-                    className="flex items-center bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded border border-blue-200"
-                  >
-                    <span>{baseColumns.find((c) => c.key === gKey)?.label}</span>
-                    <button
-                      onClick={() => handleRemoveGroupedColumn(gKey)}
-                      className="ml-2 text-blue-500 hover:text-red-500"
-                    >
+                {groupBy.map(gKey => (
+                  <div key={gKey} className="flex items-center bg-blue-100 text-blue-800 rounded border border-blue-200 text-xs px-2 py-1">
+                    {baseColumns.find(c => c.key === gKey)?.label}
+                    <button onClick={() => handleRemoveGroupedColumn(gKey)} className="ml-2 text-blue-600 hover:text-red-600">
                       <FontAwesomeIcon icon={faTimes} />
                     </button>
                   </div>
                 ))}
               </div>
 
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap justify-end">
                 {isMobile && (
                   <div className="inline-flex overflow-hidden rounded-md border border-gray-300">
                     <button
                       type="button"
                       onClick={() => setUseCardView(false)}
-                      className={`h-8 w-8 ${
-                        !useCardView ? "bg-blue-600 text-white" : "bg-white text-gray-600"
-                      }`}
+                      className={`h-8 w-8 ${!useCardView ? "bg-blue-600 text-white" : "bg-white text-gray-600"}`}
                       title="Table View"
                     >
                       <FontAwesomeIcon icon={faTable} />
@@ -2086,9 +2027,7 @@ const AllTranHistory = (props) => {
                     <button
                       type="button"
                       onClick={() => setUseCardView(true)}
-                      className={`h-8 w-8 ${
-                        useCardView ? "bg-blue-600 text-white" : "bg-white text-gray-600"
-                      }`}
+                      className={`h-8 w-8 ${useCardView ? "bg-blue-600 text-white" : "bg-white text-gray-600"}`}
                       title="Card View"
                     >
                       <FontAwesomeIcon icon={faThLarge} />
@@ -2097,163 +2036,74 @@ const AllTranHistory = (props) => {
                 )}
 
                 {groupBy.length > 0 && (
-                  <>
-                    <button
-                      onClick={() => toggleAllGroups(true)}
-                      className="text-xs bg-white border px-2 py-1 rounded hover:bg-gray-100"
-                      title="Expand All"
-                    >
-                      <FontAwesomeIcon icon={faExpandArrowsAlt} /> Expand
+                  <div className="flex items-center gap-2">
+                    <label className="inline-flex items-center cursor-pointer select-none h-8">
+                      <input type="checkbox" checked={allExpanded} onChange={() => toggleAllGroups(!allExpanded)} className="sr-only" />
+                      <div className={`relative rounded-full transition-colors duration-200 ${allExpanded ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-600"} w-24 h-8`}>
+                        <span className={`absolute rounded-full bg-white shadow-md transition-all duration-200 ${allExpanded ? "left-[66px]" : "left-[2px]"} top-[2px] w-7 h-7`} />
+                        <span className={`absolute inset-0 flex items-center font-medium pointer-events-none text-[11px] ${allExpanded ? "justify-start pl-4" : "justify-end pr-4"}`}>{allExpanded ? "Collapse" : "Expand"}</span>
+                      </div>
+                    </label>
+                    <button onClick={() => { setGroupByByTab(p => ({...p, [activeTab]: []})); setExpandedGroupsByTab(p => ({...p, [activeTab]: {}})); }} className="font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition h-8 text-xs px-3">
+                      <FontAwesomeIcon icon={faTimes} className="mr-1" /> Remove
                     </button>
-
-                    <button
-                      onClick={() => toggleAllGroups(false)}
-                      className="text-xs bg-white border px-2 py-1 rounded hover:bg-gray-100"
-                      title="Collapse All"
-                    >
-                      <FontAwesomeIcon icon={faCompressArrowsAlt} /> Collapse
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setGroupByByTab((prev) => ({ ...prev, [activeTab]: [] }));
-                        setExpandedGroupsByTab((prev) => ({ ...prev, [activeTab]: {} }));
-                      }}
-                      className="text-xs bg-white border px-2 py-1 rounded hover:bg-gray-100"
-                      title="Remove All Groups"
-                    >
-                      <FontAwesomeIcon icon={faTimes} className="text-red-600 mr-1" />
-                      Remove
-                    </button>
-                  </>
+                  </div>
                 )}
 
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => filteredData.length && setShowExportMenu((prev) => !prev)}
-                    disabled={!filteredData.length}
-                    className="text-xs bg-white border px-2 py-1 rounded hover:bg-gray-100 disabled:opacity-50"
-                    title="Export options"
-                  >
-                    <FontAwesomeIcon icon={faFileExport} className="text-blue-600 mr-1" />
-                    Export
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                  <input type="text" value={globalSearch} onChange={e => setGlobalSearch(e.target.value)}
+                         placeholder="Quick Search..." className="rounded-md border border-gray-300 focus:ring-1 focus:ring-blue-300 outline-none h-8 md:w-48 px-3 text-xs" />
+                </div>
+
+                {!isMobile && (
+                  <label className="inline-flex items-center cursor-pointer select-none shrink-0 h-8">
+                      <input type="checkbox" checked={autoFillGridState} onChange={() => setAutoFillGridState(!autoFillGridState)} className="sr-only" />
+                      <div className={`relative rounded-full transition-colors duration-200 ${autoFillGridState ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-700"} w-20 h-8`}>
+                          <span className={`absolute top-[2px] rounded-full bg-white shadow-md transition-all duration-200 ${autoFillGridState ? "left-[50px]" : "left-[2px]"} w-7 h-7`} />
+                          <span className={`absolute inset-0 flex items-center text-[11px] font-medium pointer-events-none transition-all duration-200 ${autoFillGridState ? "justify-start pl-2 text-white" : "justify-end pr-2"}`}>Auto Fit</span>
+                      </div>
+                  </label>
+                )}
+
+                <div className="relative" data-sgrt-export>
+                  <button onClick={() => filteredData.length > 0 && setShowExportMenu(!showExportMenu)} disabled={filteredData.length === 0}
+                          className="text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 transition flex items-center justify-center h-8 px-3">
+                    <FontAwesomeIcon icon={faFileExport} className="mr-1" /> Export
                   </button>
-
                   {showExportMenu && (
-                    <div
-                      className="absolute right-0 mt-1 bg-white border rounded shadow-lg p-2 z-50 min-w-[180px]"
-                      onMouseLeave={() => setShowExportMenu(false)}
-                    >
-                      <div className="text-[11px] font-semibold mb-1 border-b pb-1">Export Options</div>
-
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          setShowExportMenu(false);
-                          await handleExportExcel();
-                        }}
-                        className="w-full text-left text-[11px] px-2 py-1 rounded hover:bg-gray-100 flex items-center gap-2"
-                      >
-                        <FontAwesomeIcon icon={faFileExcel} className="text-green-600" />
-                        Excel
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          setShowExportMenu(false);
-                          await handleExportCsv();
-                        }}
-                        className="w-full text-left text-[11px] px-2 py-1 rounded hover:bg-gray-100 flex items-center gap-2"
-                      >
-                        <FontAwesomeIcon icon={faFileCsv} className="text-emerald-600" />
-                        CSV
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          setShowExportMenu(false);
-                          await handleExportPdf();
-                        }}
-                        className="w-full text-left text-[11px] px-2 py-1 rounded hover:bg-gray-100 flex items-center gap-2"
-                      >
-                        <FontAwesomeIcon icon={faFilePdf} className="text-red-600" />
-                        PDF
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          setShowExportMenu(false);
-                          await handleExportImage();
-                        }}
-                        className="w-full text-left text-[11px] px-2 py-1 rounded hover:bg-gray-100 flex items-center gap-2"
-                      >
-                        <FontAwesomeIcon icon={faFileImage} className="text-blue-600" />
-                        Image
-                      </button>
+                    <div className="absolute right-0 mt-1 min-w-[120px] rounded-lg shadow-lg bg-white ring-1 ring-black/10 z-[60] overflow-hidden py-1">
+                      <button onClick={async () => { setShowExportMenu(false); await handleExportExcel(); }} className="flex items-center w-full px-4 py-2 text-xs hover:bg-blue-50 transition-colors"><FontAwesomeIcon icon={faFileExcel} className="mr-2 text-green-600" /> Excel</button>
+                      <button onClick={async () => { setShowExportMenu(false); await handleExportCsv(); }} className="flex items-center w-full px-4 py-2 text-xs hover:bg-blue-50 transition-colors"><FontAwesomeIcon icon={faFileCsv} className="mr-2 text-emerald-600" /> CSV</button>
+                      <button onClick={async () => { setShowExportMenu(false); await handleExportPdf(); }} className="flex items-center w-full px-4 py-2 text-xs hover:bg-blue-50 transition-colors"><FontAwesomeIcon icon={faFilePdf} className="mr-2 text-red-600" /> PDF</button>
+                      <button onClick={async () => { setShowExportMenu(false); await handleExportImage(); }} className="flex items-center w-full px-4 py-2 text-xs hover:bg-blue-50 transition-colors"><FontAwesomeIcon icon={faFileImage} className="mr-2 text-blue-600" /> Image</button>
                     </div>
                   )}
                 </div>
 
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setShowColumnChooser((prev) => !prev)}
-                    className="text-xs bg-white border px-2 py-1 rounded hover:bg-gray-100"
-                  >
-                    <FontAwesomeIcon icon={faColumns} className="text-green-600" /> Columns
+                <div className="relative" data-sgrt-cols>
+                  <button onClick={() => setShowColumnChooser(!showColumnChooser)} className="text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition flex items-center justify-center h-8 px-3">
+                    <FontAwesomeIcon icon={faColumns} className="mr-1" /> Columns
                   </button>
-
                   {showColumnChooser && (
-                    <div
-                      className="absolute right-0 mt-1 bg-white border rounded shadow-lg p-2 max-h-64 overflow-auto z-50 min-w-[220px]"
-                      onMouseLeave={() => setShowColumnChooser(false)}
-                    >
+                    <div className="absolute right-0 mt-1 bg-white border rounded shadow-lg p-2 max-h-64 overflow-auto z-50 min-w-[200px]">
                       <div className="flex items-center justify-between text-[11px] font-semibold mb-1 border-b pb-1">
                         <span>Show / Hide Columns</span>
-                        <label className="flex items-center gap-1 text-[11px]">
-                          <input
-                            type="checkbox"
-                            className="h-3 w-3"
-                            checked={allChecked}
-                            onChange={() => {
-                              setUserHiddenColsByTab((prev) => ({
-                                ...prev,
-                                [activeTab]: allChecked ? allChooserKeys : [],
-                              }));
-                            }}
-                          />
-                          <span>Select All</span>
+                        <label className="flex items-center gap-1 text-[11px] cursor-pointer">
+                          <input type="checkbox" checked={allChecked} onChange={() => setUserHiddenColsByTab(p => ({ ...p, [activeTab]: allChecked ? allChooserKeys : [] }))} /> Select All
                         </label>
                       </div>
-
-                      {orderedCols
-                        .filter((col) => !col.hidden && !groupBy.includes(col.key))
-                        .map((col) => (
-                          <label key={col.key} className="flex items-center text-[11px] gap-2 mb-1">
-                            <input
-                              type="checkbox"
-                              className="h-3 w-3"
-                              checked={!userHiddenCols.includes(col.key)}
-                              onChange={(e) => {
-                                const checked = e.target.checked;
-                                setUserHiddenColsByTab((prev) => {
-                                  const current = prev[activeTab] || [];
-                                  return {
-                                    ...prev,
-                                    [activeTab]: checked
-                                      ? current.filter((k) => k !== col.key)
-                                      : [...current, col.key],
-                                  };
-                                });
-                              }}
-                            />
-                            <span className="truncate">{col.label}</span>
-                          </label>
-                        ))}
+                      {orderedCols.filter((col) => !col.hidden && !groupBy.includes(col.key)).map(col => (
+                        <label key={col.key} className="flex items-center text-[11px] gap-2 mb-1 cursor-pointer">
+                          <input type="checkbox" checked={!userHiddenCols.includes(col.key)} onChange={(e) => {
+                            const checked = e.target.checked;
+                            setUserHiddenColsByTab(p => {
+                              const current = p[activeTab] || [];
+                              return { ...p, [activeTab]: checked ? current.filter(k => k !== col.key) : [...current, col.key] };
+                            });
+                          }} />
+                          <span className="truncate">{col.label}</span>
+                        </label>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -2263,7 +2113,7 @@ const AllTranHistory = (props) => {
 
           <div
             ref={tableScrollRef}
-            className="overflow-x-auto bg-white rounded-md max-h-[55vh] relative"
+            className={`overflow-auto bg-white rounded-md max-h-[55vh] relative custom-scrollbar ${autoFillGridState ? "overflow-x-hidden" : ""}`}
           >
             {loading ? (
               <div className="text-center py-6 text-gray-500">Loading data and configurations...</div>
@@ -2272,7 +2122,7 @@ const AllTranHistory = (props) => {
                 Select a date range and click ‘Filter’ to load history.
               </div>
             ) : isMobile && useCardView ? (
-              <div className="space-y-2">
+              <div className="space-y-2 p-2">
                 {displayRows.length > 0 ? (
                   <>
                     {displayRows.map((row, idx) => {
@@ -2297,31 +2147,6 @@ const AllTranHistory = (props) => {
               </div>
             ) : (
               <>
-                {/* {refreshing && (
-                  <div className="mb-2 flex items-center gap-2 text-xs text-blue-600 font-medium">
-                    <svg 
-                      className="animate-spin h-4 w-4 text-blue-600" 
-                      xmlns="http://www.w3.org/2000/svg" 
-                      fill="none" 
-                      viewBox="0 0 24 24"
-                    >
-                      <circle 
-                        className="opacity-25" 
-                        cx="12" 
-                        cy="12" 
-                        r="10" 
-                        stroke="currentColor" 
-                        strokeWidth="4"
-                      ></circle>
-                      <path 
-                        className="opacity-75" 
-                        fill="currentColor" 
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                  </div>
-                )} */}
-
                 {isMobile && visibleCols.length > MOBILE_MAX_COLUMNS && (
                   <div className="mb-2 text-[11px] text-gray-500">
                     Showing first {MOBILE_MAX_COLUMNS} columns on mobile table view.
@@ -2329,12 +2154,12 @@ const AllTranHistory = (props) => {
                 )}
 
                <table
-                    className="w-full text-[12px] text-center border-collapse border border-gray-300 table-auto min-w-[1200px]"
+                    className={`global-tran-table-div-ui border-collapse w-full text-center border border-gray-300 ${autoFillGridState ? "table-fixed" : "min-w-[1200px] table-auto"}`}
                   >
-                  <thead className="text-[12px] font-medium sticky top-0 z-30">
-                    <tr className="bg-blue-200 text-blue-900">
+                  <thead className="text-[11px] font-bold sticky top-0 z-30">
+                    <tr className="bg-blue-100 text-blue-900 border-b border-blue-200">
                       <th
-                        className="sticky left-0 top-0 z-50 px-2 py-2 border-r border-blue-300 bg-blue-200 text-blue-900 w-[64px]"
+                        className="sticky left-0 top-0 z-50 px-2 py-2 border-r border-blue-200 bg-blue-100 text-blue-900 w-[64px]"
                         style={{ minWidth: ACTION_COL_WIDTH, maxWidth: ACTION_COL_WIDTH }}
                       >
                         View
@@ -2363,19 +2188,19 @@ const AllTranHistory = (props) => {
                             onDragOver={(e) => e.preventDefault()}
                             onDrop={(e) => handleColDrop(e, col.key)}
                             onClick={() => col.sortable !== false && handleSort(col.key)}
-                            className={`px-3 py-2 border whitespace-nowrap select-none relative ${
+                            className={`px-2 py-1.5 border-r border-blue-200 whitespace-nowrap select-none relative ${
                               col.sortable !== false ? "cursor-pointer" : ""
-                            } ${meta.sticky ? "sticky z-40 bg-blue-200" : ""} ${numberAlignClass(col)}`}
+                            } ${meta.sticky ? "sticky z-40 bg-blue-100" : ""} ${numberAlignClass(col)}`}
                             style={style}
                           >
-                            <div className="flex items-center justify-between gap-1">
+                            <div className="flex items-center justify-between gap-2">
                               <span className="truncate">{col.label}</span>
                               {col.sortable !== false &&
                               sortConfig.key === col.key &&
                               sortConfig.tabKey === activeTab ? (
                                 <FontAwesomeIcon
                                   icon={sortConfig.direction === "asc" ? faArrowUp : faArrowDown}
-                                  className="text-xs"
+                                  className="opacity-50"
                                 />
                               ) : null}
                             </div>
@@ -2389,8 +2214,8 @@ const AllTranHistory = (props) => {
                       })}
                     </tr>
 
-                    <tr className="bg-gray-100 sticky top-[36px] z-20">
-                      <td className="sticky left-0 z-40 px-2 py-1 border bg-gray-100" />
+                    <tr className="bg-gray-100 sticky top-[32px] z-20">
+                      <td className="sticky left-0 z-40 px-2 py-1 border-r border-b border-gray-200 bg-gray-100" />
                       {renderVisibleCols.map((col, i) => {
                         const meta = stickyPlan[i];
                         const style = meta.sticky
@@ -2407,7 +2232,7 @@ const AllTranHistory = (props) => {
                         return (
                           <td
                             key={col.key}
-                            className={`px-2 py-1 border whitespace-nowrap ${
+                            className={`px-1 py-1 border-r border-b border-gray-200 whitespace-nowrap ${
                               meta.sticky ? "sticky z-30 bg-gray-100" : ""
                             }`}
                             style={style}
@@ -2416,8 +2241,8 @@ const AllTranHistory = (props) => {
                               type="text"
                               value={searchFields[col.key] || ""}
                               onChange={(e) => handleSearchChange(e, col.key)}
-                              placeholder="Filter"
-                              className="w-full px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-300 text-[10px]"
+                              placeholder="Filter..."
+                              className="w-full px-1.5 py-0.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-300 text-[10px]"
                             />
                           </td>
                         );
@@ -2425,7 +2250,7 @@ const AllTranHistory = (props) => {
                     </tr>
                   </thead>
 
-                  <tbody className="divide-y divide-gray-200 text-[11px]">
+                  <tbody className="bg-white text-[11px]">
                     {displayRows.length > 0 ? (
                       <>
                         {displayRows.map((row, idx) => {
@@ -2435,23 +2260,23 @@ const AllTranHistory = (props) => {
                             return (
                               <tr
                                 key={`g-${uniqueId}`}
-                                className="bg-gray-100 hover:bg-gray-200 cursor-pointer"
+                                className="bg-gray-100 hover:bg-gray-200 cursor-pointer border-b"
                                 onClick={() => toggleGroup(row)}
                               >
                                 <td
                                   colSpan={renderVisibleCols.length + 1}
-                                  className="px-2 py-2 font-semibold border-b border-gray-300 text-blue-900 whitespace-nowrap"
+                                  className="px-2 py-1 font-bold text-blue-800 whitespace-nowrap text-left"
                                 >
                                   <div className="flex items-center" style={{ paddingLeft: row.level * 20 }}>
                                     <FontAwesomeIcon
                                       icon={isExpanded ? faChevronDown : faChevronRight}
-                                      className="w-3 h-3 mr-2 text-gray-500"
+                                      className="mr-2 text-gray-500"
                                     />
-                                    <span className="mr-2 text-gray-600">
+                                    <span className="text-gray-600 font-normal">
                                       {baseColumns.find((c) => c.key === row.key)?.label}:
                                     </span>
-                                    <span className="mr-2 font-bold">{row.value}</span>
-                                    <span className="bg-blue-200 text-blue-800 text-[9px] px-1.5 rounded-full">
+                                    <span className="ml-1">{row.value}</span>
+                                    <span className="ml-2 bg-blue-200 text-blue-800 text-[10px] px-2 rounded-full font-normal">
                                       {row.count}
                                     </span>
                                   </div>
@@ -2464,9 +2289,9 @@ const AllTranHistory = (props) => {
                             return (
                               <tr
                                 key={`sub-${row.groupValue}-${idx}`}
-                                className="bg-yellow-50 font-bold border-b border-gray-300"
+                                className="bg-blue-50 font-bold border-b text-[10px]"
                               >
-                                <td className="sticky left-0 bg-yellow-50 border-r border-gray-300 z-10" />
+                                <td className="sticky left-0 bg-blue-50 border-r z-10" />
                                 {renderVisibleCols.map((col, i) => {
                                   const meta = stickyPlan[i];
                                   const val = row.aggregates[col.key];
@@ -2484,8 +2309,8 @@ const AllTranHistory = (props) => {
                                   return (
                                     <td
                                       key={col.key}
-                                      className={`${commonCellClass} ${numberAlignClass(col)} ${
-                                        meta.sticky ? "sticky z-10 bg-yellow-50" : ""
+                                      className={`px-2 py-1 whitespace-nowrap ${numberAlignClass(col)} ${
+                                        meta.sticky ? "sticky z-10 bg-blue-50" : ""
                                       }`}
                                       style={style}
                                     >
@@ -2494,8 +2319,7 @@ const AllTranHistory = (props) => {
                                           className="float-left text-left font-bold"
                                           style={{ paddingLeft: row.level * 20 }}
                                         >
-                                          <span className="text-gray-600">Sub Total for {row.groupLabel}:</span>
-                                          <span className="ml-1 text-blue-900">{row.groupValue}</span>
+                                          <span className="text-gray-500 uppercase">Subtotal: {row.groupValue}</span>
                                         </div>
                                       )}
                                       {val !== undefined ? formatCellValue(val, col) : ""}
@@ -2510,22 +2334,24 @@ const AllTranHistory = (props) => {
                           return (
                             <tr
                               key={idx}
-                              className={`hover:bg-blue-50 transition cursor-pointer ${rowClass} ${
+                              className={`hover:bg-blue-50 transition-colors cursor-pointer border-b group ${rowClass} ${
                                 idx % 2 === 0 ? "bg-white" : "bg-gray-50"
                               }`}
                               onDoubleClick={() => handleRowDoubleClick(row)}
                             >
-                              <td className="sticky left-0 z-10 px-2 py-1 border-r border-gray-200 bg-inherit text-center w-[64px] min-w-[64px]">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRowDoubleClick(row);
-                                  }}
-                                  className="px-2 py-0.5 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
-                                  title="View"
-                                >
-                                  <FontAwesomeIcon icon={faEye} className="w-4 h-3" />
-                                </button>
+                              <td className="sticky left-0 z-10 px-2 py-0 border-r border-gray-200 bg-white group-hover:bg-blue-50 text-center w-[64px] min-w-[64px]">
+                                <div className="flex items-center justify-center h-6">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleRowDoubleClick(row);
+                                    }}
+                                    className="px-2 py-0 bg-blue-500 text-white rounded hover:bg-blue-600 transition leading-none"
+                                    title="View"
+                                  >
+                                    <FontAwesomeIcon icon={faEye} className="w-2.5 h-3.5" />
+                                  </button>
+                                </div>
                               </td>
 
                               {renderVisibleCols.map((col, i) => {
@@ -2548,15 +2374,15 @@ const AllTranHistory = (props) => {
                                 return (
                                   <td
                                     key={col.key}
-                                    className={`px-2 py-1 border whitespace-nowrap ${
-                                      alignRight ? "text-right" : col.classNames || "text-left"
+                                    className={`px-1.5 py-1 leading-tight whitespace-nowrap ${
+                                      alignRight ? "text-right tabular-nums" : col.classNames || "text-left"
                                     } ${meta.sticky ? "sticky z-10 bg-inherit" : ""}`}
                                     title={String(row?.[col.key] ?? "")}
                                     style={style}
                                   >
                                    <div
                                     style={{
-                                      maxWidth: isMobile ? "180px" : "420px",
+                                      maxWidth: isMobile ? "180px" : (autoFillGridState ? "100%" : "420px"),
                                       overflow: "hidden",
                                       textOverflow: "ellipsis",
                                       whiteSpace: "nowrap",
@@ -2581,9 +2407,9 @@ const AllTranHistory = (props) => {
                   </tbody>
 
                   {filteredData.length > 0 && (
-                    <tfoot className="sticky bottom-0 z-30 shadow-[0_-4px_6px_rgba(0,0,0,0.1)] text-[11px]">
-                      <tr className="bg-gray-100 font-bold border-t border-blue-400">
-                        <td className="sticky left-0 bg-gray-100 border-r border-gray-300 z-40" />
+                    <tfoot className="sticky bottom-0 z-30 shadow-[0_-4px_6px_rgba(0,0,0,0.05)] bg-blue-100 font-bold border-t border-blue-400">
+                      <tr>
+                        <td className="sticky left-0 bg-blue-100 border-r border-gray-300 z-40" />
                         {renderVisibleCols.map((col, i) => {
                           const meta = stickyPlan[i];
                           const val = grandTotals[col.key];
@@ -2601,14 +2427,14 @@ const AllTranHistory = (props) => {
                           return (
                             <td
                               key={col.key}
-                              className={`px-2 py-1 border ${numberAlignClass(col)} ${
-                                meta.sticky ? "sticky z-30 bg-gray-100" : ""
+                              className={`px-2 py-1.5 text-[11px] ${numberAlignClass(col)} ${
+                                meta.sticky ? "sticky z-30 bg-blue-100" : ""
                               }`}
                               style={style}
                             >
                               {i === 0 && (
-                                <span className="text-gray-700 uppercase tracking-wide">
-                                  {groupBy.length > 0 ? "Grand Total" : "Total"}
+                                <span className="text-gray-800 uppercase tracking-wide whitespace-nowrap">
+                                  {groupBy.length > 0 ? "Grand Total" : "Grand Total"}
                                 </span>
                               )}
                               {val !== undefined ? formatCellValue(val, col) : ""}
