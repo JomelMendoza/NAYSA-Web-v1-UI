@@ -7,6 +7,7 @@ import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer";
 import RegistrationInfo from "@/NAYSA Cloud/Global/RegistrationInfo.jsx";
 import ButtonBar from "@/NAYSA Cloud/Global/ButtonBar";
 import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
+import { useFieldLenghtCheck, useGetFieldLength,} from '@/NAYSA Cloud/Global/procedure';
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -47,6 +48,7 @@ const INITIAL_SL_FORM = {
   slAddress3: "",
   slTin: "",
   slActive: "Y",
+  tblFieldArraySLMast :[],
 };
 
 const INITIAL_SLTYPE_FORM = {
@@ -55,6 +57,7 @@ const INITIAL_SLTYPE_FORM = {
   slTypeActive: "Y",
   slTypeIncSu: "N",
   slTypeIncCu: "N",
+  tblFieldArraySLType :[],
 };
 
 const INITIAL_REG = {
@@ -89,6 +92,9 @@ export default function SLMast() {
   const pdfLink = reftablesPDFGuide?.[DOC_TYPE];
   const videoLink = reftablesVideoGuide?.[DOC_TYPE];
 
+  const [tblFieldArraySLMast, setTblFieldArraySLMast] = useState([]);
+  const [tblFieldArraySLType, setTblFieldArraySLType] = useState([]);
+
   const { data: slTypes = [], isLoading: isLoadingTypes } = useQuery({
     queryKey: ["slTypeList"],
     queryFn: async () => {
@@ -96,6 +102,8 @@ export default function SLMast() {
       const raw = data?.data?.[0]?.result || data?.result;
       return raw ? JSON.parse(raw) : [];
     },
+    staleTime: 0,
+    refetchInterval: 1000 * 20,
   });
 
   const { data: slMasterList = [], isLoading: isLoadingSL } = useQuery({
@@ -105,6 +113,8 @@ export default function SLMast() {
       const raw = data?.data?.[0]?.result || data?.result;
       return raw ? JSON.parse(raw) : [];
     },
+    staleTime: 0,
+    refetchInterval: 1000 * 20,
   });
 
   const { data: slCoaList = [], isLoading: isLoadingSLCoa } = useQuery({
@@ -121,6 +131,8 @@ export default function SLMast() {
       const raw = data?.data?.[0]?.result ?? data?.result;
       return raw ? JSON.parse(raw) : [];
     },
+    staleTime: 0,
+    refetchInterval: 1000 * 20,
   });
 
   const selectedSLType = useMemo(() => {
@@ -167,6 +179,63 @@ export default function SLMast() {
       selectedGLAccounts.includes(code)
     );
   }, [allGLAccountCodes, selectedGLAccounts]);
+
+
+
+// --- VALIDATION: Check for Duplicate Code ---
+const handleCheckDuplicateSLMast = async (code) => {
+  
+  if (isEditingSL && selectedSLCode) return; 
+  if (!code) return;
+
+  try {
+    const payload = { json_data: { slCode: code } };
+    const response = await apiClient.post("/checkDuplicateSLMast", payload);
+    
+    const sqlRow = response?.data?.data?.[0];
+    const rawJsonString = sqlRow?.result || Object.values(sqlRow || {})[0];
+    const parsedData = JSON.parse(rawJsonString || '{"result":"0"}');
+
+    if (parsedData.result === "1") {
+      resetSLForm();
+      return useSwalErrorAlertAPI(
+        `Duplicate SL Code: ${code}`, 
+        `Code was already used.`
+      );
+    }
+
+  } catch (error) {
+    console.error("Duplicate Check Error:", error);
+  }
+};
+
+// --- VALIDATION: Check for Duplicate Code ---
+const handleCheckDuplicateSLType = async (code) => {
+  
+  if (isEditingSLType && selectedSLTypeCode) return; 
+  if (!code) return;
+
+  try {
+    const payload = { json_data: { slTypeCode: code } };
+    const response = await apiClient.post("/checkDuplicateSLType", payload);
+    
+    const sqlRow = response?.data?.data?.[0];
+    const rawJsonString = sqlRow?.result || Object.values(sqlRow || {})[0];
+    const parsedData = JSON.parse(rawJsonString || '{"result":"0"}');
+
+    if (parsedData.result === "1") {
+      resetSLTypeForm();
+      return useSwalErrorAlertAPI(
+        `Duplicate SL Type Code: ${code}`, 
+        `Code was already used.`
+      );
+    }
+
+  } catch (error) {
+    console.error("Duplicate Check Error:", error);
+  }
+};
+
 
   const updateSLForm = (updates) =>
     setSLForm((prev) => ({ ...prev, ...updates }));
@@ -652,23 +721,22 @@ export default function SLMast() {
               checked={selectedGLAccounts.includes(row.acctCode)}
               onChange={() => toggleGLSelection(row.acctCode)}
               className="h-5 w-4 accent-blue-600"
-              width="20px"
             />
           </div>
         ),
-        width: 10
+        width: 5
       },
       {
         key: "acctCode",
         label: "Account Code",
         sortable: true,
-        width: 10,
+        width: 5,
       },
       {
         key: "acctName",
         label: "Account Name",
         sortable: true,
-        width: 300,
+        width: 280,
       },
     ],
     [selectedGLAccounts, isAllSelected]
@@ -684,6 +752,25 @@ export default function SLMast() {
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
+
+      // load max length metadata once
+      useEffect(() => {
+        let mounted = true;
+  
+        (async () => {
+          const resSLMast = await useFieldLenghtCheck("SL_MAST");
+          if (mounted) setTblFieldArraySLMast(resSLMast || []);
+          
+          const resSLType = await useFieldLenghtCheck("SL_TYPE");
+          if (mounted) setTblFieldArraySLType(resSLType || []);
+        })();
+  
+        return () => { mounted = false; };
+      }, []);
+  
+      const getMaxSLMast = (col) => useGetFieldLength(tblFieldArraySLMast, col);
+      const getMaxSLType = (col) => useGetFieldLength(tblFieldArraySLType, col);
+  
 
   return (
     <div className="global-ref-main-div-ui">
@@ -873,6 +960,7 @@ export default function SLMast() {
                 value={slForm.slTypeCode}
                 disabled
                 required
+                maxLength={getMaxSLMast("SLTYPE_CODE")}
               />
               <FieldRenderer
                 label="SL Type Name"
@@ -889,6 +977,8 @@ export default function SLMast() {
                 disabled={!isEditingSL || !!selectedSLCode}
                 onChange={(v) => updateSLForm({ slCode: v })}
                 required
+                maxLength={getMaxSLMast("SL_CODE")}
+                onBlur={(e) => handleCheckDuplicateSLMast(e.target.value)} 
               />
               <FieldRenderer
                 label="SL Name"
@@ -897,6 +987,7 @@ export default function SLMast() {
                 disabled={!isEditingSL || !canDeleteSL}
                 onChange={(v) => updateSLForm({ slName: v })}
                 required
+                maxLength={getMaxSLMast("SL_NAME")}
               />
 
               <FieldRenderer
@@ -905,6 +996,7 @@ export default function SLMast() {
                 value={slForm.slAddress1}
                 disabled={!isEditingSL || !canDeleteSL}
                 onChange={(v) => updateSLForm({ slAddress1: v })}
+                maxLength={getMaxSLMast("ADDRESS1")}
               />
               <FieldRenderer
                 label="Address 2"
@@ -912,6 +1004,7 @@ export default function SLMast() {
                 value={slForm.slAddress2}
                 disabled={!isEditingSL || !canDeleteSL}
                 onChange={(v) => updateSLForm({ slAddress2: v })}
+                maxLength={getMaxSLMast("ADDRESS2")}
               />
 
               <FieldRenderer
@@ -920,6 +1013,7 @@ export default function SLMast() {
                 value={slForm.slAddress3}
                 disabled={!isEditingSL || !canDeleteSL}
                 onChange={(v) => updateSLForm({ slAddress3: v })}
+                maxLength={getMaxSLMast("ADDRESS3")}
               />
               <FieldRenderer
                 label="TIN"
@@ -927,6 +1021,7 @@ export default function SLMast() {
                 value={slForm.slTin}
                 disabled={!isEditingSL || !canDeleteSL}
                 onChange={(v) => updateSLForm({ slTin: v })}
+                maxLength={getMaxSLMast("TIN")}
               />
 
               <FieldRenderer
@@ -952,10 +1047,13 @@ export default function SLMast() {
             docType={`SL Master Data`}
             columns={slMasterColumns}
             data={filteredSLMasterList}
-            isLoading={isLoadingSL}
             itemsPerPage={200}
             onRowDoubleClick={handleEditSL}
-            // autoFillGrid="True"
+            // autoFillGrid="True"         
+            isLoading={filteredSLMasterList.isLoading}
+            isFetching={filteredSLMasterList.isFetching}
+            onRefresh={() => filteredSLMasterList.refetch()}
+            showGlobalSearch = {false}
           />
         </div>
       )}
@@ -1008,6 +1106,8 @@ export default function SLMast() {
                 disabled={!isEditingSLType || !!selectedSLTypeRow}
                 onChange={(v) => updateSLTypeForm({ slTypeCode: v })}
                 required
+                maxLength={getMaxSLType("SLTYPE_CODE")}
+                onBlur={(e) => handleCheckDuplicateSLType(e.target.value)} 
               />
               <FieldRenderer
                 label="SL Type Name"
@@ -1016,6 +1116,7 @@ export default function SLMast() {
                 disabled={!isEditingSLType}
                 onChange={(v) => updateSLTypeForm({ slTypeName: v })}
                 required
+                maxLength={getMaxSLType("SLTYPE_NAME")}
               />
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-6">
@@ -1059,14 +1160,16 @@ export default function SLMast() {
               docType={`SL Types`}
               columns={slTypeColumns}
               data={slTypes}
-              isLoading={isLoadingTypes}
               itemsPerPage={100}
-              onRowClick={(row) => {
-                handleEditSLType(row);
-              }}
+              onRowClick={(row) => {handleEditSLType(row);}}
               onRowDoubleClick={handleEditSLType}
               tableSize="Half"
               // autoFillGrid="True"
+              isLoading={slTypes.isLoading}
+              isFetching={slTypes.isFetching}
+              onRefresh={() => slTypes.refetch()}
+              showGroupBy = {false}
+              showGlobalSearch = {false}
             />
           </div>
 
@@ -1133,10 +1236,13 @@ export default function SLMast() {
               docType={`SLGL Matching`}
               columns={slCoaColumns}
               data={displayedSLCoaList}
-              isLoading={isLoadingSLCoa}
               itemsPerPage={300}
               tableSize="Half"
-              // autoFillGrid="True"
+              // autoFillGrid="True"            
+              isLoading={displayedSLCoaList.isLoading}
+              isFetching={displayedSLCoaList.isFetching}
+              onRefresh={() => displayedSLCoaList.refetch()}
+              showGroupBy = {false}
             />
           </div>
         </div>

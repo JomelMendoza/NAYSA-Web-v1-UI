@@ -85,7 +85,9 @@ const COAMast = () => {
       const { data } = await apiClient.get("/cOA");
       const raw = data?.data?.[0]?.result || data?.result;
       return raw ? JSON.parse(raw) : [];
-    }
+    },
+    staleTime: 0,
+    refetchInterval: 1000 * 20,
   });
 
   // --- TANSTACK QUERY: Save Mutation ---
@@ -735,10 +737,12 @@ const columns = useMemo(() => [
               docType={docType}
               columns={columns}
               data={accounts}
-              isLoading={isListLoading}
               onRowDoubleClick={handleEdit}
               itemsPerPage={200}
               onMobileRowOpen={openMobileActionSheet}
+              isLoading={accounts.isLoading}
+              isFetching={accounts.isFetching}
+              onRefresh={() => accounts.refetch()}
             />
           </div>
         </>
