@@ -460,7 +460,7 @@ const AllTranDocNo = ({
 
   const modalWidth = isMobile
     ? Math.min(340, vw - MARGIN * 2)
-    : Math.min(500, vw - MARGIN * 2);
+    : Math.min(380, vw - MARGIN * 2);
 
   const getModalRect = () => {
     const rect = modalRef.current?.getBoundingClientRect();
@@ -655,10 +655,10 @@ const AllTranDocNo = ({
       >
         {/* Header */}
         <div
-          className="flex items-center justify-between px-3 sm:px-4 py-2 bg-blue-200 text-slate-800 cursor-move"
+          className="flex items-center justify-between px-3 sm:px-3 bg-blue-100 text-slate-800 cursor-move"
           onMouseDown={startDrag}
         >
-          <div className="text-xs sm:text-sm font-semibold truncate pr-2">
+          <div className="text-xs sm:text-sm font-semibold truncate pr-2 text-blue-900">
             {params?.documentTitle ?? "Document Lookup"}
           </div>
 
@@ -669,14 +669,14 @@ const AllTranDocNo = ({
                 setCollapsed((c) => !c);
                 setMode("retrieve");
               }}
-              className="p-1.5 rounded hover:bg-blue-300 transition"
+              className="p-1.5 rounded hover:bg-blue-200 transition"
               title="Collapse (F8)"
             >
               <FontAwesomeIcon icon={faChevronUp} className="text-xs" />
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 rounded hover:bg-blue-300 transition"
+              className="p-1.5 rounded hover:bg-blue-200 transition"
             >
               <FontAwesomeIcon icon={faXmark} className="text-xs" />
             </button>
@@ -701,7 +701,7 @@ const AllTranDocNo = ({
             <button
               key={btn.key}
               type="button"
-              className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-xs font-semibold rounded-md bg-blue-50 text-sky-900 hover:bg-blue-100 shadow-sm flex items-center justify-center whitespace-nowrap min-w-0"
+              className="flex-1 sm:flex-none px-2 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-[11px] font-semibold rounded-md bg-blue-50 text-sky-900 hover:bg-blue-100 shadow-md flex items-center justify-center whitespace-nowrap min-w-0"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => RetrieveDocument(true, btn.key)}
             >
@@ -714,14 +714,14 @@ const AllTranDocNo = ({
       )}
 
         {!collapsed && (
-          <div className="px-3 sm:px-5 pb-4 sm:pb-5 pt-2">
+          <div className="px-3 sm:px-4 pb-4 sm:pb-5 pt-2">
             {/* Branch */}
-            <div className="mb-3 sm:mb-4">
+            <div className="mb-3 sm:mb-2">
               <label className="text-[11px] sm:text-xs text-slate-600 mb-1 block">
                 Branch
               </label>
-              <div className="flex items-center rounded-md h-10 sm:h-12 px-3 bg-slate-100 border border-slate-200 shadow-sm cursor-not-allowed">
-                <span className="flex-1 text-lg sm:text-3xl font-bold text-sky-900 truncate">
+              <div className="flex items-center rounded-md h-10 sm:h-10 px-2 bg-slate-100 border border-slate-200 shadow-sm cursor-not-allowed">
+                <span className="flex-1 text-sm sm:text-base font-bold text-sky-900 truncate">
                   {params?.branchName ?? ""}
                 </span>
                 <FontAwesomeIcon
@@ -740,7 +740,7 @@ const AllTranDocNo = ({
                 ref={docRef}
                 value={docNoValue}
                 onChange={(e) => setDocNoValue(e.target.value)}
-                className="peer global-tran-textbox-ui !h-12 sm:!h-16 !py-2 sm:!py-4 text-lg sm:text-3xl font-bold tracking-[0.12em] sm:tracking-[0.25em] text-center text-sky-900 bg-white border border-slate-200 shadow-inner focus:ring-2 focus:ring-blue-300 w-full"
+                className="peer global-tran-textbox-ui !h-10 sm:!h-10 !py-2 sm:!py-4 text-sm sm:text-xl font-bold tracking-[0.12em] sm:tracking-[0.25em] text-center text-sky-900 bg-white border border-slate-200 shadow-inner focus:ring-2 focus:ring-blue-300 w-full"
                 placeholder="00000000"
               />
             </div>
@@ -757,10 +757,10 @@ const AllTranDocNo = ({
                       SelectDocument();
                     }
                   }}
-                  className={`px-4 sm:px-6 py-2 sm:py-2.5 rounded-md font-semibold text-xs sm:text-sm shadow-md transition ${
+                  className={`px-4 sm:px-6 py-2 sm:py-2.5 rounded-md font-semibold text-xs sm:text-[11px] shadow-md transition ${
                     mode === "retrieve"
-                      ? "bg-blue-100 text-sky-900 hover:bg-blue-200"
-                      : "bg-blue-200 text-sky-900 hover:bg-blue-300"
+                      ? "bg-blue-50 text-sky-900 hover:bg-blue-100"
+                      : "bg-blue-50 text-sky-900 hover:bg-blue-100"
                   }`}
                 >
                   {mode === "retrieve"
@@ -777,14 +777,14 @@ const AllTranDocNo = ({
 
         {/* Footer Tabs */}
         {!collapsed && (
-         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 px-3 sm:px-4 py-2 bg-blue-200 border-t border-blue-300 text-sky-900 font-semibold text-[11px] sm:text-xs">
+         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 px-3 sm:px-4 py-2 bg-blue-100 border-t border-blue-300 text-sky-900 font-semibold text-[11px] sm:text-[10px]">
             <button
               type="button"
               onClick={() => setMode("retrieve")}
               className={`px-3 py-2 rounded-md transition text-center ${
                 mode === "retrieve"
                   ? "bg-white text-sky-900 shadow-sm"
-                  : "hover:bg-blue-300"
+                  : "hover:bg-blue-200"
               }`}
             >
               {isMobile ? "Retrieve Selected Document" : "Retrieve Selected Document (F6)"}
@@ -796,7 +796,7 @@ const AllTranDocNo = ({
               className={`px-3 py-2 rounded-md transition text-center ${
                 mode === "use"
                   ? "bg-white text-sky-900 shadow-sm"
-                  : "hover:bg-blue-300"
+                  : "hover:bg-blue-200"
               }`}
             >
               {isMobile ? "Use Selected Document" : "Use Selected Document (F7)"}

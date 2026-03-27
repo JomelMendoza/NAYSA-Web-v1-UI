@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback  } from "react";
 import Swal from 'sweetalert2';
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 // UI
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -22,6 +22,7 @@ import AttachDocumentModal from "../../../Lookup/SearchAttachment.jsx";
 import DocumentSignatories from "../../../Lookup/SearchSignatory.jsx";
 import GlobalLookupModalv1 from "../../../Lookup/SearchGlobalLookupv1.jsx";
 import AllTranHistory from "../../../Lookup/SearchGlobalTranHistory.jsx";
+import AllTranDocNo from "../../../Lookup/SearchDocNo.jsx";
 
 
 // Configuration
@@ -57,10 +58,12 @@ import {
 
 
 import {
-  useGetCurrentDay,
+  useGetCurrentDayV2,
   useFormatToDate,
+  useformatToDatev2
 } from '@/NAYSA Cloud/Global/dates';
 
+import DateFormatInput from '@/NAYSA Cloud/Global/DateFormatInput.jsx';
 
 import {
   useUpdateRowGLEntries,
@@ -70,6 +73,8 @@ import {
   useFetchTranData,
   useHandleCancel,
   useHandlePost,
+  useFieldLenghtCheck,
+  useGetFieldLength,
 } from '@/NAYSA Cloud/Global/procedure';
 
 
@@ -83,7 +88,7 @@ import {
   formatNumber,
   parseFormattedNumber,
   useSwalshowSaveSuccessDialog,
-} from '@/NAYSA Cloud/Global/behavior';
+} from '@/NAYSA Cloud/Global/behavior.jsx';
 
 
 import {
@@ -91,6 +96,7 @@ import {
   useSelectedHSColConfig,
 } from '@/NAYSA Cloud/Global/selectedData';
 
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
 // Header
 import Header from '@/NAYSA Cloud/Components/Header';
@@ -99,6 +105,18 @@ import Header from '@/NAYSA Cloud/Components/Header';
 const CV = () => {
    const loadedFromUrlRef = useRef(false);
    const navigate = useNavigate();
+   const location = useLocation(); 
+   const { companyInfo, currentUserRow,getAllDropDown,refsLoaded } = useAuth();
+   const [isViewDocument, setIsViewDocument] = useState(false);
+   useEffect(() => {
+     const p = new URLSearchParams(location.search);
+     if (p.get("viewDocument") === "true") {
+       setIsViewDocument(true);
+     }
+     }, []); 
+     
+   const isViewDocumentUrl = isViewDocument;
+   
    const [topTab, setTopTab] = useState("details"); // "details" | "history"
    const { user } = useAuth();
    const { resetFlag } = useReset();
@@ -122,7 +140,7 @@ const CV = () => {
     documentID: null,
     documentNo: "",
     documentStatus:"",
-    documentDate:useGetCurrentDay(),   
+    documentDate:useGetCurrentDayV2(),   
     status: "OPEN",
     noReprints:"0",
 
@@ -139,27 +157,23 @@ const CV = () => {
     isFetchDisabled: false,
 
 
-     // Header information
-    header: {
-      cv_date: new Date().toISOString().split('T')[0],
-      ck_date: new Date().toISOString().split('T')[0]
-    },
 
-    branchCode: "HO",
-    branchName: "Head Office",
+    branchCode: currentUserRow?.branchCode||"",
+    branchName: currentUserRow?.branchName||"",
     
     // Vendor information
     vendCode: "",
     vendName: "",
     
     // Currency information
-    currCode: "PHP",
-    currName: "Philippine Peso",
-    currRate: "1.000000",
-    defaultCurrRate:"1.000000",
+    currCode: companyInfo?.currCode||"",
+    currName: companyInfo?.currName||"",
+    currRate: formatNumber(companyInfo?.currRate||1,6),
+    defaultCurrRate:formatNumber(companyInfo?.currRate||1,6),
 
 
     //Other Header Info
+    tblFieldArray :[],
     cvWithApvDd :[],
     cvTranTypeDd:[],
     cvPayTypeDd:[],
@@ -178,8 +192,9 @@ const CV = () => {
     bankCode: "",
     bankAcctNo: "",
     checkNo: "",
+    checkDate: useGetCurrentDayV2(), 
 
-    userCode: user.USER_CODE, 
+    userCode: user?.USER_CODE || "", 
 
 
     //Detail 1-2
@@ -226,6 +241,7 @@ const CV = () => {
     showPostModal:false,
     showAttachModal:false,
     showSignatoryModal:false,
+    showAllTranDocNo:false,
    });
 
   const updateState = (updates) => {
@@ -286,6 +302,7 @@ const CV = () => {
   bankCode,
   bankAcctNo,
   checkNo,
+  checkDate,
 
   selectedWithAPV,
   selectedPayType,
@@ -295,6 +312,7 @@ const CV = () => {
   paymentType,
   cvType,
 
+  tblFieldArray,
   cvWithApvDd,
   cvTranTypeDd,
   cvPayTypeDd,
@@ -337,6 +355,7 @@ const CV = () => {
   showAttachModal,
   showSignatoryModal,
   showAPBalanceModal,
+  showAllTranDocNo
 
 
 } = state;
@@ -360,7 +379,7 @@ const CV = () => {
     CLOSED: "global-tran-stat-text-closed-ui",
   };
   const statusColor = statusMap[displayStatus] || "";
-  const isFormDisabled = ["FINALIZED", "CANCELLED", "CLOSED"].includes(displayStatus);
+  const isFormDisabled = isViewDocumentUrl || ["FINALIZED", "CANCELLED", "CLOSED"].includes(displayStatus);
   
 
   //Variables
@@ -440,6 +459,8 @@ const CV = () => {
   }, [detailRowsGL]);
 
 
+
+
   useEffect(() => {
       if (resetFlag) {    
         handleReset();
@@ -457,6 +478,18 @@ const CV = () => {
 
   useEffect(() => {
   }, [vendCode]);
+
+ 
+useEffect(() => {
+  if (triggerGLEntries) {
+    handleActivityOption("GenerateGL").then(() => {
+      updateState({ triggerGLEntries: false });
+    });
+  }
+}, [triggerGLEntries]);
+
+
+
 
 
 
@@ -485,36 +518,47 @@ const CV = () => {
   }, [state.documentID]);
   
 
-  useEffect(() => {
-    loadCompanyData();
+
+
+const isInitialMount = useRef(true);
+
+useEffect(() => {
+  if (isInitialMount.current) {
     handleReset();
+    loadCompanyData();
+    isInitialMount.current = false;
+  }
+}, []);
+
+
+
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "F1") { e.preventDefault(); updateState({showAllTranDocNo:true}); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
-
-
-  const LoadingSpinner = () => (
-    <div className="global-tran-spinner-main-div-ui">
-      <div className="global-tran-spinner-sub-div-ui">
-        <FontAwesomeIcon icon={faSpinner} spin size="2x" className="text-blue-500 mb-2" />
-        <p>Please wait...</p>
-      </div>
-    </div>
-  );
 
   
   const handleReset = () => {
     
     // Correct way to update the state with a single header object
     updateState({
-        header: { 
-            cv_date: new Date().toISOString().split("T")[0],
-            ck_date: new Date().toISOString().split("T")[0]
-        },
+        // header: { 
+        //     cv_date: new Date().toISOString().split("T")[0],
+        //     ck_date: new Date().toISOString().split("T")[0]
+        // },
         branchCode: "HO",
         branchName: "Head Office",
+        userCode:currentUserRow?.userCode||"",
+        documentDate:useGetCurrentDayV2(),
         withAPV: "Y",
         bankCode: "",
         bankAcctNo: "",
         checkNo: "",
+        checkDate:useGetCurrentDayV2(),
         paymentType: "Y",
         cvType: "APV01",
         refDocNo1: "",
@@ -621,6 +665,15 @@ const loadCompanyData = async () => {
           });
         }
       }
+
+      // 🔹 5. Field Lengths
+      const tbls = 'cv_hd,cv_dt1,cv_dt2';
+      const hdtblcol_result = await useFieldLenghtCheck(tbls);
+      if (hdtblcol_result){
+        updateState({tblFieldArray :hdtblcol_result })
+      }
+
+
     } catch (err) {
       console.error("Error fetching data:", err);
     }
@@ -661,18 +714,6 @@ const loadCurrencyMode = (
 
 
 
-  // const loadDocDropDown = async () => {
-  //  const data = await useTopDocDropDown(docType,"SVITRAN_TYPE");
-  //     if(data){
-  //       updateState({
-  //        sviTypes: data,
-  //        selectedSVIType: "REG",
-  //         });
-  //       };    
-  //  };
- 
-
-
 
 const fetchTranData = async (documentNo, branchCode) => {
   const resetState = () => {
@@ -687,24 +728,10 @@ const fetchTranData = async (documentNo, branchCode) => {
 
     if (!data?.cvId) {
       Swal.fire({ icon: 'info', 
-        // title: 'No Records Found', 
         text: 'No Records Found.' });
       return resetState();
     }
 
-    // // Format header date
-    // let cvDateForHeader = '';
-    // if (data.cvDate) {
-    //   const d = new Date(data.cvDate);
-    //   cvDateForHeader = isNaN(d) ? '' : d.toISOString().split("T")[0];
-    // }
-
-    // // Format header date
-    // let checkDateForHeader = '';
-    // if (data.checkDate) {
-    //   const d = new Date(data.checkDate);
-    //   checkDateForHeader = isNaN(d) ? '' : d.toISOString().split("T")[0];
-    // }
 
     let cvDateForHeader = data.cvDate ? new Date(data.cvDate).toISOString().split("T")[0] : '';
     let checkDateForHeader = data.checkDate ? new Date(data.checkDate).toISOString().split("T")[0] : '';
@@ -740,6 +767,7 @@ const fetchTranData = async (documentNo, branchCode) => {
     }));
 
   
+    console.log(data)
     // Update state with fetched data
     updateState({
       documentStatus: data.cvStatus,
@@ -748,12 +776,17 @@ const fetchTranData = async (documentNo, branchCode) => {
       documentID: data.cvId,
       documentNo: data.cvNo,
       branchCode: data.branchCode,
-      header: {
-        cvDate: cvDateForHeader,
-        checkDate: checkDateForHeader,
-        cv_date: cvDateForHeader,
-        ck_date: checkDateForHeader,
-      },
+      branchName:data.branchName,
+      
+      // header: {     
+      //   cvDate: useformatToDatev2(data.cvDate),
+      //   cv_date: useformatToDatev2(data.cv_date),
+      
+      //   checkDate:useformatToDatev2(data.checkDate),
+      //   ck_date:useformatToDatev2(data.ck_date),
+      // },
+
+      documentDate: useformatToDatev2(data.cvDate),
       selectedCvType: data.cvtranType,
       selectedWithAPV: data.withAPV,
       selectedPayType: data.payType,
@@ -762,6 +795,7 @@ const fetchTranData = async (documentNo, branchCode) => {
       bankCode: data.bankCode,
       bankAcctNo: data.bankAcctNo,
       checkNo: data.checkNo,
+      checkDate:useformatToDatev2(data.checkDate),
       refDocNo1: data.refDocNo1,
       refDocNo2: data.refDocNo2,
       currAmount: formatNumber(data.currAmount, 2),
@@ -830,10 +864,6 @@ const handleCurrRateNoBlur = (e) => {
 
  const handleActivityOption = async (action) => {
    
-    // if (!detailRows || detailRows.length === 0) {
-    //   return;
-    //   }
-
   if (action === "Upsert" && detailRowsGL.length === 0) {
     updateState({ triggerGLEntries: true });
     return;
@@ -856,6 +886,7 @@ const handleCurrRateNoBlur = (e) => {
         bankCode,
         bankAcctNo,
         checkNo,
+        checkDate,
         refDocNo1,
         refDocNo2,
         OrigAmt,
@@ -864,19 +895,19 @@ const handleCurrRateNoBlur = (e) => {
         currRate,
         CheckAmt,
         remarks,
-        // userCode, // Assuming userCode is also part of your state
         detailRows,
         detailRowsGL
     } = state;
 
-    // updateState({ isLoading: true });
 
     const glData = {
       branchCode: branchCode,
       cvNo: documentNo || "",
       cvId: documentID || "",
-      cvDate: header.cv_date,
-      checkDate: header.ck_date,
+      // cvDate: header.cv_date,
+      // checkDate: header.ck_date,
+      cvDate: documentDate,
+      checkDate: checkDate,
       withAPV: selectedWithAPV,
       vendCode: vendCode,
       vendName: vendName,
@@ -892,7 +923,7 @@ const handleCurrRateNoBlur = (e) => {
       currRate: parseFormattedNumber(currRate),
       checkAmt: parseFormattedNumber(totals.totalFxAmountDue),
       remarks: remarks || "",
-      userCode: "NSI",
+      userCode: userCode,
       dt1: detailRows.map((row, index) => ({
         lnNo: String(index + 1),       
         apvNo: row.apvNo,
@@ -948,9 +979,6 @@ const handleCurrRateNoBlur = (e) => {
         }))
     };
 
-          console.log("GL Data Payload glData:", glData);
-          console.log("GL Data Payload cvDate:", header.cv_date);
-
     if (action === "GenerateGL") {
         try {
             const newGlEntries = await useGenerateGLEntries(docType, glData);
@@ -973,14 +1001,17 @@ const handleCurrRateNoBlur = (e) => {
     if (action === "Upsert") {
         try {
 
-          console.log("GL Data Payload glData:", glData);
-
           const response = await useTransactionUpsert(docType, glData, updateState, 'cvId', 'cvNo');
           if (response) {
 
+            const isZero = Number(noReprints) === 0;
+            const onSaveAndPrint =
+              isZero
+                ? () => updateState({ showSignatoryModal: true })                  
+                : () => handleSaveAndPrint(response.data[0].cvId); 
             useSwalshowSaveSuccessDialog(
               handleReset,
-              () => handleSaveAndPrint(response.data[0].cvId)
+              onSaveAndPrint
             );
           }
 
@@ -1180,14 +1211,7 @@ const handlePost = async () => {
 
 
 const handleAttach = async () => {
-//  if (!detailRows || detailRows.length === 0) {
-//       return;
-//       }
-
-
-//   if (documentID ) {
     updateState({ showAttachModal: true });
-  // }
 };
 
 
@@ -1204,13 +1228,12 @@ const handleCopy = async () => {
                   documentID:"",
                   documentStatus:"",
                   status:"OPEN",
-      // Reset detailRows fields
+                  documentDate:useGetCurrentDayV2(), 
+                  noReprints:"0",
       detailRows: detailRows.map((row) => ({
         ...row,
         siNo: "",
-        // siDate: cvDate,
         poNo: "",
-        // add more fields here if needed
       })),
      });
   }
@@ -1220,17 +1243,18 @@ const handleCopy = async () => {
 
  //  ** View Document and Transaction History Retrieval ***
   const cleanUrl = useCallback(() => {
-     navigate(location.pathname, { replace: true });
-   }, [navigate, location.pathname]);
+    window.history.replaceState({}, "", window.location.origin);
+   }, []);
  
  
-   const handleHistoryRowPick = useCallback((row) => {
+   const handleHistoryRowPick = useCallback(async (row) => {
      const docNo = row?.docNo;
      const branchCode = row?.branchCode;
      if (!docNo || !branchCode) return;
-     fetchTranData(docNo, branchCode);
+     await fetchTranData(docNo, branchCode);
      setTopTab("details");
-   });
+     cleanUrl();
+   }, [fetchTranData, cleanUrl]);
  
  
    useEffect(() => {
@@ -1241,9 +1265,8 @@ const handleCopy = async () => {
      if (!loadedFromUrlRef.current && docNo && branchCode) {
        loadedFromUrlRef.current = true;
        handleHistoryRowPick({ docNo, branchCode });
-       cleanUrl();
      }
-   }, [location.search, handleHistoryRowPick, cleanUrl]);
+   }, [location.search, handleHistoryRowPick]);
  
 
 
@@ -1261,7 +1284,6 @@ const handleCopy = async () => {
     }
 
     updateState({ payeeModalOpen: false });
-    updateState({ isLoading: true });
 
     try {
         const payeeDetails = {
@@ -1300,7 +1322,6 @@ const handleCopy = async () => {
 
 
   const updateTotals = (rows) => {
-  //console.log("updateTotals received rows:", rows); // STEP 5: Check rows passed to updateTotals
 
   let totalOriginal = 0;
   let totalInvoice = 0;
@@ -1312,13 +1333,7 @@ const handleCopy = async () => {
   let totalAmtDue = 0;
 
   rows.forEach(row => {
-        // console.log("Row values before parseFormattedNumber:", {
-        //     vatAmountRaw: row.vatAmount,
-        //     atcAmountRaw: row.atcAmount,
-        //     siAmountRaw: row.siAmount,
-        //     netDiscRaw: row.netDisc,
-        //     unappliedAmountRaw: row.unappliedAmount
-        // });
+
     const originalAmount = parseFormattedNumber(row.origAmount || 0) || 0;
     const invoiceAmount = parseFormattedNumber(row.siAmount || 0) || 0;
     const appliedAmount = parseFormattedNumber(row.appliedAmount || 0) || 0;
@@ -1327,9 +1342,6 @@ const handleCopy = async () => {
     const atcAmount = parseFormattedNumber(row.atcAmount || 0) || 0;
     const balanceAmount = parseFormattedNumber(row.amountDue || 0) || 0;
 
-        // console.log("Row values after parseFormattedNumber:", {
-        //     vatAmount, atcAmount, invoiceGross, invoiceNetDisc, invoiceDiscount
-        // });
     totalOriginal+= originalAmount;
     totalInvoice+= invoiceAmount;
     totalApplied+= appliedAmount;
@@ -1340,98 +1352,16 @@ const handleCopy = async () => {
   });
 
   if (selectedWithAPV === "Y") {
-  totalAmtDue = totalBalance; // <--- POTENTIAL CORRECTION HERE
+  totalAmtDue = totalBalance; 
 };
   if (selectedWithAPV === "N") {
-  totalAmtDue = totalBalance; // <--- POTENTIAL CORRECTION HERE
+  totalAmtDue = totalBalance; 
 };
 
     updateTotalsDisplay (totalOriginal, totalInvoice, totalApplied, totalUnpplied, totalBalance, totalVAT, totalATC, totalAmtDue);
 
   };
 
-
-// const handleDetailChange = async (index, field, value, runCalculations = true) => {
-//   const updatedRows = [...detailRows];
-
-//   updatedRows[index] = {
-//     ...updatedRows[index],
-//     [field]: value,
-//   };
-
-//   const row = updatedRows[index];
-
-//   // Map picker payloads → codes/names
-//   if (field === "vatCode") {
-//     row.vatCode = value.vatCode;
-//     row.vatAcct = value.acctCode;
-//     row.vatName = value.vatName;
-//   }
-//   if (field === "atcCode") {
-//     row.atcCode = value.atcCode;
-//     row.atcName = value.atcName;
-//   }
-//   if (["debitAcct", "apAcct", "vatAcct"].includes(field)) {
-//     row[field] = value.acctCode;
-//   }
-//   if (field === "rcCode") {
-//     row.rcCode = value.rcCode;
-//     row.rcName = value.rcName;
-//   }
-//   if (field === "slCode") {
-//     row.slCode = value.slCode;
-//   }
-
-//   // ---- NEW: simple balance rule (applied - unapplied) ----
-//   if (runCalculations) {
-//     // always parse fresh from the row (may be string-formatted)
-//     const invoiceAmount = parseFormattedNumber(row.origAmount) || 0;
-//     const applied = parseFormattedNumber(row.appliedAmount) || 0;
-//     const unapplied = parseFormattedNumber(row.unappliedAmount) || 0;
-
-//     // balance per requirement
-//     const newBalance = +(applied - unapplied).toFixed(2);
-
-//     // keep these two aligned if you display both
-//     row.balance = formatNumber(newBalance);
-//     row.balanceAmount = formatNumber(newBalance);
-//     row.siAmount = formatNumber(invoiceAmount);
-
-//     // (optional) if VAT/ATC depend on balance, recompute here:
-//     // Only if you want VAT/ATC to follow balance. Otherwise delete this block.
-//     if (row.vatCode) {
-//       const vatAmt = await useTopVatAmount(row.vatCode, newBalance);
-//       row.vatAmount = formatNumber(vatAmt);
-//     } else {
-//       row.vatAmount = formatNumber(0);
-//     }
-
-//     const netOfVat = +(newBalance - (parseFormattedNumber(row.vatAmount) || 0)).toFixed(2);
-//     if (row.atcCode) {
-//       const atcAmt = await useTopATCAmount(row.atcCode, netOfVat);
-//       row.atcAmount = formatNumber(atcAmt);
-//     } else {
-//       row.atcAmount = formatNumber(0);
-//     }
-
-//     // If you show amountDue = balance - ATC (or any rule), update here:
-//     const atc = parseFormattedNumber(row.atcAmount) || 0;
-
-//     // row.amountDue = +(newBalance - atc).toFixed(2);
-
-//     if (selectedWithAPV === "Y") {
-//       row.amountDue = +(newBalance).toFixed(2);
-//     }
-//     if (selectedWithAPV === "N") {
-//       row.amountDue = +(newBalance - atc).toFixed(2);
-//     }
-
-//   }
-
-//   updatedRows[index] = row;
-//   updateState({ detailRows: updatedRows });
-//   updateTotals(updatedRows);
-// };
 
 
 const handleDetailChange = async (index, field, value, runCalculations = true) => {
@@ -1484,7 +1414,7 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
   const origAmtDue = parseFormattedNumber(row.amountDue) || 0;
   const origVatCode = row.vatCode || "";
   const origAtcCode = row.atcCode || "";
-  const cvType = row.cvType || "APV01"; // Make sure cvType is assigned correctly
+  const cvType = row.cvType || "APV01"; 
   const withAPV = row.withAPV || "Y";
 
     const applied = parseFormattedNumber(row.appliedAmount) || 0;
@@ -1493,7 +1423,7 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
   // Shared calculation logic
   async function recalcRow(newAppliedAmount, newUnapplied) {
     const newInvoiceAmount = (origAmount * origCurrRate).toFixed(2);
-    const finalAppliedAmount = cvType === "APV01" && withAPV === "Y" ? newInvoiceAmount : newAppliedAmount; // Use a final variable to avoid redeclaring
+    const finalAppliedAmount = cvType === "APV01" && withAPV === "Y" ? newInvoiceAmount : newAppliedAmount; 
     const newBalance = +(finalAppliedAmount - newUnapplied).toFixed(2);
     const newVatAmount = origVatCode ? await useTopVatAmount(origVatCode, newBalance) : 0;
     const newNetOfVat = +(newBalance - newVatAmount).toFixed(2);
@@ -1505,11 +1435,9 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
     row.atcAmount = formatNumber(newATCAmount);
     row.appliedAmount = formatNumber(applied);
     row.unappliedAmount = formatNumber(unapplied);
-    // row.balance = formatNumber(newBalance);
     row.balance = +(applied - unapplied).toFixed(2);
     row.origAmount = formatNumber(parseFormattedNumber(row.origAmount));
     row.currRate = formatNumber(parseFormattedNumber(row.currRate));
-    // row.amountDue = +(newInvoiceAmount - newATCAmount).toFixed(2);
 
     
   if (selectedWithAPV === "Y") {
@@ -1522,7 +1450,7 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
   }
 
   if (field === 'origAmount' || field === 'currRate' || field === 'appliedAmount' || field === 'unappliedAmount') {
-    const newAppliedAmount = cvType === "APV01" && withAPV === "Y" ? row.appliedAmount : origInvoiceAmount; // Adjust based on condition
+    const newAppliedAmount = cvType === "APV01" && withAPV === "Y" ? row.appliedAmount : origInvoiceAmount; 
     const newUnapplied = parseFormattedNumber(row.unappliedAmount) || 0;
     const newATCAmount = parseFormattedNumber(row.atcAmount) || 0;
     const newInvoiceAmount = +(origAmount * origCurrRate).toFixed(2);
@@ -1556,8 +1484,6 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
       const newATCAmount = row.atcCode ? await useTopATCAmount(row.atcCode, newNetOfVat) : 0;
 
       row.atcAmount = newATCAmount.toFixed(2);
-      // row.amountDue = +(newInvoiceBal - newATCAmount).toFixed(2);
-
 
       if (selectedWithAPV === "Y") {
           row.amountDue = +(newInvoiceBal).toFixed(2)
@@ -1634,55 +1560,6 @@ const isVisible_Dtl1 = (field, cvType, withAPV) => {
 };
 
 
-// const isVisible_Dtl1 = (field, cvType, withAPV) => {
-//   const rules = {
-//     // These fields are visible when withAPV is "Y"
-//     apvNo: !["N", "special-case"].includes(withAPV),
-//     rrNo: !["N", "special-case"].includes(withAPV),
-//     poNo: !["N", "special-case"].includes(withAPV),
-//     appliedAmount: !["N", "special-case"].includes(withAPV),
-//     unappliedAmount: !["N", "special-case"].includes(withAPV),
-//     balance: !["N", "special-case"].includes(withAPV),
-//     apAcct: !["N", "special-case"].includes(withAPV),
-//     apType: !["N", "special-case"].includes(withAPV),
-    
-//     // These fields are visible when withAPV is "N"
-//     // vatCode: !["Y", "special-case"].includes(withAPV),
-//     // vatName: !["Y", "special-case"].includes(withAPV),
-//     // vatAmount: !["Y", "special-case"].includes(withAPV),
-//     // atcCode: !["Y", "special-case"].includes(withAPV),
-//     // atcName: !["Y", "special-case"].includes(withAPV),
-//     // atcAmount: !["Y", "special-case"].includes(withAPV),
-//     // amountDue: !["Y", "special-case"].includes(withAPV),
-//     // vatAcct: !["Y", "special-case"].includes(withAPV),
-
-//     // // These fields are hidden when cvType is "Non Purchases"
-//     apvNo: !["APV02", "special-case"].includes(cvType),
-//     rrNo: !["APV02", "special-case"].includes(cvType),
-//     poNo: !["APV02", "special-case"].includes(cvType),
-//     appliedAmount: !["APV02", "special-case"].includes(cvType),
-//     unappliedAmount: !["APV02", "special-case"].includes(cvType),
-//     balance: !["APV02", "special-case"].includes(cvType),
-//     apAcct: !["APV02", "special-case"].includes(cvType),
-//     apType: !["APV02", "special-case"].includes(cvType), // Add the missing 'apType' rule here
-    
-//     siNo: !["APV02", "special-case"].includes(cvType),
-//     siDate: !["APV02", "special-case"].includes(cvType),
-
-//     // // These fields are visible when withAPV is "N"
-//     vatCode: !["APV02", "special-case"].includes(cvType),
-//     vatName: !["APV02", "special-case"].includes(cvType),
-//     vatAmount: !["APV02", "special-case"].includes(cvType),
-//     atcCode: !["APV02", "special-case"].includes(cvType),
-//     atcName: !["APV02", "special-case"].includes(cvType),
-//     atcAmount: !["APV02", "special-case"].includes(cvType),
-//     vatAcct: !["APV02", "special-case"].includes(cvType),
-    
-//   };
-
-//   return rules[field] ?? true;
-// };
-
 
 const handleDetailChangeGL = async (index, field, value) => {
     const updatedRowsGL = [...state.detailRowsGL];
@@ -1745,7 +1622,7 @@ const handleBlurGL = async (index, field, value, autoCompute = false) => {
 
   if(autoCompute && ((withCurr2 && currCode !== glCurrDefault) || (withCurr3))){
   if (['debit', 'credit', 'debitFx1', 'creditFx1', 'debitFx2', 'creditFx2'].includes(field)) {
-    const data = await useUpdateRowEditEntries(row,field,value,currCode,currRate,header.cv_date); 
+    const data = await useUpdateRowEditEntries(row,field,value,currCode,currRate,documentDate); 
         if(data) {
            row.debit = formatNumber(data.debit)
            row.credit = formatNumber(data.credit)
@@ -1827,10 +1704,6 @@ const handleCloseAccountModal = (selectedAccount) => {
       } else {
 
         handleDetailChangeGL(selectedRowIndex, 'slCode', selectedSl);
-          //  const result = await useTopRCRow(selectedSl.slCode);
-          //   if (result) {
-          //     handleDetailChangeGL(selectedRowIndex, 'slCode', result);
-          //   }
     }
     updateState({
         showSlModal: false,
@@ -1840,18 +1713,19 @@ const handleCloseAccountModal = (selectedAccount) => {
 };
 
 
-//   const handleCloseSlModalGL = async (selectedSl) => {
-//     if (selectedSl && selectedRowIndex !== null) {
+const handleTranDocNoRetrieval = async (data) => {
 
-//         if (selectedSl) {
-//           handleDetailChangeGL(selectedRowIndex, 'slCode', selectedSl);
-//         }
-//     }
-//     updateState({
-//         showSlModal: false,
-//         selectedRowIndex: null
-//     });
-// };
+    await fetchTranData(data.docNo, branchCode, data.key);
+    updateState({showAllTranDocNo: data.modalClose});
+};
+
+
+const handleTranDocNoSelection = async (data) => {
+    
+    handleReset();
+    updateState({showAllTranDocNo: false, documentNo:data.docNo });
+};
+
 
 
 
@@ -1879,7 +1753,7 @@ const handleCloseCancel = async (confirmation) => {
 const handleClosePost = async (confirmation) => {
     if(documentStatus !== "OPEN" && documentID !== null ) {
 
-      const result = await useHandlePost(docType,documentID,"NSI",updateState);
+      const result = await useHandlePost(docType,documentID,userCode,updateState);
       if (result.success) 
       {
         Swal.fire({
@@ -1902,7 +1776,7 @@ const handleCloseSignatory = async (mode) => {
         showSignatoryModal: false,
         noReprints: mode === "Final" ? 1 : 0, });
         console.log("handleCloseSignatory", { documentID, docType, mode });
-    await useHandlePrint(documentID, docType, mode );
+    await useHandlePrint(documentID, docType, mode, userCode );
 
     updateState({
       showSpinner: false 
@@ -2118,7 +1992,8 @@ const handleCloseBranchModal = (selectedBranch) => {
       if (result) {
         const rate = currCode === glCurrDefault
           ? defaultCurrRate
-          : await useTopForexRate(currCode, header.cv_date);
+          // : await useTopForexRate(currCode, header.cv_date);
+          : await useTopForexRate(currCode, documentDate);
         console.log("Currency Select",glCurrDefault)
         updateState({
           currCode: result.currCode,
@@ -2132,11 +2007,6 @@ const handleCloseBranchModal = (selectedBranch) => {
 
 
 const handleCloseBankModal = async (selectedBank) => {
-  
-  //   if (selectedBank) {
-  //   handleSelectBank(selectedBank.bankCode);
-  // };
-  //   updateState({ bankModalOpen: false });
 
     if (selectedBank && selectedBank !== null) {
      const result = await useTopAccountRow(selectedBank.acctCode);
@@ -2152,26 +2022,7 @@ const handleCloseBankModal = async (selectedBank) => {
 
 }
 
-
-
-  // const handleSelectBank = async (bankCode) => {
-  //   if (bankCode) {
-
-  //    const result = await useTopBankRow(bankCode);
-  //     if (result) {
-  //     updateState({
-  //       bankCode:result.bankCode,
-  //       bankAcctNo:result.bankAcctNo,
-  //       checkNo: result.nextCheckNo 
-  //       })     
-  //     }
-  //   }
-  // };
-
   
-  
-// ... assuming `updateState`, `bankCode`, and `documentID` are defined in your component's scope
-
 const handleCheckNoChange = async (e) => {
     const newCheckNo = e.target.value;
     const docId = documentID; // Use a correctly scoped variable
@@ -2241,21 +2092,10 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
 };
 
 
-
-
-
-
-
-
-
-
-
-
-
   return (
 
     <div className="global-tran-main-div-ui">
-
+    
       {showSpinner && <LoadingSpinner />}
 
       <div className="global-tran-headerToolbar-ui">
@@ -2274,12 +2114,17 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
               activeTopTab={topTab} 
               showActions={topTab === "details"} 
               showBIRForm={false}      
+              isViewDocument={isViewDocument}
               onDetails={() => setTopTab("details")}
               onHistory={() => setTopTab("history")}
               disableRouteNavigation={true}         
-              isSaveDisabled={isSaveDisabled} // Pass disabled state
-              isResetDisabled={isResetDisabled} // Pass disabled state
               detailsRoute="/page/CV"
+              isSaveDisabled={state.isSaveDisabled || isFormDisabled || detailRowsGL.length === 0}
+              isResetDisabled={state.isResetDisabled}
+              isAttachDisabled={!documentID}
+              isPrintDisabled={!documentID || displayStatus === "CANCELLED"}
+              isCopyDisabled={!documentID || displayStatus === "CANCELLED"}
+              isCancelDisabled={!documentID ||displayStatus === "CANCELLED" ||displayStatus === "FINALIZED"}
         />
       </div>
 
@@ -2287,29 +2132,24 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
   <div className={topTab === "details" ? "" : "hidden"}>
 
       {/* Page title and subheading */} 
-
-      {/* Header Section */}
-      <div className="global-tran-header-ui">
-
-        <div className="global-tran-headertext-div-ui">
+      <div className={`global-tran-header-ui ${isViewDocument ? "max-md:!mt-12 max-md:!pt-2 max-md:!pb-2" : ""}`}>
+        <div className={`global-tran-headertext-div-ui ${isViewDocument ? "max-md:!mb-1" : ""}`}>
           <h1 className="global-tran-headertext-ui">{documentTitle}</h1>
         </div>
-
-        <div className="global-tran-headerstat-div-ui">
+        <div className={`global-tran-headerstat-div-ui ${isViewDocument ? "max-md:!mt-0" : ""}`}>
           <div>
             <p className="global-tran-headerstat-text-ui">Transaction Status</p>
             <h1 className={`global-tran-stat-text-ui ${statusColor}`}>{displayStatus}</h1>
           </div>
         </div>
-
       </div>
 
 
 {/* Form Layout with Tabs */}
-<div className="global-tran-header-div-ui">
+<div className={`global-tran-header-div-ui ${isViewDocument ? "max-md:!mt-10 max-md:!pt-0 max-md:!pb-0" : ""}`}>
 
     {/* Tab Navigation */}
-    <div className="global-tran-header-tab-div-ui">
+    <div className={`global-tran-header-tab-div-ui ${isViewDocument ? "max-md:!mt-0 max-md:!pt-0 max-md:!pb-4 max-md:!mb-4 max-md:!justify-start max-md:!text-left" : ""}`}>
         <button
             className={`global-tran-tab-padding-ui ${
                 activeTab === 'basic'
@@ -2320,15 +2160,9 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
         >
             Basic Information
         </button>
-        {/* <button
-            className={`global-tran-tab-padding-ui ${activeTab === 'check' ? 'global-tran-tab-text_active-ui' : 'global-tran-tab-text_inactive-ui'}`}
-            onClick={() => setState(prevState => ({ ...prevState, activeTab: 'check' }))}
-          >
-            Check Information
-          </button> */}
     </div>
 
-    {/* SVI Header Form Section - Main Grid Container */}
+    {/* Header Form Section - Main Grid Container */}
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 rounded-lg relative" id="cv_hd">
 
         <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"> {/* Nested grid for 3 columns */}
@@ -2372,8 +2206,9 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                         onBlur={handleCvNoBlur}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
+                            handleCvNoBlur();
                             e.preventDefault(); 
-                            document.getElementById("cvDate")?.focus();
+                            document.getElementById("documentDate")?.focus();
                           }}}
                         placeholder=" "
                         className={`peer global-tran-textbox-ui ${state.isDocNoDisabled ? 'bg-blue-100 cursor-not-allowed' : ''}`}
@@ -2388,14 +2223,7 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                             ? "global-tran-textbox-button-search-disabled-ui"
                             : "global-tran-textbox-button-search-enabled-ui"
                         } global-tran-textbox-button-search-ui`}
-                        // disabled={state.isFetchDisabled || state.isDocNoDisabled}
-                        // onClick={() => {
-                        //     if (!state.isDocNoDisabled) {
-                        //         fetchTranData(state.documentNo,state.branchCode);
-                        //     }
-                        // }}
-                        
-                        onClick={() => navigate("/tran-ap-cvtran-history")}
+                        onClick={() => {updateState({showAllTranDocNo:true})}}
                     >
                         <FontAwesomeIcon icon={faMagnifyingGlass} />
                     </button>
@@ -2403,15 +2231,15 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
 
                 {/* CV Date Picker */}
                 <div className="relative">
-                    <input type="date"
-                        id="cvDate"
-                        className="peer global-tran-textbox-ui"
-                        value={header.cv_date}
-                        onChange={(e) => setHeader((prev) => ({ ...prev, cv_date: e.target.value }))}
-                        disabled={isFormDisabled} 
+                  <DateFormatInput
+                      id="documentDate"
+                      value={documentDate}
+                      updateState={updateState}
+                      disabled={isFormDisabled}
                     />
-                    <label htmlFor="cvDate" className="global-tran-floating-label">CV Date</label>
-                </div>
+                  <label htmlFor="documentDate" className="global-tran-floating-label">CV Date</label> 
+                </div>          
+
 
 
                 {/* With APV */}
@@ -2529,27 +2357,16 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
 
                 <div className="flex space-x-4"> {/* Added flex container with spacing */}
 
-{/*                 
-                <div className="relative flex-grow w-2/4">
-                    <input type="text" 
-                        id="checkNo" 
-                        placeholder=" " 
-                        value={checkNo} 
-                        onChange={(e) => { updateState({ checkNo: e.target.value }); handleCheckNoChange(e); }} 
-                        className="peer global-tran-textbox-ui" 
-                        disabled={isFormDisabled} />
-                    <label htmlFor="checkNo" className="global-tran-floating-label">Check No.</label>
-                </div> */}
-
                 <div className="relative flex-grow w-2/4">
                     <input 
                         type="text" 
                         id="checkNo" 
                         placeholder=" " 
                         value={checkNo} 
-                        onChange={(e) => handleCheckNoChange(e)}  // Call handleCheckNoChange instead of updateState
+                        onChange={(e) => handleCheckNoChange(e)}  
                         className="peer global-tran-textbox-ui" 
                         disabled={isFormDisabled} 
+                        maxLength={useGetFieldLength(tblFieldArray, "check_no")}
                     />
                     <label htmlFor="checkNo" className="global-tran-floating-label">Check No.</label>
                 </div>
@@ -2557,15 +2374,14 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
 
                 {/* Check Date Picker */}
                 <div className="relative flex-grow w-2/4">
-                    <input type="date"
-                        id="checkDate"
-                        className="peer global-tran-textbox-ui"
-                        value={header.ck_date}
-                        onChange={(e) => setHeader((prev) => ({ ...prev, ck_date: e.target.value }))}
-                        disabled={isFormDisabled} 
+                  <DateFormatInput
+                      id="checkDate"
+                      value={checkDate}
+                      updateState={updateState}
+                      disabled={isFormDisabled}
                     />
-                    <label htmlFor="checkDate" className="global-tran-floating-label">Check Date</label>
-                </div>
+                  <label htmlFor="checkDate" className="global-tran-floating-label">Check Date</label> 
+                </div>  
                 
                 </div>
 
@@ -2602,12 +2418,12 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                 <div className="flex space-x-4"> {/* Added flex container with spacing */}
 
                   <div className="relative flex-grow w-2/4">
-                      <input type="text" id="refDocNo1"  value={refDocNo1} placeholder=" " onChange={(e) => updateState({ refDocNo1: e.target.value })} className="peer global-tran-textbox-ui " disabled={isFormDisabled} />
+                      <input type="text" id="refDocNo1"  value={refDocNo1} placeholder=" " onChange={(e) => updateState({ refDocNo1: e.target.value })} className="peer global-tran-textbox-ui " disabled={isFormDisabled} maxLength={useGetFieldLength(tblFieldArray, "refcv_no1")} />
                       <label htmlFor="refDocNo1" className="global-tran-floating-label">Ref Doc No. 1</label>
                   </div>
 
                   <div className="relative flex-grow w-2/4">
-                      <input type="text" id="refDocNo2" value={refDocNo2} placeholder=" " onChange={(e) => updateState({ refDocNo2: e.target.value })}  className="peer global-tran-textbox-ui" disabled={isFormDisabled} />
+                      <input type="text" id="refDocNo2" value={refDocNo2} placeholder=" " onChange={(e) => updateState({ refDocNo2: e.target.value })}  className="peer global-tran-textbox-ui" disabled={isFormDisabled} maxLength={useGetFieldLength(tblFieldArray, "refcv_no2")} />
                       <label htmlFor="refDocNo2" className="global-tran-floating-label">Ref Doc No. 2</label>
                   </div>
 
@@ -2621,7 +2437,7 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                         placeholder=" "
                         value={vendName}
                         className="peer global-tran-textbox-ui w-full"
-                        
+                        disabled
                     />
                     <label htmlFor="vendName" className="global-tran-floating-label">
                         <span className="global-tran-asterisk-ui"> * </span>Payee Name
@@ -2645,6 +2461,7 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                         value={remarks}
                         onChange={(e) => updateState({ remarks: e.target.value })}
                         disabled={isFormDisabled} 
+                        maxLength={useGetFieldLength(tblFieldArray, "remarks")}
                     />
                     <label
                         htmlFor="remarks"
@@ -2732,8 +2549,6 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
       
 
       {/* APV Detail Section */}
-      {/* <div id="cv_dtl" className="global-tran-tab-div-ui" > */}
-      {/* <div id="cv_dtl" className="global-tran-tab-div-ui" style={{ display: (selectedWithAPV === 'Y' && selectedCvType === 'APV02') || selectedWithAPV === 'N' && selectedCvType === 'APV02' ? 'none' : 'block' }}> */}
       <div id="cv_dtl" className="global-tran-tab-div-ui" >
 
 
@@ -2748,7 +2563,6 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
               ? 'global-tran-tab-text_active-ui'
               : 'global-tran-tab-text_inactive-ui'
           }`}
-          // onClick={() => setGLActiveTab('invoice')}
         >
           Invoice Details
         </button>
@@ -3189,31 +3003,6 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
               </div>
             </td>
 
-            {/* SL Code */}
-            {/* <td className="global-tran-td-ui" hidden={!isVisible_Dtl1("slCode", cvType, withAPV)}>
-                  <div className="relative w-fit">
-                      <input
-                          type="text"
-                          className="w-[100px] pr-6 global-tran-td-inputclass-ui cursor-pointer"
-                          value={row.slCode || ""}
-                          onChange={(e) => handleDetailChangeGL(index, 'slCode', e.target.value)}
-                          readOnly
-                      />
-
-                      {!isFormDisabled && ( 
-                                        <FontAwesomeIcon 
-                  icon={faMagnifyingGlass} 
-                  className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
-                  onClick={() => {
-                  updateState({ selectedRowIndex: index,
-                                showSlModal: true,
-                                accountModalSource: "slCode"}); 
-                  }}
-
-                          />
-                      )}
-                  </div>
-              </td> */}
 
               {/* SL Code */}
               <td className="global-tran-td-ui relative" hidden={!isVisible_Dtl1("slCode", selectedCvType, selectedWithAPV)}>
@@ -3389,11 +3178,6 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
         <div className="global-tran-tab-footer-total-label-ui text-right">Currency ({glCurrDefault})</div>
         {currRate > 1 && <div className="global-tran-tab-footer-total-label-ui text-right">Currency ({currCode})</div>}
 
-        {/* Total Invoice Amount */}
-        {/* <div className="global-tran-tab-footer-total-label-ui">Total Invoice Amount:</div>
-        <div className="global-tran-tab-footer-total-value-ui">{totals.totalInvoiceAmount}</div>
-        {currRate > 1 && <div className="global-tran-tab-footer-total-value-ui">{totals.totalFxOriginalAmount}</div>}
-         */}
         {!(selectedWithAPV === "N" && selectedCvType === "APV02") && selectedWithAPV !== "Y" && (
             <>
                 <div className="global-tran-tab-footer-total-label-ui">Total Invoice Amount:</div>
@@ -3474,7 +3258,7 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
         <button
           onClick={() => handleActivityOption("GenerateGL")}
           className="global-tran-button-generateGL"
-          disabled={isLoading} // Optionally disable button while loading
+          disabled={isLoading} 
           style={{ visibility: isFormDisabled ? "hidden" : "visible" }}
         >
           {isLoading ? 'Generating...' : 'Generate GL Entries'}
@@ -3638,6 +3422,7 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                         type="text"
                         className="w-[300px] global-tran-td-inputclass-ui"
                         value={row.particular || ""}
+                        maxLength={useGetFieldLength(tblFieldArray, "particular")}
                         onChange={(e) => handleDetailChange(index, 'particular', e.target.value)}
                       />
                 </td>
@@ -3882,7 +3667,7 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                   type="text"
                   className="w-[100px] global-tran-td-inputclass-ui"
                   value={row.slRefNo || ""}
-                  maxLength={25}
+                  maxLength={useGetFieldLength(tblFieldArray, "slref_no")}
                   onChange={(e) => handleDetailChangeGL(index, 'slRefNo', e.target.value)}
                 />
               </td>
@@ -3900,6 +3685,7 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                   type="text"
                   className="w-[100px] global-tran-td-inputclass-ui"
                   value={row.remarks || header.remarks || ""}
+                  maxLength={useGetFieldLength(tblFieldArray, "remarks")}
                   onChange={(e) => handleDetailChangeGL(index, 'remarks', e.target.value)}
                 />
              </td>
@@ -4131,6 +3917,8 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
 
 
 
+
+
 {showSignatoryModal && (
   <DocumentSignatories
     isOpen={showSignatoryModal}
@@ -4152,6 +3940,19 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
   />
 )}
 
+
+
+    {showAllTranDocNo && (
+      <AllTranDocNo
+        isOpen={showAllTranDocNo}
+        params={{branchCode,branchName,docType,documentTitle,fieldNo : "cvNo"}}
+        onRetrieve={handleTranDocNoRetrieval}
+        onResponse={{documentNo}}
+        onSelected={handleTranDocNoSelection}
+        onClose={() => updateState({ showAllTranDocNo: false })}
+      />
+    )} 
+
 {showSpinner && <LoadingSpinner />}
     </div>
     
@@ -4159,8 +3960,9 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
   <div className={topTab === "history" ? "" : "hidden"}>
       <AllTranHistory
         showHeader={false}
+        isActive={topTab === "history"}
         endpoint="/getCVHistory"
-        cacheKey={`CV:${state.branchCode || ""}:${state.docNo || ""}`}  // ✅ per-transaction
+        cacheKey={`CV:${state.branchCode || ""}:${state.docNo || ""}`} 
         activeTabKey="CV_Summary"
         branchCode={state.branchCode}
         startDate={state.fromDate}
