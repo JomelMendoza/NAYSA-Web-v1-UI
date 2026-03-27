@@ -121,7 +121,7 @@ export default function UserRoleModal({ isOpen, user, onClose }) {
 
     if (rolesToApply.length === applied.length && rolesToRemove.length === 0) {
       // 4. USING VALIDATION ERROR ALERT FOR NO CHANGES
-      await useSwalErrorAlert("Validation Error", "No changes detected to update.");
+      await useSwalErrorAlert("No Changes", "There are no modified rows to save.");
       return;
     }
 

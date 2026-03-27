@@ -1058,6 +1058,7 @@ const AppContent = () => {
             <Routes location={location}>
               <Route path="/" element={<Dashboard1 user={user} />} />
               <Route path="/change-password" element={<ChangePassword />} />
+              <Route path="/approve-user" element={<ApproveUser />} />
               <Route
                 path="/security-settings/biometric"
                 element={<BiometricSettingsPage />}
