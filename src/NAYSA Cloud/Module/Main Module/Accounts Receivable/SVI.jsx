@@ -1773,9 +1773,17 @@ return (
         onDetails={() => setTopTab("details")}
         onHistory={() => setTopTab("history")}
         disableRouteNavigation={true}         
-        isSaveDisabled={isSaveDisabled} 
-        isResetDisabled={isResetDisabled} 
+ 
         detailsRoute="/page/SVI"
+
+        isSaveDisabled={state.isSaveDisabled || isFormDisabled} 
+        isResetDisabled={state.isResetDisabled}
+        isAttachDisabled={!documentID}
+
+
+        isPrintDisabled={!documentID || displayStatus === "CANCELLED"}
+        isCopyDisabled={!documentID || displayStatus === "CANCELLED"}
+        isCancelDisabled={!documentID || displayStatus === "CANCELLED" || displayStatus === "FINALIZED"}
       />
       </div>
 
