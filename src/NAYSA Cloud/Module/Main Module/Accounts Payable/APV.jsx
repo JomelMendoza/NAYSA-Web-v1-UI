@@ -11,6 +11,7 @@ import {
   faTrashAlt,
   faFolderOpen,
   faSpinner,
+  faEdit,
 } from "@fortawesome/free-solid-svg-icons";
 
 // Lookup/Modal
@@ -78,6 +79,13 @@ import {
   useSwalshowSaveSuccessDialog,
 } from "@/NAYSA Cloud/Global/behavior.jsx";
 
+import {
+  useGetCurrentDayV2,
+  useformatToDatev2,
+} from "@/NAYSA Cloud/Global/dates";
+
+import DateFormatInput from "@/NAYSA Cloud/Global/DateFormatInput.jsx";
+
 // Header
 import Header from "@/NAYSA Cloud/Components/Header";
 
@@ -118,12 +126,11 @@ const APV = () => {
 
     // Header information
     header: {
-      apv_date: new Date().toISOString().split("T")[0],
+      apv_date: useGetCurrentDayV2(),
       remarks: "",
       refDocNo1: "",
       refDocNo2: "",
     },
-
     // Branch information
     branchCode: "HO",
     branchName: "Head Office",
@@ -525,7 +532,7 @@ const APV = () => {
 
     updateState({
       header: {
-        apv_date: new Date().toISOString().split("T")[0],
+        apv_date: useGetCurrentDayV2(),
         remarks: "",
         refDocNo1: "",
         refDocNo2: "",
@@ -594,11 +601,9 @@ const APV = () => {
       }
 
       // Format header date
-      let apvDateForHeader = "";
-      if (data.apvDate) {
-        const d = new Date(data.apvDate);
-        apvDateForHeader = isNaN(d) ? "" : d.toISOString().split("T")[0];
-      }
+      const apvDateForHeader = data.apvDate
+        ? useformatToDatev2(data.apvDate)
+        : "";
 
       console.log("Formatted APV date:", apvDateForHeader);
 
@@ -607,22 +612,12 @@ const APV = () => {
         console.log(`Processing detail row ${index}:`, item);
 
         // Format invoice date (siDate)
-        let formattedSiDate = "";
-        if (item.siDate) {
-          const siDate = new Date(item.siDate);
-          formattedSiDate = isNaN(siDate)
-            ? ""
-            : siDate.toISOString().split("T")[0];
-        }
-
-        // Format due date
-        let formattedDueDate = "";
-        if (item.dueDate) {
-          const dueDate = new Date(item.dueDate);
-          formattedDueDate = isNaN(dueDate)
-            ? ""
-            : dueDate.toISOString().split("T")[0];
-        }
+        const formattedSiDate = item.siDate
+          ? useformatToDatev2(item.siDate)
+          : "";
+        const formattedDueDate = item.dueDate
+          ? useformatToDatev2(item.dueDate)
+          : "";
 
         return {
           ...item,
@@ -759,34 +754,29 @@ const APV = () => {
   };
 
   const fetchRCNameByCode = async (rcCode) => {
-  if (!rcCode) return "";
+    if (!rcCode) return "";
 
-  try {
-    const response = await fetchData("getRCMast", {
-      RC_CODE: rcCode,
-    });
+    try {
+      const response = await fetchData("getRCMast", {
+        RC_CODE: rcCode,
+      });
 
-    if (!response?.success) return "";
+      if (!response?.success) return "";
 
-    let rcData = response.data || [];
+      let rcData = response.data || [];
 
-    if (rcData?.[0]?.result) {
-      rcData = JSON.parse(rcData[0].result || "[]");
+      if (rcData?.[0]?.result) {
+        rcData = JSON.parse(rcData[0].result || "[]");
+      }
+
+      const row = Array.isArray(rcData) ? rcData[0] : rcData;
+
+      return row?.rcName || row?.rc_name || row?.RC_NAME || "";
+    } catch (error) {
+      console.error("Could not fetch RC name:", error);
+      return "";
     }
-
-    const row = Array.isArray(rcData) ? rcData[0] : rcData;
-
-    return (
-      row?.rcName ||
-      row?.rc_name ||
-      row?.RC_NAME ||
-      ""
-    );
-  } catch (error) {
-    console.error("Could not fetch RC name:", error);
-    return "";
-  }
-};
+  };
 
   const handleDocumentNoBlur = () => {
     console.log("Document No blur:", documentNo, "Branch:", branchCode);
@@ -1034,7 +1024,7 @@ const APV = () => {
             rrNo: "",
             poNo: "",
             siNo: "",
-            siDate: new Date().toISOString().split("T")[0],
+            siDate: useGetCurrentDayV2(),
             amount: formatNumber(amount),
             currency: vendName?.currCode || "",
             siAmount: formatNumber(amount),
@@ -1052,7 +1042,7 @@ const APV = () => {
             atcName: item.atcName || "",
             atcAmount: "0.00",
             paytermCode: item.paytermCode || "",
-            dueDate: new Date().toISOString().split("T")[0],
+            dueDate: useGetCurrentDayV2(),
             remarks: "",
             REC_RC: item.REC_RC || "N", // Default to 'N' if not provided
             REC_SL: item.REC_SL || "N", // Default to 'N' if not provided
@@ -1316,6 +1306,27 @@ const APV = () => {
     doc_id: docType,
   };
 
+  const fetchPayeeByCode = async (vendCode) => {
+    if (!vendCode) return null;
+
+    try {
+      const response = await postRequest(
+        "getPayee",
+        JSON.stringify({
+          VEND_CODE: vendCode,
+        }),
+      );
+
+      if (!response?.success) return null;
+
+      const parsed = JSON.parse(response?.data?.[0]?.result || "[]");
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed[0] : null;
+    } catch (error) {
+      console.error("Error fetching payee details:", error);
+      return null;
+    }
+  };
+
   const handleClosePayeeModal = async (selectedData) => {
     if (!selectedData) {
       updateState({ payeeModalOpen: false });
@@ -1325,47 +1336,102 @@ const APV = () => {
     updateState({ payeeModalOpen: false, isLoading: true });
 
     try {
-      // Extract codes from the selected row (using the columns your SP returns)
-      let foundCurrCode = selectedData.currCode || selectedData.CURR_CODE;
-      let foundAcctCode =
-        selectedData.acctCode || selectedData.apAcct || selectedData.ACCT_CODE;
-      let foundAcctName = selectedData.acctName || selectedData.ACCT_NAME; // From your new SP Join
+      const selectedVendCode =
+        selectedData.vendCode ||
+        selectedData.VEND_CODE ||
+        selectedData.vend_code ||
+        "";
 
-      const payeeDetails = {
-        vendCode: selectedData.vendCode || "",
-        vendName: selectedData.vendName || "",
-        currCode: foundCurrCode || "",
-      };
-
-      // 1. Update Payee basic info
-      updateState({
-        vendName: payeeDetails,
-        vendCode: selectedData.vendCode,
-      });
-
-      // 2. Update detail rows SL info
-      const updatedRows = detailRows.map((row) => ({
-        ...row,
-        slCode: selectedData.vendCode,
-        slName: selectedData.vendName,
-      }));
-      updateState({ detailRows: updatedRows });
-
-      // 3. Handle AP Account Formatting: "Code - Name"
-      if (foundAcctCode && foundAcctName) {
-        updateState({
-          apAccountCode: foundAcctCode,
-          apAccountName: `${foundAcctCode} - ${foundAcctName}`, // Concentenated format
-        });
-      } else if (foundAcctCode) {
-        // Fallback: If name is missing from modal row, fetch it
-        handleSelectAPAccount(foundAcctCode);
+      if (!selectedVendCode) {
+        updateState({ isLoading: false });
+        return;
       }
 
-      // 4. Handle Currency
-      handleSelectCurrency(foundCurrCode);
+      const payeeRow = await fetchPayeeByCode(selectedVendCode);
+      const finalPayee = payeeRow || selectedData;
+
+      const foundVendCode = finalPayee?.vendCode || finalPayee?.VEND_CODE || "";
+
+      const foundVendName = finalPayee?.vendName || finalPayee?.VEND_NAME || "";
+
+      const foundAcctCode =
+        finalPayee?.apAccountCode ||
+        finalPayee?.acctCode ||
+        finalPayee?.AP_ACCT ||
+        finalPayee?.ACCT_CODE ||
+        "";
+
+      const foundAcctName =
+        finalPayee?.apAccountName ||
+        finalPayee?.acctName ||
+        finalPayee?.ACCT_NAME ||
+        "";
+
+      const foundCurrCode =
+        finalPayee?.currCode ||
+        finalPayee?.currencyCode ||
+        finalPayee?.CURR_CODE ||
+        "";
+
+      const foundCurrName =
+        finalPayee?.currName ||
+        finalPayee?.currencyName ||
+        finalPayee?.CURR_NAME ||
+        "";
+
+      updateState({
+        vendCode: foundVendCode,
+        vendName: {
+          vendCode: foundVendCode,
+          vendName: foundVendName,
+          currCode: foundCurrCode,
+          currName: foundCurrName,
+        },
+      });
+
+      const updatedRows = detailRows.map((row) => ({
+        ...row,
+        slCode: foundVendCode,
+        slName: foundVendName,
+      }));
+
+      updateState({ detailRows: updatedRows });
+
+      if (foundAcctCode) {
+        if (foundAcctName) {
+          updateState({
+            apAccountCode: foundAcctCode,
+            apAccountName: `${foundAcctCode} - ${foundAcctName}`,
+          });
+        } else {
+          await handleSelectAPAccount(foundAcctCode);
+        }
+      } else {
+        updateState({
+          apAccountCode: "",
+          apAccountName: "",
+        });
+      }
+
+      if (foundCurrCode) {
+        await handleSelectCurrency({
+          currCode: foundCurrCode,
+          currName: foundCurrName || "",
+        });
+      } else {
+        updateState({
+          currencyCode: "",
+          currencyName: "",
+          currencyRate: "1.000000",
+        });
+      }
     } catch (error) {
       console.error("Error setting Payee details:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Payee Error",
+        text: "Failed to fetch selected payee details.",
+      });
     } finally {
       updateState({ isLoading: false });
     }
@@ -1409,52 +1475,63 @@ const APV = () => {
     runCalculations = true,
   ) => {
     const updatedRows = [...detailRows];
-
-    updatedRows[index] = {
-      ...updatedRows[index],
-      [field]: value,
-    };
-
+    updatedRows[index] = { ...updatedRows[index], [field]: value };
     const row = updatedRows[index];
 
-    // Handle account selection from modal
+    // Logic for Debit Account Selection
     if (field === "debitAcct" && typeof value === "object") {
-      row.debitAcct = value.acctCode;
-      row.REC_RC = value.REC_RC || "N";
+      // Normalize flag names coming from COAMastLookupModal
+      const reqRc = value.rcReq || value.REQ_RC || "N";
+      const reqSl = value.slReq || value.REQ_SL || "N";
+
+      row.debitAcct = value.acctCode || "";
+      row.REC_RC = reqRc;
+      row.REC_SL = reqSl;
+
+      // Set RC Placeholder
+      if (reqRc === "Y") {
+        row.rcCode = "REQ RC";
+        row.rcName = "";
+      } else {
+        row.rcCode = "";
+        row.rcName = "";
+      }
+
+      // Set SL Placeholder (defaults to Payee if not required)
+      if (reqSl === "Y") {
+        row.slCode = "REQ SL";
+        row.slName = "";
+      } else {
+        row.slCode = vendCode || "";
+        row.slName = vendName?.vendName || "";
+      }
     }
 
-    // If REC_RC is No, clear RC and SL fields
-    if (value.REC_RC === "N" || value.REC_RC === "No") {
-      row.rcCode = "";
-      row.rcName = "";
-      row.slCode = vendCode || "";
-      row.slName = vendName?.vendName || "";
-    }
-
-    // Handle RC code selection from modal
+    // RC code selection from modal
     if (field === "rcCode") {
-      row.rcCode = value?.rcCode || value?.rc_code || "";
+      row.rcCode = value?.rcCode || value?.rc_code || row.rcCode || "";
       row.rcName = value?.rcName || value?.rc_name || "";
     }
 
+    // SL code selection from modal
     if (field === "slCode") {
-      row.slCode = value.slCode;
+      row.slCode = value?.slCode || value?.sl_code || "";
+      row.slName = value?.slName || value?.sl_name || "";
     }
 
-    // Handle VAT code selection from modal
+    // VAT code selection from modal
     if (field === "vatCode" && typeof value === "object") {
       row.vatCode = value.vatCode;
       row.vatName = value.vatName;
-      row.vatAcct = value.acctCode; // Add vat account if available
+      row.vatAcct = value.acctCode;
     }
 
-    // Handle ATC code selection from modal
+    // ATC code selection from modal
     if (field === "atcCode" && typeof value === "object") {
       row.atcCode = value.atcCode;
       row.atcName = value.atcName;
     }
 
-    // Always update siAmount when amount changes, even if not calculating yet
     if (field === "amount") {
       row.siAmount = value;
     }
@@ -1464,7 +1541,6 @@ const APV = () => {
       const origVatCode = row.vatCode || "";
       const origAtcCode = row.atcCode || "";
 
-      // Shared calculation logic similar to SVI.jsx
       async function recalcRow(newAmount) {
         const newVatAmount = origVatCode
           ? await useTopVatAmount(origVatCode, newAmount)
@@ -1473,7 +1549,6 @@ const APV = () => {
         const newATCAmount = origAtcCode
           ? await useTopATCAmount(origAtcCode, newNetOfVat)
           : 0;
-        const newPayableAmount = +(newAmount - newATCAmount).toFixed(2);
 
         row.siAmount = formatNumber(newAmount);
         row.vatAmount = formatNumber(newVatAmount);
@@ -1481,60 +1556,45 @@ const APV = () => {
         row.amount = formatNumber(newAmount);
       }
 
-      // Handle amount changes (similar to SVI quantity/unitPrice changes)
       if (field === "amount") {
         const newAmount = parseFormattedNumber(row.amount) || 0;
         await recalcRow(newAmount);
       }
 
-      // Handle VAT code changes
       if (field === "vatCode") {
-        async function updateVat() {
-          const currentAmount = parseFormattedNumber(row.amount) || 0;
-          const newVatAmount = row.vatCode
-            ? await useTopVatAmount(row.vatCode, currentAmount)
-            : 0;
-          const newNetOfVat = +(currentAmount - newVatAmount).toFixed(2);
-          const newATCAmount = row.atcCode
-            ? await useTopATCAmount(row.atcCode, newNetOfVat)
-            : 0;
+        const currentAmount = parseFormattedNumber(row.amount) || 0;
+        const newVatAmount = row.vatCode
+          ? await useTopVatAmount(row.vatCode, currentAmount)
+          : 0;
+        const newNetOfVat = +(currentAmount - newVatAmount).toFixed(2);
+        const newATCAmount = row.atcCode
+          ? await useTopATCAmount(row.atcCode, newNetOfVat)
+          : 0;
 
-          row.vatAmount = formatNumber(newVatAmount);
-          row.atcAmount = formatNumber(newATCAmount);
-        }
-        await updateVat();
+        row.vatAmount = formatNumber(newVatAmount);
+        row.atcAmount = formatNumber(newATCAmount);
       }
 
-      // Handle ATC code changes
       if (field === "atcCode") {
-        async function updateAtc() {
-          const currentAmount = parseFormattedNumber(row.amount) || 0;
-          const currentVatAmount = parseFormattedNumber(row.vatAmount) || 0;
-          const newNetOfVat = +(currentAmount - currentVatAmount).toFixed(2);
-          const newATCAmount = row.atcCode
-            ? await useTopATCAmount(row.atcCode, newNetOfVat)
-            : 0;
+        const currentAmount = parseFormattedNumber(row.amount) || 0;
+        const currentVatAmount = parseFormattedNumber(row.vatAmount) || 0;
+        const newNetOfVat = +(currentAmount - currentVatAmount).toFixed(2);
+        const newATCAmount = row.atcCode
+          ? await useTopATCAmount(row.atcCode, newNetOfVat)
+          : 0;
 
-          row.atcAmount = formatNumber(newATCAmount);
-        }
-        await updateAtc();
+        row.atcAmount = formatNumber(newATCAmount);
       }
 
-      // Due Date recalculation
       if (field === "paytermCode") {
         const paytermData = await useTopPayTermRow(value);
         if (paytermData && paytermData.daysDue && header.apv_date) {
-          const newDueDate = calculateDueDate(
-            header.apv_date,
-            paytermData.daysDue,
-          );
-          row.dueDate = newDueDate;
+          row.dueDate = calculateDueDate(header.apv_date, paytermData.daysDue);
         } else {
           row.dueDate = "";
         }
       }
 
-      // Format amount and siAmount with 2 decimal places when calculations are run
       if (field === "amount") {
         const num = parseFormattedNumber(value);
         if (!isNaN(num)) {
@@ -1705,7 +1765,8 @@ const APV = () => {
             {
               ...selectedAccount,
               acctCode: selectedAccount.accountCode || selectedAccount.acctCode,
-              REC_RC: selectedAccount.REC_RC || "N",
+              REQ_RC: selectedAccount.REQ_RC || selectedAccount.reqRC || "N",
+              REQ_SL: selectedAccount.REQ_SL || selectedAccount.reqSL || "N",
             },
             false,
           );
@@ -1941,7 +2002,10 @@ const APV = () => {
 
   const handleTranDocNoSelection = async (data) => {
     handleReset();
-    updateState({ showAllTranDocNo: false, documentNo: data.docNo });
+    updateState({
+      showAllTranDocNo: false,
+      documentNo: data.docNo,
+    });
   };
 
   const handleSaveAndPrint = async (documentID) => {
@@ -2418,84 +2482,53 @@ const APV = () => {
         >
           {/* Column 1 */}
           <div className="global-tran-textbox-group-div-ui">
-            {/* Branch Name Input with lookup button */}
-            <div className="relative">
-              <input
-                type="text"
-                id="branchName"
-                placeholder=" "
-                value={branchName || ""}
-                readOnly
-                className="peer global-tran-textbox-ui"
-                disabled={isFormDisabled}
-              />
-              <label
-                htmlFor="branchName"
-                className="global-tran-floating-label"
-              >
-                Branch
-              </label>
-
-              {/* Button to open branch lookup modal */}
-              <button
-                type="button"
-                onClick={() => updateState({ branchModalOpen: true })}
-                className={`global-tran-textbox-button-search-padding-ui ${
-                  isFetchDisabled
-                    ? "global-tran-textbox-button-search-disabled-ui"
-                    : "global-tran-textbox-button-search-enabled-ui"
-                } global-tran-textbox-button-search-ui`}
-                disabled={isFormDisabled}
-              >
-                <FontAwesomeIcon icon={faMagnifyingGlass} />
-              </button>
-            </div>
+            <FieldRenderer
+              id="branchName"
+              label="Branch"
+              type="lookup"
+              value={branchName || ""}
+              disabled={isFormDisabled}
+              onLookup={() => updateState({ branchModalOpen: true })}
+            />
 
             {/* APV Number Field */}
-            <div className="relative">
-              <input
-                type="text"
-                id="apvNo"
-                value={documentNo}
-                onChange={(e) => updateState({ documentNo: e.target.value })}
-                onBlur={handleDocumentNoBlur}
-                placeholder=" "
-                className={`peer global-tran-textbox-ui ${
-                  isDocNoDisabled ? "bg-gray-100 cursor-not-allowed" : ""
-                }`}
-                disabled={isDocNoDisabled}
-              />
-              <label htmlFor="apvNo" className="global-tran-floating-label">
-                APV No.
-              </label>
-              <button
-                onClick={() => fetchTranData(documentNo, branchCode)}
-                className={`global-tran-textbox-button-search-padding-ui ${
-                  isFetchDisabled || isDocNoDisabled
-                    ? "global-tran-textbox-button-search-disabled-ui"
-                    : "global-tran-textbox-button-search-enabled-ui"
-                } global-tran-textbox-button-search-ui`}
-                disabled={isDocNoDisabled}
-              >
-                <FontAwesomeIcon icon={faMagnifyingGlass} />
-              </button>
-            </div>
+            <FieldRenderer
+              id="apvNo"
+              label="APV No."
+              type="lookup"
+              value={documentNo || ""}
+              disabled={isDocNoDisabled}
+              onLookup={() => updateState({ showAllTranDocNo: true })}
+            />
 
             {/* APV Date Picker */}
-            <div className="relative">
-              <input
-                type="date"
-                id="APVDate"
-                className="peer global-tran-textbox-ui"
-                value={header.apv_date}
-                onChange={(e) =>
-                  updateState({
-                    header: { ...header, apv_date: e.target.value },
-                  })
-                }
-                disabled={isFormDisabled}
-              />
-              <label htmlFor="APVDate" className="global-tran-floating-label">
+            <div className="relative w-full">
+              <div
+                className={`flex items-stretch global-ref-textbox-ui ${!isFormDisabled ? "global-ref-textbox-enabled" : "global-ref-textbox-disabled"}`}
+              >
+                <DateFormatInput
+                  id="apv_date"
+                  // Apply peer class and remove default borders to let the wrapper handle the UI
+                  className="peer flex-grow bg-transparent border-none px-3 focus:outline-none cursor-pointer"
+                  value={header.apv_date}
+                  disabled={isFormDisabled}
+                  updateState={(updates) => {
+                    if (updates.apv_date !== undefined) {
+                      updateState({
+                        header: {
+                          ...header,
+                          apv_date: updates.apv_date,
+                        },
+                      });
+                    }
+                  }}
+                />
+              </div>
+
+              <label
+                htmlFor="apv_date"
+                className={`global-ref-floating-label ${!isFormDisabled ? "global-ref-label-enabled" : "global-ref-label-disabled"}`}
+              >
                 APV Date
               </label>
             </div>
@@ -2504,192 +2537,113 @@ const APV = () => {
           {/* Column 2 */}
           <div className="global-tran-textbox-group-div-ui">
             {/* Payee Code Input with optional lookup */}
-            <div className="relative">
-              <input
-                type="text"
-                id="payeeCode"
-                value={vendName?.vendCode || ""}
-                readOnly
-                placeholder=" "
-                className="peer global-tran-textbox-ui"
-                disabled={isFormDisabled}
-              />
-              <label htmlFor="payeeCode" className="global-tran-floating-label">
-                <span className="global-tran-asterisk-ui"> * </span>
-                Payee Code
-              </label>
-              <button
-                type="button"
-                onClick={() => updateState({ payeeModalOpen: true })}
-                className={`global-tran-textbox-button-search-padding-ui ${
-                  isFetchDisabled
-                    ? "global-tran-textbox-button-search-disabled-ui"
-                    : "global-tran-textbox-button-search-enabled-ui"
-                } global-tran-textbox-button-search-ui`}
-                disabled={isFormDisabled}
-              >
-                <FontAwesomeIcon icon={faMagnifyingGlass} />
-              </button>
-            </div>
+            <FieldRenderer
+              id="payeeCode"
+              label="Payee Code"
+              required
+              type="lookup"
+              value={vendName?.vendCode || ""}
+              disabled={isFormDisabled}
+              onLookup={() => updateState({ payeeModalOpen: true })}
+            />
 
             {/* Payee Name Display */}
-            <div className="relative">
-              <input
-                type="text"
-                id="payeeName"
-                placeholder=" "
-                value={vendName?.vendName || ""}
-                className="peer global-tran-textbox-ui"
-                disabled={isFormDisabled}
-              />
-              <label htmlFor="payeeName" className="global-tran-floating-label">
-                <span className="global-tran-asterisk-ui"> * </span>
-                Payee Name
-              </label>
-            </div>
+            <FieldRenderer
+              id="payeeName"
+              label="Payee Name"
+              required
+              type="text"
+              value={vendName?.vendName || ""}
+              disabled={true}
+              onChange={() => {}}
+            />
 
             {/* AP Account Code Input */}
-            <div className="relative">
-              <input
-                type="hidden"
-                id="apAccountCode"
-                value={apAccountCode || ""}
-              />
-              <input
-                type="text"
-                id="apAccountName"
-                value={apAccountName || ""}
-                placeholder=" "
-                readOnly
-                className="peer global-tran-textbox-ui"
-                disabled={isFormDisabled}
-              />
-              <label
-                htmlFor="apAccountName"
-                className="global-tran-floating-label"
-              >
-                AP Account
-              </label>
-              <button
-                type="button"
-                onClick={() =>
-                  updateState({
-                    showAccountModal: true,
-                    accountModalSource: "apAccount",
-                  })
-                }
-                className={`global-tran-textbox-button-search-padding-ui ${
-                  isFetchDisabled
-                    ? "global-tran-textbox-button-search-disabled-ui"
-                    : "global-tran-textbox-button-search-enabled-ui"
-                } global-tran-textbox-button-search-ui`}
-                disabled={isFormDisabled}
-              >
-                <FontAwesomeIcon icon={faMagnifyingGlass} />
-              </button>
-            </div>
+            <FieldRenderer
+              id="apAccountName"
+              label="AP Account"
+              type="lookup"
+              value={apAccountName || ""}
+              disabled={isFormDisabled}
+              onLookup={() =>
+                updateState({
+                  showAccountModal: true,
+                  accountModalSource: "apAccount",
+                })
+              }
+            />
+            <input
+              type="hidden"
+              id="apAccountCode"
+              value={apAccountCode || ""}
+            />
           </div>
 
           {/* Column 3 */}
           <div className="global-tran-textbox-group-div-ui">
-            <div className="relative">
-              <input
-                type="text"
-                id="currCode"
-                placeholder=" "
-                value={currencyName}
-                readOnly
-                className="peer global-tran-textbox-ui"
-                disabled={isFormDisabled}
-              />
-              <label htmlFor="currCode" className="global-tran-floating-label">
-                Currency
-              </label>
-              <button
-                onClick={() => updateState({ currencyModalOpen: true })}
-                className={`global-tran-textbox-button-search-padding-ui ${
-                  isFetchDisabled
-                    ? "global-tran-textbox-button-search-disabled-ui"
-                    : "global-tran-textbox-button-search-enabled-ui"
-                } global-tran-textbox-button-search-ui`}
-                disabled={isFormDisabled}
-              >
-                <FontAwesomeIcon icon={faMagnifyingGlass} />
-              </button>
-            </div>
+            <FieldRenderer
+              id="currCode"
+              label="Currency"
+              type="lookup"
+              value={
+                currencyCode
+                  ? `${currencyCode}${currencyName ? ` - ${currencyName}` : ""}`
+                  : ""
+              }
+              disabled={isFormDisabled}
+              onLookup={() => updateState({ currencyModalOpen: true })}
+            />
 
-            <div className="relative">
-              <input
-                type="text"
-                id="currRate"
-                value={currencyRate}
-                onChange={(e) => updateState({ currencyRate: e.target.value })}
-                onBlur={handleCurrencyRateBlur}
-                placeholder=" "
-                className="peer global-tran-textbox-ui"
-                disabled={isFormDisabled || glCurrDefault === currencyCode}
-              />
-              <label htmlFor="currRate" className="global-tran-floating-label">
-                Currency Rate
-              </label>
-            </div>
+            <FieldRenderer
+              id="currRate"
+              label="Currency Rate"
+              type="text"
+              value={currencyRate || ""}
+              disabled={isFormDisabled || glCurrDefault === currencyCode}
+              onChange={(val) => updateState({ currencyRate: val })}
+            />
 
-            <div className="relative">
-              <FieldRenderer
-                label="AP Type"
-                type="select"
-                value={selectedApType}
-                disabled={isFormDisabled}
-                onChange={(val) =>
-                  handleAPTypeChange({ target: { value: val } })
-                }
-                options={apTypes.map((t) => ({
-                  label: t.DROPDOWN_NAME,
-                  value: t.DROPDOWN_CODE,
-                }))}
-              />
-            </div>
+            <FieldRenderer
+              id="selectedApType"
+              label="AP Type"
+              type="select"
+              value={selectedApType}
+              disabled={isFormDisabled}
+              onChange={(val) => handleAPTypeChange({ target: { value: val } })}
+              options={apTypes.map((t) => ({
+                label: t.DROPDOWN_NAME,
+                value: t.DROPDOWN_CODE,
+              }))}
+            />
           </div>
 
           {/* Column 4 */}
           <div className="global-tran-textbox-group-div-ui">
-            <div className="relative">
-              <input
-                type="text"
-                id="refDocNo1"
-                placeholder=" "
-                value={header.refDocNo1 || ""}
-                onChange={(e) =>
-                  updateState({
-                    header: { ...header, refDocNo1: e.target.value },
-                  })
-                }
-                className="peer global-tran-textbox-ui"
-                disabled={isFormDisabled}
-              />
-              <label htmlFor="refDocNo1" className="global-tran-floating-label">
-                Ref Doc No. 1
-              </label>
-            </div>
+            <FieldRenderer
+              id="refDocNo1"
+              label="Ref Doc No. 1"
+              type="text"
+              value={header.refDocNo1 || ""}
+              disabled={isFormDisabled}
+              onChange={(val) =>
+                updateState({
+                  header: { ...header, refDocNo1: val },
+                })
+              }
+            />
 
-            <div className="relative">
-              <input
-                type="text"
-                id="refDocNo2"
-                placeholder=" "
-                value={header.refDocNo2 || ""}
-                onChange={(e) =>
-                  updateState({
-                    header: { ...header, refDocNo2: e.target.value },
-                  })
-                }
-                className="peer global-tran-textbox-ui"
-                disabled={isFormDisabled}
-              />
-              <label htmlFor="refDocNo2" className="global-tran-floating-label">
-                Ref Doc No. 2
-              </label>
-            </div>
+            <FieldRenderer
+              id="refDocNo2"
+              label="Ref Doc No. 2"
+              type="text"
+              value={header.refDocNo2 || ""}
+              disabled={isFormDisabled}
+              onChange={(val) =>
+                updateState({
+                  header: { ...header, refDocNo2: val },
+                })
+              }
+            />
           </div>
 
           {/* Remarks Section */}
@@ -2698,9 +2652,9 @@ const APV = () => {
             <div className="relative w-full p-2">
               <textarea
                 id="remarks"
-                placeholder=""
+                placeholder=" "
                 rows={5}
-                className="peer global-tran-textbox-remarks-ui"
+                className="peer global-tran-textbox-remarks-ui pt-2"
                 value={header.remarks || ""}
                 onChange={(e) =>
                   updateState({
@@ -2782,7 +2736,7 @@ const APV = () => {
                           SL Type Code
                         </th>
                       )}
-                        <th className="global-tran-th-ui">SL Code</th>
+                      <th className="global-tran-th-ui">SL Code</th>
                       <th className="global-tran-th-ui">VAT Code</th>
                       <th className="global-tran-th-ui">VAT Name</th>
                       <th className="global-tran-th-ui">VAT Amount</th>
@@ -2793,7 +2747,7 @@ const APV = () => {
                       <th className="global-tran-th-ui">Due Date</th>
                       {!isFormDisabled && (
                         <th className="global-tran-th-ui sticky right-[43px] bg-blue-300 dark:bg-blue-900 z-30">
-                          Add
+                          Edit
                         </th>
                       )}
                       {!isFormDisabled && (
@@ -2824,6 +2778,7 @@ const APV = () => {
                               }
                               disabled={isFormDisabled}
                             >
+                              <option value=""></option>
                               <option value="FG">FG</option>
                               <option value="MS">MS</option>
                               <option value="RM">RM</option>
@@ -2883,20 +2838,24 @@ const APV = () => {
                           />
                         </td>
                         <td className="global-tran-td-ui">
-                          <input
-                            type="date"
-                            className="w-[100px] global-tran-td-inputclass-ui text-center"
-                            value={row.siDate || ""}
-                            onChange={(e) =>
-                              handleDetailChange(
-                                index,
-                                "siDate",
-                                e.target.value,
-                                false,
-                              )
-                            }
-                            disabled={isFormDisabled}
-                          />
+                          <div className="w-[110px]">
+                            <DateFormatInput
+                              id={`siDate_${index}`}
+                              value={row.siDate || ""}
+                              disabled={isFormDisabled}
+                              className="w-[100px] global-tran-td-inputclass-ui text-center pr-7"
+                              updateState={(updates) => {
+                                if (updates[`siDate_${index}`] !== undefined) {
+                                  handleDetailChange(
+                                    index,
+                                    "siDate",
+                                    updates[`siDate_${index}`],
+                                    false,
+                                  );
+                                }
+                              }}
+                            />
+                          </div>
                         </td>
                         <td className="global-tran-td-ui">
                           <input
@@ -3013,7 +2972,7 @@ const APV = () => {
                               value={row.rcCode || ""}
                               readOnly
                             />
-                            {!isFormDisabled && (
+                            {!isFormDisabled && row.REQ_RC === "Y" && (
                               <FontAwesomeIcon
                                 icon={faMagnifyingGlass}
                                 className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
@@ -3065,7 +3024,7 @@ const APV = () => {
                               value={row.slCode || ""}
                               readOnly
                             />
-                            {!isFormDisabled && (
+                            {!isFormDisabled && row.REQ_SL === "Y" && (
                               <FontAwesomeIcon
                                 icon={faMagnifyingGlass}
                                 className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
@@ -3218,13 +3177,24 @@ const APV = () => {
                           </div>
                         </td>
                         <td className="global-tran-td-ui">
-                          <input
-                            type="date"
-                            className="w-[100px] global-tran-td-inputclass-ui text-center"
-                            value={row.dueDate || ""}
-                            readOnly
-                            disabled={isFormDisabled}
-                          />
+                          <div className="w-[110px]">
+                            <DateFormatInput
+                              id={`dueDate_${index}`}
+                              value={row.dueDate || ""}
+                              disabled={isFormDisabled}
+                              className="w-[100px] global-tran-td-inputclass-ui text-center pr-7"
+                              updateState={(updates) => {
+                                if (updates[`dueDate_${index}`] !== undefined) {
+                                  handleDetailChange(
+                                    index,
+                                    "dueDate",
+                                    updates[`dueDate_${index}`],
+                                    false,
+                                  );
+                                }
+                              }}
+                            />
+                          </div>
                         </td>
                         {!isFormDisabled && (
                           <td className="global-tran-td-ui text-center sticky right-12">
@@ -3232,7 +3202,7 @@ const APV = () => {
                               className="global-tran-td-button-add-ui"
                               onClick={() => handleAddRow(index)}
                             >
-                              <FontAwesomeIcon icon={faPlus} />
+                              <FontAwesomeIcon icon={faEdit} />
                             </button>
                           </td>
                         )}
@@ -3242,7 +3212,7 @@ const APV = () => {
                               className="global-tran-td-button-delete-ui"
                               onClick={() => handleDeleteRow(index)}
                             >
-                              <FontAwesomeIcon icon={faMinus} />
+                              <FontAwesomeIcon icon={faTrashAlt} />
                             </button>
                           </td>
                         )}
@@ -3963,19 +3933,23 @@ const APV = () => {
                     </td>
 
                     <td className="global-tran-td-ui">
-                      <input
-                        type="date"
-                        className="w-[100px] global-tran-td-inputclass-ui"
-                        value={row.slrefDate || ""}
-                        onChange={(e) =>
-                          handleDetailChangeGL(
-                            index,
-                            "slrefDate",
-                            e.target.value,
-                          )
-                        }
-                        disabled={isFormDisabled}
-                      />
+                      <div className="w-[110px]">
+                        <DateFormatInput
+                          id={`slrefDate_${index}`}
+                          value={row.slrefDate || ""}
+                          disabled={isFormDisabled}
+                          className="w-[100px] global-tran-td-inputclass-ui text-center pr-7"
+                          updateState={(updates) => {
+                            if (updates[`slrefDate_${index}`] !== undefined) {
+                              handleDetailChangeGL(
+                                index,
+                                "slrefDate",
+                                updates[`slrefDate_${index}`],
+                              );
+                            }
+                          }}
+                        />
+                      </div>
                     </td>
 
                     <td className="global-tran-td-ui">
@@ -3999,7 +3973,7 @@ const APV = () => {
                           className="global-tran-td-button-add-ui"
                           onClick={() => handleAddRowGL(index)}
                         >
-                          <FontAwesomeIcon icon={faPlus} />
+                          <FontAwesomeIcon icon={faEdit} />
                         </button>
                       </td>
                     )}
@@ -4010,7 +3984,7 @@ const APV = () => {
                           className="global-tran-td-button-delete-ui"
                           onClick={() => handleDeleteRowGL(index)}
                         >
-                          <FontAwesomeIcon icon={faMinus} />
+                          <FontAwesomeIcon icon={faTrashAlt} />
                         </button>
                       </td>
                     )}
@@ -4093,12 +4067,13 @@ const APV = () => {
         />
       )}
 
-      {/* COA Account Modal */}
+      {/* COA Account Modal*/}
       {showAccountModal && (
         <COAMastLookupModal
           isOpen={showAccountModal}
           onClose={handleCloseAccountModal}
           source={accountModalSource}
+          customParam={accountModalSource === "apAccount" ? "APGL" : ""}
         />
       )}
 

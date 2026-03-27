@@ -1,269 +1,320 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faTimes,
-  faSort,
-  faSortUp,
-  faSortDown,
   faSpinner,
+  faSyncAlt,
+  faSort,
+  faSearch,
+  faEraser,
 } from "@fortawesome/free-solid-svg-icons";
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 
-const ATCLookupModal = ({ isOpen, onClose, customParam }) => {
-  const [atcs, setAtcs] = useState([]);
-  const [filtered, setFiltered] = useState([]);
+// Simple debounce hook to prevent excessive filtering
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
 
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
+const ATCLookupModal = ({ isOpen, onClose, customParam }) => {
   const [filters, setFilters] = useState({
     atcCode: "",
     atcName: "",
     atcRate: "",
-  }); 
+  });
 
-  const [loading, setLoading] = useState(false);
-  const [sortConfig, setSortConfig] = useState({ key: "", direction: "asc" });
+  const [sortConfig, setSortConfig] = useState({
+    key: "",
+    direction: "asc",
+  });
 
-  // Resolve your customParam mapping (do not mutate props)
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 1000;
+
+  const hasActiveFilters = Object.values(filters).some((val) => val !== "");
+
+  const resetFilters = () =>
+    setFilters({
+      atcCode: "",
+      atcName: "",
+      atcRate: "",
+    });
+
+  const debouncedFilters = useDebounce(filters, 300);
+
   const paramToSend = useMemo(() => {
     if (customParam === "apv_hd") return "ATC";
     return customParam ?? "ActiveAll";
   }, [customParam]);
 
   useEffect(() => {
-    if (!isOpen) {
-      // Reset when closed (COA style)
-      setAtcs([]);
-      setFiltered([]);
-      setFilters({ atcCode: "", atcName: "", atcRate: "" });
-      setSortConfig({ key: "", direction: "asc" });
-      setLoading(false);
-      return;
-    }
+    setCurrentPage(1);
+  }, [debouncedFilters]);
 
-    const fetchATC = async () => {
-      setLoading(true);
-      try {
-       const { data: result } = await apiClient.get("/lookupATC", {}, { params: { search: paramToSend, page: 1, itemsPerPage: 1000 } });
+  const {
+    data: atcs = [],
+    isLoading,
+    isFetching,
+    refetch,
+  } = useQuery({
+    queryKey: ["lookupATC", paramToSend],
+    queryFn: async () => {
+      const { data: result } = await apiClient.get("/lookupATC", {
+        params: {
+          search: paramToSend,
+          page: 1,
+          itemsPerPage: 1000,
+        },
+      });
 
-        const atcData =
-          Array.isArray(result?.data) && result.data[0]?.result
-            ? JSON.parse(result.data[0].result)
-            : [];
+      const rawData = result?.data?.[0]?.result || "[]";
+      const parsedData = Array.isArray(rawData) ? rawData : JSON.parse(rawData);
 
-        setAtcs(atcData);
-        setFiltered(atcData);
-      } catch (err) {
-        console.error("Failed to fetch ATC:", err);
-        setAtcs([]);
-        setFiltered([]);
-      } finally {
-        setLoading(false);
-      }
-    };
+      return parsedData;
+    },
+    enabled: isOpen,
+    staleTime: 1000 * 60 * 5,
+    refetchInterval: 1000 * 30,
+    refetchIntervalInBackground: false,
+    placeholderData: keepPreviousData,
+  });
 
-    fetchATC();
-  }, [isOpen, paramToSend]);
+  const filteredAndSorted = useMemo(() => {
+    if (!atcs.length) return [];
 
-  useEffect(() => {
-    let currentFiltered = [...atcs];
-
-    currentFiltered = currentFiltered.filter((item) => {
+    let result = atcs.filter((item) => {
       const atcCode = String(item?.atcCode ?? "").toLowerCase();
       const atcName = String(item?.atcName ?? item?.atcDesc ?? "").toLowerCase();
       const atcRate = String(item?.atcRate ?? item?.taxRate ?? "").toLowerCase();
 
       return (
-        atcCode.includes(String(filters.atcCode ?? "").toLowerCase()) &&
-        atcName.includes(String(filters.atcName ?? "").toLowerCase()) &&
-        atcRate.includes(String(filters.atcRate ?? "").toLowerCase())
+        atcCode.includes(debouncedFilters.atcCode.toLowerCase()) &&
+        atcName.includes(debouncedFilters.atcName.toLowerCase()) &&
+        atcRate.includes(debouncedFilters.atcRate.toLowerCase())
       );
     });
 
     if (sortConfig.key) {
-      currentFiltered.sort((a, b) => {
-        const aValue = String(a?.[sortConfig.key] ?? "").toLowerCase();
-        const bValue = String(b?.[sortConfig.key] ?? "").toLowerCase();
+      result.sort((a, b) => {
+        const aRaw =
+          sortConfig.key === "atcName"
+            ? a?.atcName ?? a?.atcDesc ?? ""
+            : sortConfig.key === "atcRate"
+            ? a?.atcRate ?? a?.taxRate ?? ""
+            : a?.[sortConfig.key] ?? "";
 
-        if (aValue < bValue) return sortConfig.direction === "asc" ? -1 : 1;
-        if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1;
-        return 0;
+        const bRaw =
+          sortConfig.key === "atcName"
+            ? b?.atcName ?? b?.atcDesc ?? ""
+            : sortConfig.key === "atcRate"
+            ? b?.atcRate ?? b?.taxRate ?? ""
+            : b?.[sortConfig.key] ?? "";
+
+        const aVal = String(aRaw);
+        const bVal = String(bRaw);
+
+        return sortConfig.direction === "asc"
+          ? aVal.localeCompare(bVal, undefined, { numeric: true })
+          : bVal.localeCompare(aVal, undefined, { numeric: true });
       });
     }
 
-    setFiltered(currentFiltered);
-  }, [filters, atcs, sortConfig]);
+    return result;
+  }, [atcs, debouncedFilters, sortConfig]);
+
+  const paginatedData = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredAndSorted.slice(startIndex, startIndex + pageSize);
+  }, [filteredAndSorted, currentPage]);
+
+  const totalPages = Math.ceil(filteredAndSorted.length / pageSize);
 
   const handleApply = (atc) => {
     onClose(atc);
   };
 
-  const handleFilterChange = (e, key) => {
-    setFilters((prev) => ({ ...prev, [key]: e.target.value }));
-  };
-
   const handleSort = (key) => {
-    let direction = "asc";
-    if (sortConfig.key === key && sortConfig.direction === "asc") direction = "desc";
-    setSortConfig({ key, direction });
-  };
-
-  const renderSortIcon = (column) => {
-    if (sortConfig.key === column) {
-      return sortConfig.direction === "asc" ? (
-        <FontAwesomeIcon icon={faSortUp} className="ml-1 text-blue-500" />
-      ) : (
-        <FontAwesomeIcon icon={faSortDown} className="ml-1 text-blue-500" />
-      );
-    }
-    return <FontAwesomeIcon icon={faSort} className="ml-1 text-gray-400" />;
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
+    }));
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 sm:p-6 lg:p-8 animate-fade-in">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] flex flex-col relative overflow-hidden transform scale-95 animate-scale-in">
-        {/* Close */}
-        <button
-          onClick={() => onClose(null)}
-          className="absolute top-3 right-3 text-blue-500 hover:text-blue-700 transition duration-200 focus:outline-none p-1 rounded-full hover:bg-blue-100"
-          aria-label="Close modal"
-        >
-          <FontAwesomeIcon icon={faTimes} size="lg" />
-        </button>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4 animate-fade-in">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[75vh] flex flex-col relative overflow-hidden transform animate-scale-in border border-slate-200">
+        {/* Header */}
+        <div className="flex items-center justify-between p-2 border-b bg-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <h2 className="text-md font-bold text-blue-800 tracking-tight propercase pl-2">
+                Select ATC
+              </h2>
+              <div className="absolute -top-1 -right-4 flex h-2 w-2">
+                <span
+                  className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 ${
+                    isFetching ? "block" : "hidden"
+                  }`}
+                ></span>
+                <span
+                  className={`relative inline-flex rounded-full h-2 w-2 bg-blue-500 ${
+                    isFetching ? "block" : "hidden"
+                  }`}
+                ></span>
+              </div>
+            </div>
+          </div>
 
-        <h2 className="text-sm font-semibold text-blue-800 p-3 border-b border-gray-100">
-          Select ATC
-        </h2>
+          <div className="flex items-center gap-2">
+            {hasActiveFilters && (
+              <button
+                onClick={resetFilters}
+                className="px-2 py-1 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded transition-all flex items-center gap-1.5"
+              >
+                <FontAwesomeIcon icon={faEraser} />
+                CLEAR
+              </button>
+            )}
 
-        <div className="flex-grow overflow-hidden">
-          {loading ? (
-            <div className="flex items-center justify-center h-full min-h-[200px] text-blue-500">
-              <FontAwesomeIcon icon={faSpinner} spin size="2x" className="mr-3" />
-              <span>Loading ATC...</span>
+            <button
+              onClick={() => refetch()}
+              className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+            >
+              <FontAwesomeIcon icon={faSyncAlt} size="sm" spin={isFetching} />
+            </button>
+
+            <button
+              onClick={() => onClose(null)}
+              className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+            >
+              <FontAwesomeIcon icon={faTimes} size="lg" />
+            </button>
+          </div>
+        </div>
+
+        {/* Main Table */}
+        <div className="flex-grow overflow-auto custom-scrollbar bg-white">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center h-64 text-slate-400">
+              <FontAwesomeIcon
+                icon={faSpinner}
+                spin
+                size="2x"
+                className="mb-4 text-blue-500"
+              />
+              <p className="text-sm">Loading ATC data...</p>
             </div>
           ) : (
-            <div className="overflow-auto max-h-[calc(90vh-160px)] custom-scrollbar">
-              <table className="min-w-full divide-y divide-gray-100">
-                <thead className="bg-gray-100 sticky top-0 z-10 shadow-sm">
-                  <tr>
+            <table className="min-w-full border-separate border-spacing-0">
+              <thead className="sticky top-0 z-10 bg-slate-200">
+                <tr>
+                  {[
+                    { label: "ATC Code", key: "atcCode" },
+                    { label: "Description", key: "atcName" },
+                    { label: "Tax Rate", key: "atcRate" },
+                  ].map((col) => (
                     <th
-                      className="px-4 py-2 text-left text-xs font-bold text-blue-900 tracking-wider cursor-pointer hover:bg-blue-100 transition-colors duration-200"
-                      onClick={() => handleSort("atcCode")}
+                      key={col.key}
+                      className="px-4 py-2 text-left border-b border-slate-200"
                     >
-                      ATC Code {renderSortIcon("atcCode")}
-                    </th>
-                    <th
-                      className="px-4 py-2 text-left text-xs font-bold text-blue-900 tracking-wider cursor-pointer hover:bg-blue-100 transition-colors duration-200"
-                      onClick={() => handleSort("atcName")}
-                    >
-                      Description {renderSortIcon("atcName")}
-                    </th>
-                    <th
-                      className="px-4 py-2 text-left text-xs font-bold text-blue-900 tracking-wider cursor-pointer hover:bg-blue-100 transition-colors duration-200"
-                      onClick={() => handleSort("atcRate")}
-                    >
-                      Tax Rate {renderSortIcon("atcRate")}
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-bold text-blue-900 tracking-wider">
-                      Action
-                    </th>
-                  </tr>
-
-                  {/* Filter Row */}
-                  <tr className="bg-gray-100">
-                    <th className="px-3 py-1">
-                      <input
-                        type="text"
-                        value={filters.atcCode}
-                        onChange={(e) => handleFilterChange(e, "atcCode")}
-                        placeholder="Filter..."
-                        className="block w-full px-2 py-1 text-xs text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </th>
-                    <th className="px-3 py-1">
-                      <input
-                        type="text"
-                        value={filters.atcName}
-                        onChange={(e) => handleFilterChange(e, "atcName")}
-                        placeholder="Filter..."
-                        className="block w-full px-2 py-1 text-xs text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </th>
-                    <th className="px-3 py-1">
-                      <input
-                        type="text"
-                        value={filters.atcRate}
-                        onChange={(e) => handleFilterChange(e, "atcRate")}
-                        placeholder="Filter..."
-                        className="block w-full px-2 py-1 text-xs text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </th>
-                    <th className="px-3 py-1"></th>
-                  </tr>
-                </thead>
-
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filtered.length > 0 ? (
-                    filtered.map((atc, index) => (
-                      <tr
-                        key={index}
-                        className="hover:bg-blue-50 transition-colors duration-150 cursor-pointer text-xs"
-                        onClick={() => handleApply(atc)}
+                      <div
+                        onClick={() => handleSort(col.key)}
+                        className="flex items-center gap-1 cursor-pointer group mb-1.5"
                       >
-                        <td className="px-4 py-1 whitespace-nowrap">{atc.atcCode}</td>
-                        <td className="px-4 py-1 whitespace-nowrap">{atc.atcName ?? atc.atcDesc}</td>
-                        <td className="px-4 py-1 whitespace-nowrap text-right">
-                          {atc.atcRate ?? atc.taxRate}
-                        </td>
-                        <td className="px-4 py-1 whitespace-nowrap">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleApply(atc);
-                            }}
-                            className="px-6 py-1 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-150"
-                          >
-                            Apply
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan="4" className="px-4 py-6 text-center text-gray-500 text-sm">
-                        No matching ATC found.
+                        <label className="block text-[12px] font-bold text-slate-600 propercase mb-1">
+                          {col.label}
+                        </label>
+                        <FontAwesomeIcon
+                          icon={faSort}
+                          className={`text-[9px] ${
+                            sortConfig.key === col.key
+                              ? "text-blue-500"
+                              : "opacity-20"
+                          }`}
+                        />
+                      </div>
+
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={filters[col.key]}
+                          onChange={(e) =>
+                            setFilters((prev) => ({
+                              ...prev,
+                              [col.key]: e.target.value,
+                            }))
+                          }
+                          placeholder="Filter..."
+                          className="w-full pl-7 pr-2 py-1.5 text-xs font-normal border border-slate-200 rounded bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                        />
+                        <FontAwesomeIcon
+                          icon={faSearch}
+                          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-300 text-[9px]"
+                        />
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-100 h-5">
+                {paginatedData.length > 0 ? (
+                  paginatedData.map((atc, index) => (
+                    <tr
+                      key={atc.atcCode || index}
+                      onClick={() => handleApply(atc)}
+                      className="group hover:bg-blue-50 cursor-pointer transition-colors"
+                    >
+                      <td className="px-4 py-2 text-xs font-bold text-slate-600 w-[160px]">
+                        {atc.atcCode}
+                      </td>
+                      <td className="px-4 py-2 text-xs text-slate-600 font-medium w-[420px]">
+                        {atc.atcName ?? atc.atcDesc}
+                      </td>
+                      <td className="px-4 py-2 text-xs text-slate-500 w-[160px] text-right">
+                        {atc.atcRate ?? atc.taxRate}
                       </td>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan="3"
+                      className="px-4 py-20 text-center text-slate-400 italic text-sm"
+                    >
+                      No matching ATC found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           )}
         </div>
 
-        <div className="p-4 border-t border-gray-200 bg-gray-50 text-right text-xs text-gray-600">
-          Showing <span className="font-semibold">{filtered.length}</span> of{" "}
-          <span className="font-semibold">{atcs.length}</span> entries
+        {/* Footer */}
+        <div className="p-3 px-4 border-t bg-slate-50 flex items-center justify-between">
+          <div className="flex flex-col">
+            <span className="text-[12px] text-slate-500 font-medium">
+              Total Records: {filteredAndSorted.length}
+            </span>
+            {isFetching && (
+              <span className="text-[9px] text-blue-500 animate-pulse font-bold flex items-center gap-1 uppercase">
+                <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
+                Syncing ATC...
+              </span>
+            )}
+          </div>
         </div>
       </div>
-
-      <style jsx="true">{`
-        @keyframes fade-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes scale-in {
-          from { transform: scale(0.95); opacity: 0; }
-          to { transform: scale(1); opacity: 1; }
-        }
-        .animate-fade-in { animation: fade-in 0.2s ease-out forwards; }
-        .animate-scale-in { animation: scale-in 0.3s ease-out forwards; }
-
-        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #888; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #555; }
-      `}</style>
     </div>
   );
 };

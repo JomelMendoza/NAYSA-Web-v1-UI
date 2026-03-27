@@ -92,7 +92,7 @@ const CurrLookupModal = ({ isOpen, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4 animate-fade-in">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[75vh] flex flex-col relative overflow-hidden transform animate-scale-in border border-slate-200">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[75vh] flex flex-col relative overflow-hidden transform animate-scale-in border border-slate-200">
         
         {/* Header */}
         <div className="flex items-center justify-between p-2 border-b bg-slate-100">

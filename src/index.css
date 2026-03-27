@@ -166,9 +166,15 @@ body {
     }
 
   .global-tran-textbox-remarks-ui {
-      @apply block w-full appearance-none rounded-lg border border-gray-400 bg-white px-2 pb-2 text-xs text-black focus:border-blue-600 focus:outline-none focus:ring-0
-      dark:bg-gray-600 dark:text-white;
-    }
+  @apply block w-full appearance-none rounded-lg border border-gray-400 bg-white px-2 pb-2 text-xs text-black focus:border-blue-600 focus:outline-none focus:ring-0
+         dark:bg-gray-600 dark:text-white 
+         resize-none overflow-y-auto; /* Prevents manual resizing and adds a scrollbar if text is too long */
+  
+  /* Setting explicit fixed dimensions */
+  height: 100px; 
+  min-height: 100px;
+  max-height: 100px;
+}
     
   .global-tran-textbox-button-search-padding-ui {
         @apply w-[40px] h-[30px] sm:h-[30px] lg:h-[35px] absolute inset-y-0 right-0;
@@ -312,7 +318,7 @@ body {
   /* REFERENCE FILES & MASTERDATA */
 
   .global-ref-main-div-ui {
-    @apply p-2 bg-gray-50 min-h-screen
+    @apply p-2 bg-gray-100 min-h-screen
     dark:bg-black;
   }
 
@@ -328,7 +334,7 @@ body {
 
   .global-ref-header-ui {
     /* items-center centers children horizontally in flex-col (mobile) */
-    @apply bg-gradient-to-r from-blue-200 to-blue-200 p-2 rounded-lg text-blue-900 shadow-lg fixed top-14 left-6 right-6 z-40 
+    @apply bg-gradient-to-r from-blue-200 to-blue-200 p-2 rounded-lg text-blue-900 shadow-lg fixed top-14 left-6 right-6 z-30 
           flex flex-col items-center sm:flex-row sm:justify-between sm:items-center gap-4  
           dark:from-blue-900 dark:bg-blue-900 dark:text-white;
   }
@@ -518,7 +524,7 @@ body {
   }
 
   .global-lookup-filter-text-ui {
-    @apply w-full pl-6 pr-1 py-1 text-[10px] sm:text-[12px] border border-white rounded bg-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all
+    @apply w-full border px-2 py-1 rounded text-xs text-black
     dark:bg-black;
   }
 
@@ -534,12 +540,7 @@ body {
   }
 
   .global-lookup-th-ui {
-    @apply px-3 sm:px-4 py-1.5 text-left border-b border-slate-200 cursor-pointer
-    dark:text-gray-300;
-  }
-
-  .global-lookup-th-text-ui {
-    @apply text-[11px] sm:text-[12px] text-slate-600 mb-1
+    @apply px-1 py-1 sm:py-2 md:py-2 md:px-2  text-center text-[10px] sm:text-[10px] lg:text-xs font-bold text-gray-900 cursor-pointer
     dark:text-gray-300;
   }
 
@@ -549,7 +550,7 @@ body {
   }
 
   .global-lookup-td-ui {
-    @apply py-1 px-3 sm:py-2 sm:px-4 text-[10px] sm:text-[12px] text-slate-600 whitespace-nowrap
+    @apply text-[10px] sm:text-[10px] lg:text-[11px] text-gray-900 px-2 border border-blue-100 whitespace-nowrap
     dark:text-white;
   }
 
@@ -587,19 +588,8 @@ body {
   }
 
   .global-lookup-headertext-ui {
-    @apply text-xs sm:text-base font-bold text-blue-800 tracking-tight
+    @apply text-base font-semibold mb-2 text-black
     dark:text-white;
-  }
-
-
-  .global-lookup-footer-records-text-ui {
-    @apply text-[11px] sm:text-[12px] text-slate-500 font-medium
-    dark:text-white;
-  }
-
-  .global-lookup-footer-records-div-ui {
-    @apply py-1 px-3 sm:py-2 sm:px-4 border-t bg-slate-50 flex items-center justify-between
-    dark:bg-gray-300;
   }
 
   
