@@ -15,7 +15,6 @@ import RCLookupModal from "../../../Lookup/SearchRCMast.jsx";
 import VATLookupModal from "../../../Lookup/SearchVATRef.jsx";
 import ATCLookupModal from "../../../Lookup/SearchATCRef.jsx";
 import SLMastLookupModal from "../../../Lookup/SearchSLMast.jsx";
-import BankMastLookupModal from "../../../Lookup/SearchBankMast.jsx";
 import CancelTranModal from "../../../Lookup/SearchCancelRef.jsx";
 import AttachDocumentModal from "../../../Lookup/SearchAttachment.jsx";
 import DocumentSignatories from "../../../Lookup/SearchSignatory.jsx";
@@ -63,10 +62,15 @@ import {
 } from '@/NAYSA Cloud/Global/selectedData';
 
 
+
 import {
-  useGetCurrentDay,
+  useGetCurrentDayV2,
   useFormatToDate,
+  useformatToDatev2
 } from '@/NAYSA Cloud/Global/dates';
+
+import DateFormatInput from '@/NAYSA Cloud/Global/DateFormatInput.jsx';
+
 
 import {
   useUpdateRowGLEntries,
@@ -141,7 +145,7 @@ const ARCM = () => {
     documentDocLen: 8,
     documentID: null,
     documentNo: "",
-    documentDate:useGetCurrentDay(),    
+    documentDate:useGetCurrentDayV2(),    
     documentStatus:"",
     status: "OPEN",
     noReprints:"0",
@@ -203,6 +207,8 @@ const ARCM = () => {
 
     totalDebit:"0.00",
     totalCredit:"0.00",
+    totalDebitFx1:"0.00",
+    totalCreditFx1:"0.00",
 
  
     // Modal states
@@ -299,6 +305,8 @@ const ARCM = () => {
   globalLookupHeader,
   totalDebit,
   totalCredit,
+  totalDebitFx1,
+  totalCreditFx1,
 
 
   // Contexts
@@ -363,11 +371,16 @@ const ARCM = () => {
   useEffect(() => {
     const debitSum = detailRowsGL.reduce((acc, row) => acc + (parseFormattedNumber(row.debit) || 0), 0);
     const creditSum = detailRowsGL.reduce((acc, row) => acc + (parseFormattedNumber(row.credit) || 0), 0);
+    const debitFx1Sum = detailRowsGL.reduce((acc, row) => acc + (parseFormattedNumber(row.debitFx1) || 0), 0);
+    const creditFx1Sum = detailRowsGL.reduce((acc, row) => acc + (parseFormattedNumber(row.creditFx1) || 0), 0);
   updateState({
     totalDebit: formatNumber(debitSum),
-    totalCredit: formatNumber(creditSum)
+    totalCredit: formatNumber(creditSum),
+    totalDebitFx1: formatNumber(debitFx1Sum),
+    totalCreditFx1: formatNumber(creditFx1Sum)
   })
   }, [detailRowsGL]);
+
 
 
 
@@ -489,7 +502,7 @@ useEffect(() => {
       branchCode: currentUserRow?.branchCode||"",
       branchName: currentUserRow?.branchName||"",
       userCode:currentUserRow?.userCode||"",
-      documentDate:useGetCurrentDay(),
+      documentDate:useGetCurrentDayV2(),
       currCode:companyInfo?.currCode||"",
       glCurrDefault:companyInfo?.currCode||"",
       currName:companyInfo?.currName||"",
@@ -574,20 +587,6 @@ useEffect(() => {
 
 
 
-      // 🔹 4. Company + Bank row (dependent chain)
-      const company = await useTopCompanyRow();
-      if (company) {
-        updateState({ depBankCode: company.depBankcode });
-
-        const bank = await useTopBankMastRow(company.depBankcode);
-        if (bank) {
-          updateState({
-            depBankCode: bank.bankCode,
-            depAcctName: bank.acctName,
-            depAcctNo: bank.bankAcctNo,
-          });
-        }
-      }
 
 
      const tbls = 'arcm_hd,arcm_dt1,arcm_dt2'
@@ -679,7 +678,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       documentNo: data.arcmNo,
       branchCode: data.branchCode,
       branchName:data.branchName,
-      documentDate: useFormatToDate(data.arcmDate),
+      documentDate: useformatToDatev2(data.arcmDate),
       selectedARCMType: data.arcmtranType,
       custCode: data.custCode,
       custName: data.custName,
@@ -962,38 +961,43 @@ const moveFocusBeforeSave = () => {
 
 
 
+const handleAddRowGL = (index = null) => {
+  if (handleFieldBehavior("reversalInvoice")) {
+    return;
+  }
 
-const handleAddRowGL = () => {
-    if(handleFieldBehavior("reversalInvoice")){
-      return;
-    }
+  const newRow = {
+    acctCode: "",
+    rcCode: "",
+    sltypeCode: "CU",
+    slCode: "",
+    particulars: "",
+    vatCode: "",
+    vatName: "",
+    atcCode: "",
+    atcName: "",
+    debit: "0.00",
+    credit: "0.00",
+    debitFx1: "0.00",
+    creditFx1: "0.00",
+    debitFx2: "0.00",
+    creditFx2: "0.00",
+    slRefNo: "",
+    remarks: "",
+  };
 
+  const updatedRows = [...detailRowsGL];
+
+  if (index !== null && index >= 0) {
+    updatedRows.splice(index + 1, 0, newRow);
+  } else {
+    updatedRows.push(newRow);
+  }
 
   updateState({
-      detailRowsGL: [
-        ...detailRowsGL,
-        {
-      acctCode: "",
-      rcCode: "",
-      sltypeCode:"CU",
-      slCode: "",
-      particulars: "",
-      vatCode: "",
-      vatName: "",
-      atcCode: "",
-      atcName: "",
-      debit: "0.00",
-      credit: "0.00",
-      debitFx1: "0.00",
-      creditFx1: "0.00",
-      debitFx2: "0.00",
-      creditFx2: "0.00",
-      slRefNo: "",
-      remarks: "",
-    }
-      ]
-    });
-  };
+    detailRowsGL: updatedRows,
+  });
+};
 
 
   
@@ -1104,7 +1108,7 @@ if (selectedARCMType !== "ARCM07" || !detailRows?.length) {
                   documentID:"",
                   documentStatus:"",
                   status:"OPEN",
-                  documentDate:useGetCurrentDay(),  
+                  documentDate:useGetCurrentDayV2(),  
                   noReprints:"0",  
      });
   }
@@ -1603,22 +1607,6 @@ const handleCloseSignatory = async (mode) => {
 
 
 
-const handleCloseBankMast = async (selectedBankCode) => {
-    if (selectedBankCode && selectedBankCode !== null) {
-     const result = await useTopAccountRow(selectedBankCode.acctCode);
-     if (result) {   
-      updateState({ depBankCode: selectedBankCode.bankCode,
-                    depAcctName:result.acctName,
-                    depAcctNo:selectedBankCode.bankAcctNo,
-                    detailRowsGL: []
-             });
-    }  
-  }
-  updateState({ showBankMastModal: false});  
-};
-
-
-
 
 const handleOpenARBalance = async () => {
   try {
@@ -1958,7 +1946,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                               if (e.key === "Enter") {
                                  handleCrNoBlur();
                                 e.preventDefault(); 
-                                document.getElementById("arcmDate")?.focus();
+                                document.getElementById("documentDate")?.focus();
                               }}}
                             placeholder=" "
                             className={`peer global-tran-textbox-ui ${state.isDocNoDisabled ? 'bg-blue-100 cursor-not-allowed' : ''}`}
@@ -1981,13 +1969,12 @@ const handleCloseBranchModal = (selectedBranch) => {
 
                     {/* ARCM Date Picker */}
                     <div className="relative">
-                        <input type="date"
-                            id="arcmDate"
-                            className="peer global-tran-textbox-ui"
-                            value={documentDate}
-                            onChange={(e) => updateState({ documentDate: e.target.value })} 
-                            disabled={isFormDisabled} 
-                        />
+                      <DateFormatInput
+                        id="documentDate"
+                        value={documentDate}
+                        updateState={updateState}
+                        disabled={isFormDisabled}
+                      />
                         <label htmlFor="arcmDate" className="global-tran-floating-label">ARCM Date</label>
                     </div>
 
@@ -3330,14 +3317,6 @@ const handleCloseBranchModal = (selectedBranch) => {
       />
     )}
 
-
-
-    {showBankMastModal && (
-      <BankMastLookupModal
-        isOpen={showBankMastModal}
-        onClose={handleCloseBankMast}
-      />
-    )}
 
 
 
