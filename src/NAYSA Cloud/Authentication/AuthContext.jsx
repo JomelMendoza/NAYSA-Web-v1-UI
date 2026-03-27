@@ -24,8 +24,7 @@ import Swal from "sweetalert2";
 
 import {
   useTopUserRow,
-  useTopCompanyRow,
-  useTopDocDropDownAll,
+  useTopCompanyGlobalTables,
 } from "@/NAYSA Cloud/Global/top1RefTable";
 
 import {
@@ -111,6 +110,9 @@ export default function AuthProvider({ children }) {
   const [allDropDown, setallDropDown] = useState(null);
   const [currentUserRow, setCurrentUserRow] = useState(null);
   const [currentMenu, setCurrentMenu] = useState(null);
+  const [globalTables, setGlobalTables] = useState(null);
+  const [allVATList, setAllVATList] = useState(null);
+  const [allATCList, setAllATCList] = useState(null);
 
   const logoutLatchRef = useRef(false);
   const pendingLogoutNoticeRef = useRef(false);
@@ -135,9 +137,12 @@ export default function AuthProvider({ children }) {
     setCompanyInfo(null);
     setallDropDown(null);
     setCurrentUserRow(null);
+    setGlobalTables(null);
     setCurrentMenu(null);
     setRefsLoaded(false);
     setRefsLoading(false);
+    setAllATCList(null);
+    setAllVATList(null);
 
     lastActivity.current = Date.now();
 
@@ -193,17 +198,7 @@ export default function AuthProvider({ children }) {
 
       if (document.visibilityState === "visible") {
         try {
-
           useSwalSuccessAlert(msg.title,msg.text)
-          // await Swal.fire({
-          //   ...msg,
-          //   timer: 3000,
-          //   timerProgressBar: true,
-          //   showConfirmButton: false,
-          //   allowOutsideClick: false,
-          //   allowEscapeKey: false,
-          // });
-
         } catch {}
       } else {
         pendingLogoutNoticeRef.current = true;
@@ -333,19 +328,23 @@ export default function AuthProvider({ children }) {
     try {
       setRefsLoading(true);
 
-      const [companyRow, userRow, dropDown, currentMenu] = await Promise.all([
-        useTopCompanyRow(),
+     const [userRow, currentMenu,globalTbl] = await Promise.all([
         useTopUserRow(user.USER_CODE),
-        useTopDocDropDownAll(),
-        fetchData("menu-items", { USER_CODE: user?.USER_CODE }),
+        fetchData("menu-items", { USER_CODE: user?.USER_CODE }),     
+        useTopCompanyGlobalTables(),   
       ]);
 
-      setCompanyInfo(companyRow ?? null);
       setCurrentUserRow(userRow ?? null);
       setCurrentMenu(currentMenu ?? null);
-      setallDropDown(dropDown ?? null);
-
       setRefsLoaded(true);
+      setallDropDown(globalTbl.allDropdown ?? null)
+      setCompanyInfo(globalTbl?.company?.[0] ?? null);
+      setAllVATList(globalTbl?.vatList ?? null)
+      setAllATCList(globalTbl?.atcList?? null)
+    
+
+
+
     } catch (err) {
       console.error("Failed to load static company/user:", err);
     } finally {
@@ -557,7 +556,6 @@ export default function AuthProvider({ children }) {
       setTenant(companyCode);
 
       await ensureCsrf();
-
       await bioLoginVerifyPasswordless(payload, {
         headers: { "X-Skip-Logout-Broadcast": "1" },
       });
@@ -572,11 +570,11 @@ export default function AuthProvider({ children }) {
       cacheUser(data);
       logoutLatchRef.current = false;
       markAuthReady(true);
-
       setRefsLoaded(false);
     },
     []
   );
+
 
   const getAllDropDown = useCallback(
     (columnName, docCode) => {
@@ -587,6 +585,72 @@ export default function AuthProvider({ children }) {
     },
     [allDropDown]
   );
+
+
+  const getAllTopVatRow = useCallback(
+  (vatCode) => {
+    return (allVATList || []).find(
+      (item) => item.vatCode === vatCode
+    ) || null;
+  },
+  [allVATList]
+);
+
+
+
+ const getAllTopATCRow = useCallback(
+  (atcCode) => {
+    return (allATCList || []).find(
+      (item) => item.atcCode === atcCode
+    ) || null;
+  },
+  [allATCList]
+);
+
+
+
+const getAllTopVatAmount = useCallback(
+  (vatCode, grossAmt) => {
+    if (!vatCode?.trim() || Number(grossAmt) === 0) return 0;
+
+    const vatRow = getAllTopVatRow(vatCode);
+    if (!vatRow) return 0;
+
+    const vatRate = Number(vatRow.vatRate || 0);
+
+    return +(
+      (Number(grossAmt) * vatRate * 0.01) /
+      (1 + vatRate * 0.01)
+    ).toFixed(2);
+  },
+  [getAllTopVatRow]
+);
+
+
+
+
+const getAllTopATCAmount = useCallback(
+  (atcCode, netAmount) => {
+    const amount = Number(netAmount) || 0;
+    if (!atcCode?.trim() || amount === 0) return 0;
+
+    const atcRow = getAllTopATCRow(atcCode);
+    if (!atcRow) return 0;
+
+    const atcRate = Number(atcRow.atcRate || 0);
+
+    return +(amount * atcRate * 0.01).toFixed(2);
+  },
+  [getAllTopATCRow]
+);
+
+
+
+
+
+
+
+
 
   return (
     <AuthContext.Provider
@@ -599,6 +663,10 @@ export default function AuthProvider({ children }) {
         setUser,
         companyInfo,
         getAllDropDown,
+        getAllTopATCRow,
+        getAllTopVatRow,
+        getAllTopVatAmount,
+        getAllTopATCAmount,
         currentUserRow,
         refsLoading,
         refsLoaded,

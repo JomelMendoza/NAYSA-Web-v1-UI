@@ -11,13 +11,6 @@ import React, {
 } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Edit, Trash2 } from "lucide-react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faPlus,
-  faSave,
-  faUndo,
-  faList,
-} from "@fortawesome/free-solid-svg-icons";
 import Swal from "sweetalert2";
 
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
@@ -32,7 +25,6 @@ import {
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 import SearchGlobalReferenceTable from "@/NAYSA Cloud/Lookup/SearchGlobalReferenceTable.jsx";
 import RegistrationInfo from "@/NAYSA Cloud/Global/RegistrationInfo.jsx";
-import ButtonBar from "@/NAYSA Cloud/Global/ButtonBar";
 
 /* ================= HELPERS ================= */
 
@@ -69,7 +61,7 @@ const extractRows = (payload) => {
 const DEFAULT_FORM = {
   paytermCode: "",
   paytermName: "",
-  daysDue: "",
+  daysDue: 0,
   advances: "",
   registeredBy: "",
   registeredDate: "",
@@ -78,8 +70,8 @@ const DEFAULT_FORM = {
   __existing: false,
 };
 
-const PayTermRef = forwardRef((props, ref) => {
-  const title = "Payment Terms";
+// 1. ADDED onStateChange TO DESTRUCTURED PROPS
+const PayTermRef = forwardRef(({ onStateChange }, ref) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const tableSize = "Half";
@@ -103,6 +95,7 @@ const PayTermRef = forwardRef((props, ref) => {
     setForm(next);
   }, []);
 
+  
   /* ================= LOAD LIST ================= */
 
   const paytermListQuery = useQuery({
@@ -186,30 +179,6 @@ const PayTermRef = forwardRef((props, ref) => {
   };
 
   /* ================= SAVE ================= */
-  const parseSprocStatus = (response) => {
-    const row0 = response?.data?.data?.[0] || {};
-
-    if (row0?.result) {
-      try {
-        const parsed = JSON.parse(row0.result);
-        return {
-          errorcount: Number(parsed?.errorcount ?? 0),
-          errormsg: String(parsed?.errormsg ?? ""),
-        };
-      } catch {
-        return {
-          errorcount: Number(row0?.errorcount ?? response?.data?.errorcount ?? 0),
-          errormsg: String(row0?.errormsg ?? response?.data?.errormsg ?? ""),
-        };
-      }
-    }
-
-    return {
-      errorcount: Number(row0?.errorcount ?? response?.data?.errorcount ?? 0),
-      errormsg: String(row0?.errormsg ?? response?.data?.errormsg ?? ""),
-    };
-  };
-
   const saveMutation = useMutation({
     mutationFn: async (payload) => {
       return apiClient.post("/upsertPayterm", {
@@ -223,10 +192,7 @@ const PayTermRef = forwardRef((props, ref) => {
       });
     },
     onSuccess: async (response) => {
-      const row =
-        response?.data?.data?.[0] ||
-        response?.data ||
-        {};
+      const row = response?.data?.data?.[0] || response?.data || {};
 
       const errorcount = Number(row?.errorcount ?? 0);
       const errormsg = String(row?.errormsg ?? "");
@@ -240,10 +206,7 @@ const PayTermRef = forwardRef((props, ref) => {
       }
 
       queryClient.invalidateQueries({ queryKey: ["paytermList"] });
-      await useSwalSuccessAlert(
-        "Success!",
-        "Payment Term saved successfully."
-      );
+      await useSwalSuccessAlert("Success!", "Payment Term saved successfully.");
 
       setIsEditing(false);
       setSelectedRow(null);
@@ -265,12 +228,9 @@ const PayTermRef = forwardRef((props, ref) => {
     if (!isEditing || saveMutation.isPending) return;
 
     const payload = {
-      paytermCode: String(form.paytermCode || "")
-        .trim()
-        .toUpperCase(),
+      paytermCode: String(form.paytermCode || "").trim().toUpperCase(),
       paytermName: String(form.paytermName || "").trim(),
-      dueDays:
-        form.daysDue === "" ? null : Number(form.daysDue),
+      dueDays: form.daysDue === "" || form.daysDue === null ? 0 : Number(form.daysDue),
       advances: form.advances === "Y" ? "Y" : "",
       userCode,
     };
@@ -285,7 +245,6 @@ const PayTermRef = forwardRef((props, ref) => {
         json_data: { paytermCode, userCode },
       });
     },
-    // Fix: Added paytermCode as the second parameter here so it reads the variable passed in
     onSuccess: async (response, paytermCode) => {
       const sqlRow = response?.data?.data?.[0] || {};
       const errorcount = Number(sqlRow.errorcount ?? 0);
@@ -297,9 +256,9 @@ const PayTermRef = forwardRef((props, ref) => {
       }
 
       queryClient.invalidateQueries({ queryKey: ["paytermList"] });
-      
+
       await useSwalDeleteRecord(
-        "Deleted", 
+        "Deleted",
         `Payment Term Code ${paytermCode} has been successfully removed.`
       );
 
@@ -353,7 +312,14 @@ const PayTermRef = forwardRef((props, ref) => {
       });
 
       const record = extractRows(res)?.[0];
-      setForm({ ...DEFAULT_FORM, ...record, __existing: true });
+
+      const normalizedRecord = {
+        ...record,
+        advances: record.advances || record.ADVANCES || "",
+        daysDue: record.daysDue || record.DAYS_DUE || record.dueDays || "",
+      };
+
+      setForm({ ...DEFAULT_FORM, ...normalizedRecord, __existing: true });
       setIsEditing(true);
       setSelectedRow(row);
     } catch {
@@ -368,25 +334,19 @@ const PayTermRef = forwardRef((props, ref) => {
       {
         key: "__actions",
         label: "Actions",
-        width: 140,
+        width: 90,
         render: (row) => (
           <div className="flex items-center justify-center gap-2">
             <button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleEdit(row);
-              }}
+              onClick={(e) => { e.stopPropagation(); handleEdit(row); }}
               className="p-1 rounded-md bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-600 hover:text-white transition-colors"
             >
               <Edit size={16} />
             </button>
             <button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDelete(row);
-              }}
+              onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
               className="p-1 rounded-md bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white transition-colors"
             >
               <Trash2 size={16} />
@@ -394,23 +354,15 @@ const PayTermRef = forwardRef((props, ref) => {
           </div>
         ),
       },
+      { key: "paytermCode", label: "Code", sortable: true, width: 100 },
+      { key: "paytermName", label: "Name", sortable: true, width: 220 },
+      { key: "daysDue", label: "Due Days", sortable: true, width: 90 },
       {
-        key: "paytermCode",
-        label: "Code",
+        key: "advances",
+        label: "AP Advances",
         sortable: true,
-        width: 160,
-      },
-      {
-        key: "paytermName",
-        label: "Name",
-        sortable: true,
-        width: 380,
-      },
-      {
-        key: "daysDue",
-        label: "Due Days",
-        sortable: true,
-        width: 140,
+        width: 100,
+        render: (row) => (row.advances === "Y" ? "Yes" : "No"),
       },
     ],
     [handleEdit, handleDelete]
@@ -423,10 +375,13 @@ const PayTermRef = forwardRef((props, ref) => {
           const s = String(search || "").trim().toLowerCase();
           if (!s) return true;
 
+          const advStatus = row.advances === "Y" ? "yes" : "no";
+
           return (
             String(row?.paytermCode || "").toLowerCase().includes(s) ||
             String(row?.paytermName || "").toLowerCase().includes(s) ||
-            String(row?.daysDue || "").toLowerCase().includes(s)
+            String(row?.daysDue || "").toLowerCase().includes(s) ||
+            advStatus.includes(s)
           );
         })
         .map((row, index) => ({
@@ -438,6 +393,17 @@ const PayTermRef = forwardRef((props, ref) => {
 
   /* ================= EXPOSE TO PARENT ================= */
 
+  useEffect(() => {
+    if (onStateChange) {
+      onStateChange({
+        isEditing,
+        canSave: isEditing && !isDupCode && !saveMutation.isPending,
+      });
+    }
+  }, [isEditing, isDupCode, saveMutation.isPending, onStateChange]);
+
+
+  // 3. THIS ALLOWS VENDMAST TO CALL THESE FUNCTIONS WHEN BUTTONS ARE CLICKED
   useImperativeHandle(ref, () => ({
     add: () => {
       setIsEditing(true);
@@ -455,123 +421,78 @@ const PayTermRef = forwardRef((props, ref) => {
     },
   }));
 
-  /* ================= BUTTONS ================= */
-
-  const buttons = [
-    {
-      key: "add",
-      label: "Add",
-      icon: faPlus,
-      onClick: () => {
-        setIsEditing(true);
-        setSelectedRow(null);
-        setIsDupCode(false);
-        resetForm(DEFAULT_FORM);
-        setTimeout(() => codeInputRef.current?.focus?.(), 0);
-      },
-    },
-    {
-      key: "save",
-      label: "Save",
-      icon: faSave,
-      onClick: handleSave,
-      disabled: !isEditing || isDupCode || saveMutation.isPending,
-    },
-    {
-      key: "reset",
-      label: "Reset",
-      icon: faUndo,
-      onClick: () => {
-        resetForm(DEFAULT_FORM);
-        setIsEditing(false);
-        setSelectedRow(null);
-        setIsDupCode(false);
-      },
-    },
-  ];
-
   /* ================= RENDER ================= */
+  // 4. REMOVED LOCAL BUTTON BAR UI
 
   return (
-    <>
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 w-full">
+      {/* FORM */}
       <Card>
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <FontAwesomeIcon icon={faList} />
-            <div className="font-bold">{title}</div>
-          </div>
+        <SectionHeader title="Basic Information" />
 
-          <div className="flex gap-3 items-center">
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search..."
-              className="global-tran-textbox-ui w-[250px]"
-            />
-            <ButtonBar buttons={buttons} />
-          </div>
-        </div>
+        <FieldRenderer
+          label="Payment Term Code"
+          required
+          value={form.paytermCode}
+          inputRef={codeInputRef}
+          maxLength={5}
+          onChange={(v) => setField("paytermCode", String(v ?? "").toUpperCase())}
+          onBlur={handleCodeValidate}
+          onKeyDown={handleCodeValidate}
+          disabled={!isEditing || form.__existing}
+        />
+
+        <FieldRenderer
+          label="Payment Term Name"
+          required
+          value={form.paytermName}
+          maxLength={20}
+          onChange={(v) => setField("paytermName", v ?? "")}
+          disabled={!isEditing}
+        />
+
+        <FieldRenderer
+          label="Due Days"
+          type="number"
+          value={form.daysDue}
+          onChange={(v) => setField("daysDue", v ?? "")}
+          disabled={!isEditing}
+        />
+
+        <FieldRenderer
+          label="AP Advances"
+          type="select"
+          value={!form.advances || form.advances === "" ? "N" : form.advances}
+          onChange={(v) => {
+            setField("advances", v === "N" ? "" : "Y");
+          }}
+          options={[
+            { value: "N", label: "No" },
+            { value: "Y", label: "Yes" },
+          ]}
+          disabled={!isEditing}
+        />
+
+        <RegistrationInfo data={form} layout="stacked" />
       </Card>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-        {/* FORM */}
-        <Card>
-          <SectionHeader title="Basic Information" />
+      {/* LIST */}
+      <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-100">
+       
 
-          <FieldRenderer
-            label="Payment Term Code"
-            required
-            value={form.paytermCode}
-            inputRef={codeInputRef}
-            onChange={(v) =>
-              setField("paytermCode", String(v ?? "").toUpperCase())
-            }
-            onBlur={handleCodeValidate}
-            onKeyDown={handleCodeValidate}
-            disabled={!isEditing || form.__existing}
-          />
-
-          <FieldRenderer
-            label="Payment Term Name"
-            required
-            value={form.paytermName}
-            onChange={(v) =>
-              setField("paytermName", v ?? "")
-            }
-            disabled={!isEditing}
-          />
-
-          <FieldRenderer
-            label="Due Days"
-            type="number"
-            value={form.daysDue}
-            onChange={(v) =>
-              setField("daysDue", v ?? "")
-            }
-            disabled={!isEditing}
-          />
-
-          <RegistrationInfo data={form} layout="stacked" />
-        </Card>
-
-        {/* LIST */}
-        <div>
-          <h2 className="text-base font-semibold mb-4">List</h2>
-
-          <SearchGlobalReferenceTable
-            columns={tableColumns}
-            data={tableData}
-            isLoading={isInitialLoading}
-            docType="Payment Terms"
-            itemsPerPage={10}
-            onRowDoubleClick={handleEdit}
-            onRowClick={(row) => setSelectedRow(row)}
-            showFilters
-            tableSize={tableSize}
-          />
-        </div>
+        <SearchGlobalReferenceTable
+          columns={tableColumns}
+          data={tableData}
+          isLoading={isInitialLoading}
+          docType="Payment Terms"
+          itemsPerPage={10}
+          onRowDoubleClick={handleEdit}
+          onRowClick={(row) => setSelectedRow(row)}
+          showFilters
+          tableSize={tableSize}
+        />
       </div>
-    </>
+    </div>
   );
 });
 

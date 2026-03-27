@@ -40,23 +40,18 @@ import {
 
 
 import {
-  useTopVatRow,
-  useTopATCRow,
   useTopRCRow,
   useTopBillTermRow,
   useTopForexRate,
   useTopCurrencyRow,
   useTopHSOption,
   useTopDocControlRow,
-  useTopVatAmount,
-  useTopATCAmount,
   useTopBillCodeRow,
 } from '@/NAYSA Cloud/Global/top1RefTable';
 
 
 import {
   useGetCurrentDayV2,
-  useFormatToDate,
   useformatToDatev2
 } from '@/NAYSA Cloud/Global/dates';
 
@@ -99,10 +94,10 @@ import { faAdd } from "@fortawesome/free-solid-svg-icons/faAdd";
 
 const SOA = () => {
 
-   const loadedFromUrlRef = useRef(false);
+  const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation(); 
-  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded } = useAuth();
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded ,getAllTopATCRow, getAllTopVatRow,getAllTopVatAmount,getAllTopATCAmount } = useAuth();
   const [isViewDocument, setIsViewDocument] = useState(false);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
@@ -115,21 +110,20 @@ const SOA = () => {
 
 
   const [topTab, setTopTab] = useState("details"); // "details" | "history"
-  const { user } = useAuth();
   const { resetFlag } = useReset();
   const [state, setState] = useState({
 
     // HS Option
-    glCurrMode:"M",
+    glCurrMode:companyInfo?.glCurrMode||"",
     glCurrDefault:companyInfo?.currCode||"",
     withCurr2:false,
     withCurr3:false,
-    glCurrGlobal1:"",
-    glCurrGlobal2:"",
-    glCurrGlobal3:"",
+    glCurrGlobal1:companyInfo?.glCurrGlobal1||"",
+    glCurrGlobal2:companyInfo?.glCurrGlobal2||"",
+    glCurrGlobal3:companyInfo?.glCurrGlobal3||"",
 
 
-    
+
     // Document information
     documentName: "",
     documentSeries: "Auto",
@@ -550,28 +544,6 @@ useEffect(() => {
 
 
 
-      // 🔹 3. HS Options + Currency row (dependent chain)
-      const hsOption = await useTopHSOption();
-      if (hsOption) {
-        updateState({
-          glCurrMode: hsOption.glCurrMode,
-          glCurrDefault: hsOption.glCurrDefault,
-          currCode: hsOption.glCurrDefault,
-          glCurrGlobal1: hsOption.glCurrGlobal1,
-          glCurrGlobal2: hsOption.glCurrGlobal2,
-          glCurrGlobal3: hsOption.glCurrGlobal3,
-        });
-
-        const curr = await useTopCurrencyRow(hsOption.glCurrDefault);
-        if (curr) {
-          updateState({
-            currName: curr.currName,
-            currRate: formatNumber(1, 6),
-          });
-        }
-      }
-
-
       
      const tbls = 'soa_hd,soa_dt1,soa_dt2'
      const hdtblcol_result = await useFieldLenghtCheck(tbls);
@@ -651,6 +623,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       creditFx1: formatNumber(glRow.creditFx1),
       debitFx2: formatNumber(glRow.debitFx2),
       creditFx2: formatNumber(glRow.creditFx2),
+      slRefDate:useformatToDatev2(glRow.slRefDate),
     }));
 
   
@@ -958,6 +931,9 @@ const moveFocusBeforeSave = () => {
 
 
 const handleAddRowGL = (index = null) => {
+    if (!Array.isArray(detailRows) || detailRows.length === 0) {
+    return;
+  }
   const newRow = {
     acctCode: "",
     rcCode: "",
@@ -1308,9 +1284,9 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
       // shared calculation logic
       async function recalcRow(newGrossAmt, newDiscAmount) {
         const newNetDiscount = +(newGrossAmt - newDiscAmount).toFixed(2);
-        const newVatAmount = origVatCode ? await useTopVatAmount(origVatCode, newNetDiscount) : 0;
+        const newVatAmount = origVatCode ?  getAllTopVatAmount(origVatCode, newNetDiscount) : 0;
         const newNetOfVat = +(newNetDiscount - newVatAmount).toFixed(2);
-        const newATCAmount = origAtcCode ? await useTopATCAmount(origAtcCode, newNetOfVat) : 0;
+        const newATCAmount = origAtcCode ?  getAllTopATCAmount(origAtcCode, newNetOfVat) : 0;
         const newAmountDue = +(newNetDiscount - newATCAmount).toFixed(2);
 
 
@@ -1365,12 +1341,12 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
         let newVatAmount = parseFormattedNumber(row.vatAmount) || 0;
 
         if (field === 'vatCode') {
-          newVatAmount = row.vatCode ? await useTopVatAmount(row.vatCode, newNetDiscount) : 0;
+          newVatAmount = row.vatCode ?  getAllTopVatAmount(row.vatCode, newNetDiscount) : 0;
           row.vatAmount = newVatAmount.toFixed(2);
         }
 
         const newNetOfVat = +(newNetDiscount - newVatAmount).toFixed(2);
-        const newATCAmount = row.atcCode ? await useTopATCAmount(row.atcCode, newNetOfVat) : 0;
+        const newATCAmount = row.atcCode ?  getAllTopATCAmount(row.atcCode, newNetOfVat) : 0;
 
         row.atcAmount = newATCAmount.toFixed(2);
         row.soaAmount = +(newNetDiscount - newATCAmount).toFixed(2);
@@ -1644,7 +1620,7 @@ const handleCloseBillCodeModal = async (selectedBillCode) => {
 const handleCloseVatModal = async (selectedVat) => { 
   if (selectedVat && selectedRowIndex !== null) {
     
-     const result = await useTopVatRow(selectedVat.vatCode);
+     const result =  getAllTopVatRow(selectedVat.vatCode);
       if (!result) return;
 
       accountModalSource !== null
@@ -1664,7 +1640,7 @@ const handleCloseVatModal = async (selectedVat) => {
 const handleCloseAtcModal = async (selectedAtc) => {
   if (selectedAtc && selectedRowIndex !== null) {  
 
-    const result = await useTopATCRow(selectedAtc.atcCode);
+    const result =  getAllTopATCRow(selectedAtc.atcCode);
       if (!result) return;
 
       accountModalSource !== null
@@ -3288,14 +3264,14 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                     />
                   </td>
                   <td className="global-tran-td-ui">
-                    <input
-                      type="date"
-                      className="w-[100px] global-tran-td-inputclass-ui"
+                  <DateFormatInput
+                      id={`slRefDate${index}`}
                       value={row.slRefDate || ""}
-                       readOnly={isFormDisabled}
-                      onChange={(e) => handleDetailChangeGL(index, 'slRefDate', e.target.value)}
-                    />
-
+                      disabled={isFormDisabled}
+                      className="w-[100px] global-tran-td-inputclass-ui text-center pr-7"
+                      updateState={(updates) => {
+                      if (updates[`slRefDate${index}`] !== undefined) { handleDetailChangeGL(index,"slRefDate", updates[`slRefDate${index}`], false,); }}}
+                      />
                   </td>
                     <td className="global-tran-td-ui">
                     <input

@@ -37,16 +37,12 @@ import {
 
 
 import {
-  useTopVatRow,
-  useTopATCRow,
   useTopRCRow,
+  useTopAccountRow,
   useTopForexRate,
   useTopCurrencyRow,
-  useTopHSOption,
   useTopDocControlRow,
   useTopDocDropDown,
-  useTopVatAmount,
-  useTopATCAmount,
 } from '@/NAYSA Cloud/Global/top1RefTable';
 
 import {
@@ -80,6 +76,7 @@ import {
   formatNumber,
   parseFormattedNumber,
   useSwalshowSaveSuccessDialog,
+  useSwalErrorAlert,
 } from '@/NAYSA Cloud/Global/behavior.jsx';
 
 
@@ -95,7 +92,7 @@ const PCV = () => {
   const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation(); 
-  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded } = useAuth();
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded ,getAllTopATCRow, getAllTopVatRow,getAllTopVatAmount,getAllTopATCAmount } = useAuth();
   const [isViewDocument, setIsViewDocument] = useState(false);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
@@ -112,15 +109,15 @@ const PCV = () => {
   const { resetFlag } = useReset();
   const [state, setState] = useState({
 
+    
     // HS Option
-    glCurrMode:"M",
+    glCurrMode:companyInfo?.glCurrMode||"",
     glCurrDefault:companyInfo?.currCode||"",
     withCurr2:false,
     withCurr3:false,
-    glCurrGlobal1:"",
-    glCurrGlobal2:"",
-    glCurrGlobal3:"",
-
+    glCurrGlobal1:companyInfo?.glCurrGlobal1||"",
+    glCurrGlobal2:companyInfo?.glCurrGlobal2||"",
+    glCurrGlobal3:companyInfo?.glCurrGlobal3||"",
 
     
     // Document information
@@ -517,26 +514,7 @@ useEffect(() => {
 
 
 
-      // 🔹 3. HS Options + Currency row (dependent chain)
-      const hsOption = await useTopHSOption();
-      if (hsOption) {
-        updateState({
-          glCurrMode: hsOption.glCurrMode,
-          glCurrDefault: hsOption.glCurrDefault,
-          currCode: hsOption.glCurrDefault,
-          glCurrGlobal1: hsOption.glCurrGlobal1,
-          glCurrGlobal2: hsOption.glCurrGlobal2,
-          glCurrGlobal3: hsOption.glCurrGlobal3,
-        });
-
-        const curr = await useTopCurrencyRow(hsOption.glCurrDefault);
-        if (curr) {
-          updateState({
-            currName: curr.currName,
-            currRate: formatNumber(1, 6),
-          });
-        }
-      }
+      // 🔹 3. HS Options +
 
  
       const tbls = 'pcv_hd,pcv_dt1,pcv_dt2'
@@ -602,6 +580,7 @@ const fetchTranData = async (documentNo, branchCode,direction="") => {
       vatAmount: formatNumber(item.vatAmount),
       atcAmount: formatNumber(item.atcAmount),
       netAmount: formatNumber(item.netAmount),
+      siDate:useformatToDatev2(item.siDate),
     }));
 
     const formattedGLRows = (data.dt2 || []).map(glRow => ({
@@ -612,6 +591,7 @@ const fetchTranData = async (documentNo, branchCode,direction="") => {
       creditFx1: formatNumber(glRow.creditFx1),
       debitFx2: formatNumber(glRow.debitFx2),
       creditFx2: formatNumber(glRow.creditFx2),
+      slRefDate:useformatToDatev2(glRow.slRefDate),
     }));
 
   
@@ -703,9 +683,6 @@ const moveFocusBeforeSave = () => {
 
 
   if (documentStatus === '') {
-
-
-   
   updateState({ isLoading: true });
 
     const {
@@ -785,7 +762,7 @@ const moveFocusBeforeSave = () => {
           debitFx2: parseFormattedNumber(entry.debitFx2 || 0),
           creditFx2: parseFormattedNumber(entry.creditFx2 || 0),
           slRefNo: entry.slRefNo || "",
-          slRefDate: entry.slRefDate ? new Date(entry.slRefDate).toISOString().split("T")[0] : null,
+          slRefDate: entry.slRefDate,
           remarks: entry.remarks || "",
           dt1Lineno: entry.dt1Lineno || ""
         }))
@@ -842,38 +819,69 @@ const moveFocusBeforeSave = () => {
 };
 
 
-
 const handleAddRow = async (index = null) => {
   try {
-    const items = await handleFetchDetail(vendCode);
-    const itemList = Array.isArray(items) ? items : [items];
+    const updatedRows = [...detailRows];
+    let newRows = [];
 
-    const newRows = await Promise.all(
-      itemList.map(async (item) => {
-        return {
+    if (updatedRows.length > 0) {
+      const sourceRow =
+        index !== null && index >= 0
+          ? updatedRows[index]
+          : updatedRows[updatedRows.length - 1];
+
+      newRows = [
+        {
           lnNo: "",
           vendCode: "",
           vendName: "",
           origAmount: "0.00",
-          drAcct: "",
-          rcCode: "",
-          rcName: "",
-          vatCode: item.vatCode || "",
-          vatName: item.vatName || "",
+          drAcct: sourceRow?.drAcct || sourceRow?.acctCode || "",
+          acctCode: sourceRow?.acctCode || sourceRow?.drAcct || "",
+          rcCode: sourceRow?.rcCode || "",
+          rcName: sourceRow?.rcName || "",
+          slCode: sourceRow?.slCode || "",
+          slName: sourceRow?.slName || "",
+          vatCode: sourceRow?.vatCode || "",
+          vatName: sourceRow?.vatName || "",
           vatAmount: "0.00",
-          atcCode: item.atcCode || "",
-          atcName: item.atcName || "",
+          atcCode: sourceRow?.atcCode || "",
+          atcName: sourceRow?.atcName || "",
           netAmount: "0.00",
           address1: "",
           address2: "",
           address3: "",
           tin: "",
           remarks: "",
-        };
-      })
-    );
+        },
+      ];
+    } else {
+      const items = await handleFetchDetail(vendCode);
+      const itemList = Array.isArray(items) ? items : [items];
 
-    const updatedRows = [...detailRows];
+      newRows = itemList.map((item) => ({
+        lnNo: "",
+        vendCode: "",
+        vendName: "",
+        origAmount: "0.00",
+        acctCode: item.acctCode || item.drAcct || "",
+        rcCode: item.rcCode || "",
+        rcName: item.rcName || "",
+        slCode: item.slCode || "",
+        slName: item.slName || "",
+        vatCode: item.vatCode || "",
+        vatName: item.vatName || "",
+        vatAmount: "0.00",
+        atcCode: item.atcCode || "",
+        atcName: item.atcName || "",
+        netAmount: "0.00",
+        address1: "",
+        address2: "",
+        address3: "",
+        tin: "",
+        remarks: "",
+      }));
+    }
 
     if (index !== null && index >= 0) {
       updatedRows.splice(index + 1, 0, ...newRows);
@@ -887,21 +895,6 @@ const handleAddRow = async (index = null) => {
     });
 
     updateTotals(updatedRows);
-
-    setTimeout(() => {
-      const tableContainer = document.querySelector('.max-h-\\[430px\\]');
-      if (tableContainer) {
-        if (index !== null && index >= 0) {
-          const rowElements = tableContainer.querySelectorAll("tbody tr");
-          const targetRow = rowElements[index + 1];
-          if (targetRow) {
-            targetRow.scrollIntoView({ behavior: "smooth", block: "nearest" });
-          }
-        } else {
-          tableContainer.scrollTop = tableContainer.scrollHeight;
-        }
-      }
-    }, 100);
   } catch (error) {
     console.error("Error adding new row:", error);
     alert("Failed to add new row. Please select a Payee first.");
@@ -911,6 +904,9 @@ const handleAddRow = async (index = null) => {
 
 
 const handleAddRowGL = (index = null) => {
+   if (!Array.isArray(detailRows) || detailRows.length === 0) {
+    return;
+  }
   const newRow = {
     acctCode: "",
     rcCode: "",
@@ -953,7 +949,7 @@ const handleAddRowGL = (index = null) => {
 
     updateState({
         detailRows: updatedRows,
-        triggerGLEntries:true });
+        detailRowsGL:[] });
     updateTotals(updatedRows);
 
   };
@@ -1196,107 +1192,197 @@ useEffect(() => {
 
 
 
-const handleDetailChange = async (index, field, value, runCalculations = true) => {
-    const updatedRows = [...detailRows];
+const handleDetailChange = async (
+  index,
+  field,
+  value,
+  runCalculations = true,
+  validateLookup = false
+) => {
+  const updatedRows = [...detailRows];
 
-    updatedRows[index] = {
-      ...updatedRows[index],
-      [field]: value,
-    }
-   
-     const row = updatedRows[index];
+  updatedRows[index] = {
+    ...updatedRows[index],
+    [field]: value,
+  };
 
-      if (field === 'vatCode') {
-          row.vatCode = value.vatCode,
-          row.vatName = value.vatName;     
-        };
+  const row = updatedRows[index];
 
-      if (field === 'atcCode' ){
-          row.atcCode = value.atcCode,
-          row.atcName = value.atcName;     
-        };
+  if (field === "vatCode") {
+    row.vatCode = value?.vatCode || "";
+    row.vatName = value?.vatName || "";
+  }
 
+  if (field === "vatName") {
+    row.vatCode = "";
+    row.vatName = "";
+  }
 
-      if (field === 'vendCode'){
-   
-        
-        const vendResponse = await postRequest("addPayeeDetail",JSON.stringify({ json_data: { vendCode: value.vendCode } }));
-        
-        console.log(vendResponse)
-        const [{ vendCode, vendName, atcCode, atcName, vatCode, vatName, address1, address2, address3, tin }] = JSON.parse(vendResponse.data[0].result);
-          Object.assign(row, {
-            vendCode,
-            vendName,
-            atcCode,
-            atcName,
-            vatCode,
-            vatName,
-            address1,
-            address2,
-            address3,
-            tin,
-          });
+  if (field === "atcCode") {
+    row.atcCode = value?.atcCode || "";
+    row.atcName = value?.atcName || "";
+  }
 
-        row.origAmount= "0.00",
-        row.vatAmount= "0.00",
-        row.atcAmount= "0.00",
-        row.netAmount= "0.00"
-    };
+  if (field === "atcName") {
+    row.atcCode = "";
+    row.atcName = "";
+  }
 
+  if (field === "vendCode") {
+    const isManualInput = typeof value === "string";
 
-    if (field === 'drAcct' ){
-      row.drAcct = value.acctCode
-    }
+    if (isManualInput) {
+      row.vendCode = value;
+    } else if (value?.vendCode) {
+      const vendResponse = await postRequest(
+        "addPayeeDetail",
+        JSON.stringify({ json_data: { vendCode: value.vendCode } })
+      );
 
+      const parsedResult = JSON.parse(vendResponse?.data?.[0]?.result || "[]");
+      const vendRow = Array.isArray(parsedResult) ? parsedResult[0] : null;
 
+      if (vendRow) {
+        const {
+          vendCode,
+          vendName,
+          atcCode,
+          atcName,
+          vatCode,
+          vatName,
+          address1,
+          address2,
+          address3,
+          tin,
+        } = vendRow;
 
-    if (field === 'rcCode' ){
-          row.rcCode = value.rcCode,
-          row.rcName = value.rcName  
-    };
+        Object.assign(row, {
+          vendCode: vendCode || "",
+          vendName: vendName || "",
+          atcCode: atcCode || "",
+          atcName: atcName || "",
+          vatCode: vatCode || "",
+          vatName: vatName || "",
+          address1: address1 || "",
+          address2: address2 || "",
+          address3: address3 || "",
+          tin: tin || "",
+        });
 
-
-
-
-
-    if (runCalculations) {  
-      const origOrigAmount = parseFormattedNumber(row.origAmount) || 0;
-      const origVatCode = row.vatCode || "";
-      const origAtcCode = row.atcCode || "";
-
-  
-      // shared calculation logic
-      async function recalcRow(newOrigAmount) {
-        const newVatAmount = origVatCode ? await useTopVatAmount(origVatCode, newOrigAmount) : 0;
-        const newNetOfVat = +(newOrigAmount - newVatAmount).toFixed(2);
-        const newATCAmount = origAtcCode ? await useTopATCAmount(origAtcCode, newNetOfVat) : 0;
-        const newNetAmount = +(newOrigAmount - newATCAmount).toFixed(2);
-
-
-        row.vatAmount = formatNumber(newVatAmount);
-        row.atcAmount = formatNumber(newATCAmount);
-        row.netAmount = formatNumber(newNetAmount);
-        row.origAmount = formatNumber(newOrigAmount);
+        row.origAmount = "0.00";
+        row.vatAmount = "0.00";
+        row.atcAmount = "0.00";
+        row.netAmount = "0.00";
       }
+    }
+  }
 
-      if (field === 'origAmount') {
-        const newOrigAmount = parseFormattedNumber(row.origAmount) || 0;
-        await recalcRow(newOrigAmount);
+
+  if (field === "drAcct") {
+  const acctCode = typeof value === "string" ? value : value?.acctCode || "";
+  const currentDrAcct = row.drAcct || "";
+
+  if (!validateLookup) {
+    row.drAcct = acctCode;
+  } else {
+    if (!acctCode) {
+      // already blank, do nothing to avoid duplicate validation/message
+      if (currentDrAcct) {
+        row.drAcct = "";
       }
+    } else {
+      const acctResult = await useTopAccountRow(acctCode);
+
+      if (acctResult) {
+        row.drAcct = acctResult.acctCode || acctCode;
+      } else {
+        const shouldAlert = !!currentDrAcct || !!acctCode;
+
+        row.drAcct = "";
+
+        if (shouldAlert) {
+          useSwalErrorAlert("Validation", "Account Code does not exist.");
+        }
+      }
+    }
+  }
+}
+
+if (field === "rcCode") {
+  const rcCode = typeof value === "string" ? value : value?.rcCode || "";
+  const currentRcCode = row.rcCode || "";
+
+  if (!validateLookup) {
+    row.rcCode = rcCode;
+    if (typeof value !== "string") {
+      row.rcName = value?.rcName || "";
+    }
+  } else {
+    if (!rcCode) {
+      // already blank, do nothing to avoid duplicate validation/message
+      if (currentRcCode) {
+        row.rcCode = "";
+        row.rcName = "";
+      }
+    } else {
+      const rcResult = await useTopRCRow(rcCode);
+
+      if (rcResult) {
+        row.rcCode = rcResult.rcCode || "";
+        row.rcName = rcResult.rcName || "";
+      } else {
+        const shouldAlert = !!currentRcCode || !!rcCode;
+
+        row.rcCode = "";
+        row.rcName = "";
+
+        if (shouldAlert) {
+          useSwalErrorAlert("Validation", "RC Code does not exist.");
+        }
+      }
+    }
+  }
+}
 
 
-    if (field === 'vatCode' || field === 'atcCode') {
+  if (runCalculations) {
+    const origVatCode = row.vatCode || "";
+    const origAtcCode = row.atcCode || "";
+
+    async function recalcRow(newOrigAmount) {
+      const newVatAmount = origVatCode ? getAllTopVatAmount(origVatCode, newOrigAmount) : 0;
+      const newNetOfVat = +(newOrigAmount - newVatAmount).toFixed(2);
+      const newATCAmount = origAtcCode ? getAllTopATCAmount(origAtcCode, newNetOfVat) : 0;
+      const newNetAmount = +(newOrigAmount - newATCAmount).toFixed(2);
+
+      row.vatAmount = formatNumber(newVatAmount);
+      row.atcAmount = formatNumber(newATCAmount);
+      row.netAmount = formatNumber(newNetAmount);
+      row.origAmount = formatNumber(newOrigAmount);
+    }
+
+    if (field === "origAmount") {
+      const newOrigAmount = parseFormattedNumber(row.origAmount) || 0;
+      await recalcRow(newOrigAmount);
+    }
+
+    if (
+      field === "vatCode" ||
+      field === "atcCode" ||
+      field === "atcName" ||
+      field === "vatName"
+    ) {
       async function updateVatAndAtc() {
-        const origAmount = +(parseFormattedNumber(row.origAmount)).toFixed(2);
+        const origAmount = +(parseFormattedNumber(row.origAmount) || 0).toFixed(2);
         let newVatAmount = parseFormattedNumber(row.vatAmount) || 0;
 
-        if (field === 'vatCode') {
-          newVatAmount = row.vatCode ? await useTopVatAmount(row.vatCode, origAmount) : 0;
+        if (field === "vatCode" || field === "vatName") {
+          newVatAmount = row.vatCode ? getAllTopVatAmount(row.vatCode, origAmount) : 0;
           row.vatAmount = newVatAmount.toFixed(2);
         }
 
-        const newNetOfVat = +(newVatAmount).toFixed(2);
-        const newATCAmount = row.atcCode ? await useTopATCAmount(row.atcCode, newNetOfVat) : 0;
+        const newNetOfVat = +(origAmount - newVatAmount).toFixed(2);
+        const newATCAmount = row.atcCode ? getAllTopATCAmount(row.atcCode, newNetOfVat) : 0;
 
         row.atcAmount = newATCAmount.toFixed(2);
         row.netAmount = +(origAmount - newATCAmount).toFixed(2);
@@ -1304,17 +1390,18 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
 
       await updateVatAndAtc();
     }
-
-
   }
 
+  updatedRows[index] = row;
 
-    updatedRows[index] = row;
-    updateState({ detailRows: updatedRows, isLoading:false });
-    updateTotals(updatedRows);
+  updateState({
+    detailRows: updatedRows,
+    isLoading: false,
+    detailRowsGL: [],
+  });
 
+  updateTotals(updatedRows);
 };
-
 
 
 const handleDetailChangeGL = async (index, field, value) => {
@@ -1549,7 +1636,7 @@ const handleSaveAndPrint = async (documentID) => {
 const handleCloseVatModal = async (selectedVat) => { 
   if (selectedVat && selectedRowIndex !== null) {
     
-     const result = await useTopVatRow(selectedVat.vatCode);
+     const result =  getAllTopVatRow(selectedVat.vatCode);
       if (!result) return;
 
       accountModalSource !== null
@@ -1569,7 +1656,7 @@ const handleCloseVatModal = async (selectedVat) => {
 const handleCloseAtcModal = async (selectedAtc) => {
   if (selectedAtc && selectedRowIndex !== null) {  
 
-    const result = await useTopATCRow(selectedAtc.atcCode);
+    const result =  getAllTopATCRow(selectedAtc.atcCode);
       if (!result) return;
 
       accountModalSource !== null
@@ -2086,14 +2173,14 @@ const handleCloseBranchModal = (selectedBranch) => {
 
 
               {/* SI Date */}
-            <td className="global-tran-td-ui">
-                <input
-                  type="date"
-                  className="w-[100px] global-tran-td-inputclass-ui"
-                  value={useFormatToDate(row.siDate) || ""}
-                  disabled={isFormDisabled} 
-                  onChange={(e) => handleDetailChange(index, 'siDate', e.target.value)}
-                />
+            <td className="global-tran-td-ui">            
+              <DateFormatInput
+                id={`siDate${index}`}
+                value={row.siDate || ""}
+                disabled={isFormDisabled}
+                className="w-[100px] global-tran-td-inputclass-ui text-center pr-7"
+                updateState={(updates) => {if (updates[`siDate${index}`] !== undefined) { handleDetailChange(index,"siDate", updates[`siDate${index}`], false,); }}}
+               />
 
               </td>
 
@@ -2146,10 +2233,22 @@ const handleCloseBranchModal = (selectedBranch) => {
               <div className="flex items-center">
                 <input
                   type="text"
+                  maxLength={useGetFieldLength(tblFieldArray, "debit_acct")}
                   className="w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
                   value={row.drAcct || ""}
-                  readOnly
-                />
+                  disabled={isFormDisabled} 
+                  onChange={(e) => handleDetailChange(index, "drAcct", e.target.value, false, false)}
+                  onBlur={(e) => {
+                      if (e.target.value?.trim()) {
+                        handleDetailChange(index, "drAcct", e.target.value, false, true);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && e.currentTarget.value?.trim()) {
+                        handleDetailChange(index, "drAcct", e.currentTarget.value, false, true);
+                      }
+                    }}
+                  />            
                 {!isFormDisabled && (
                 <FontAwesomeIcon 
                   icon={faMagnifyingGlass} 
@@ -2169,11 +2268,23 @@ const handleCloseBranchModal = (selectedBranch) => {
             <td className="global-tran-td-ui relative">
               <div className="flex items-center">
                 <input
-                  type="text"
-                  className="w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
-                  value={row.rcCode || ""}
-                  readOnly
-                />
+                    type="text"
+                    maxLength={useGetFieldLength(tblFieldArray, "rc_code")}
+                    className="w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
+                    value={row.rcCode || ""}
+                    disabled={isFormDisabled}
+                    onChange={(e) => handleDetailChange(index, "rcCode", e.target.value, false, false)}
+                    onBlur={(e) => {
+                      if (e.target.value?.trim()) {
+                        handleDetailChange(index, "rcCode", e.target.value, false, true);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && e.currentTarget.value?.trim()) {
+                        handleDetailChange(index, "rcCode", e.currentTarget.value, false, true);
+                      }
+                    }}
+                  />
                 {!isFormDisabled && (
                 <FontAwesomeIcon 
                   icon={faMagnifyingGlass} 
@@ -2191,7 +2302,7 @@ const handleCloseBranchModal = (selectedBranch) => {
            <td className="global-tran-td-ui">
               <input
                 type="text"
-                className="w-[150px] text-center global-tran-td-inputclass-ui"
+                className="w-[150px] text-left global-tran-td-inputclass-ui"
                 value={row.rcName || ""}
                 readOnly
               />
@@ -2222,11 +2333,12 @@ const handleCloseBranchModal = (selectedBranch) => {
             </td>
 
             <td className="global-tran-td-ui">
-                <input
-                    type="text"
-                    className="w-[200px] global-tran-td-inputclass-ui"
-                    value={row.vatName || ""}
-                    readOnly
+               <input
+                  type="text"
+                  className="w-[200px] global-tran-td-inputclass-ui"
+                  value={row.vatName || ""}
+                  readOnly
+                  onDoubleClick={!isFormDisabled ? () => handleDetailChange(index, "vatName", 0, true) : undefined}
                 />
             </td>
 
@@ -2260,16 +2372,15 @@ const handleCloseBranchModal = (selectedBranch) => {
               </div>
             </td>
 
-            
             <td className="global-tran-td-ui">
-              <input
+            <input
                 type="text"
                 className="w-[200px] global-tran-td-inputclass-ui"
                 value={row.atcName || ""}
                 readOnly
+                onDoubleClick={!isFormDisabled ? () => handleDetailChange(index, "atcName", 0, true) : undefined}
               />
             </td>
-
             <td className="global-tran-td-ui">
                 <input
                    type="text"
@@ -2891,13 +3002,14 @@ const handleCloseBranchModal = (selectedBranch) => {
                 />
               </td>
               <td className="global-tran-td-ui">
-                <input
-                  type="date"
-                  className="w-[100px] global-tran-td-inputclass-ui"
-                  value={useFormatToDate(row.slRefDate) || ""} 
-                  disabled={isFormDisabled} 
-                  onChange={(e) => handleDetailChangeGL(index, 'slRefDate', e.target.value)}
-                />
+              <DateFormatInput
+                  id={`slRefDate${index}`}
+                  value={row.slRefDate || ""}
+                  disabled={isFormDisabled}
+                  className="w-[100px] global-tran-td-inputclass-ui text-center pr-7"
+                  updateState={(updates) => {
+                  if (updates[`slRefDate${index}`] !== undefined) { handleDetailChangeGL(index,"slRefDate", updates[`slRefDate${index}`], false,); }}}
+                  />
 
               </td>
                 <td className="global-tran-td-ui">

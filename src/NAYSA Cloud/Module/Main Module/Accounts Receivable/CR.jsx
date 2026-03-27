@@ -41,8 +41,6 @@ import {
 
 
 import {
-  useTopVatRow,
-  useTopATCRow,
   useTopRCRow,
   useTopAccountRow,
   useTopForexRate,
@@ -107,10 +105,10 @@ import { faAdd } from "@fortawesome/free-solid-svg-icons/faAdd";
 
 
 const CR = () => {
-    const loadedFromUrlRef = useRef(false);
+  const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation(); 
-  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded } = useAuth();
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded ,getAllTopATCRow, getAllTopVatRow,getAllTopVatAmount,getAllTopATCAmount } = useAuth();
   const [isViewDocument, setIsViewDocument] = useState(false);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
@@ -129,13 +127,13 @@ const CR = () => {
 
 
     // HS Option
-    glCurrMode:"M",
+    glCurrMode:companyInfo?.glCurrMode||"",
     glCurrDefault:companyInfo?.currCode||"",
     withCurr2:false,
     withCurr3:false,
-    glCurrGlobal1:"",
-    glCurrGlobal2:"",
-    glCurrGlobal3:"",
+    glCurrGlobal1:companyInfo?.glCurrGlobal1||"",
+    glCurrGlobal2:companyInfo?.glCurrGlobal2||"",
+    glCurrGlobal3:companyInfo?.glCurrGlobal3||"",
 
 
     
@@ -613,29 +611,6 @@ useEffect(() => {
 
 
 
-      // 🔹 3. HS Options + Currency row (dependent chain)
-      const hsOption = await useTopHSOption();
-      if (hsOption) {
-        updateState({
-          glCurrMode: hsOption.glCurrMode,
-          glCurrDefault: hsOption.glCurrDefault,
-          currCode: hsOption.glCurrDefault,
-          glCurrGlobal1: hsOption.glCurrGlobal1,
-          glCurrGlobal2: hsOption.glCurrGlobal2,
-          glCurrGlobal3: hsOption.glCurrGlobal3,
-        });
-
-        const curr = await useTopCurrencyRow(hsOption.glCurrDefault);
-        if (curr) {
-          updateState({
-            currName: curr.currName,
-            currRate: formatNumber(1, 6),
-          });
-        }
-      }
-
-
-
       // 🔹 4. Company + Bank row (dependent chain)
       const company = await useTopCompanyRow();
       if (company) {
@@ -735,6 +710,7 @@ const fetchTranData = async (documentNo, branchCode,direction="") => {
       creditFx1: formatNumber(glRow.creditFx1),
       debitFx2: formatNumber(glRow.debitFx2),
       creditFx2: formatNumber(glRow.creditFx2),
+       slRefDate:useformatToDatev2(glRow.slRefDate),
     }));
 
   
@@ -1069,6 +1045,9 @@ const moveFocusBeforeSave = () => {
 
 
 const handleAddRowGL = (index = null) => {
+    if (!Array.isArray(detailRows) || detailRows.length === 0) {
+    return;
+  }
   const newRow = {
     acctCode: "",
     rcCode: "",
@@ -1872,7 +1851,7 @@ const handleSaveAndPrint = async (documentID) => {
 const handleCloseVatModal = async (selectedVat) => { 
   if (selectedVat && selectedRowIndex !== null) {
     
-     const result = await useTopVatRow(selectedVat.vatCode);
+     const result =  getAllTopVatRow(selectedVat.vatCode);
       if (!result) return;
 
       accountModalSource !== null
@@ -1892,7 +1871,7 @@ const handleCloseVatModal = async (selectedVat) => {
 const handleCloseAtcModal = async (selectedAtc) => {
   if (selectedAtc && selectedRowIndex !== null) {  
 
-    const result = await useTopATCRow(selectedAtc.atcCode);
+    const result =  getAllTopATCRow(selectedAtc.atcCode);
       if (!result) return;
 
       accountModalSource !== null
@@ -3525,13 +3504,15 @@ const handleCloseBranchModal = (selectedBranch) => {
                     />
                   </td>
                   <td className="global-tran-td-ui">
-                    <input
-                      type="date"
-                      className="w-[100px] global-tran-td-inputclass-ui"
+                   
+                   <DateFormatInput
+                      id={`slRefDate${index}`}
                       value={row.slRefDate || ""}
-                      disabled={isFormDisabled} 
-                      onChange={(e) => handleDetailChangeGL(index, 'slRefDate', e.target.value)}
-                    />
+                      readOnly={handleFieldBehavior("reversalInvoice")}
+                      className="w-[100px] global-tran-td-inputclass-ui text-center pr-7"
+                      updateState={(updates) => {
+                      if (updates[`slRefDate${index}`] !== undefined) { handleDetailChangeGL(index,"slRefDate", updates[`slRefDate${index}`], false,); }}}
+                      />
 
                   </td>
                     <td className="global-tran-td-ui">

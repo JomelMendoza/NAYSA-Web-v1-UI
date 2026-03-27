@@ -26,13 +26,13 @@ import AttachFileModal from "@/NAYSA Cloud/Lookup/AttachFileModal.jsx";
 // Import Guides
 import { reftables, reftablesPDFGuide, reftablesVideoGuide } from "@/NAYSA Cloud/Global/reftable";
 
-import { 
-  useSwalErrorAlert, 
-  useSwalValidationAlert, 
-  useSwalSuccessAlert, 
-  useSwalErrorAlertAPI, 
-  useSwalDeleteConfirm, 
-  useSwalDeleteRecord 
+import {
+  useSwalErrorAlert,
+  useSwalValidationAlert,
+  useSwalSuccessAlert,
+  useSwalErrorAlertAPI,
+  useSwalDeleteConfirm,
+  useSwalDeleteRecord
 } from "@/NAYSA Cloud/Global/behavior.jsx";
 import PayeeSetupTab from "@/NAYSA Cloud/Master Data/CustMastTabs/PayeeSetupTab";
 import PayeeMasterDataTab from "@/NAYSA Cloud/Master Data/CustMastTabs/PayeeMasterDataTab";
@@ -54,11 +54,10 @@ const normalizeSlType = (v) => {
   return s;
 };
 
-// Construct the 2-letter prefix (e.g., "S" + "S" = "SS", "S" + "U" = "SU")
 const getPayeePrefix = (sltypeCode, mode) => {
   const sl = normalizeSlType(sltypeCode) || "SU";
   const slChar = SL_CHAR[sl] || sl.charAt(0);
-  return `${slChar}${mode}`; 
+  return `${slChar}${mode}`;
 };
 
 const generateNextPayeeCode = (rows = [], sltypeCode = "SU", mode = "S") => {
@@ -126,36 +125,16 @@ const emptyForm = {
 };
 
 const VendMast = () => {
-  // 'M' = User Defined, 'U' = Auto Assigned, 'S' = System Generated
-  // TODO: Tie this to your backend system configuration settings in the future.
   const [generationMode, setGenerationMode] = useState("U");
+  const [activeTab, setActiveTab] = useState("setup");
+  const [isLoading, setIsLoading] = useState(false);
 
   // Document Info Guide State
-  const docType = "VendMast"; // Change this if your reftable.js uses a different key for Payee Master
+  const docType = "VendMast";
   const guideRef = useRef(null);
   const pdfLink = reftablesPDFGuide?.[docType] || "#";
   const videoLink = reftablesVideoGuide?.[docType] || "#";
   const [isOpenGuide, setOpenGuide] = useState(false);
-
-  const [activeTab, setActiveTab] = useState("setup");
-  const [isLoading, setIsLoading] = useState(false);
-
-  const { user } = useAuth();
-  const userCode = user?.userCode || user?.USER_CODE || user?.code || "";
-
-  const [form, setForm] = useState({ ...emptyForm });
-  const [selectedVendCode, setSelectedVendCode] = useState("");
-  const [isEditing, setIsEditing] = useState(false);
-
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-
-  const [isAttachOpen, setIsAttachOpen] = useState(false);
-  const [attachmentRows, setAttachmentRows] = useState([]);
-
-  const [subsidiaryType, setSubsidiaryType] = useState("");
-  const [masterFilters, setMasterFilters] = useState({});
-  const [masterAllRows, setMasterAllRows] = useState([]);
-  const [masterRows, setMasterRows] = useState([]);
 
   // Close Info Dropdown when clicking outside
   useEffect(() => {
@@ -170,7 +149,28 @@ const VendMast = () => {
     };
   }, []);
 
-  // Handles updating the form and auto-assigning codes if mode is 'U'
+  const { user } = useAuth();
+  const userCode = user?.userCode || user?.USER_CODE || user?.code || "";
+
+  const [form, setForm] = useState({ ...emptyForm });
+  const [selectedVendCode, setSelectedVendCode] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+
+  const refTabRef = useRef(null);
+  const [refState, setRefState] = useState({ isEditing: false, canSave: false });
+
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isAttachOpen, setIsAttachOpen] = useState(false);
+  const [attachmentRows, setAttachmentRows] = useState([]);
+
+  // Tab Content Spacing Logic
+  const contentPadding = "p-4 sm:p-6 lg:p-8";
+
+  const [subsidiaryType, setSubsidiaryType] = useState("");
+  const [masterFilters, setMasterFilters] = useState({});
+  const [masterAllRows, setMasterAllRows] = useState([]);
+  const [masterRows, setMasterRows] = useState([]);
+
   const updateForm = (patch) => {
     setForm((prev) => {
       const updated = { ...prev, ...patch };
@@ -183,7 +183,6 @@ const VendMast = () => {
           updated.custCode = nextCode;
         }
       }
-
       return updated;
     });
   };
@@ -248,9 +247,7 @@ const VendMast = () => {
             errorMsg: String(row.errorMsg ?? row.errormsg ?? ""),
           };
         }
-      } catch {
-        // ignore
-      }
+      } catch { }
     }
 
     const fallbackMsg = payload?.message || payload?.error || payload?.msg;
@@ -269,15 +266,6 @@ const VendMast = () => {
     () => String(form?.vendCode || form?.custCode || "").trim(),
     [form]
   );
-
-  const indexInRows = useMemo(() => {
-    if (!currentCode) return -1;
-    return masterRows.findIndex(
-      (r) =>
-        String(r?.vendCode || "").trim().toUpperCase() ===
-        currentCode.toUpperCase()
-    );
-  }, [masterRows, currentCode]);
 
   const pushRecent = (code) => {
     const c = String(code || "").trim();
@@ -418,14 +406,6 @@ const VendMast = () => {
     }
   };
 
-  const navOpen = async (targetCode) => {
-    const code = String(targetCode || "").trim();
-    if (!code) return;
-    setActiveTab("setup");
-    setIsEditing(false);
-    await fetchVendorByCode(code);
-  };
-
   const deleteVendor = async () => {
     const code = String(form?.vendCode || form?.custCode || "").trim();
     if (!code) {
@@ -470,7 +450,7 @@ const VendMast = () => {
       }
 
       await useSwalDeleteRecord(
-        "Deleted", 
+        "Deleted",
         `Payee Code ${code} has been successfully removed.`
       );
 
@@ -495,13 +475,12 @@ const VendMast = () => {
     let code = String(form?.vendCode || form?.custCode || "").trim();
     const isAddMode = !selectedVendCode;
 
-    // SCENARIO 1 & 3 LOGIC
     if (isAddMode) {
       if (generationMode === "M" && !code) {
         await showValidation("Required", ["• Please enter a User Defined Payee Code."]);
         return;
       }
-      
+
       if (generationMode === "S" && !code) {
         const sl = normalizeSlType(form.sltypeCode || "SU");
         code = generateNextPayeeCode(masterAllRows, sl, "S");
@@ -513,36 +492,29 @@ const VendMast = () => {
       const jsonData = {
         json_data: {
           action: selectedVendCode ? "edit" : "add",
-
           vendCode: code,
           vendName: form.vendName || form.custName || "",
           businessName: form.businessName || "",
-
           firstName: form.firstName || "",
           middleName: form.middleName || "",
           lastName: form.lastName || "",
-
           taxClass: form.taxClass || "",
-
           vendAddr1: form.vendAddr1 || "",
           vendAddr2: form.vendAddr2 || "",
           vendAddr3: form.vendAddr3 || "",
           vendZip: form.vendZip || "",
           vendTin: form.vendTin || form.custTin || "",
-
           branchCode: form.branchCode || "",
           vendContact: form.vendContact || "",
           vendPosition: form.vendPosition || "",
           vendTelno: form.vendTelno || "",
           vendMobileno: form.vendMobileno || "",
           vendEmail: form.vendEmail || "",
-
           source: form.source || "",
           currCode: form.currCode || "",
           vatCode: form.vatCode || "",
           atcCode: form.atcCode || "",
           paytermCode: form.paytermCode || "",
-
           acctCode: form.acctCode || "",
           sltypeCode: normalizeSlType(form.sltypeCode),
           active: form.active || "Y",
@@ -590,7 +562,6 @@ const VendMast = () => {
       await fetchVendorByCode(code);
     } catch (e) {
       console.error(e);
-
       const sprocErr = extractSprocError(e?.response);
       if (sprocErr?.errorMsg) {
         await useSwalErrorAlert(
@@ -615,7 +586,6 @@ const VendMast = () => {
 
   const applyMasterFilters = () => {
     const selectedType = normalizeSlType(subsidiaryType);
-
     const filtered = masterAllRows.filter((row) => {
       const rowType = normalizeSlType(row?.sltypeCode);
       if (selectedType && rowType !== selectedType) return false;
@@ -628,7 +598,6 @@ const VendMast = () => {
       }
       return true;
     });
-
     setMasterRows(filtered);
   };
 
@@ -644,9 +613,7 @@ const VendMast = () => {
 
   const handleAdd = () => {
     const sl = normalizeSlType(form?.sltypeCode || "SU") || "SU";
-    
     let nextCode = "";
-    // SCENARIO 2 LOGIC
     if (generationMode === "U") {
       nextCode = generateNextPayeeCode(masterAllRows, sl, "U");
     }
@@ -704,153 +671,187 @@ const VendMast = () => {
   };
 
   const headerButtons = useMemo(() => {
-    if (activeTab !== "setup") return [];
+    const baseBtn = "flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md transition-all shadow-sm";
 
-    const hasRecord =
-      String(form?.vendCode || form?.custCode || "").trim() && !form.__isNew;
+    // 1) Buttons for the "Payee Set-Up" Tab
+    if (activeTab === "setup") {
+      const hasRecord = String(form?.vendCode || form?.custCode || "").trim() && !form.__isNew;
 
-    return [
-      {
-        key: "add",
-        label: <span className="sm:inline ml-1">Add</span>,
-        icon: faPlus,
-        onClick: handleAdd,
-        disabled: isLoading,
-        className:
-          "flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
-      },
-      {
-        key: "save",
-        label: <span className="sm:inline ml-1">Save</span>,
-        icon: faSave,
-        onClick: upsertVendor,
-        disabled: isLoading || !isEditing,
-        className: `flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md transition-all ${
-          isLoading || !isEditing
+      return [
+        {
+          key: "add",
+          label: <span className="hidden sm:inline ml-1">Add</span>,
+          icon: faPlus,
+          onClick: handleAdd,
+          disabled: isLoading,
+          className: `${baseBtn} bg-blue-600 text-white hover:bg-blue-700`,
+        },
+        {
+          key: "save",
+          label: <span className="hidden sm:inline ml-1">Save</span>,
+          icon: faSave,
+          onClick: upsertVendor,
+          disabled: isLoading || !isEditing,
+          className: `${baseBtn} ${isLoading || !isEditing
             ? "bg-blue-500 opacity-50 cursor-not-allowed text-white"
             : "bg-blue-600 text-white hover:bg-blue-700"
-        }`,
-      },
-      {
-        key: "reset",
-        label: <span className="sm:inline ml-1">Reset</span>,
-        icon: faUndo,
-        onClick: handleResetSetup,
-        disabled: isLoading,
-        className:
-          "flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
-      },
-      {
-        key: "edit",
-        label: <span className="sm:inline ml-1">Edit</span>,
-        icon: faPenToSquare,
-        onClick: handleEdit,
-        disabled: isLoading,
-        className:
-          "flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
-      },
-      {
-        key: "attach",
-        label: <span className="sm:inline ml-1">Attach File</span>,
-        icon: faPaperclip,
-        onClick: handleOpenAttach,
-        disabled: isLoading,
-        className:
-          "flex items-center justify-center h-7 w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all",
-      },
-      {
-        key: "delete",
-        label: <span className="sm:inline ml-1">Delete</span>,
-        icon: faTrash,
-        onClick: deleteVendor,
-        disabled: isLoading || isEditing || !hasRecord,
-        className: `flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md transition-all ${
-          isLoading || isEditing || !hasRecord
+            }`,
+        },
+        {
+          key: "reset",
+          label: <span className="hidden sm:inline ml-1">Reset</span>,
+          icon: faUndo,
+          onClick: handleResetSetup,
+          disabled: isLoading,
+          className: `${baseBtn} bg-blue-600 text-white hover:bg-blue-700`,
+        },
+        {
+          key: "edit",
+          label: <span className="hidden sm:inline ml-1">Edit</span>,
+          icon: faPenToSquare,
+          onClick: handleEdit,
+          // Disable if loading, already editing, or no record is retrieved yet
+          disabled: isLoading || isEditing || !hasRecord,
+          className: `${baseBtn} ${isLoading || isEditing || !hasRecord
+              ? "bg-blue-400 opacity-50 cursor-not-allowed text-white"
+              : "bg-blue-600 text-white hover:bg-blue-700"
+            }`,
+        },
+        {
+          key: "attach",
+          label: <span className="hidden sm:inline ml-1">Attach</span>,
+          icon: faPaperclip,
+          onClick: handleOpenAttach,
+          disabled: isLoading,
+          className: `${baseBtn} bg-blue-600 text-white hover:bg-blue-700`,
+        },
+        {
+          key: "delete",
+          label: <span className="hidden sm:inline ml-1">Delete</span>,
+          icon: faTrash,
+          onClick: deleteVendor,
+          disabled: isLoading || isEditing || !hasRecord,
+          className: `${baseBtn} ${isLoading || isEditing || !hasRecord
             ? "bg-red-400 opacity-50 cursor-not-allowed text-white"
             : "bg-red-500 text-white hover:bg-red-600"
-        }`,
-      },
-    ];
-  }, [activeTab, isLoading, isEditing, form]);
+            }`,
+        },
+      ];
+    }
+
+    // 2) Buttons for the "Reference Codes" Tab
+    if (activeTab === "ref") {
+      return [
+        {
+          key: "add",
+          label: <span className="hidden sm:inline ml-1">Add</span>,
+          icon: faPlus,
+          // Use the ref to trigger add in the child component
+          onClick: () => refTabRef.current?.add?.(),
+          className: `${baseBtn} bg-blue-600 text-white hover:bg-blue-700`,
+        },
+        {
+          key: "save",
+          label: <span className="hidden sm:inline ml-1">Save</span>,
+          icon: faSave,
+          // Use the ref to trigger save in the child component
+          onClick: () => refTabRef.current?.save?.(),
+          // Disable based on state sent up from PayTermRef
+          disabled: !refState.canSave,
+          className: `${baseBtn} ${!refState.canSave
+            ? "bg-blue-500 opacity-50 cursor-not-allowed text-white"
+            : "bg-blue-600 text-white hover:bg-blue-700"
+            }`,
+        },
+        {
+          key: "reset",
+          label: <span className="hidden sm:inline ml-1">Reset</span>,
+          icon: faUndo,
+          // Use the ref to trigger reset in the child component
+          onClick: () => refTabRef.current?.reset?.(),
+          className: `${baseBtn} bg-blue-600 text-white hover:bg-blue-700`,
+        },
+      ];
+    }
+
+    // Default if on Master Data tab
+    return [];
+
+    // Note: Added refState to the dependency array
+  }, [activeTab, isLoading, isEditing, form, refState]);
 
   return (
     <div className="global-ref-main-div-ui">
-
-      {/* ── HEADER — mirrors COAMast layout exactly ─────────────────────── */}
+      {/* ── HEADER — Flexbox Fix to prevent wrapping ─────────────────────── */}
       <div className="global-ref-header-ui">
-        <div className="w-full flex flex-col gap-3 md:grid md:grid-cols-3 md:items-center md:gap-0">
+        <div className="w-full flex flex-col lg:flex-row items-center justify-between gap-3">
 
           {/* 1) Title */}
-          <div className="w-full md:w-auto md:justify-start flex">
-            <h1 className="global-ref-headertext-ui w-full md:w-auto truncate text-center md:text-left">
+          <div className="flex-shrink-0 w-full lg:w-auto text-center lg:text-left">
+            <h1 className="global-ref-headertext-ui truncate">
               {activeTab === "setup" && "Payee Master Data"}
               {activeTab === "master" && "Payee Master Data"}
               {activeTab === "ref" && "Reference Codes"}
             </h1>
           </div>
 
-          {/* 2) Tabs — same pill style as COAMast */}
-          <div className="w-full md:justify-center flex">
-            <div className="w-full md:w-auto">
-              <div className="flex flex-nowrap overflow-x-auto no-scrollbar border-b border-blue-300 dark:border-gray-700">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`shrink-0 whitespace-nowrap px-3 py-1 sm:py-2 sm:px-4 text-[10px] sm:text-[13px] font-bold transition-all border-b-2 rounded-md
-                      ${activeTab === tab.id
-                        ? "border-blue-700 text-blue-700 bg-blue-50/50"
-                        : "border-transparent text-gray-500 hover:text-blue-500"
-                      }`}
-                  >
-                    <FontAwesomeIcon icon={tab.icon} className="mr-1.5" />
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
+          {/* 2) Tabs */}
+          <div className="flex-1 flex justify-center w-full overflow-x-auto no-scrollbar">
+            <div className="flex flex-nowrap border-b border-blue-300 dark:border-gray-700">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`shrink-0 whitespace-nowrap px-3 py-1 sm:py-2 sm:px-4 text-[10px] sm:text-[13px] font-bold transition-all border-b-2 rounded-md
+                    ${activeTab === tab.id
+                      ? "border-blue-700 text-blue-700 bg-blue-50/50"
+                      : "border-transparent text-gray-500 hover:text-blue-500"
+                    }`}
+                >
+                  <FontAwesomeIcon icon={tab.icon} className="mr-1.5" />
+                  {tab.label}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* 3) Buttons — same size/style as COAMast */}
-          <div className="w-full md:w-auto flex md:justify-end">
-            <div className="w-full md:w-auto flex items-center justify-center md:justify-end gap-2 flex-wrap">
-              {!!headerButtons.length && (
-                <div className="flex flex-wrap justify-center md:justify-end gap-2">
-                  <ButtonBar buttons={headerButtons} />
-                </div>
-              )}
+          {/* 3) Buttons with Info Dropdown included */}
+          <div className="flex-shrink-0 w-full lg:w-auto flex flex-wrap items-center justify-center lg:justify-end gap-1.5">
+            {!!headerButtons.length && (
+              <ButtonBar buttons={headerButtons} />
+            )}
 
-              {/* Info Dropdown */}
-              <div ref={guideRef} className="relative">
+            {/* Only render the Info button when on the "setup" tab */}
+            {activeTab === "setup" && (
+              <div ref={guideRef} className="relative z-[60]">
                 <button
                   onClick={() => setOpenGuide((v) => !v)}
-                  className="bg-blue-600 text-white h-7 w-16 sm:w-auto sm:h-8 sm:px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
+                  className="flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm"
                 >
                   <FontAwesomeIcon icon={faInfoCircle} className="text-[12px]" />
-                  <span className="sm:inline ml-1 text-[11px] font-medium">Info</span>
-                  <FontAwesomeIcon icon={faChevronDown} className="hidden sm:inline text-[10px] opacity-80" />
+                  <span className="hidden sm:inline ml-1">Info</span> {/* Updated */}
+                  <FontAwesomeIcon icon={faChevronDown} className="hidden sm:inline ml-1 text-[10px] opacity-80" />
                 </button>
 
                 {isOpenGuide && (
-                  <div className="absolute right-0 mt-2 w-52 rounded-md shadow-xl bg-white ring-1 ring-black/10 z-[60] dark:bg-gray-800 overflow-hidden">
+                  <div className="absolute right-0 mt-2 w-52 rounded-md shadow-xl bg-white ring-1 ring-black/10 z-[60] overflow-hidden">
                     <button
                       onClick={() => { window.open(pdfLink, "_blank"); setOpenGuide(false); }}
-                      className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900 border-b border-gray-100 dark:border-gray-700"
+                      className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 border-b border-gray-100 transition-colors"
                     >
                       <FontAwesomeIcon icon={faFilePdf} className="mr-2 text-red-500" /> PDF Guide
                     </button>
                     <button
                       onClick={() => { window.open(videoLink, "_blank"); setOpenGuide(false); }}
-                      className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900"
+                      className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 transition-colors"
                     >
                       <FontAwesomeIcon icon={faVideo} className="mr-2 text-blue-500" /> Video Guide
                     </button>
                   </div>
                 )}
               </div>
-
-            </div>
+            )}
           </div>
 
         </div>
@@ -858,8 +859,8 @@ const VendMast = () => {
       {/* ─────────────────────────────────────────────────────────────────── */}
 
       <div
-        className="global-tran-tab-div-ui mt-40 sm:mt-24"
-        style={{ minHeight: "calc(100vh - 170px)" }}
+        className={`global-tran-tab-div-ui mt-44 sm:mt-24 lg:mt-20 ${contentPadding} transition-all duration-300`}
+        style={{ minHeight: "calc(100vh - 120px)" }}
       >
         {activeTab === "setup" && (
           <PayeeSetupTab
@@ -903,7 +904,13 @@ const VendMast = () => {
           />
         )}
 
-        {activeTab === "ref" && <ReferenceCodesTab variant="vendor" />}
+        {activeTab === "ref" && (
+          <ReferenceCodesTab
+            ref={refTabRef}
+            onStateChange={setRefState}
+            variant="vendor"
+          />
+        )}
       </div>
 
       <AttachFileModal

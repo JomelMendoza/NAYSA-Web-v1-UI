@@ -39,20 +39,10 @@ import {
 
 
 import {
-  useTopVatRow,
-  useTopATCRow,
   useTopRCRow,
-  useTopAccountRow,
   useTopForexRate,
   useTopCurrencyRow,
-  useTopHSOption,
-  useTopCompanyRow,
   useTopDocControlRow,
-  useTopDocDropDown,
-  useTopVatAmount,
-  useTopATCAmount,
-  useTopBillCodeRow,
-  useTopBankMastRow,
 } from '@/NAYSA Cloud/Global/top1RefTable';
 
 
@@ -64,9 +54,9 @@ import {
 
 import {
   useGetCurrentDayV2,
-  useFormatToDate,
   useformatToDatev2
 } from '@/NAYSA Cloud/Global/dates';
+
 
 import DateFormatInput from '@/NAYSA Cloud/Global/DateFormatInput.jsx';
 
@@ -102,10 +92,10 @@ import { faAdd } from "@fortawesome/free-solid-svg-icons/faAdd";
 
 const ARDM = () => {
 
-    const loadedFromUrlRef = useRef(false);
+  const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation(); 
-  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded } = useAuth();
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded ,getAllTopATCRow, getAllTopVatRow,getAllTopVatAmount,getAllTopATCAmount } = useAuth();
   const [isViewDocument, setIsViewDocument] = useState(false);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
@@ -123,13 +113,13 @@ const ARDM = () => {
   const [state, setState] = useState({
 
     // HS Option
-    glCurrMode:"M",
+    glCurrMode:companyInfo?.glCurrMode||"",
     glCurrDefault:companyInfo?.currCode||"",
     withCurr2:false,
     withCurr3:false,
-    glCurrGlobal1:"",
-    glCurrGlobal2:"",
-    glCurrGlobal3:"",
+    glCurrGlobal1:companyInfo?.glCurrGlobal1||"",
+    glCurrGlobal2:companyInfo?.glCurrGlobal2||"",
+    glCurrGlobal3:companyInfo?.glCurrGlobal3||"",
 
 
     
@@ -555,29 +545,6 @@ useEffect(() => {
 
 
 
-      // 🔹 3. HS Options + Currency row (dependent chain)
-      const hsOption = await useTopHSOption();
-      if (hsOption) {
-        updateState({
-          glCurrMode: hsOption.glCurrMode,
-          glCurrDefault: hsOption.glCurrDefault,
-          currCode: hsOption.glCurrDefault,
-          glCurrGlobal1: hsOption.glCurrGlobal1,
-          glCurrGlobal2: hsOption.glCurrGlobal2,
-          glCurrGlobal3: hsOption.glCurrGlobal3,
-        });
-
-        const curr = await useTopCurrencyRow(hsOption.glCurrDefault);
-        if (curr) {
-          updateState({
-            currName: curr.currName,
-            currRate: formatNumber(1, 6),
-          });
-        }
-      }
-
-
- 
 
      const tbls = 'ardm_hd,ardm_dt1,ardm_dt2'
      const hdtblcol_result = await useFieldLenghtCheck(tbls);
@@ -656,6 +623,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       creditFx1: formatNumber(glRow.creditFx1),
       debitFx2: formatNumber(glRow.debitFx2),
       creditFx2: formatNumber(glRow.creditFx2),
+      slRefDate:useformatToDatev2(glRow.slRefDate),
     }));
 
   
@@ -1288,13 +1256,13 @@ if ((field === "vatCode" || field === "atcCode") || field === "appliedAmount") {
   const appliedAmt = parseFormattedNumber(row.appliedAmount);
 
   const vatAmt = row.vatCode
-    ? await useTopVatAmount(row.vatCode, appliedAmt)
+    ?  getAllTopVatAmount(row.vatCode, appliedAmt)
     : 0;
   row.vatAmount = formatNumber(vatAmt);
 
   const netOfVat = +(appliedAmt - vatAmt).toFixed(2);
   const atcAmt = row.atcCode
-    ? await useTopATCAmount(row.atcCode, netOfVat)
+    ?  getAllTopATCAmount(row.atcCode, netOfVat)
     : 0;
   row.atcAmount = formatNumber(atcAmt);
 }
@@ -1725,7 +1693,7 @@ const handleSaveAndPrint = async (documentID) => {
 const handleCloseVatModal = async (selectedVat) => { 
   if (selectedVat && selectedRowIndex !== null) {
     
-     const result = await useTopVatRow(selectedVat.vatCode);
+     const result =  getAllTopVatRow(selectedVat.vatCode);
       if (!result) return;
 
       accountModalSource !== null
@@ -1745,7 +1713,7 @@ const handleCloseVatModal = async (selectedVat) => {
 const handleCloseAtcModal = async (selectedAtc) => {
   if (selectedAtc && selectedRowIndex !== null) {  
 
-    const result = await useTopATCRow(selectedAtc.atcCode);
+    const result =  getAllTopATCRow(selectedAtc.atcCode);
       if (!result) return;
 
       accountModalSource !== null
@@ -1998,7 +1966,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                                 </>
                             ) : (<option value="">Loading Transaction Types...</option>)}
                         </select>
-                        <label htmlFor="ardmType" className="global-tran-floating-label">CR Type</label>
+                        <label htmlFor="ardmType" className="global-tran-floating-label">ARDM Type</label>
                         <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
                             <svg className="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -3150,13 +3118,15 @@ const handleCloseBranchModal = (selectedBranch) => {
                     />
                   </td>
                   <td className="global-tran-td-ui">
-                    <input
-                      type="date"
-                      className="w-[100px] global-tran-td-inputclass-ui"
-                      value={row.slRefDate || ""}
-                      readOnly={handleFieldBehavior("CWTReversal")}
-                      onChange={(e) => handleDetailChangeGL(index, 'slRefDate', e.target.value)}
-                    />
+
+                <DateFormatInput
+                   id={`slRefDate${index}`}
+                   value={row.slRefDate || ""}
+                   disabled={isFormDisabled}
+                   className="w-[100px] global-tran-td-inputclass-ui text-center pr-7"
+                   updateState={(updates) => {
+                   if (updates[`slRefDate${index}`] !== undefined) { handleDetailChangeGL(index,"slRefDate", updates[`slRefDate${index}`], false,); }}}
+                   />                 
 
                   </td>
                     <td className="global-tran-td-ui">

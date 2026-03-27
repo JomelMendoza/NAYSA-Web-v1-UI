@@ -13,8 +13,6 @@ export async function useTopUserRow(userCode) {
    
     if (response.success) {
       const responseData = JSON.parse(response.data[0].result);
-
-       console.log(responseData[0] )
       return responseData.length > 0 ? responseData[0] : null;
     }
     return null;
@@ -41,6 +39,25 @@ export async function useTopCompanyRow() {
   }
 }
 
+
+
+export async function useTopCompanyGlobalTables() {
+  try {
+    const response = await fetchData("getGlobalTables");
+ 
+    const resultString = response?.data?.[0]?.result;
+
+    if (!response?.success || !resultString) {
+      return null;
+    }
+
+    const responseData = JSON.parse(resultString);
+    return responseData;
+  } catch (error) {
+    console.error("Error fetching Company row:", error);
+    return null;
+  }
+}
 
 
 
@@ -294,16 +311,38 @@ export async function useTopBillTermRow(billtermCode) {
 
 
 
+// export async function useTopRCRow(rcCode) {
+//   if (!rcCode) return null;
+
+//   try {
+//     const response = await fetchData("getRCMast", { RC_CODE: rcCode });
+//     if (response.success) {
+//       const responseData = JSON.parse(response.data[0].result);
+//       return responseData.length > 0 ? responseData[0] : null;
+//     }
+//     return null;
+//   } catch (error) {
+//     console.error("Error fetching RC row:", error);
+//     return null;
+//   }
+// }
+
+
 export async function useTopRCRow(rcCode) {
   if (!rcCode) return null;
 
   try {
     const response = await fetchData("getRCMast", { RC_CODE: rcCode });
-    if (response.success) {
-      const responseData = JSON.parse(response.data[0].result);
-      return responseData.length > 0 ? responseData[0] : null;
-    }
-    return null;
+    if (!response?.success) return null;
+
+    const rawResult = response?.data?.[0]?.result;
+    if (!rawResult) return null;
+
+    const responseData = JSON.parse(rawResult);
+
+    if (!Array.isArray(responseData)) return null;
+
+    return responseData.length > 0 ? responseData[0] : null;
   } catch (error) {
     console.error("Error fetching RC row:", error);
     return null;
@@ -353,23 +392,42 @@ export async function useTopCutOffRow(cutoffCode) {
 
 
 
-
-
 export async function useTopAccountRow(acctCode) {
   if (!acctCode) return null;
 
   try {
     const response = await fetchData("getCOA", { ACCT_CODE: acctCode });
-    if (response.success) {
-      const responseData = JSON.parse(response.data[0].result);
-      return responseData.length > 0 ? responseData[0] : null;
-    }
-    return null;
+    if (!response?.success) return null;
+
+    const rawResult = response?.data?.[0]?.result;
+    if (!rawResult) return null;
+
+    const responseData = JSON.parse(rawResult);
+
+    if (!Array.isArray(responseData)) return null;
+
+    return responseData.length > 0 ? responseData[0] : null;
   } catch (error) {
     console.error("Error fetching Account row:", error);
     return null;
   }
 }
+
+// export async function useTopAccountRow(acctCode) {
+//   if (!acctCode) return null;
+
+//   try {
+//     const response = await fetchData("getCOA", { ACCT_CODE: acctCode });
+//     if (response.success) {
+//       const responseData = JSON.parse(response.data[0].result);
+//       return responseData.length > 0 ? responseData[0] : null;
+//     }
+//     return null;
+//   } catch (error) {
+//     console.error("Error fetching Account row:", error);
+//     return null;
+//   }
+// }
 
 
 
