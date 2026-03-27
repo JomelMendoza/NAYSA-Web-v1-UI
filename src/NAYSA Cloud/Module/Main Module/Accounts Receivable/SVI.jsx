@@ -950,34 +950,39 @@ const moveFocusBeforeSave = () => {
 
 
 
-
-const handleAddRowGL = () => {
-  updateState({
-      detailRowsGL: [
-        ...detailRowsGL,
-        {
-      acctCode: "",
-      rcCode: "",
-      sltypeCode:"CU",
-      slCode: "",
-      particulars: "",
-      vatCode: "",
-      vatName: "",
-      atcCode: "",
-      atcName: "",
-      debit: "0.00",
-      credit: "0.00",
-      debitFx1: "0.00",
-      creditFx1: "0.00",
-      debitFx2: "0.00",
-      creditFx2: "0.00",
-      slRefNo: "",
-      remarks: "",
-    }
-      ]
-    });
+const handleAddRowGL = (index = null) => {
+  const newRow = {
+    acctCode: "",
+    rcCode: "",
+    sltypeCode: "CU",
+    slCode: "",
+    particulars: "",
+    vatCode: "",
+    vatName: "",
+    atcCode: "",
+    atcName: "",
+    debit: "0.00",
+    credit: "0.00",
+    debitFx1: "0.00",
+    creditFx1: "0.00",
+    debitFx2: "0.00",
+    creditFx2: "0.00",
+    slRefNo: "",
+    remarks: "",
   };
 
+  const updatedRows = [...detailRowsGL];
+
+  if (index !== null && index >= 0) {
+    updatedRows.splice(index + 1, 0, newRow);
+  } else {
+    updatedRows.push(newRow);
+  }
+
+  updateState({
+    detailRowsGL: updatedRows,
+  });
+};
 
   
 
@@ -1770,9 +1775,17 @@ return (
         onDetails={() => setTopTab("details")}
         onHistory={() => setTopTab("history")}
         disableRouteNavigation={true}         
-        isSaveDisabled={isSaveDisabled} 
-        isResetDisabled={isResetDisabled} 
+ 
         detailsRoute="/page/SVI"
+
+        isSaveDisabled={state.isSaveDisabled || isFormDisabled} 
+        isResetDisabled={state.isResetDisabled}
+        isAttachDisabled={!documentID}
+
+
+        isPrintDisabled={!documentID || displayStatus === "CANCELLED"}
+        isCopyDisabled={!documentID || displayStatus === "CANCELLED"}
+        isCancelDisabled={!documentID || displayStatus === "CANCELLED" || displayStatus === "FINALIZED"}
       />
       </div>
 
@@ -1860,7 +1873,7 @@ return (
                               if (e.key === "Enter") {
                                 handleSviNoBlur();
                                 e.preventDefault(); 
-                                document.getElementById("SVIDate")?.focus();
+                                document.getElementById("documentDate")?.focus();
                               }}}
                             placeholder=" "
                             className={`peer global-tran-textbox-ui ${state.isDocNoDisabled ? 'bg-blue-100 cursor-not-allowed' : ''}`}
@@ -1884,21 +1897,12 @@ return (
 
                     {/* SVI Date Picker */}
                     <div className="relative">
-                        {/* <input type="date"
-                            id="SVIDate"
-                            className="peer global-tran-textbox-ui"
-                            value={documentDate}
-                            onChange={(e) => updateState({ documentDate: e.target.value })} 
-                            disabled={isFormDisabled} 
-                        /> */}
-
                     <DateFormatInput
                         id="documentDate"
                         value={documentDate}
                         updateState={updateState}
                         disabled={isFormDisabled}
                       />
-
                         <label htmlFor="documentDate" className="global-tran-floating-label">SVI Date</label>
                     </div>
 
@@ -3322,7 +3326,7 @@ return (
                       onChange={(e) => handleDetailChangeGL(index, 'slRefNo', e.target.value)}
                     />
                   </td>
-                  <td className="global-tran-td-ui">
+                  <td className="global-tran-td-ui">                 
                     <input
                       type="date"
                       className="w-[100px] global-tran-td-inputclass-ui"

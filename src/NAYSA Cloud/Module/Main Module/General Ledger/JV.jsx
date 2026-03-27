@@ -1542,11 +1542,7 @@ const JV = () => {
           onPost={handlePost}
           onCancel={handleCancel}
           onCopy={handleCopy}
-          // onAttach={handleAttach}
-          // onHistory={() => setTopTab("history")}
-          // isSaveDisabled={isSaveDisabled} // Pass disabled state
-          // isResetDisabled={isResetDisabled} // Pass disabled state
-
+       
           onAttach={handleAttach}
           activeTopTab={topTab}
           showActions={topTab === "details"}
@@ -1557,6 +1553,7 @@ const JV = () => {
           isSaveDisabled={isSaveDisabled}
           isResetDisabled={isResetDisabled}
           detailsRoute="/page/SOA"
+          isPrintDisabled={!documentID || displayStatus === "CANCELLED"}
         />
       </div>
 

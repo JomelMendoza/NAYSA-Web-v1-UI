@@ -55,11 +55,12 @@ import {
 
 
 import {
-  useGetCurrentDay,
+  useGetCurrentDayV2,
   useFormatToDate,
+  useformatToDatev2
 } from '@/NAYSA Cloud/Global/dates';
 
-
+import DateFormatInput from '@/NAYSA Cloud/Global/DateFormatInput.jsx';
 
 import {
   useUpdateRowGLEntries,
@@ -136,7 +137,7 @@ const SOA = () => {
     documentID: null,
     documentNo: "",
     documentStatus:"",
-    documentDate:useGetCurrentDay(),   
+    documentDate:useGetCurrentDayV2(),   
     status: "OPEN",
     noReprints:"0",
 
@@ -494,7 +495,7 @@ useEffect(() => {
       branchCode: currentUserRow?.branchCode||"",
       branchName: currentUserRow?.branchName||"",
       userCode:currentUserRow?.userCode||"",
-      documentDate:useGetCurrentDay(),
+      documentDate:useGetCurrentDayV2(),
       currCode:companyInfo?.currCode||"",
       glCurrDefault:companyInfo?.currCode||"",
       currName:companyInfo?.currName||"",
@@ -661,12 +662,14 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       documentNo: data.soaNo,
       branchCode: data.branchCode,
       branchName:data.branchName,
-      documentDate: useFormatToDate(data.soaDate), 
+      documentDate: useformatToDatev2(data.soaDate), 
       selectedSOAType: data.soatranType,
       custCode: data.custCode,
       custName: data.custName,
       refDocNo1: data.refDocNo1,
       refDocNo2: data.refDocNo2,
+      fromDate:useformatToDatev2(data.fromDate),
+      toDate:useformatToDatev2(data.toDate),
       currCode: data.currCode,
       currName: data.currName,
       currRate: formatNumber(data.currRate, 6),
@@ -954,33 +957,39 @@ const moveFocusBeforeSave = () => {
 };
 
 
-
-const handleAddRowGL = () => {
-  updateState({
-      detailRowsGL: [
-        ...detailRowsGL,
-        {
-      acctCode: "",
-      rcCode: "",
-      sltypeCode:"CU",
-      slCode: "",
-      particulars: "",
-      vatCode: "",
-      vatName: "",
-      atcCode: "",
-      atcName: "",
-      debit: "0.00",
-      credit: "0.00",
-      debitFx1: "0.00",
-      creditFx1: "0.00",
-      debitFx2: "0.00",
-      creditFx2: "0.00",
-      slRefNo: "",
-      remarks: "",
-    }
-      ]
-    });
+const handleAddRowGL = (index = null) => {
+  const newRow = {
+    acctCode: "",
+    rcCode: "",
+    sltypeCode: "CU",
+    slCode: "",
+    particulars: "",
+    vatCode: "",
+    vatName: "",
+    atcCode: "",
+    atcName: "",
+    debit: "0.00",
+    credit: "0.00",
+    debitFx1: "0.00",
+    creditFx1: "0.00",
+    debitFx2: "0.00",
+    creditFx2: "0.00",
+    slRefNo: "",
+    remarks: "",
   };
+
+  const updatedRows = [...detailRowsGL];
+
+  if (index !== null && index >= 0) {
+    updatedRows.splice(index + 1, 0, newRow);
+  } else {
+    updatedRows.push(newRow);
+  }
+
+  updateState({
+    detailRowsGL: updatedRows,
+  });
+};
 
 
   
@@ -1854,7 +1863,7 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                               if (e.key === "Enter") {
                                 handleSviNoBlur();
                                 e.preventDefault(); 
-                                document.getElementById("SOADate")?.focus();
+                                document.getElementById("documentDate")?.focus();
                               }}}
                             placeholder=" "
                             className={`peer global-tran-textbox-ui ${state.isDocNoDisabled ? 'bg-blue-100 cursor-not-allowed' : ''}`}
@@ -1877,14 +1886,13 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
 
                     {/* SOA Date Picker */}
                     <div className="relative">
-                        <input type="date"
-                            id="SOADate"
-                            className="peer global-tran-textbox-ui"
-                            value={documentDate}
-                            onChange={(e) => updateState({ documentDate: e.target.value })} 
-                            disabled={isFormDisabled} 
-                        />
-                        <label htmlFor="SOADate" className="global-tran-floating-label">SOA Date</label>
+                      <DateFormatInput
+                        id="documentDate"
+                        value={documentDate}
+                        updateState={updateState}
+                        disabled={isFormDisabled}
+                      />
+                        <label htmlFor="documentDate" className="global-tran-floating-label">SOA Date</label>
                     </div>
 
                     {/* Customer Code */}
@@ -2050,20 +2058,23 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                     </div>
 
                     <div className="relative">
-                        <input type="date"
-                            id="fromDate" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
-                            className="peer global-tran-textbox-ui"
-                            disabled={isFormDisabled} 
-                        />
+                        <DateFormatInput
+                        id="fromDate"
+                        value={fromDate}
+                        updateState={updateState}
+                        disabled={isFormDisabled}
+                        // onBlurCustom={}
+                      />
                         <label htmlFor="fromDate" className="global-tran-floating-label">From Date</label>
                     </div>
 
                     <div className="relative">
-                        <input type="date"
-                            id="toDate" value={toDate} onChange={(e) => setToDate(e.target.value)}
-                            className="peer global-tran-textbox-ui"
-                            disabled={isFormDisabled} 
-                        />
+                      <DateFormatInput
+                        id="toDate"
+                        value={toDate}
+                        updateState={updateState}
+                        disabled={isFormDisabled}
+                      />
                         <label htmlFor="toDate" className="global-tran-floating-label">To Date</label>
                     </div>
                 </div>
