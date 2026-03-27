@@ -1234,152 +1234,148 @@ useEffect(() => {
 
 
 
+
 const handleDetailChange = async (index, field, value, runCalculations = true) => {
-    const updatedRows = [...detailRows];
+  const updatedRows = [...detailRows];
 
-    updatedRows[index] = {
-      ...updatedRows[index],
-      [field]: value,
+  const originalRow = { ...updatedRows[index] };
+
+  updatedRows[index] = {
+    ...updatedRows[index],
+    [field]: value,
+  };
+
+  const row = updatedRows[index];
+
+  if (field === "vatCode") {
+    row.vatCode = value.vatCode;
+    row.vatAcct = value.acctCode;
+    row.vatName = value.vatName;
+  }
+
+  if (field === "atcCode") {
+    row.atcCode = value.atcCode;
+    row.atcName = value.atcName;
+  }
+
+  if (field === "billCode") {
+    row.billCode = value.billCode;
+    row.billName = value.billName;
+    row.uomCode = value.uomCode;
+    row.arAcct = value.arAcct;
+    row.salesAcct = value.salesAcct;
+    row.discAcct = value.sDiscAcct;
+    row.rcCode = value.rcCode;
+    row.quantity = "1.00";
+    row.grossAmount = "0.00";
+    row.unitPrice = "0.00";
+    row.vatAmount = "0.00";
+    row.atcAmount = "0.00";
+    row.amountDue = "0.00";
+    row.discRate = "0.00";
+    row.discAmount = "0.00";
+    row.sviAmount = "0.00";
+  }
+
+  if (["salesAcct", "arAcct", "vatAcct", "discAcct"].includes(field)) {
+    row[field] = value.acctCode;
+  }
+
+  if (field === "rcCode") {
+    row.rcCode = value.rcCode;
+  }
+
+  if (runCalculations) {
+    const origQuantity = parseFormattedNumber(row.quantity) || 0;
+    const origUnitPrice = parseFormattedNumber(row.unitPrice) || 0;
+    const origVatCode = row.vatCode || "";
+    const origAtcCode = row.atcCode || "";
+
+    async function recalcRow(newGrossAmt, newDiscAmount) {
+      const newNetDiscount = +(newGrossAmt - newDiscAmount).toFixed(2);
+      const newVatAmount = origVatCode ? getAllTopVatAmount(origVatCode, newNetDiscount) : 0;
+      const newNetOfVat = +(newNetDiscount - newVatAmount).toFixed(2);
+      const newATCAmount = origAtcCode ? getAllTopATCAmount(origAtcCode, newNetOfVat) : 0;
+      const newAmountDue = +(newNetDiscount - newATCAmount).toFixed(2);
+
+      row.grossAmount = formatNumber(newGrossAmt);
+      row.netDisc = formatNumber(newNetDiscount);
+      row.vatAmount = formatNumber(newVatAmount);
+      row.atcAmount = formatNumber(newATCAmount);
+      row.sviAmount = formatNumber(newAmountDue);
+      row.discAmount = formatNumber(newDiscAmount);
+      row.quantity = formatNumber(parseFormattedNumber(row.quantity));
+      row.unitPrice = formatNumber(parseFormattedNumber(row.unitPrice));
     }
-    
 
-     const row = updatedRows[index];
-
-      if (field === 'vatCode') {
-          row.vatCode = value.vatCode,
-          row.vatAcct = value.acctCode,
-          row.vatName = value.vatName;     
-        };
-
-      if (field === 'atcCode' ){
-          row.atcCode = value.atcCode,
-          row.atcName = value.atcName;     
-        };
-
-
-      if (field === 'billCode'){
-          row.billCode= value.billCode,
-          row.billName= value.billName,
-          row.uomCode=value.uomCode,
-          row.arAcct = value.arAcct,
-          row.salesAcct= value.salesAcct,
-          row.discAcct= value.sDiscAcct,
-          row.rcCode= value.rcCode,
-          row.quantity= "1.00",
-          row.grossAmount= "0.00",
-          row.unitPrice= "0.00",
-          row.vatAmount= "0.00",
-          row.atcAmount= "0.00",
-          row.amountDue= "0.00",
-          row.discRate= "0.00",
-          row.discAmount= "0.00",
-          row.sviAmount ="0.00"
-    };
-
-
-    if (['salesAcct', 'arAcct', 'vatAcct', 'discAcct'].includes(field)) {
-      row[field] = value.acctCode;
+    if (field === "quantity") {
+      const newQuantity = parseFormattedNumber(row.quantity) || 0;
+      const newGrossAmt = +(newQuantity * origUnitPrice).toFixed(2);
+      const discountRate = parseFormattedNumber(row.discRate) || 0;
+      const newDiscAmount = +(discountRate * newGrossAmt * 0.01).toFixed(2);
+      row.discAmount = newDiscAmount.toFixed(2);
+      await recalcRow(newGrossAmt, newDiscAmount);
     }
 
+    if (field === "unitPrice") {
+      const newPrice = parseFormattedNumber(row.unitPrice) || 0;
+      const newGrossAmt = +(origQuantity * newPrice).toFixed(2);
+      const discountRate = parseFormattedNumber(row.discRate) || 0;
+      const newDiscAmount = +(discountRate * newGrossAmt * 0.01).toFixed(2);
+      row.discAmount = newDiscAmount.toFixed(2);
+      await recalcRow(newGrossAmt, newDiscAmount);
+    }
 
+    if (field === "discRate") {
+      const newDiscRate = parseFormattedNumber(row.discRate) || 0;
+      const newGrossAmt = +(origQuantity * origUnitPrice).toFixed(2);
+      const newDiscAmount = +(newDiscRate * newGrossAmt * 0.01).toFixed(2);
+      row.discAmount = newDiscAmount.toFixed(2);
+      await recalcRow(newGrossAmt, newDiscAmount);
+    }
 
-    if (field === 'rcCode' ){
-          row.rcCode = value.rcCode   
-    };
+    if (field === "discAmount") {
+      const newDiscAmt = parseFormattedNumber(row.discAmount) || 0;
+      const newGrossAmt = +(origQuantity * origUnitPrice).toFixed(2);
+      const newDiscRate = newGrossAmt !== 0 ? +((newDiscAmt / newGrossAmt) * 100).toFixed(2) : 0;
+      row.discRate = newDiscRate.toFixed(2);
+      await recalcRow(newGrossAmt, newDiscAmt);
+    }
 
-
-
-
-
-    if (runCalculations) {  
-      const origQuantity = parseFormattedNumber(row.quantity) || 0;
-      const origUnitPrice = parseFormattedNumber(row.unitPrice) || 0;
-      const origDiscAmount = parseFormattedNumber(row.discAmount) || 0;
-      const origVatCode = row.vatCode || "";
-      const origAtcCode = row.atcCode || "";
-
-
-      // shared calculation logic
-      async function recalcRow(newGrossAmt, newDiscAmount) {
-        const newNetDiscount = +(newGrossAmt - newDiscAmount).toFixed(2);
-        const newVatAmount = origVatCode ?  getAllTopVatAmount(origVatCode, newNetDiscount) : 0;
-        const newNetOfVat = +(newNetDiscount - newVatAmount).toFixed(2);
-        const newATCAmount = origAtcCode ?  getAllTopATCAmount(origAtcCode, newNetOfVat) : 0;
-        const newAmountDue = +(newNetDiscount - newATCAmount).toFixed(2);
-
-
-        row.grossAmount = formatNumber(newGrossAmt);
-        row.netDisc = formatNumber(newNetDiscount);
-        row.vatAmount = formatNumber(newVatAmount);
-        row.atcAmount = formatNumber(newATCAmount);
-        row.sviAmount = formatNumber(newAmountDue);
-        row.discAmount = formatNumber(newDiscAmount);
-        row.quantity = formatNumber(parseFormattedNumber (row.quantity));
-        row.unitPrice = formatNumber(parseFormattedNumber (row.unitPrice));
-      }
-
-      if (field === 'quantity') {
-        const newQuantity = parseFormattedNumber(row.quantity) || 0;
-        const newGrossAmt = +(newQuantity * origUnitPrice).toFixed(2);
-        const discountRate = parseFormattedNumber(row.discRate) || 0;
-        const newDiscAmount = +(discountRate * newGrossAmt * 0.01).toFixed(2);
-        row.discAmount = newDiscAmount.toFixed(2);
-        await recalcRow(newGrossAmt, newDiscAmount);
-      }
-
-      if (field === 'unitPrice') {
-        const newPrice = parseFormattedNumber(row.unitPrice) || 0;
-        const newGrossAmt = +(origQuantity * newPrice).toFixed(2);
-        const discountRate = parseFormattedNumber(row.discRate) || 0;
-        const newDiscAmount = +(discountRate * newGrossAmt * 0.01).toFixed(2);
-        row.discAmount = newDiscAmount.toFixed(2);
-        await recalcRow(newGrossAmt, newDiscAmount);
-      }
-
-      if (field === 'discRate') {
-        const newDiscRate = parseFormattedNumber(row.discRate) || 0;
-        const newGrossAmt = +(origQuantity * origUnitPrice).toFixed(2);
-        const newDiscAmount = +(newDiscRate * newGrossAmt * 0.01).toFixed(2);
-        row.discAmount = newDiscAmount.toFixed(2);
-        await recalcRow(newGrossAmt, newDiscAmount);
-      }
-
-      if (field === 'discAmount') {
-        const newDiscAmt = parseFormattedNumber(row.discAmount) || 0;
-        const newGrossAmt = +(origQuantity * origUnitPrice).toFixed(2);
-        const newDiscRate = +((newDiscAmt / newGrossAmt) * 100).toFixed(2);
-        row.discRate = newDiscRate.toFixed(2);
-        await recalcRow(newGrossAmt, newDiscAmt);
-      }
-
-
-    if (field === 'vatCode' || field === 'atcCode') {
+    if (field === "vatCode" || field === "atcCode") {
       async function updateVatAndAtc() {
-        const newNetDiscount = +(parseFormattedNumber(row.grossAmount) - parseFormattedNumber(row.discAmount)).toFixed(2);
+        const newNetDiscount = +(
+          parseFormattedNumber(row.grossAmount) - parseFormattedNumber(row.discAmount)
+        ).toFixed(2);
+
         let newVatAmount = parseFormattedNumber(row.vatAmount) || 0;
 
-        if (field === 'vatCode') {
-          newVatAmount = row.vatCode ?  getAllTopVatAmount(row.vatCode, newNetDiscount) : 0;
+        if (field === "vatCode") {
+          newVatAmount = row.vatCode ? getAllTopVatAmount(row.vatCode, newNetDiscount) : 0;
           row.vatAmount = newVatAmount.toFixed(2);
         }
 
         const newNetOfVat = +(newNetDiscount - newVatAmount).toFixed(2);
-        const newATCAmount = row.atcCode ?  getAllTopATCAmount(row.atcCode, newNetOfVat) : 0;
+        const newATCAmount = row.atcCode ? getAllTopATCAmount(row.atcCode, newNetOfVat) : 0;
 
         row.atcAmount = newATCAmount.toFixed(2);
-        row.sviAmount = +(newNetDiscount - newATCAmount).toFixed(2);
+        row.sviAmount = formatNumber(newNetDiscount - newATCAmount);
       }
 
       await updateVatAndAtc();
     }
-
-
   }
 
-    updatedRows[index] = row;
-    updateState({ detailRows: updatedRows });
-    updateTotals(updatedRows);
+  updatedRows[index] = row;
 
+  const hasChanges = JSON.stringify(originalRow) !== JSON.stringify(row);
+
+  updateState({
+    detailRows: updatedRows,
+    ...(hasChanges ? { detailRowsGL: [] } : {}),
+  });
+
+  updateTotals(updatedRows);
 };
 
 

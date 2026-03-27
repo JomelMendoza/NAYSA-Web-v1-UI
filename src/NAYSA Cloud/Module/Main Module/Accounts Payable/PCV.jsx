@@ -1192,6 +1192,220 @@ useEffect(() => {
 
 
 
+// const handleDetailChange = async (
+//   index,
+//   field,
+//   value,
+//   runCalculations = true,
+//   validateLookup = false
+// ) => {
+//   const updatedRows = [...detailRows];
+
+//   updatedRows[index] = {
+//     ...updatedRows[index],
+//     [field]: value,
+//   };
+
+//   const row = updatedRows[index];
+
+//   if (field === "vatCode") {
+//     row.vatCode = value?.vatCode || "";
+//     row.vatName = value?.vatName || "";
+//   }
+
+//   if (field === "vatName") {
+//     row.vatCode = "";
+//     row.vatName = "";
+//   }
+
+//   if (field === "atcCode") {
+//     row.atcCode = value?.atcCode || "";
+//     row.atcName = value?.atcName || "";
+//   }
+
+//   if (field === "atcName") {
+//     row.atcCode = "";
+//     row.atcName = "";
+//   }
+
+//   if (field === "vendCode") {
+//     const isManualInput = typeof value === "string";
+
+//     if (isManualInput) {
+//       row.vendCode = value;
+//     } else if (value?.vendCode) {
+//       const vendResponse = await postRequest(
+//         "addPayeeDetail",
+//         JSON.stringify({ json_data: { vendCode: value.vendCode } })
+//       );
+
+//       const parsedResult = JSON.parse(vendResponse?.data?.[0]?.result || "[]");
+//       const vendRow = Array.isArray(parsedResult) ? parsedResult[0] : null;
+
+//       if (vendRow) {
+//         const {
+//           vendCode,
+//           vendName,
+//           atcCode,
+//           atcName,
+//           vatCode,
+//           vatName,
+//           address1,
+//           address2,
+//           address3,
+//           tin,
+//         } = vendRow;
+
+//         Object.assign(row, {
+//           vendCode: vendCode || "",
+//           vendName: vendName || "",
+//           atcCode: atcCode || "",
+//           atcName: atcName || "",
+//           vatCode: vatCode || "",
+//           vatName: vatName || "",
+//           address1: address1 || "",
+//           address2: address2 || "",
+//           address3: address3 || "",
+//           tin: tin || "",
+//         });
+
+//         row.origAmount = "0.00";
+//         row.vatAmount = "0.00";
+//         row.atcAmount = "0.00";
+//         row.netAmount = "0.00";
+//       }
+//     }
+//   }
+
+
+//   if (field === "drAcct") {
+//   const acctCode = typeof value === "string" ? value : value?.acctCode || "";
+//   const currentDrAcct = row.drAcct || "";
+
+//   if (!validateLookup) {
+//     row.drAcct = acctCode;
+//   } else {
+//     if (!acctCode) {
+//       // already blank, do nothing to avoid duplicate validation/message
+//       if (currentDrAcct) {
+//         row.drAcct = "";
+//       }
+//     } else {
+//       const acctResult = await useTopAccountRow(acctCode);
+
+//       if (acctResult) {
+//         row.drAcct = acctResult.acctCode || acctCode;
+//       } else {
+//         const shouldAlert = !!currentDrAcct || !!acctCode;
+
+//         row.drAcct = "";
+
+//         if (shouldAlert) {
+//           useSwalErrorAlert("Validation", "Account Code does not exist.");
+//         }
+//       }
+//     }
+//   }
+// }
+
+// if (field === "rcCode") {
+//   const rcCode = typeof value === "string" ? value : value?.rcCode || "";
+//   const currentRcCode = row.rcCode || "";
+
+//   if (!validateLookup) {
+//     row.rcCode = rcCode;
+//     if (typeof value !== "string") {
+//       row.rcName = value?.rcName || "";
+//     }
+//   } else {
+//     if (!rcCode) {
+//       // already blank, do nothing to avoid duplicate validation/message
+//       if (currentRcCode) {
+//         row.rcCode = "";
+//         row.rcName = "";
+//       }
+//     } else {
+//       const rcResult = await useTopRCRow(rcCode);
+
+//       if (rcResult) {
+//         row.rcCode = rcResult.rcCode || "";
+//         row.rcName = rcResult.rcName || "";
+//       } else {
+//         const shouldAlert = !!currentRcCode || !!rcCode;
+
+//         row.rcCode = "";
+//         row.rcName = "";
+
+//         if (shouldAlert) {
+//           useSwalErrorAlert("Validation", "RC Code does not exist.");
+//         }
+//       }
+//     }
+//   }
+// }
+
+
+//   if (runCalculations) {
+//     const origVatCode = row.vatCode || "";
+//     const origAtcCode = row.atcCode || "";
+
+//     async function recalcRow(newOrigAmount) {
+//       const newVatAmount = origVatCode ? getAllTopVatAmount(origVatCode, newOrigAmount) : 0;
+//       const newNetOfVat = +(newOrigAmount - newVatAmount).toFixed(2);
+//       const newATCAmount = origAtcCode ? getAllTopATCAmount(origAtcCode, newNetOfVat) : 0;
+//       const newNetAmount = +(newOrigAmount - newATCAmount).toFixed(2);
+
+//       row.vatAmount = formatNumber(newVatAmount);
+//       row.atcAmount = formatNumber(newATCAmount);
+//       row.netAmount = formatNumber(newNetAmount);
+//       row.origAmount = formatNumber(newOrigAmount);
+//     }
+
+//     if (field === "origAmount") {
+//       const newOrigAmount = parseFormattedNumber(row.origAmount) || 0;
+//       await recalcRow(newOrigAmount);
+//     }
+
+//     if (
+//       field === "vatCode" ||
+//       field === "atcCode" ||
+//       field === "atcName" ||
+//       field === "vatName"
+//     ) {
+//       async function updateVatAndAtc() {
+//         const origAmount = +(parseFormattedNumber(row.origAmount) || 0).toFixed(2);
+//         let newVatAmount = parseFormattedNumber(row.vatAmount) || 0;
+
+//         if (field === "vatCode" || field === "vatName") {
+//           newVatAmount = row.vatCode ? getAllTopVatAmount(row.vatCode, origAmount) : 0;
+//           row.vatAmount = newVatAmount.toFixed(2);
+//         }
+
+//         const newNetOfVat = +(origAmount - newVatAmount).toFixed(2);
+//         const newATCAmount = row.atcCode ? getAllTopATCAmount(row.atcCode, newNetOfVat) : 0;
+
+//         row.atcAmount = newATCAmount.toFixed(2);
+//         row.netAmount = +(origAmount - newATCAmount).toFixed(2);
+//       }
+
+//       await updateVatAndAtc();
+//     }
+//   }
+
+//   updatedRows[index] = row;
+
+//   updateState({
+//     detailRows: updatedRows,
+//     isLoading: false,
+//     detailRowsGL: [],
+//   });
+
+//   updateTotals(updatedRows);
+// };
+
+
+
+
 const handleDetailChange = async (
   index,
   field,
@@ -1200,6 +1414,8 @@ const handleDetailChange = async (
   validateLookup = false
 ) => {
   const updatedRows = [...detailRows];
+
+  const originalRow = { ...updatedRows[index] };
 
   updatedRows[index] = {
     ...updatedRows[index],
@@ -1277,82 +1493,82 @@ const handleDetailChange = async (
     }
   }
 
-
   if (field === "drAcct") {
-  const acctCode = typeof value === "string" ? value : value?.acctCode || "";
-  const currentDrAcct = row.drAcct || "";
+    const acctCode = typeof value === "string" ? value : value?.acctCode || "";
+    const currentDrAcct = row.drAcct || "";
 
-  if (!validateLookup) {
-    row.drAcct = acctCode;
-  } else {
-    if (!acctCode) {
-      // already blank, do nothing to avoid duplicate validation/message
-      if (currentDrAcct) {
-        row.drAcct = "";
-      }
+    if (!validateLookup) {
+      row.drAcct = acctCode;
     } else {
-      const acctResult = await useTopAccountRow(acctCode);
-
-      if (acctResult) {
-        row.drAcct = acctResult.acctCode || acctCode;
+      if (!acctCode) {
+        if (currentDrAcct) {
+          row.drAcct = "";
+        }
       } else {
-        const shouldAlert = !!currentDrAcct || !!acctCode;
+        const acctResult = await useTopAccountRow(acctCode);
 
-        row.drAcct = "";
+        if (acctResult) {
+          row.drAcct = acctResult.acctCode || acctCode;
+        } else {
+          const shouldAlert = !!currentDrAcct || !!acctCode;
 
-        if (shouldAlert) {
-          useSwalErrorAlert("Validation", "Account Code does not exist.");
+          row.drAcct = "";
+
+          if (shouldAlert) {
+            useSwalErrorAlert("Validation", "Account Code does not exist.");
+          }
         }
       }
     }
   }
-}
 
-if (field === "rcCode") {
-  const rcCode = typeof value === "string" ? value : value?.rcCode || "";
-  const currentRcCode = row.rcCode || "";
+  if (field === "rcCode") {
+    const rcCode = typeof value === "string" ? value : value?.rcCode || "";
+    const currentRcCode = row.rcCode || "";
 
-  if (!validateLookup) {
-    row.rcCode = rcCode;
-    if (typeof value !== "string") {
-      row.rcName = value?.rcName || "";
-    }
-  } else {
-    if (!rcCode) {
-      // already blank, do nothing to avoid duplicate validation/message
-      if (currentRcCode) {
-        row.rcCode = "";
-        row.rcName = "";
+    if (!validateLookup) {
+      row.rcCode = rcCode;
+      if (typeof value !== "string") {
+        row.rcName = value?.rcName || "";
       }
     } else {
-      const rcResult = await useTopRCRow(rcCode);
-
-      if (rcResult) {
-        row.rcCode = rcResult.rcCode || "";
-        row.rcName = rcResult.rcName || "";
+      if (!rcCode) {
+        if (currentRcCode) {
+          row.rcCode = "";
+          row.rcName = "";
+        }
       } else {
-        const shouldAlert = !!currentRcCode || !!rcCode;
+        const rcResult = await useTopRCRow(rcCode);
 
-        row.rcCode = "";
-        row.rcName = "";
+        if (rcResult) {
+          row.rcCode = rcResult.rcCode || "";
+          row.rcName = rcResult.rcName || "";
+        } else {
+          const shouldAlert = !!currentRcCode || !!rcCode;
 
-        if (shouldAlert) {
-          useSwalErrorAlert("Validation", "RC Code does not exist.");
+          row.rcCode = "";
+          row.rcName = "";
+
+          if (shouldAlert) {
+            useSwalErrorAlert("Validation", "RC Code does not exist.");
+          }
         }
       }
     }
   }
-}
-
 
   if (runCalculations) {
     const origVatCode = row.vatCode || "";
     const origAtcCode = row.atcCode || "";
 
     async function recalcRow(newOrigAmount) {
-      const newVatAmount = origVatCode ? getAllTopVatAmount(origVatCode, newOrigAmount) : 0;
+      const newVatAmount = origVatCode
+        ? getAllTopVatAmount(origVatCode, newOrigAmount)
+        : 0;
       const newNetOfVat = +(newOrigAmount - newVatAmount).toFixed(2);
-      const newATCAmount = origAtcCode ? getAllTopATCAmount(origAtcCode, newNetOfVat) : 0;
+      const newATCAmount = origAtcCode
+        ? getAllTopATCAmount(origAtcCode, newNetOfVat)
+        : 0;
       const newNetAmount = +(newOrigAmount - newATCAmount).toFixed(2);
 
       row.vatAmount = formatNumber(newVatAmount);
@@ -1377,12 +1593,16 @@ if (field === "rcCode") {
         let newVatAmount = parseFormattedNumber(row.vatAmount) || 0;
 
         if (field === "vatCode" || field === "vatName") {
-          newVatAmount = row.vatCode ? getAllTopVatAmount(row.vatCode, origAmount) : 0;
+          newVatAmount = row.vatCode
+            ? getAllTopVatAmount(row.vatCode, origAmount)
+            : 0;
           row.vatAmount = newVatAmount.toFixed(2);
         }
 
         const newNetOfVat = +(origAmount - newVatAmount).toFixed(2);
-        const newATCAmount = row.atcCode ? getAllTopATCAmount(row.atcCode, newNetOfVat) : 0;
+        const newATCAmount = row.atcCode
+          ? getAllTopATCAmount(row.atcCode, newNetOfVat)
+          : 0;
 
         row.atcAmount = newATCAmount.toFixed(2);
         row.netAmount = +(origAmount - newATCAmount).toFixed(2);
@@ -1394,14 +1614,18 @@ if (field === "rcCode") {
 
   updatedRows[index] = row;
 
+  const hasChanges = JSON.stringify(originalRow) !== JSON.stringify(row);
+
   updateState({
     detailRows: updatedRows,
     isLoading: false,
-    detailRowsGL: [],
+    ...(hasChanges ? { detailRowsGL: [] } : {}),
   });
 
   updateTotals(updatedRows);
 };
+
+
 
 
 const handleDetailChangeGL = async (index, field, value) => {
