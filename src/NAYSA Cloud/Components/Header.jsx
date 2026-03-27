@@ -154,7 +154,7 @@ const Header = ({
               disabled={isSaveDisabled}
               className={`px-3 py-2 text-xs font-medium rounded-md text-white transition-all duration-200 ${
                 isSaveDisabled
-                  ? "bg-blue-600 dark:bg-blue-800 opacity-50 cursor-not-allowed"
+                  ? "bg-blue-600 dark:bg-blue-800 opacity-65 cursor-not-allowed"
                   : "bg-blue-600 hover:bg-blue-700 dark:bg-blue-800 dark:hover:bg-blue-700"
               }`}
             >
@@ -166,7 +166,7 @@ const Header = ({
               disabled={isResetDisabled}
               className={`px-3 py-2 text-xs font-medium rounded-md text-white transition-all duration-200 ${
                 isResetDisabled
-                  ? "bg-blue-600 dark:bg-blue-800 opacity-50 cursor-not-allowed"
+                  ? "bg-blue-600 dark:bg-blue-800 opacity-65 cursor-not-allowed"
                   : "bg-blue-600 hover:bg-blue-700 dark:bg-blue-800 dark:hover:bg-blue-700"
               }`}
             >
@@ -179,7 +179,7 @@ const Header = ({
                 disabled={isCopyDisabled}
                 className={`px-3 py-2 text-xs font-medium rounded-md text-white transition-all duration-200 ${
                   isCopyDisabled
-                    ? "bg-blue-600 dark:bg-blue-800 opacity-50 cursor-not-allowed"
+                    ? "bg-blue-600 dark:bg-blue-800 opacity-65 cursor-not-allowed"
                     : "bg-blue-600 hover:bg-blue-700 dark:bg-blue-800 dark:hover:bg-blue-700"
                 }`}
               >
@@ -206,7 +206,7 @@ const Header = ({
                 className={`px-3 py-2 text-xs font-medium rounded-md text-white transition-all duration-200 ${
                   isPrintDisabled 
                     // Removed blur-[2px], kept opacity and cursor-not-allowed
-                    ? "bg-blue-600 dark:bg-blue-800 opacity-50 cursor-not-allowed" 
+                    ? "bg-blue-600 dark:bg-blue-800 opacity-65 cursor-not-allowed" 
                     : "bg-blue-600 hover:bg-blue-700 dark:bg-blue-800 dark:hover:bg-blue-700"
                 }`}
               >
@@ -218,7 +218,7 @@ const Header = ({
               disabled={isAttachDisabled}
               className={`px-3 py-2 text-xs font-medium rounded-md text-white transition-all duration-200 ${
                 isAttachDisabled
-                  ? "bg-blue-600 dark:bg-blue-800 opacity-50 cursor-not-allowed"
+                  ? "bg-blue-600 dark:bg-blue-800 opacity-65 cursor-not-allowed"
                   : "bg-blue-600 hover:bg-blue-700 dark:bg-blue-800 dark:hover:bg-blue-700"
               }`}
             >

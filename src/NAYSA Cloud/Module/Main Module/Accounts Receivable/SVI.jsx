@@ -1779,13 +1779,13 @@ return (
         detailsRoute="/page/SVI"
 
         isSaveDisabled={state.isSaveDisabled || isFormDisabled} 
-        isResetDisabled={state.isResetDisabled || isFormDisabled}
+        isResetDisabled={state.isResetDisabled}
+        isAttachDisabled={!documentID}
 
 
-        isPrintDisabled={!documentID || displayStatus === "CANCELLED"}  //disable print 
+        isPrintDisabled={!documentID || displayStatus === "CANCELLED"}
         isCopyDisabled={!documentID || displayStatus === "CANCELLED"}
-        isAttachDisabled={!documentID || displayStatus === "CANCELLED"}
-        isCancelDisabled={!documentID || displayStatus === "CANCELLED"}
+        isCancelDisabled={!documentID || displayStatus === "CANCELLED" || displayStatus === "FINALIZED"}
       />
       </div>
 
