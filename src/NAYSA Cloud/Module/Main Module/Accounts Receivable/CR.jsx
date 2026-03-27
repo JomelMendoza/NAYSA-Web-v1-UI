@@ -56,9 +56,12 @@ import {
 
 
 import {
-  useGetCurrentDay,
+  useGetCurrentDayV2,
   useFormatToDate,
+  useformatToDatev2
 } from '@/NAYSA Cloud/Global/dates';
+
+import DateFormatInput from '@/NAYSA Cloud/Global/DateFormatInput.jsx';
 
 
 
@@ -93,7 +96,7 @@ import {
   parseFormattedNumber,
   useSwalshowSaveSuccessDialog,
   useSwalvalidateRequiredFields
-} from '@/NAYSA Cloud/Global/behavior';
+} from '@/NAYSA Cloud/Global/behavior.jsx';
 
 
 import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
@@ -143,7 +146,7 @@ const CR = () => {
     documentID: null,
     documentNo: "",
     documentStatus:"",
-    documentDate:useGetCurrentDay(),
+    documentDate:useGetCurrentDayV2(),
     status: "OPEN",
     noReprints:"0",
 
@@ -550,7 +553,7 @@ useEffect(() => {
       branchCode: currentUserRow?.branchCode||"",
       branchName: currentUserRow?.branchName||"",
       userCode:currentUserRow?.userCode ||"",
-      documentDate:useGetCurrentDay(),
+      documentDate:useGetCurrentDayV2(),
       currCode:companyInfo?.currCode||"",
       currName:companyInfo?.currName||"",
       currRate:formatNumber(companyInfo?.currRate||1,6) ,
@@ -745,7 +748,7 @@ const fetchTranData = async (documentNo, branchCode,direction="") => {
       documentNo: data.crNo,
       branchCode: data.branchCode,
       branchName: data.branchName,
-      documentDate: useFormatToDate(data.crDate),
+      documentDate: useformatToDatev2(data.crDate),
       selectedCRType: data.crtranType,
       selectedPayType:data.paymentType,
       selectedCheckType:data.ckType,
@@ -759,7 +762,7 @@ const fetchTranData = async (documentNo, branchCode,direction="") => {
       refDocNo1: data.refDocNo1,
       refDocNo2: data.refDocNo2,
       checkNo:data.checkNo,
-      checkDate:data.checkDate,
+      checkDate:useformatToDatev2(data.checkDate),
       bank:data.bank,
       currCode: data.currCode,
       currName: data.currName,
@@ -814,7 +817,24 @@ const handleCurrRateNoBlur = (e) => {
 
 
 
+ 
+const moveFocusBeforeSave = () => {
+  const remarksEl = document.getElementById("remarks");
+  if (remarksEl) {
+    remarksEl.focus();
+    return true;
+  }
+  return false;
+};
+
+
+
  const handleActivityOption = async (action) => {
+  if (action === "Upsert") {
+      moveFocusBeforeSave();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
   if (action === "Upsert" && detailRowsGL.length === 0) {
     updateState({ triggerGLEntries: true });
     return;
@@ -1048,33 +1068,39 @@ const handleCurrRateNoBlur = (e) => {
 
 
 
-
-const handleAddRowGL = () => {
-  updateState({
-      detailRowsGL: [
-        ...detailRowsGL,
-        {
-      acctCode: "",
-      rcCode: "",
-      sltypeCode:"CU",
-      slCode: "",
-      particulars: "",
-      vatCode: "",
-      vatName: "",
-      atcCode: "",
-      atcName: "",
-      debit: "0.00",
-      credit: "0.00",
-      debitFx1: "0.00",
-      creditFx1: "0.00",
-      debitFx2: "0.00",
-      creditFx2: "0.00",
-      slRefNo: "",
-      remarks: "",
-    }
-      ]
-    });
+const handleAddRowGL = (index = null) => {
+  const newRow = {
+    acctCode: "",
+    rcCode: "",
+    sltypeCode: "CU",
+    slCode: "",
+    particulars: "",
+    vatCode: "",
+    vatName: "",
+    atcCode: "",
+    atcName: "",
+    debit: "0.00",
+    credit: "0.00",
+    debitFx1: "0.00",
+    creditFx1: "0.00",
+    debitFx2: "0.00",
+    creditFx2: "0.00",
+    slRefNo: "",
+    remarks: "",
   };
+
+  const updatedRows = [...detailRowsGL];
+
+  if (index !== null && index >= 0) {
+    updatedRows.splice(index + 1, 0, newRow);
+  } else {
+    updatedRows.push(newRow);
+  }
+
+  updateState({
+    detailRowsGL: updatedRows,
+  });
+};
 
 
   
@@ -1184,7 +1210,7 @@ const handleCopy = async () => {
                   documentID:"",
                   documentStatus:"",
                   status:"OPEN",
-                  documentDate:useGetCurrentDay(), 
+                  documentDate:useGetCurrentDayV2(), 
                   noReprints:"0",
      });
   }
@@ -2069,7 +2095,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                               if (e.key === "Enter") {
                                 handleCrNoBlur();
                                 e.preventDefault(); 
-                                document.getElementById("crDate")?.focus();
+                                document.getElementById("documentDate")?.focus();
                               }}}
                             placeholder=" "
                             className={`peer global-tran-textbox-ui ${state.isDocNoDisabled ? 'bg-blue-100 cursor-not-allowed' : ''}`}
@@ -2092,13 +2118,12 @@ const handleCloseBranchModal = (selectedBranch) => {
 
                     {/* SVI Date Picker */}
                     <div className="relative">
-                        <input type="date"
-                            id="crDate"
-                            className="peer global-tran-textbox-ui"
-                            value={documentDate}
-                            onChange={(e) => updateState({ documentDate: e.target.value })} 
-                            disabled={isFormDisabled} 
-                        />
+                       <DateFormatInput
+                        id="documentDate"
+                        value={documentDate}
+                        updateState={updateState}
+                        disabled={isFormDisabled}
+                      />
                         <label htmlFor="crDate" className="global-tran-floating-label">CR Date</label>
                     </div>
 
@@ -2477,13 +2502,12 @@ const handleCloseBranchModal = (selectedBranch) => {
                     </div>
 
                     <div className="relative">
-                        <input type="date"
-                            id="checkDate" 
-                            value={checkDate} 
-                            onChange={(e) => updateState({ checkDate: e.target.value })} 
-                            className="peer global-tran-textbox-ui"
+                          <DateFormatInput
+                            id="checkDate"
+                            value={checkDate}
+                            updateState={updateState}
                             disabled={handleFieldBehavior("disableOnNonCheckPay")} 
-                        />
+                          />                                                                     
                         <label htmlFor="checkDate" className="global-tran-floating-label">Check Date</label>
                     </div>
 
@@ -3103,7 +3127,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                 <th className="global-tran-th-ui w-[2000px]">Particulars</th>
                 <th className="global-tran-th-ui">VAT Code</th>
                 <th className="global-tran-th-ui">VAT Name</th>
-                <th className="global-tran-th-ui">ATC Code</th>
+                <th className="global-tran-th-ui">ATC</th>
                 <th className="global-tran-th-ui ">ATC Name</th>
 
                 <th className="global-tran-th-ui">Debit ({glCurrDefault})</th>

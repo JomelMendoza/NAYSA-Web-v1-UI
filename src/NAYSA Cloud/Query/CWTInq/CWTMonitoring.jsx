@@ -936,22 +936,22 @@ const doGenerateCWTReversal = useCallback(
               <span className="hidden lg:inline ml-2">Reset</span>
             </button>
 
-            <button
+            {/* <button
               onClick={() => onAction("print")}
               className="px-3 py-2 text-xs font-medium rounded-md text-white bg-blue-600 hover:opacity-90"
             >
               <FontAwesomeIcon icon={faPrint} />{" "}
               <span className="hidden lg:inline ml-2">Print</span>
-            </button>
+            </button> */}
 
             {/* EXPORT: simple button (no dropdown) */}
-            <button
+            {/* <button
               onClick={() => onAction("export-query")}
               className="px-3 py-2 text-xs font-medium rounded-md text-white bg-blue-600 hover:opacity-90 flex items-center"
             >
               <FontAwesomeIcon icon={faFileExport} />
               <span className="hidden lg:inline ml-2">Export</span>
-            </button>
+            </button> */}
 
             {/* ACTION: dropdown */}
             <div className="relative" ref={generateMenuRef}>
@@ -1310,17 +1310,18 @@ const doGenerateCWTReversal = useCallback(
 
       {/* Detailed Table ONLY */}
       <div className="global-tran-tab-div-ui">
-        <div className="global-tran-tab-nav-ui">
-          <div className="flex flex-row sm:flex-row">
+        {/* <div className="global-tran-tab-nav-ui"> */}
+          {/* <div className="flex flex-row sm:flex-row"> */}
             <button className="global-tran-tab-padding-ui global-tran-tab-text_active-ui">
               Detailed
             </button>
-          </div>
-        </div>
+          {/* </div> */}
+        {/* </div> */}
 
-        <div className="global-tran-table-main-div-ui">
+      <div className="global-tran-table-main-div-ui mt-4">
           <div className="max-h-[600px] overflow-y-auto relative">
             <SearchGlobalReportTable
+              docType={`CWT Monitoring`}
               ref={tableRef}
               columns={colsWithActions}
               data={rows}

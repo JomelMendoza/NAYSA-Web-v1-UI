@@ -1,5 +1,5 @@
 // src/NAYSA Cloud/Reference File/VendMast.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 import Swal from "sweetalert2";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -13,19 +13,33 @@ import {
   faUndo,
   faPenToSquare,
   faTrash,
+  faInfoCircle,
+  faChevronDown,
+  faFilePdf,
+  faVideo
 } from "@fortawesome/free-solid-svg-icons";
 
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import ButtonBar from "@/NAYSA Cloud/Global/ButtonBar";
 import AttachFileModal from "@/NAYSA Cloud/Lookup/AttachFileModal.jsx";
 
-import { useSwalErrorAlert, useSwalValidationAlert, useSwalSuccessAlert, useSwalErrorAlertAPI, useSwalDeleteConfirm, useSwalDeleteRecord } from "@/NAYSA Cloud/Global/behavior.jsx";
+// Import Guides
+import { reftables, reftablesPDFGuide, reftablesVideoGuide } from "@/NAYSA Cloud/Global/reftable";
+
+import { 
+  useSwalErrorAlert, 
+  useSwalValidationAlert, 
+  useSwalSuccessAlert, 
+  useSwalErrorAlertAPI, 
+  useSwalDeleteConfirm, 
+  useSwalDeleteRecord 
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 import PayeeSetupTab from "@/NAYSA Cloud/Master Data/CustMastTabs/PayeeSetupTab";
 import PayeeMasterDataTab from "@/NAYSA Cloud/Master Data/CustMastTabs/PayeeMasterDataTab";
 import ReferenceCodesTab from "@/NAYSA Cloud/Master Data/CustMastTabs/ReferenceCodesTab";
 
 /* -------------------- CODE SERIES -------------------- */
-const SL_PREFIX = { AG: "AG", CU: "CU", EM: "EM", OT: "OT", SU: "SU", TN: "TN" };
+const SL_CHAR = { AG: "A", CU: "C", EM: "E", OT: "O", SU: "S", TN: "T" };
 
 const normalizeSlType = (v) => {
   const s = String(v ?? "").toUpperCase().trim();
@@ -40,15 +54,20 @@ const normalizeSlType = (v) => {
   return s;
 };
 
-const generateNextPayeeCode = (rows = [], sltypeCode = "SU") => {
+// Construct the 2-letter prefix (e.g., "S" + "S" = "SS", "S" + "U" = "SU")
+const getPayeePrefix = (sltypeCode, mode) => {
   const sl = normalizeSlType(sltypeCode) || "SU";
-  const prefix = SL_PREFIX[sl] || sl;
+  const slChar = SL_CHAR[sl] || sl.charAt(0);
+  return `${slChar}${mode}`; 
+};
+
+const generateNextPayeeCode = (rows = [], sltypeCode = "SU", mode = "S") => {
+  const prefix = getPayeePrefix(sltypeCode, mode);
 
   const candidates = (Array.isArray(rows) ? rows : [])
-    .filter((r) => normalizeSlType(r?.sltypeCode) === sl)
     .map((r) => String(r?.vendCode ?? "").trim())
     .filter(Boolean)
-    .filter((code) => code.startsWith(prefix));
+    .filter((code) => code.toUpperCase().startsWith(prefix.toUpperCase()));
 
   if (!candidates.length) return `${prefix}000001`;
 
@@ -107,6 +126,17 @@ const emptyForm = {
 };
 
 const VendMast = () => {
+  // 'M' = User Defined, 'U' = Auto Assigned, 'S' = System Generated
+  // TODO: Tie this to your backend system configuration settings in the future.
+  const [generationMode, setGenerationMode] = useState("U");
+
+  // Document Info Guide State
+  const docType = "VendMast"; // Change this if your reftable.js uses a different key for Payee Master
+  const guideRef = useRef(null);
+  const pdfLink = reftablesPDFGuide?.[docType] || "#";
+  const videoLink = reftablesVideoGuide?.[docType] || "#";
+  const [isOpenGuide, setOpenGuide] = useState(false);
+
   const [activeTab, setActiveTab] = useState("setup");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -127,7 +157,36 @@ const VendMast = () => {
   const [masterAllRows, setMasterAllRows] = useState([]);
   const [masterRows, setMasterRows] = useState([]);
 
-  const updateForm = (patch) => setForm((p) => ({ ...p, ...patch }));
+  // Close Info Dropdown when clicking outside
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (guideRef.current && !guideRef.current.contains(e.target)) {
+        setOpenGuide(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+    };
+  }, []);
+
+  // Handles updating the form and auto-assigning codes if mode is 'U'
+  const updateForm = (patch) => {
+    setForm((prev) => {
+      const updated = { ...prev, ...patch };
+
+      if (patch.sltypeCode !== undefined && patch.sltypeCode !== prev.sltypeCode) {
+        if (prev.__isNew && generationMode === "U") {
+          const newSl = normalizeSlType(patch.sltypeCode) || "SU";
+          const nextCode = generateNextPayeeCode(masterAllRows, newSl, "U");
+          updated.vendCode = nextCode;
+          updated.custCode = nextCode;
+        }
+      }
+
+      return updated;
+    });
+  };
 
   const showValidation = async (title, lines) => {
     const msg = Array.isArray(lines) ? lines.join("\n") : String(lines || "");
@@ -410,7 +469,10 @@ const VendMast = () => {
         return;
       }
 
-      await useSwalDeleteRecord("Payee");
+      await useSwalDeleteRecord(
+        "Deleted", 
+        `Payee Code ${code} has been successfully removed.`
+      );
 
       setForm({ ...emptyForm });
       setSelectedVendCode("");
@@ -430,7 +492,21 @@ const VendMast = () => {
   };
 
   const upsertVendor = async () => {
-    const code = String(form?.vendCode || form?.custCode || "").trim();
+    let code = String(form?.vendCode || form?.custCode || "").trim();
+    const isAddMode = !selectedVendCode;
+
+    // SCENARIO 1 & 3 LOGIC
+    if (isAddMode) {
+      if (generationMode === "M" && !code) {
+        await showValidation("Required", ["• Please enter a User Defined Payee Code."]);
+        return;
+      }
+      
+      if (generationMode === "S" && !code) {
+        const sl = normalizeSlType(form.sltypeCode || "SU");
+        code = generateNextPayeeCode(masterAllRows, sl, "S");
+      }
+    }
 
     setIsLoading(true);
     try {
@@ -478,8 +554,6 @@ const VendMast = () => {
       const payload = {
         json_data: JSON.stringify(jsonData),
       };
-
-      const isAddMode = !selectedVendCode;
 
       if (isAddMode) {
         const isDuplicate = await checkDuplicateVendor(code);
@@ -570,7 +644,12 @@ const VendMast = () => {
 
   const handleAdd = () => {
     const sl = normalizeSlType(form?.sltypeCode || "SU") || "SU";
-    const nextCode = generateNextPayeeCode(masterAllRows, sl);
+    
+    let nextCode = "";
+    // SCENARIO 2 LOGIC
+    if (generationMode === "U") {
+      nextCode = generateNextPayeeCode(masterAllRows, sl, "U");
+    }
 
     setSelectedVendCode("");
     setForm({
@@ -741,6 +820,36 @@ const VendMast = () => {
                   <ButtonBar buttons={headerButtons} />
                 </div>
               )}
+
+              {/* Info Dropdown */}
+              <div ref={guideRef} className="relative">
+                <button
+                  onClick={() => setOpenGuide((v) => !v)}
+                  className="bg-blue-600 text-white h-7 w-16 sm:w-auto sm:h-8 sm:px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
+                >
+                  <FontAwesomeIcon icon={faInfoCircle} className="text-[12px]" />
+                  <span className="sm:inline ml-1 text-[11px] font-medium">Info</span>
+                  <FontAwesomeIcon icon={faChevronDown} className="hidden sm:inline text-[10px] opacity-80" />
+                </button>
+
+                {isOpenGuide && (
+                  <div className="absolute right-0 mt-2 w-52 rounded-md shadow-xl bg-white ring-1 ring-black/10 z-[60] dark:bg-gray-800 overflow-hidden">
+                    <button
+                      onClick={() => { window.open(pdfLink, "_blank"); setOpenGuide(false); }}
+                      className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900 border-b border-gray-100 dark:border-gray-700"
+                    >
+                      <FontAwesomeIcon icon={faFilePdf} className="mr-2 text-red-500" /> PDF Guide
+                    </button>
+                    <button
+                      onClick={() => { window.open(videoLink, "_blank"); setOpenGuide(false); }}
+                      className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900"
+                    >
+                      <FontAwesomeIcon icon={faVideo} className="mr-2 text-blue-500" /> Video Guide
+                    </button>
+                  </div>
+                )}
+              </div>
+
             </div>
           </div>
 
@@ -757,6 +866,7 @@ const VendMast = () => {
             isLoading={isLoading}
             isEditing={isEditing}
             form={form}
+            generationMode={generationMode}
             sltypeOptions={[
               { value: "AG", label: "AGENCY" },
               { value: "EM", label: "EMPLOYEE" },

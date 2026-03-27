@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Save, Undo2, Edit, Trash2, Info } from "lucide-react";
+import { Plus, Save, Undo2 } from "lucide-react";
 
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
@@ -209,9 +209,9 @@ const DForexRef = ({ onSelect }) => {
 
   const docType = "DForexRef";
   const documentTitle = reftables?.[docType] || "Daily Forex Reference";
-    const guideRef = useRef(null);
-    const pdfLink = reftablesPDFGuide?.[docType];
-    const videoLink = reftablesVideoGuide?.[docType];
+  const guideRef = useRef(null);
+  const pdfLink = reftablesPDFGuide?.[docType];
+  const videoLink = reftablesVideoGuide?.[docType];
 
   const fromDateRef = useRef(null);
 
@@ -222,7 +222,13 @@ const DForexRef = ({ onSelect }) => {
 
   const [isCurr1ModalOpen, setCurr1ModalOpen] = useState(false);
   const [isCurr2ModalOpen, setCurr2ModalOpen] = useState(false);
-    const [isOpenGuide, setOpenGuide] = useState(false);
+  const [isOpenGuide, setOpenGuide] = useState(false);
+
+  // --- MOBILE ACTION SHEET STATES ---
+  const [isMobile, setIsMobile] = useState(false);
+  const [isMobileActionSheetMounted, setIsMobileActionSheetMounted] = useState(false);
+  const [isMobileActionSheetOpen, setIsMobileActionSheetOpen] = useState(false);
+  const [selectedMobileRow, setSelectedMobileRow] = useState(null);
 
   const setField = (key, value) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -244,6 +250,33 @@ const DForexRef = ({ onSelect }) => {
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   });
+
+  // --- MOBILE DETECTOR EFFECT ---
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // --- MOBILE ACTION SHEET HANDLERS ---
+  const openMobileActionSheet = useCallback((row) => {
+    setSelectedMobileRow(row);
+    setIsMobileActionSheetMounted(true);
+
+    requestAnimationFrame(() => {
+      setIsMobileActionSheetOpen(true);
+    });
+  }, []);
+
+  const closeMobileActionSheet = useCallback(() => {
+    setIsMobileActionSheetOpen(false);
+
+    setTimeout(() => {
+      setIsMobileActionSheetMounted(false);
+      setSelectedMobileRow(null);
+    }, 300);
+  }, []);
 
   /* ================= QUERIES ================= */
 
@@ -421,6 +454,7 @@ const DForexRef = ({ onSelect }) => {
       setIsEditing(true);
       setSelectedRow(rawRow);
       onSelect?.(finalRecord);
+      closeMobileActionSheet(); // ensure it closes if opened from action sheet
     } catch (error) {
       useSwalErrorAlert(
         "Error",
@@ -454,6 +488,7 @@ const DForexRef = ({ onSelect }) => {
     if (!confirm?.isConfirmed) return;
 
     deleteMutation.mutate(tranID);
+    closeMobileActionSheet(); // ensure it closes if opened from action sheet
   };
 
   const handleRowClick = (row) => {
@@ -543,7 +578,7 @@ const DForexRef = ({ onSelect }) => {
     () => [
       {
         key: "__actions",
-        label: "Actions",
+        label: <span className="hidden md:inline">Actions</span>,
         sortable: false,
         render: (row) => (
           <div className="flex items-center justify-center gap-3">
@@ -551,22 +586,34 @@ const DForexRef = ({ onSelect }) => {
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                handleEdit(row);
+                if (isMobile) {
+                  openMobileActionSheet(row);
+                } else {
+                  handleEdit(row);
+                }
               }}
-              className="rounded-md border border-blue-200 bg-blue-50 p-1 text-blue-600 transition-colors hover:bg-blue-600 hover:text-white"
+              className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-blue-50 border border-blue-100 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-colors text-xs"
+              title="Edit"
             >
-              <Edit size={16} />
+              <FontAwesomeIcon icon={faEdit} />
+              <span className="md:hidden">Edit</span>
             </button>
 
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                handleDelete(row);
+                if (isMobile) {
+                  openMobileActionSheet(row);
+                } else {
+                  handleDelete(row);
+                }
               }}
-              className="rounded-md border border-red-200 bg-red-50 p-1 text-red-600 transition-colors hover:bg-red-600 hover:text-white"
+              className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-red-50 border border-red-100 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors text-xs"
+              title="Delete"
             >
-              <Trash2 size={16} />
+              <FontAwesomeIcon icon={faTrashAlt} />
+              <span className="md:hidden">Delete</span>
             </button>
           </div>
         ),
@@ -602,7 +649,7 @@ const DForexRef = ({ onSelect }) => {
         render: (row) => row.currRate2 ?? row.CURR_RATE2 ?? "",
       },
     ],
-    []
+    [handleEdit, handleDelete, isMobile, openMobileActionSheet]
   );
 
   /* ================= RENDER ================= */
@@ -623,7 +670,7 @@ const DForexRef = ({ onSelect }) => {
             }`}
             disabled={isEditing || isBusy}
           >
-            <Plus size={16} /> Add
+            <Plus size={16} /> <span className="hidden sm:inline">Add</span>
           </button>
 
           <button
@@ -638,7 +685,7 @@ const DForexRef = ({ onSelect }) => {
             title="Ctrl+S to Save"
           >
             <Save size={16} />
-            Save
+            <span className="hidden sm:inline">Save</span>
           </button>
 
           <button
@@ -649,56 +696,56 @@ const DForexRef = ({ onSelect }) => {
             }`}
             disabled={isBusy}
           >
-            <Undo2 size={16} /> Reset
+            <Undo2 size={16} /> <span className="hidden sm:inline">Reset</span>
           </button>
 
           {/* Info Dropdown */}
-                          <div ref={guideRef} className="relative">
-                            <button
-                              onClick={() => setOpenGuide((v) => !v)}
-                              className="bg-blue-600 text-white h-7 w-16 sm:w-auto sm:h-8 sm:px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
-                            >
-                              <FontAwesomeIcon icon={faInfoCircle} className="text-[12px]" />
-                              <span className="sm:inline ml-1 text-[11px] font-medium">
-                                Info
-                              </span>
-                              <FontAwesomeIcon
-                                icon={faChevronDown}
-                                className="hidden sm:inline text-[10px] opacity-80"
-                              />
-                            </button>
-                
-                            {isOpenGuide && (
-                              <div className="absolute right-0 mt-2 w-52 rounded-md shadow-xl bg-white ring-1 ring-black/10 z-[60] dark:bg-gray-800 overflow-hidden">
-                                <button
-                                  onClick={() => {
-                                    window.open(pdfLink, "_blank");
-                                    setOpenGuide(false);
-                                  }}
-                                  className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900 border-b border-gray-100 dark:border-gray-700"
-                                >
-                                  <FontAwesomeIcon
-                                    icon={faFilePdf}
-                                    className="mr-2 text-red-500"
-                                  />{" "}
-                                  PDF Guide
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    window.open(videoLink, "_blank");
-                                    setOpenGuide(false);
-                                  }}
-                                  className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900"
-                                >
-                                  <FontAwesomeIcon
-                                    icon={faVideo}
-                                    className="mr-2 text-blue-500"
-                                  />{" "}
-                                  Video Guide
-                                </button>
-                              </div>
-                            )}
-                          </div>
+          <div ref={guideRef} className="relative">
+            <button
+              onClick={() => setOpenGuide((v) => !v)}
+              className="bg-blue-600 text-white h-full sm:h-8 sm:px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all px-3"
+            >
+              <FontAwesomeIcon icon={faInfoCircle} className="text-[12px]" />
+              <span className="hidden sm:inline ml-1 text-[11px] font-medium">
+                Info
+              </span>
+              <FontAwesomeIcon
+                icon={faChevronDown}
+                className="hidden sm:inline text-[10px] opacity-80"
+              />
+            </button>
+            
+            {isOpenGuide && (
+              <div className="absolute right-0 mt-2 w-52 rounded-md shadow-xl bg-white ring-1 ring-black/10 z-[60] dark:bg-gray-800 overflow-hidden">
+                <button
+                  onClick={() => {
+                    window.open(pdfLink, "_blank");
+                    setOpenGuide(false);
+                  }}
+                  className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900 border-b border-gray-100 dark:border-gray-700"
+                >
+                  <FontAwesomeIcon
+                    icon={faFilePdf}
+                    className="mr-2 text-red-500"
+                  />{" "}
+                  PDF Guide
+                </button>
+                <button
+                  onClick={() => {
+                    window.open(videoLink, "_blank");
+                    setOpenGuide(false);
+                  }}
+                  className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900"
+                >
+                  <FontAwesomeIcon
+                    icon={faVideo}
+                    className="mr-2 text-blue-500"
+                  />{" "}
+                  Video Guide
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -830,13 +877,70 @@ const DForexRef = ({ onSelect }) => {
                 showColumnChooser={true}
                 showAutoFitToggle={true}
                 showGroupBy={true}
-                isFetching={forexListQuery.isFetching} // Added UI sync
-                onRefresh={() => forexListQuery.refetch()} // Added manual refresh
+                isFetching={forexListQuery.isFetching}
+                onRefresh={() => forexListQuery.refetch()}
+                onMobileRowOpen={openMobileActionSheet} // Piped into global table!
               />
             </div>
           </div>
         </div>
       </div>
+
+      {/* MOBILE ACTION SHEET COMPONENT */}
+      {isMobileActionSheetMounted && (
+        <div className="fixed inset-0 z-[120] md:hidden">
+          <div
+            className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${
+              isMobileActionSheetOpen ? "opacity-100" : "opacity-0"
+            }`}
+            onClick={closeMobileActionSheet}
+          />
+
+          <div
+            className={`absolute bottom-0 left-0 right-0 rounded-t-2xl bg-white shadow-2xl p-4 transform transition-transform duration-300 ease-out ${
+              isMobileActionSheetOpen ? "translate-y-0" : "translate-y-full"
+            }`}
+          >
+            <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4" />
+
+            <div className="mb-3">
+              <h2 className="text-sm font-bold text-gray-800">Forex Actions</h2>
+              <p className="text-xs text-gray-500">
+                {selectedMobileRow?.currCode} to {selectedMobileRow?.currCode2}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <button
+                onClick={() => handleEdit(selectedMobileRow)}
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-blue-50 text-blue-600 py-3 text-sm font-medium hover:bg-blue-600 hover:text-white transition-colors"
+              >
+                <FontAwesomeIcon icon={faEdit} />
+                Edit
+              </button>
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete(selectedMobileRow);
+                }}
+                className="w-full flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-red-50 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors text-xs"
+                title="Delete"
+              >
+                <FontAwesomeIcon icon={faTrashAlt} />
+                <span className="md:hidden">Delete</span>
+              </button>
+
+              <button
+                onClick={closeMobileActionSheet}
+                className="w-full rounded-lg bg-gray-100 text-gray-700 py-3 text-sm font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <SearchCurrencyRef
         isOpen={isCurr1ModalOpen}

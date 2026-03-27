@@ -60,10 +60,14 @@ import {
   useGetFieldLength,
 } from '@/NAYSA Cloud/Global/procedure';
 
+
 import {
-  useGetCurrentDay,
+  useGetCurrentDayV2,
   useFormatToDate,
+  useformatToDatev2
 } from '@/NAYSA Cloud/Global/dates';
+
+import DateFormatInput from '@/NAYSA Cloud/Global/DateFormatInput.jsx';
 
 
 
@@ -76,7 +80,7 @@ import {
   formatNumber,
   parseFormattedNumber,
   useSwalshowSaveSuccessDialog,
-} from '@/NAYSA Cloud/Global/behavior';
+} from '@/NAYSA Cloud/Global/behavior.jsx';
 
 
 import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
@@ -125,7 +129,7 @@ const PCV = () => {
     documentDocLen: 8,
     documentID: null,
     documentNo: "",
-    documentDate:useGetCurrentDay(),    
+    documentDate:useGetCurrentDayV2(),    
     documentStatus:"",
     status: "OPEN",
 
@@ -452,12 +456,12 @@ useEffect(() => {
       branchCode: currentUserRow?.branchCode||"",
       branchName: currentUserRow?.branchName||"",
       userCode:currentUserRow?.userCode||"",
-      documentDate:useGetCurrentDay(),
+      documentDate:useGetCurrentDayV2(),
       currCode:companyInfo?.currCode||"",
       glCurrDefault:companyInfo?.currCode||"",
       currName:companyInfo?.currName||"",
       currRate:formatNumber(companyInfo?.currRate||1,6) ,
-      documentDate:useGetCurrentDay(),
+
       
       refDocNo1: "",
       refDocNo2:"",
@@ -620,7 +624,7 @@ const fetchTranData = async (documentNo, branchCode,direction="") => {
       documentNo: data.pcvNo,
       branchCode: data.branchCode,
       branchName:data.branchName,
-      documentDate: useFormatToDate(data.pcvDate), 
+      documentDate: useformatToDatev2(data.pcvDate), 
       selectedPCVType: data.pcvtranType,
       vendCode: data.vendCode,
       vendName: data.vendName,
@@ -674,7 +678,24 @@ const handleCurrRateNoBlur = (e) => {
 
 
 
+
+const moveFocusBeforeSave = () => {
+  const remarksEl = document.getElementById("remarks");
+  if (remarksEl) {
+    remarksEl.focus();
+    return true;
+  }
+  return false;
+};
+
+
+
  const handleActivityOption = async (action) => {
+  if (action === "Upsert") {
+      moveFocusBeforeSave();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
   if (action === "Upsert" && detailRowsGL.length === 0) {
     updateState({ triggerGLEntries: true });
     return;
@@ -821,48 +842,66 @@ const handleCurrRateNoBlur = (e) => {
 };
 
 
-  const handleAddRow = async () => {
+
+const handleAddRow = async (index = null) => {
   try {
     const items = await handleFetchDetail(vendCode);
     const itemList = Array.isArray(items) ? items : [items];
-    const newRows = await Promise.all(itemList.map(async (item) => {
 
-      return {
-        lnNo: "",
-        vendCode: "",
-        vendName: "",
-        origAmount:"0.00",
-        drAcct: "",
-        rcCode: "",
-        rcName: "",
-        vatCode: item.vatCode || "",
-        vatName: item.vatName || "",
-        vatAmount: "0.00",
-        atcCode: item.atcCode || "",
-        atcName: item.atcName || "",
-        netAmount: "0.00",
-        address1: "",
-        address2: "",
-        address3: "",
-        tin: "",
-        remarks: ""
-      };
-    }));
+    const newRows = await Promise.all(
+      itemList.map(async (item) => {
+        return {
+          lnNo: "",
+          vendCode: "",
+          vendName: "",
+          origAmount: "0.00",
+          drAcct: "",
+          rcCode: "",
+          rcName: "",
+          vatCode: item.vatCode || "",
+          vatName: item.vatName || "",
+          vatAmount: "0.00",
+          atcCode: item.atcCode || "",
+          atcName: item.atcName || "",
+          netAmount: "0.00",
+          address1: "",
+          address2: "",
+          address3: "",
+          tin: "",
+          remarks: "",
+        };
+      })
+    );
 
-      const updatedRows = [...detailRows, ...newRows];
-      updateState({ detailRows: updatedRows,
-                    detailRowsGL: []
-       });
-      updateTotals(updatedRows);
+    const updatedRows = [...detailRows];
 
+    if (index !== null && index >= 0) {
+      updatedRows.splice(index + 1, 0, ...newRows);
+    } else {
+      updatedRows.push(...newRows);
+    }
+
+    updateState({
+      detailRows: updatedRows,
+      detailRowsGL: [],
+    });
+
+    updateTotals(updatedRows);
 
     setTimeout(() => {
       const tableContainer = document.querySelector('.max-h-\\[430px\\]');
       if (tableContainer) {
-        tableContainer.scrollTop = tableContainer.scrollHeight;
+        if (index !== null && index >= 0) {
+          const rowElements = tableContainer.querySelectorAll("tbody tr");
+          const targetRow = rowElements[index + 1];
+          if (targetRow) {
+            targetRow.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          }
+        } else {
+          tableContainer.scrollTop = tableContainer.scrollHeight;
+        }
       }
     }, 100);
-
   } catch (error) {
     console.error("Error adding new row:", error);
     alert("Failed to add new row. Please select a Payee first.");
@@ -871,34 +910,39 @@ const handleCurrRateNoBlur = (e) => {
 
 
 
-
-
-const handleAddRowGL = () => {
-  updateState({
-      detailRowsGL: [
-        ...detailRowsGL,
-        {
-      acctCode: "",
-      rcCode: "",
-      sltypeCode:"SU",
-      slCode: "",
-      particulars: "",
-      vatCode: "",
-      vatName: "",
-      atcCode: "",
-      atcName: "",
-      debit: "0.00",
-      credit: "0.00",
-      debitFx1: "0.00",
-      creditFx1: "0.00",
-      debitFx2: "0.00",
-      creditFx2: "0.00",
-      slRefNo: "",
-      remarks: "",
-    }
-      ]
-    });
+const handleAddRowGL = (index = null) => {
+  const newRow = {
+    acctCode: "",
+    rcCode: "",
+    sltypeCode: "SU",
+    slCode: "",
+    particulars: "",
+    vatCode: "",
+    vatName: "",
+    atcCode: "",
+    atcName: "",
+    debit: "0.00",
+    credit: "0.00",
+    debitFx1: "0.00",
+    creditFx1: "0.00",
+    debitFx2: "0.00",
+    creditFx2: "0.00",
+    slRefNo: "",
+    remarks: "",
   };
+
+  const updatedRows = [...detailRowsGL];
+
+  if (index !== null && index >= 0) {
+    updatedRows.splice(index + 1, 0, newRow);
+  } else {
+    updatedRows.push(newRow);
+  }
+
+  updateState({
+    detailRowsGL: updatedRows,
+  });
+};
 
 
   
@@ -1014,7 +1058,7 @@ const handleCopy = async () => {
                   documentStatus:"",
                   status:"OPEN",
                   detailRows: updatedRows,
-                  documentDate:useGetCurrentDay(),
+                  documentDate:useGetCurrentDayV2(),
                   noReprints:"0",
                   detailRowsGL:[],
                 
@@ -1697,7 +1741,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                           if (e.key === "Enter") {
                             handlePcvNoBlur();
                             e.preventDefault(); 
-                            document.getElementById("PCVDate")?.focus();
+                            document.getElementById("documentDate")?.focus();
                           }}}
                         placeholder=" "
                         className={`peer global-tran-textbox-ui ${state.isDocNoDisabled ? 'bg-blue-100 cursor-not-allowed' : ''}`}
@@ -1720,13 +1764,12 @@ const handleCloseBranchModal = (selectedBranch) => {
 
                 {/* SVI Date Picker */}
                 <div className="relative">
-                    <input type="date"
-                        id="PCVDate"
-                        className="peer global-tran-textbox-ui"
-                        value={documentDate}
-                        onChange={(e) => updateState({ documentDate: e.target.value })} 
-                        disabled={isFormDisabled} 
-                    />
+                      <DateFormatInput
+                         id="documentDate"
+                         value={documentDate}
+                         updateState={updateState}
+                         disabled={isFormDisabled}
+                       />  
                     <label htmlFor="PCVDate" className="global-tran-floating-label">PCV Date</label>
                 </div>         
             </div>
@@ -2451,7 +2494,7 @@ const handleCloseBranchModal = (selectedBranch) => {
             <th className="global-tran-th-ui w-[2000px]">Particulars</th>
             <th className="global-tran-th-ui">VAT Code</th>
             <th className="global-tran-th-ui">VAT Name</th>
-            <th className="global-tran-th-ui">ATC Code</th>
+            <th className="global-tran-th-ui">ATC</th>
             <th className="global-tran-th-ui ">ATC Name</th>
 
             <th className="global-tran-th-ui">Debit ({glCurrDefault})</th>

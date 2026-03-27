@@ -61,10 +61,14 @@ import {
   useGetFieldLength,
 } from "@/NAYSA Cloud/Global/procedure";
 
+
 import {
-  useGetCurrentDay,
+  useGetCurrentDayV2,
   useFormatToDate,
+  useformatToDatev2
 } from '@/NAYSA Cloud/Global/dates';
+
+import DateFormatInput from '@/NAYSA Cloud/Global/DateFormatInput.jsx';
 
 import { useHandlePrint } from "@/NAYSA Cloud/Global/report";
 import {
@@ -129,8 +133,8 @@ const JO = () => {
     documentStatus: "",
     status: "",
     originalDocStatus:"O",
-    documentDate:useGetCurrentDay(),  
-    dateNeeded:useGetCurrentDay(),  
+    documentDate:useGetCurrentDayV2(),  
+    dateNeeded:useGetCurrentDayV2(),  
 
    
     // UI state
@@ -423,7 +427,7 @@ useEffect(() => {
       currCode:companyInfo?.currCode||"",
       currName:companyInfo?.currName||"",
       currRate:formatNumber(companyInfo?.currRate||1,6) ,
-      documentDate:useGetCurrentDay(),
+      documentDate:useGetCurrentDayV2(),
       prNo: "", 
       rcCode: "",
       rcName: "",
@@ -667,7 +671,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       documentNo: data.joNo,
       branchCode: data.branchCode,
       branchName:data.branchName,
-      documentDate: useFormatToDate(data.joDate),
+      documentDate: useformatToDatev2(data.joDate),
       rcCode: data.rcCode,
       rcName: data.rcName,
       payeeCode: data.payeeCode,
@@ -1020,7 +1024,7 @@ const handleDeleteRow = (index) => {
 const handleCopy = async () => {
   if (detailRows.length === 0) return;
 
-  const currentDay = useGetCurrentDay(); 
+  const currentDay = useGetCurrentDayV2(); 
   const cleanedRows = detailRows.map(row => ({ 
     ...row, 
     groupId: "", 
@@ -1520,7 +1524,7 @@ const handleClosePRLookup = async (selection) => {
                                if (e.key === "Enter") {
                                  handleDocNoBlur();
                                  e.preventDefault(); 
-                                 document.getElementById("joDate")?.focus();
+                                 document.getElementById("documentDate")?.focus();
                                }}}
                              placeholder=" "
                              className={`peer global-tran-textbox-ui ${state.isDocNoDisabled ? 'bg-blue-100 cursor-not-allowed' : ''}`}
@@ -1543,19 +1547,12 @@ const handleClosePRLookup = async (selection) => {
 
                 {/* PR Date */}
                 <div className="relative">
-                  <input
-                    type="date"
-                    id="documentDate"
-                    className="peer global-tran-textbox-ui"
-                    value={state.documentDate}
-                    onChange={(e) =>
-                      setHeader((prev) => ({
-                        ...prev,
-                        pr_date: e.target.value,
-                      }))
-                    }
-                    disabled={isFormDisabled}
-                  />
+                    <DateFormatInput
+                        id="documentDate"
+                        value={documentDate}
+                        updateState={updateState}
+                        disabled={isFormDisabled}
+                      />
                   <label
                     htmlFor="documentDate"
                     className="global-tran-floating-label"

@@ -766,7 +766,7 @@ export const useSwalDeleteSuccess = () => {
 
 export const useSwalDeleteRecord = (
   title = "Deleted",
-  message = "Bank Type record has been removed."
+  message = "Record deleted Successfully."
 ) => {
   return Swal.fire({
     toast: true,
@@ -872,6 +872,8 @@ export const useSwalConfirmAlert = (title = "Are you sure?", message = "") => {
   });
 };
 
+
+
 export const useSwalHandleOpenSpecsModal = (
   index,
   detailRows,
@@ -913,6 +915,7 @@ export const useSwalHandleOpenSpecsModal = (
     buttonsStyling: false,
     customClass: {
       popup: "rounded-xl shadow-2xl border border-slate-200 overflow-hidden",
+      // Added -mt-1 to raise the X slightly, kept the slate hover effect
       closeButton: "text-slate-400 hover:text-slate-600 focus:outline-none scale-75 -mt-1", 
       input: "m-0",
       actions: "flex justify-center px-5 mt-2",
@@ -948,126 +951,3 @@ export const useSwalHandleOpenSpecsModal = (
     }
   });
 };
-
-
-
-// export const useSwalHandleOpenSpecsModal = (
-//   index,
-//   detailRows,
-//   handleDetailChange,
-//   rowValue,
-//   rowTitle,
-//   rowName,
-//   placeHolderValue
-// ) => {
-//   Swal.fire({
-//     title: "",
-//     html: `
-//       <div style="
-//         margin: -16px -16px 8px -16px;
-//         background: #bfdbfe;
-//         padding: 12px 16px;
-//         border-radius: 16px 16px 0 0;
-//         box-sizing: border-box;
-//       ">
-//         <div style="
-//           color: #1e293b;
-//           font-size: 18px;
-//           font-weight: 600;
-//           text-align: left;
-//         ">
-//           ${rowTitle || "Description"}
-//         </div>
-//       </div>
-//     `,
-//     input: "textarea",
-//     inputValue: rowValue || "",
-//     inputPlaceholder: placeHolderValue || "Enter details here...",
-//     showCancelButton: true,
-//     confirmButtonText: "Save",
-//     cancelButtonText: "Cancel",
-//     width: 720,
-//     padding: "16px",
-//     background: "#ffffff",
-//     buttonsStyling: false,
-//     customClass: {
-//       popup: "rounded-2xl shadow-xl overflow-hidden",
-//       title: "!hidden",
-//       htmlContainer: "!m-0 !p-0 text-left",
-//       input:
-//         "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100",
-//       actions: "w-full flex justify-end gap-2 mt-3",
-//       confirmButton:
-//         "min-w-[88px] rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700",
-//       cancelButton:
-//         "min-w-[88px] rounded-lg bg-blue-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-blue-300",
-//     },
-//     inputAttributes: {
-//       style: `
-//         min-height: 160px;
-//         max-height: 250px;
-//         resize: vertical;
-//         margin: 0;
-//         font-size: 14px;
-//         line-height: 1.5;
-//       `,
-//     },
-//     didOpen: () => {
-//       const popup = Swal.getPopup();
-//       const container = Swal.getHtmlContainer();
-//       const input = Swal.getInput();
-
-//       // 🔥 THIS FIXES THE SCROLL BAR ISSUE
-//       if (container) {
-//         container.style.overflow = "visible";
-//       }
-
-//       if (popup) {
-//         popup.style.overflow = "hidden";
-//       }
-
-//       if (input) {
-//         input.focus();
-//         input.setSelectionRange(input.value.length, input.value.length);
-//       }
-//     },
-//     preConfirm: (value) => (value || "").trim(),
-//   }).then((result) => {
-//     if (result.isConfirmed) {
-//       handleDetailChange(index, rowName, result.value);
-//     }
-//   });
-// };
-
-
-// export const useSwalHandleOpenSpecsModal = (index, detailRows, handleDetailChange,rowValue, rowTitle, rowName,placeHolderValue) => {
-//   const row = detailRows[index];
-
-//   Swal.fire({
-//     title: rowTitle,
-//     input: 'textarea',
-//     inputValue: rowValue || '',
-//     inputPlaceholder: placeHolderValue,
-//    showCancelButton: true,
-//     confirmButtonText: 'Save',
-//     cancelButtonText: 'Cancel',
-//     confirmButtonColor: '#3b82f6',
-//     cancelButtonColor: '#64748b',
-//     reverseButtons: true, // Optional: puts 'Save' on the right, 'Cancel' on the left
-//     inputAttributes: {
-//       'aria-label': 'Type your specifications here',
-//       'style': 'height: 150px; font-size: 0.875rem;' // Optional: consistent sizing
-//     },
-//     customClass: {
-//       actions: 'w-full px-6 gap-2', // Containers for buttons
-//       confirmButton: 'flex-1 py-2', // Forces Save to take half width
-//       cancelButton: 'flex-1 py-2',  // Forces Cancel to take half width
-//       input: 'focus:ring-blue-500'   
-//     },
-//     buttonsStyling: true,
-//   }).then((result) => {
-//     if (result.isConfirmed) {
-//       handleDetailChange(index, rowName, result.value);
-//     }
-//   });
-// };

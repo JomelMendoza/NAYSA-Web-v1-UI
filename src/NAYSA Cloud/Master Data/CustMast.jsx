@@ -34,9 +34,9 @@ import CustMasterDataTab from "@/NAYSA Cloud/Master Data/CustMasterDataTab.jsx";
 import ReferenceCodesTab from "@/NAYSA Cloud/Master Data/CustMastTabs/ReferenceCodesTab";
 
 /* ----------------------------------------------------- */
-/* CONSTANT OPTIONS
+/* CONSTANT OPTIONS & CODE SERIES
 /* ----------------------------------------------------- */
-const SL_PREFIX = { CU: "CU", AG: "AG", OT: "OT" };
+const SL_CHAR = { CU: "C", AG: "A", OT: "O" };
 
 const normalizeSlType = (v) => {
     const s = String(v ?? "").toUpperCase().trim();
@@ -71,15 +71,22 @@ const mappedTaxClassOptions = [
 
 const payeeTypeOptions = [];
 
-const generateNextCustomerCode = (rows = [], sltypeCode = "CU") => {
+// Construct the 2-letter prefix (e.g., "C" + "S" = "CS", "C" + "U" = "CU")
+const getCustomerPrefix = (sltypeCode, mode) => {
     const sl = normalizeSlType(sltypeCode) || "CU";
-    const prefix = SL_PREFIX[sl] || sl;
+    const slChar = SL_CHAR[sl] || sl.charAt(0);
+    return `${slChar}${mode}`; 
+};
+
+const generateNextCustomerCode = (rows = [], sltypeCode = "CU", mode = "S") => {
+    const sl = normalizeSlType(sltypeCode) || "CU";
+    const prefix = getCustomerPrefix(sltypeCode, mode);
 
     const candidates = (Array.isArray(rows) ? rows : [])
         .filter((r) => normalizeSlType(r?.sltypeCode || "CU") === sl)
         .map((r) => String(r?.custCode ?? "").trim())
         .filter(Boolean)
-        .filter((code) => code.startsWith(prefix));
+        .filter((code) => code.toUpperCase().startsWith(prefix.toUpperCase()));
 
     if (!candidates.length) return `${prefix}000001`;
 
@@ -90,6 +97,7 @@ const generateNextCustomerCode = (rows = [], sltypeCode = "CU") => {
     const max = nums.length ? Math.max(...nums) : 0;
     return `${prefix}${String(max + 1).padStart(6, "0")}`;
 };
+/* ----------------------------------------------------- */
 
 const emptyForm = {
     sltypeCode: "CU",
@@ -153,6 +161,10 @@ const emptyForm = {
 };
 
 const CustMast = () => {
+    // 'M' = User Defined, 'U' = Auto Assigned, 'S' = System Generated
+    // TODO: Tie this to your backend system configuration settings in the future.
+    const [generationMode, setGenerationMode] = useState("M");
+
     const [activeTab, setActiveTab] = useState("setup");
     const [isLoading, setIsLoading] = useState(false);
 
@@ -176,7 +188,22 @@ const CustMast = () => {
 
     const [, setRecentCodes] = useState([]);
 
-    const updateForm = (patch) => setForm((p) => ({ ...p, ...patch }));
+    // Handles updating the form and auto-assigning codes if mode is 'U'
+    const updateForm = (patch) => {
+        setForm((prev) => {
+            const updated = { ...prev, ...patch };
+
+            if (patch.sltypeCode !== undefined && patch.sltypeCode !== prev.sltypeCode) {
+                if (prev.__isNew && generationMode === "U") {
+                    const newSl = normalizeSlType(patch.sltypeCode) || "CU";
+                    const nextCode = generateNextCustomerCode(masterAllRows, newSl, "U");
+                    updated.custCode = nextCode;
+                }
+            }
+
+            return updated;
+        });
+    };
 
     const showValidation = async (title, lines) => {
         const msg = Array.isArray(lines) ? lines.join("\n") : String(lines || "");
@@ -206,51 +233,6 @@ const CustMast = () => {
         const rows = res?.data?.data || [];
         return Number(rows?.[0]?.result ?? 0) === 1;
     };
-
-    // const extractSprocError = (axiosResponse) => {
-    //     const payload = axiosResponse?.data;
-    //     const data = payload?.data;
-
-    //     if (
-    //         Array.isArray(data) &&
-    //         data[0] &&
-    //         (data[0].errorCount !== undefined ||
-    //             data[0].errorMsg !== undefined ||
-    //             data[0].errorcount !== undefined ||
-    //             data[0].errormsg !== undefined)
-    //     ) {
-    //         return {
-    //             errorCount: Number(data[0].errorCount ?? data[0].errorcount ?? 0),
-    //             errorMsg: String(data[0].errorMsg ?? data[0].errormsg ?? ""),
-    //         };
-    //     }
-
-    //     if (Array.isArray(data) && data[0]?.result) {
-    //         try {
-    //             const parsed = JSON.parse(data[0].result);
-    //             const row = Array.isArray(parsed) ? parsed[0] : parsed;
-    //             if (
-    //                 row &&
-    //                 (row.errorCount !== undefined ||
-    //                     row.errorMsg !== undefined ||
-    //                     row.errorcount !== undefined ||
-    //                     row.errormsg !== undefined)
-    //             ) {
-    //                 return {
-    //                     errorCount: Number(row.errorCount ?? row.errorcount ?? 0),
-    //                     errorMsg: String(row.errorMsg ?? row.errormsg ?? ""),
-    //                 };
-    //             }
-    //         } catch {
-    //             // ignore
-    //         }
-    //     }
-
-    //     const fallbackMsg = payload?.message || payload?.error || payload?.msg;
-    //     if (fallbackMsg) return { errorCount: 1, errorMsg: String(fallbackMsg) };
-
-    //     return null;
-    // };
 
     const extractSprocValidation = (responseLike) => {
         const payload = responseLike?.data ?? responseLike;
@@ -498,7 +480,21 @@ const CustMast = () => {
 
 
     const upsertCustomer = async () => {
-        const code = String(form?.custCode || "").trim();
+        let code = String(form?.custCode || "").trim();
+        const isAddMode = !selectedCustCode;
+
+        // SCENARIO 1 & 3 LOGIC
+        if (isAddMode) {
+            if (generationMode === "M" && !code) {
+                await showValidation("Required", ["• Please enter a User Defined Customer Code."]);
+                return;
+            }
+            
+            if (generationMode === "S" && !code) {
+                const sl = normalizeSlType(form.sltypeCode || "CU");
+                code = generateNextCustomerCode(masterAllRows, sl, "S");
+            }
+        }
 
         setIsLoading(true);
         try {
@@ -567,8 +563,6 @@ const CustMast = () => {
             const payload = {
                 json_data: JSON.stringify(jsonData),
             };
-
-            const isAddMode = !selectedCustCode;
 
             if (isAddMode) {
                 const isDuplicate = await checkDuplicateCustomer(code);
@@ -672,7 +666,10 @@ const CustMast = () => {
                 return;
             }
 
-            await useSwalDeleteRecord("Customer");
+            await useSwalDeleteRecord(
+                    "Deleted", 
+                    `Customer Code ${code} has been successfully removed.`
+                  );
 
             setForm({ ...emptyForm });
             setSelectedCustCode("");
@@ -727,7 +724,12 @@ const CustMast = () => {
 
     const handleAdd = () => {
         const sl = normalizeSlType(form?.sltypeCode || "CU") || "CU";
-        const nextCode = generateNextCustomerCode(masterAllRows, sl);
+
+        let nextCode = "";
+        // SCENARIO 2 LOGIC
+        if (generationMode === "U") {
+            nextCode = generateNextCustomerCode(masterAllRows, sl, "U");
+        }
 
         setSelectedCustCode("");
         setForm({
@@ -870,6 +872,7 @@ const CustMast = () => {
                         form={form}
                         isEditing={isEditing}
                         isLoading={isLoading}
+                        generationMode={generationMode} // <--- PASSED PROP HERE
                         onChangeForm={updateForm}
                         onLookupCode={() => setIsSearchOpen(true)}
                         onSelectCustomerCode={fetchCustomerByCode}

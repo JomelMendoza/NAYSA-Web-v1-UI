@@ -15,7 +15,6 @@ import RCLookupModal from "../../../Lookup/SearchRCMast.jsx";
 import VATLookupModal from "../../../Lookup/SearchVATRef.jsx";
 import ATCLookupModal from "../../../Lookup/SearchATCRef.jsx";
 import SLMastLookupModal from "../../../Lookup/SearchSLMast.jsx";
-import BankMastLookupModal from "../../../Lookup/SearchBankMast.jsx";
 import CancelTranModal from "../../../Lookup/SearchCancelRef.jsx";
 import AttachDocumentModal from "../../../Lookup/SearchAttachment.jsx";
 import DocumentSignatories from "../../../Lookup/SearchSignatory.jsx";
@@ -64,9 +63,12 @@ import {
 
 
 import {
-  useGetCurrentDay,
+  useGetCurrentDayV2,
   useFormatToDate,
+  useformatToDatev2
 } from '@/NAYSA Cloud/Global/dates';
+
+import DateFormatInput from '@/NAYSA Cloud/Global/DateFormatInput.jsx';
 
 import {
   useUpdateRowGLEntries,
@@ -89,8 +91,9 @@ import {
   formatNumber,
   parseFormattedNumber,
   useSwalshowSaveSuccessDialog,
-} from '@/NAYSA Cloud/Global/behavior';
+} from '@/NAYSA Cloud/Global/behavior.jsx';
 
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
 // Header
 import Header from '@/NAYSA Cloud/Components/Header';
@@ -136,7 +139,7 @@ const ARDM = () => {
     documentDocLen: 8,
     documentID: null,
     documentNo: "",
-    documentDate:useGetCurrentDay(),    
+    documentDate:useGetCurrentDayV2(),    
     documentStatus:"",
     status: "OPEN",
     noReprints:"0",
@@ -197,6 +200,8 @@ const ARDM = () => {
 
     totalDebit:"0.00",
     totalCredit:"0.00",
+    totalDebitFX1:"0.00",
+    totalCreditFX1:"0.00",
 
  
     // Modal states
@@ -293,6 +298,8 @@ const ARDM = () => {
   globalLookupHeader,
   totalDebit,
   totalCredit,
+  totalDebitFX1,
+  totalCreditFX1,
 
 
   // Contexts
@@ -357,11 +364,16 @@ const ARDM = () => {
   useEffect(() => {
     const debitSum = detailRowsGL.reduce((acc, row) => acc + (parseFormattedNumber(row.debit) || 0), 0);
     const creditSum = detailRowsGL.reduce((acc, row) => acc + (parseFormattedNumber(row.credit) || 0), 0);
+    const debitFx1Sum = detailRowsGL.reduce((acc, row) => acc + (parseFormattedNumber(row.debitFx1) || 0), 0);
+    const creditFx1Sum = detailRowsGL.reduce((acc, row) => acc + (parseFormattedNumber(row.creditFx1) || 0), 0);
   updateState({
     totalDebit: formatNumber(debitSum),
-    totalCredit: formatNumber(creditSum)
+    totalCredit: formatNumber(creditSum),
+    totalDebitFx1: formatNumber(debitFx1Sum),
+    totalCreditFx1: formatNumber(creditFx1Sum)
   })
   }, [detailRowsGL]);
+
 
 
 
@@ -450,16 +462,6 @@ useEffect(() => {
 
 
 
-  const LoadingSpinner = () => (
-    <div className="global-tran-spinner-main-div-ui">
-      <div className="global-tran-spinner-sub-div-ui">
-        <FontAwesomeIcon icon={faSpinner} spin size="2x" className="text-blue-500 mb-2" />
-        <p>Please wait...</p>
-      </div>
-    </div>
-  );
-
-
   
 
 
@@ -493,7 +495,7 @@ useEffect(() => {
       branchCode: currentUserRow?.branchCode||"",
       branchName: currentUserRow?.branchName||"",
       userCode:currentUserRow?.userCode||"",
-      documentDate:useGetCurrentDay(),
+      documentDate:useGetCurrentDayV2(),
       currCode:companyInfo?.currCode||"",
       glCurrDefault:companyInfo?.currCode||"",
       currName:companyInfo?.currName||"",
@@ -574,22 +576,6 @@ useEffect(() => {
         }
       }
 
-
-
-      // 🔹 4. Company + Bank row (dependent chain)
-      const company = await useTopCompanyRow();
-      if (company) {
-        updateState({ depBankCode: company.depBankcode });
-
-        const bank = await useTopBankMastRow(company.depBankcode);
-        if (bank) {
-          updateState({
-            depBankCode: bank.bankCode,
-            depAcctName: bank.acctName,
-            depAcctNo: bank.bankAcctNo,
-          });
-        }
-      }
 
  
 
@@ -683,7 +669,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       documentNo: data.ardmNo,
       branchCode: data.branchCode,
       branchName: data.branchName,
-      documentDate: useFormatToDate(data.ardmDate),
+      documentDate: useformatToDatev2(data.ardmDate),
       selectedARDMType: data.ardmtranType,
       custCode: data.custCode,
       custName: data.custName,
@@ -742,7 +728,24 @@ const handleCurrRateNoBlur = (e) => {
 
 
 
+
+const moveFocusBeforeSave = () => {
+  const remarksEl = document.getElementById("remarks");
+  if (remarksEl) {
+    remarksEl.focus();
+    return true;
+  }
+  return false;
+};
+
+
+
  const handleActivityOption = async (action) => {
+  if (action === "Upsert") {
+      moveFocusBeforeSave();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
   if (action === "Upsert" && detailRowsGL.length === 0) {
     updateState({ triggerGLEntries: true });
     return;
@@ -1091,7 +1094,7 @@ if (selectedARDMType !== "ARDM02" || !detailRows?.length) {
                   documentID:"",
                   documentStatus:"",
                   status:"OPEN",
-                  documentDate:useGetCurrentDay(),   
+                  documentDate:useGetCurrentDayV2(),   
                   noReprints:"0", 
      });
   }
@@ -1591,21 +1594,6 @@ const handleCloseSignatory = async (mode) => {
 
 
 
-const handleCloseBankMast = async (selectedBankCode) => {
-    if (selectedBankCode && selectedBankCode !== null) {
-     const result = await useTopAccountRow(selectedBankCode.acctCode);
-     if (result) {   
-      updateState({ depBankCode: selectedBankCode.bankCode,
-                    depAcctName:result.acctName,
-                    depAcctNo:selectedBankCode.bankAcctNo,
-                    detailRowsGL: []
-             });
-    }  
-  }
-  updateState({ showBankMastModal: false});  
-};
-
-
 
 
 const handleOpenARBalance = async () => {
@@ -1946,7 +1934,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                               if (e.key === "Enter") {
                                 handleCrNoBlur();
                                 e.preventDefault(); 
-                                document.getElementById("ardmDate")?.focus();
+                                document.getElementById("documentDate")?.focus();
                               }}}
                             placeholder=" "
                             className={`peer global-tran-textbox-ui ${state.isDocNoDisabled ? 'bg-blue-100 cursor-not-allowed' : ''}`}
@@ -1969,13 +1957,12 @@ const handleCloseBranchModal = (selectedBranch) => {
 
                     {/* ARDM Date Picker */}
                     <div className="relative">
-                        <input type="date"
-                            id="ardmDate"
-                            className="peer global-tran-textbox-ui"
-                            value={documentDate}
-                            onChange={(e) => updateState({ documentDate: e.target.value })} 
-                            disabled={isFormDisabled} 
-                        />
+                       <DateFormatInput
+                        id="documentDate"
+                        value={documentDate}
+                        updateState={updateState}
+                        disabled={isFormDisabled}
+                      />
                         <label htmlFor="ardmDate" className="global-tran-floating-label">ARDM Date</label>
                     </div>
 
@@ -2724,7 +2711,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                 <th className="global-tran-th-ui w-[2000px]">Particulars</th>
                 <th className="global-tran-th-ui">VAT Code</th>
                 <th className="global-tran-th-ui">VAT Name</th>
-                <th className="global-tran-th-ui">ATC Code</th>
+                <th className="global-tran-th-ui">ATC</th>
                 <th className="global-tran-th-ui ">ATC Name</th>
 
                 <th className="global-tran-th-ui">Debit ({glCurrDefault})</th>
@@ -3291,14 +3278,6 @@ const handleCloseBranchModal = (selectedBranch) => {
       />
     )}
 
-
-
-    {showBankMastModal && (
-      <BankMastLookupModal
-        isOpen={showBankMastModal}
-        onClose={handleCloseBankMast}
-      />
-    )}
 
 
 

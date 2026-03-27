@@ -220,6 +220,12 @@ const ATCRef = () => {
   const [isClAcctModalOpen, setClAcctModalOpen] = useState(false);
   const [isOpenGuide, setOpenGuide] = useState(false);
 
+  // --- MOBILE ACTION SHEET STATES ---
+  const [isMobile, setIsMobile] = useState(false);
+  const [isMobileActionSheetMounted, setIsMobileActionSheetMounted] = useState(false);
+  const [isMobileActionSheetOpen, setIsMobileActionSheetOpen] = useState(false);
+  const [selectedMobileRow, setSelectedMobileRow] = useState(null);
+
   const setField = (key, value) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -231,11 +237,37 @@ const ATCRef = () => {
     document.title = documentTitle;
   }, [documentTitle]);
 
+  // --- MOBILE DETECTOR EFFECT ---
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // --- MOBILE ACTION SHEET HANDLERS ---
+  const openMobileActionSheet = useCallback((row) => {
+    setSelectedMobileRow(row);
+    setIsMobileActionSheetMounted(true);
+
+    requestAnimationFrame(() => {
+      setIsMobileActionSheetOpen(true);
+    });
+  }, []);
+
+  const closeMobileActionSheet = useCallback(() => {
+    setIsMobileActionSheetOpen(false);
+
+    setTimeout(() => {
+      setIsMobileActionSheetMounted(false);
+      setSelectedMobileRow(null);
+    }, 300);
+  }, []);
+
   const atcListQuery = useQuery({
     queryKey: ATC_LIST_QUERY_KEY,
     queryFn: fetchAtcList,
     refetchOnWindowFocus: false,
-    // ✅ ADDED: Force fresh data on load and auto-sync every 30s
     staleTime: 0,
     refetchInterval: 1000 * 30,
   });
@@ -309,13 +341,14 @@ const ATCRef = () => {
       setSelectedRow(mapped);
       setIsEditing(true);
       setIsDupCode(false);
+      closeMobileActionSheet(); // ensure it closes if opened from action sheet
     } catch (error) {
       useSwalErrorAlert(
         "Error",
         error?.message || "Could not fetch details for this record.",
       );
     }
-  }, []);
+  }, [closeMobileActionSheet]);
 
   const handleATCCodeValidate = useCallback(
     async (arg) => {
@@ -437,6 +470,7 @@ const ATCRef = () => {
         if (!confirm?.isConfirmed) return;
 
         deleteMutation.mutate({ atcCode });
+        closeMobileActionSheet(); // ensure it closes if opened from action sheet
       } catch (error) {
         useSwalErrorAlert(
           "System Error",
@@ -444,7 +478,7 @@ const ATCRef = () => {
         );
       }
     },
-    [selectedRow, deleteMutation],
+    [selectedRow, deleteMutation, closeMobileActionSheet],
   );
 
   const handleSaveRef = useRef(null);
@@ -486,30 +520,43 @@ const ATCRef = () => {
     () => [
       {
         key: "__actions",
-        label: "Actions",
+        label: <span className="hidden md:inline">Actions</span>,
         sortable: false,
+        width: 140,
         render: (row) => (
-          <div className="flex items-center justify-center gap-2">
+          <div className="flex gap-2 justify-center w-full">
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                handleEdit(row);
+                if (isMobile) {
+                  openMobileActionSheet(row);
+                } else {
+                  handleEdit(row);
+                }
               }}
-              className="p-1 rounded-md bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-600 hover:text-white transition-colors"
+              className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-blue-50 border border-blue-100 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-colors text-xs"
+              title="Edit"
             >
               <FontAwesomeIcon icon={faEdit} />
+              <span className="md:hidden">Edit</span>
             </button>
 
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                handleDelete(row);
+                if (isMobile) {
+                  openMobileActionSheet(row);
+                } else {
+                  handleDelete(row);
+                }
               }}
-              className="p-1 rounded-md bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white transition-colors"
+              className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-red-50 border border-red-100 text-red-600 rounded-md hover:bg-red-600 hover:text-white hover:border-red-600 transition-colors text-xs"
+              title="Delete"
             >
               <FontAwesomeIcon icon={faTrashAlt} />
+              <span className="md:hidden">Delete</span>
             </button>
           </div>
         ),
@@ -557,7 +604,7 @@ const ATCRef = () => {
           : row?.clAcct,
       },
     ],
-    [handleEdit, handleDelete],
+    [handleEdit, handleDelete, isMobile, openMobileActionSheet],
   );
 
   const tableData = useMemo(
@@ -597,7 +644,7 @@ const ATCRef = () => {
             className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50"
           >
             <Plus size={16} />
-            Add
+            <span className="hidden sm:inline">Add</span>
           </button>
 
           <button
@@ -607,7 +654,7 @@ const ATCRef = () => {
             className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50"
           >
             <Save size={16} />
-            Save
+            <span className="hidden sm:inline">Save</span>
           </button>
 
           <button
@@ -616,17 +663,17 @@ const ATCRef = () => {
             className="bg-blue-600 text-white px-3 py-2 rounded-lg flex items-center gap-2"
           >
             <Undo2 size={16} />
-            Reset
+            <span className="hidden sm:inline">Reset</span>
           </button>
 
           {/* Info Dropdown */}
           <div ref={guideRef} className="relative">
             <button
               onClick={() => setOpenGuide((v) => !v)}
-              className="bg-blue-600 text-white h-7 w-16 sm:w-auto sm:h-8 sm:px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all"
+              className="bg-blue-600 text-white h-full sm:h-8 sm:px-4 rounded-md flex items-center justify-center gap-1 hover:bg-blue-700 transition-all px-3"
             >
               <FontAwesomeIcon icon={faInfoCircle} className="text-[12px]" />
-              <span className="sm:inline ml-1 text-[11px] font-medium">
+              <span className="hidden sm:inline ml-1 text-[11px] font-medium">
                 Info
               </span>
               <FontAwesomeIcon
@@ -789,9 +836,66 @@ const ATCRef = () => {
             isLoading={isInitialLoading}
             isFetching={atcListQuery.isFetching}
             onRefresh={() => atcListQuery.refetch()}
+            onMobileRowOpen={openMobileActionSheet} // Piped into global table!
           />
         </div>
       </div>
+
+      {/* MOBILE ACTION SHEET COMPONENT */}
+      {isMobileActionSheetMounted && (
+        <div className="fixed inset-0 z-[120] md:hidden">
+          <div
+            className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${
+              isMobileActionSheetOpen ? "opacity-100" : "opacity-0"
+            }`}
+            onClick={closeMobileActionSheet}
+          />
+
+          <div
+            className={`absolute bottom-0 left-0 right-0 rounded-t-2xl bg-white shadow-2xl p-4 transform transition-transform duration-300 ease-out ${
+              isMobileActionSheetOpen ? "translate-y-0" : "translate-y-full"
+            }`}
+          >
+            <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4" />
+
+            <div className="mb-3">
+              <h2 className="text-sm font-bold text-gray-800">ATC Actions</h2>
+              <p className="text-xs text-gray-500">
+                {selectedMobileRow?.atcCode} {selectedMobileRow?.atcName ? `- ${selectedMobileRow.atcName}` : ""}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <button
+                onClick={() => handleEdit(selectedMobileRow)}
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-blue-50 text-blue-600 py-3 text-sm font-medium hover:bg-blue-600 hover:text-white transition-colors"
+              >
+                <FontAwesomeIcon icon={faEdit} />
+                Edit
+              </button>
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete(selectedMobileRow);
+                }}
+                className="w-full flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-red-50 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors text-xs"
+                title="Delete"
+              >
+                <FontAwesomeIcon icon={faTrashAlt} />
+                <span className="md:hidden">Delete</span>
+              </button>
+
+              <button
+                onClick={closeMobileActionSheet}
+                className="w-full rounded-lg bg-gray-100 text-gray-700 py-3 text-sm font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isEwtAcctModalOpen && (
         <SearchCOAMast

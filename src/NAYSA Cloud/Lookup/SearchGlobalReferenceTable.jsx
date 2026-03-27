@@ -1534,6 +1534,7 @@ const SearchGlobalReferenceTable = forwardRef(
                 )}
               </div>
 
+              {/* COLUMNS */}
               <div className="relative flex-1 md:flex-none min-w-[80px]" data-sgrt-cols>
                 <button
                   type="button"

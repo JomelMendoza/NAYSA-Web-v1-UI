@@ -57,9 +57,13 @@ import {
 } from '@/NAYSA Cloud/Global/selectedData';
 
 import {
-  useGetCurrentDay,
+  useGetCurrentDayV2,
   useFormatToDate,
+  useformatToDatev2
 } from '@/NAYSA Cloud/Global/dates';
+
+import DateFormatInput from '@/NAYSA Cloud/Global/DateFormatInput.jsx';
+
 
 import { useHandlePrint } from "@/NAYSA Cloud/Global/report";
 
@@ -120,9 +124,9 @@ import Header from "@/NAYSA Cloud/Components/Header";
     documentSeries: "Auto",
     documentDocLen: 8,
     documentID: null,
-    documentDate:useGetCurrentDay(),  
-    dateNeeded:useGetCurrentDay(),  
-    headerDateNeeded:useGetCurrentDay(),  
+    documentDate:useGetCurrentDayV2(),  
+    dateNeeded:useGetCurrentDayV2(),  
+    headerDateNeeded:useGetCurrentDayV2(),  
     documentNo: "",
     documentStatus: "",
     status: "",
@@ -382,15 +386,15 @@ useEffect(() => {
       branchCode: currentUserRow?.branchCode||"",
       branchName: currentUserRow?.branchName||"",
       userCode:currentUserRow?.userCode||"",
-      headerDateNeeded:useGetCurrentDay(),
-      documentDate:useGetCurrentDay(),
+      headerDateNeeded:useGetCurrentDayV2(),
+      documentDate:useGetCurrentDayV2(),
       documentStatus:"O",
       cutoffCode: "",
       rcCode: "",
       rcName: "",
       reqRcCode: "",
       reqRcName: "",
-      dateNeeded: useGetCurrentDay(),
+      dateNeeded: useGetCurrentDayV2(),
       
       refPrNo1: "",
       refPrNo2: "",
@@ -547,8 +551,8 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       documentNo: data.prNo,
       branchCode: data.branchCode,
       BranchName:data.branchName,
-      documentDate: useFormatToDate(data.prDate),
-      headerDateNeeded:useFormatToDate(data.dateNeeded),
+      documentDate: useformatToDatev2(data.prDate),
+      headerDateNeeded:useformatToDatev2(data.dateNeeded),
       rcCode: data.rcCode,
       rcName: data.rcName,
       reqRcCode: data.reqRcCode,
@@ -1125,7 +1129,7 @@ if (field === 'prStatus') {
         branchCode: branchCode,
         prNo:  documentNo || "",
         prId: documentID || "",
-        prDate: mode === "onCopy" ? useGetCurrentDay() : documentDate,
+        prDate: mode === "onCopy" ? useGetCurrentDayV2() : documentDate,
         cutoffCode: cutoffCode || "",
         rcCode: rcCode || "",
         reqRcCode: reqRcCode || "",
@@ -1632,7 +1636,7 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
                               if (e.key === "Enter") {
                                 handleDocNoBlur();
                                 e.preventDefault(); 
-                                document.getElementById("prDate")?.focus();
+                                document.getElementById("documentDate")?.focus();
                               }}}
                             placeholder=" "
                             className={`peer global-tran-textbox-ui ${state.isDocNoDisabled ? 'bg-blue-100 cursor-not-allowed' : ''}`}
@@ -1656,14 +1660,12 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
 
                 {/* PR Date */}
                 <div className="relative">
-                  <input
-                    type="date"
-                    id="PRDate"
-                    className="peer global-tran-textbox-ui"
+                 <DateFormatInput
+                    id="documentDate"
                     value={documentDate}
-                    onChange={(e) => updateState({ documentDate: e.target.value })} 
+                    updateState={updateState}
                     disabled={isFormDisabled}
-                  />
+                    />
                   <label
                     htmlFor="PRDate"
                     className="global-tran-floating-label"
@@ -1819,16 +1821,13 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
                 </div>
 
                 {/* Date Needed */}
-                <div className="relative">
-                  <input
-                    type="date"
+                <div className="relative">                
+                  <DateFormatInput
                     id="headerDateNeeded"
                     value={headerDateNeeded}
-                    placeholder=" "
-                    onChange={(e) => updateState({ headerDateNeeded: e.target.value })} 
-                    className="peer global-tran-textbox-ui"
+                    updateState={updateState}
                     disabled={isFormDisabled}
-                  />
+                  />                 
                   <label
                     htmlFor="dateNeeded"
                     className="global-tran-floating-label"

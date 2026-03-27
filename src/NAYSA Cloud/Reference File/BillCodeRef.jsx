@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Save, Undo2, Edit, Trash2, Info } from "lucide-react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -115,6 +115,12 @@ const BillCodeRef = React.forwardRef((props, ref) => {
   const [activeAccountField, setActiveAccountField] = useState(null);
   const [isOpenGuide, setOpenGuide] = useState(false);
 
+  // --- MOBILE ACTION SHEET STATES ---
+  const [isMobile, setIsMobile] = useState(false);
+  const [isMobileActionSheetMounted, setIsMobileActionSheetMounted] = useState(false);
+  const [isMobileActionSheetOpen, setIsMobileActionSheetOpen] = useState(false);
+  const [selectedMobileRow, setSelectedMobileRow] = useState(null);
+
   const setField = (key, value) =>
     setForm((prev) => ({ ...prev, [key]: value }));
   const resetForm = (next = DEFAULT_FORM) => setForm(next);
@@ -127,6 +133,33 @@ const BillCodeRef = React.forwardRef((props, ref) => {
   useEffect(() => {
     document.title = documentTitle;
   }, [documentTitle]);
+
+  // --- MOBILE DETECTOR EFFECT ---
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // --- MOBILE ACTION SHEET HANDLERS ---
+  const openMobileActionSheet = useCallback((row) => {
+    setSelectedMobileRow(row);
+    setIsMobileActionSheetMounted(true);
+
+    requestAnimationFrame(() => {
+      setIsMobileActionSheetOpen(true);
+    });
+  }, []);
+
+  const closeMobileActionSheet = useCallback(() => {
+    setIsMobileActionSheetOpen(false);
+
+    setTimeout(() => {
+      setIsMobileActionSheetMounted(false);
+      setSelectedMobileRow(null);
+    }, 300);
+  }, []);
 
   /* ================= DUPLICATE & USAGE CHECKS ================= */
 
@@ -327,6 +360,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
 
       setIsEditing(true);
       setSelectedRow(row);
+      closeMobileActionSheet(); // ensure it closes if opened from action sheet
     } catch (error) {
       useSwalErrorAlert(
         "System Error",
@@ -366,6 +400,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
       if (!confirm?.isConfirmed) return;
 
       deleteMutation.mutate(code);
+      closeMobileActionSheet(); // ensure it closes if opened from action sheet
     } catch (error) {
       useSwalErrorAlert(
         "System Error",
@@ -394,7 +429,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
     () => [
       {
         key: "__actions",
-        label: "Actions",
+        label: <span className="hidden md:inline">Actions</span>,
         sortable: false,
         renderType: "actions",
         render: (row) => (
@@ -403,21 +438,33 @@ const BillCodeRef = React.forwardRef((props, ref) => {
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                handleEdit(row);
+                if (isMobile) {
+                  openMobileActionSheet(row);
+                } else {
+                  handleEdit(row);
+                }
               }}
-              className="rounded-md border border-blue-200 bg-blue-50 p-1 text-blue-600 transition-colors hover:bg-blue-600 hover:text-white"
+              className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-blue-50 border border-blue-100 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-colors text-xs"
+              title="Edit"
             >
               <FontAwesomeIcon icon={faEdit} />
+              <span className="md:hidden">Edit</span>
             </button>
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                handleDelete(row);
+                if (isMobile) {
+                  openMobileActionSheet(row);
+                } else {
+                  handleDelete(row);
+                }
               }}
-              className="rounded-md border border-red-200 bg-red-50 p-1 text-red-600 transition-colors hover:bg-red-600 hover:text-white"
+              className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-red-50 border border-red-100 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors text-xs"
+              title="Delete"
             >
               <FontAwesomeIcon icon={faTrashAlt} />
+              <span className="md:hidden">Delete</span>
             </button>
           </div>
         ),
@@ -457,7 +504,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
       { key: "advancesAcct", label: "Advances Account", sortable: true },
       { key: "sDiscAcct", label: "Discount Account", sortable: true },
     ],
-    [],
+    [handleEdit, handleDelete, isMobile, openMobileActionSheet],
   );
 
   React.useImperativeHandle(ref, () => ({
@@ -732,9 +779,66 @@ const BillCodeRef = React.forwardRef((props, ref) => {
             isLoading={isInitialLoading}
             isFetching={billCodeListQuery.isFetching}
             onRefresh={() => billCodeListQuery.refetch()}
+            onMobileRowOpen={openMobileActionSheet} // Piped into global table!
           />
         </div>
       </div>
+
+      {/* MOBILE ACTION SHEET COMPONENT */}
+      {isMobileActionSheetMounted && (
+        <div className="fixed inset-0 z-[120] md:hidden">
+          <div
+            className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${
+              isMobileActionSheetOpen ? "opacity-100" : "opacity-0"
+            }`}
+            onClick={closeMobileActionSheet}
+          />
+
+          <div
+            className={`absolute bottom-0 left-0 right-0 rounded-t-2xl bg-white shadow-2xl p-4 transform transition-transform duration-300 ease-out ${
+              isMobileActionSheetOpen ? "translate-y-0" : "translate-y-full"
+            }`}
+          >
+            <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4" />
+
+            <div className="mb-3">
+              <h2 className="text-sm font-bold text-gray-800">Bill Code Actions</h2>
+              <p className="text-xs text-gray-500">
+                {selectedMobileRow?.billCode} {selectedMobileRow?.billName ? `- ${selectedMobileRow.billName}` : ""}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <button
+                onClick={() => handleEdit(selectedMobileRow)}
+                className="w-full flex items-center justify-center gap-2 rounded-lg bg-blue-50 text-blue-600 py-3 text-sm font-medium hover:bg-blue-600 hover:text-white transition-colors"
+              >
+                <FontAwesomeIcon icon={faEdit} />
+                Edit
+              </button>
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete(selectedMobileRow);
+                }}
+                className="w-full flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-red-50 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors text-xs"
+                title="Delete"
+              >
+                <FontAwesomeIcon icon={faTrashAlt} />
+                <span className="md:hidden">Delete</span>
+              </button>
+
+              <button
+                onClick={closeMobileActionSheet}
+                className="w-full rounded-lg bg-gray-100 text-gray-700 py-3 text-sm font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <SearchRCMast
         isOpen={isRCModalOpen}
