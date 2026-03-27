@@ -1,5 +1,5 @@
 // src/NAYSA Cloud/Master Data/CustMastTabs/ReferenceCodesTab.jsx
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useState, useRef } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faUserTie,
@@ -33,12 +33,18 @@ const Card = ({ children, className = "" }) => (
   </div>
 );
 
-const ReferenceCodesTab = forwardRef(({ variant = "customer" }, ref) => {
-  useImperativeHandle(ref, () => ({}));
+
+const ReferenceCodesTab = forwardRef(({ variant = "customer", onStateChange }, ref) => {
+  const payTermRef = useRef(null);
+  useImperativeHandle(ref, () => ({
+  add: () => payTermRef.current?.add?.(),
+  save: () => payTermRef.current?.save?.(),
+  reset: () => payTermRef.current?.reset?.(),
+}));
 
   const [collapseNav, setCollapseNav] = useState(false);
 
-  const refTabs = useMemo(() => {     
+  const refTabs = useMemo(() => {
     // Customer = full list
     const full = [
       { id: "salesrep", label: "Agent Codes", icon: faUserTie },
@@ -47,13 +53,13 @@ const ReferenceCodesTab = forwardRef(({ variant = "customer" }, ref) => {
       { id: "custtype", label: "Customer Types", icon: faUsers },
       { id: "billingterm", label: "Billing Terms", icon: faReceipt },
       { id: "pricegroup", label: "Price Group", icon: faTags },
-      
+
     ];
 
     // Vendor = only terms (plus anything you want vendor to maintain)
     const vendorOnly = [
       { id: "payterm", label: "Payment Terms", icon: faFileInvoiceDollar },
-      
+
     ];
 
     return variant === "vendor" ? vendorOnly : full;
@@ -73,7 +79,9 @@ const ReferenceCodesTab = forwardRef(({ variant = "customer" }, ref) => {
 
   const renderRight = () => {
     // ✅ Wired tabs
-    if (activeRefTab === "payterm") return <PayTermRef />;
+    if (activeRefTab === "payterm") {
+      return <PayTermRef ref={payTermRef} onStateChange={onStateChange} />;
+    }
     if (activeRefTab === "billingterm") return <BillTermRef />;
     if (activeRefTab === "salesrep") return <SalesRep />;
 
@@ -118,10 +126,9 @@ const ReferenceCodesTab = forwardRef(({ variant = "customer" }, ref) => {
                 type="button"
                 onClick={() => setActiveRefTab(t.id)}
                 className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs md:text-sm font-bold transition-colors duration-200
-                  ${
-                    activeRefTab === t.id
-                      ? "bg-blue-100 text-blue-700"
-                      : "text-gray-600 hover:bg-gray-100 hover:text-blue-700"
+                  ${activeRefTab === t.id
+                    ? "bg-blue-100 text-blue-700"
+                    : "text-gray-600 hover:bg-gray-100 hover:text-blue-700"
                   }
                   ${collapseNav ? "justify-center px-2 w-10" : ""}
                 `}
