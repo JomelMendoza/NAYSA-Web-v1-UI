@@ -1145,18 +1145,11 @@ const SearchGlobalReferenceTable = forwardRef(
 
       const firstCols = visibleCols.slice(0, 4);
       const otherCols = visibleCols.slice(4);
-<<<<<<< HEAD
-=======
       const isSelected = selectedRow && row && (selectedRow.id === row.id || selectedRow.key === row.key);
->>>>>>> 51da56b54bc96cbcfaaea05ac23a427339f295a2
 
       return (
         <div
           key={row.__idx ?? idx}
-<<<<<<< HEAD
-          className="rounded-lg border bg-white shadow-sm p-3 cursor-pointer active:scale-[0.99] transition"
-          onClick={() => handleRowOpen(row)}
-=======
           className={`rounded-lg border shadow-sm p-3 cursor-pointer active:scale-[0.99] transition ${
             isSelected ? "bg-blue-50 border-blue-200" : "bg-white"
           }`}
@@ -1164,7 +1157,6 @@ const SearchGlobalReferenceTable = forwardRef(
             if (onRowClick) onRowClick(row);
             handleRowOpen(row);
           }}
->>>>>>> 51da56b54bc96cbcfaaea05ac23a427339f295a2
         >
           <div className="space-y-1">
             {firstCols.map((col) => (
@@ -1239,15 +1231,6 @@ const SearchGlobalReferenceTable = forwardRef(
               <div className="flex-1 flex flex-wrap gap-2 items-center min-w-0">
                 {groupBy.length === 0 && (
                   <div
-<<<<<<< HEAD
-                    className={`text-gray-400 italic border border-dashed border-gray-300 rounded py-1 ${
-                      tableSize === "Half"
-                        ? "text-[8px] sm:text-[9px] w-18 px-4"
-                        : "text-[10px] sm:text-xs px-20"
-                    }`}
-                  >
-                    Drag Header Here...
-=======
                     className={`text-gray-400 italic border border-dashed border-gray-300 rounded ${
                       tableSize === "Half"
                         ? "text-[8px] sm:text-[9px] w-18 px-2 py-1.5"
@@ -1256,7 +1239,6 @@ const SearchGlobalReferenceTable = forwardRef(
                   >
                     <FontAwesomeIcon icon={faLayerGroup} className="mr-1" />
                     Drag column here to Group by
->>>>>>> 51da56b54bc96cbcfaaea05ac23a427339f295a2
                   </div>
                 )}
 
@@ -1355,32 +1337,6 @@ const SearchGlobalReferenceTable = forwardRef(
                 </div>
               )}
 
-<<<<<<< HEAD
-              <div className="flex items-center gap-2 w-full md:w-auto">
-                <input
-                  type="text"
-                  value={globalSearch}
-                  onChange={(e) => {
-                    setGlobalSearch(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  placeholder="Search all columns..."
-                  className={`w-full rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-300 ${
-                    tableSize === "Half"
-                      ? "h-7 md:w-32 px-2 text-[11px]"
-                      : "h-8 md:w-64 px-3 text-xs"
-                  }`}
-                />
-
-                {globalSearch?.trim() && (
-                  <button
-                    type="button"
-                    className={`rounded-md bg-gray-200 hover:bg-gray-300 ${
-                      tableSize === "Half" ? "h-7 px-2 text-[10px]" : "h-8 px-3 text-xs"
-                    }`}
-                    onClick={() => {
-                      setGlobalSearch("");
-=======
               {/* QUICK SEARCH (Controlled by background prop showGlobalSearch) */}
               {showGlobalSearch && (
                 <div className="flex items-center gap-2 w-full md:w-auto">
@@ -1389,7 +1345,6 @@ const SearchGlobalReferenceTable = forwardRef(
                     value={globalSearch}
                     onChange={(e) => {
                       setGlobalSearch(e.target.value);
->>>>>>> 51da56b54bc96cbcfaaea05ac23a427339f295a2
                       setCurrentPage(1);
                     }}
                     placeholder="Quick Search..."
@@ -1421,11 +1376,7 @@ const SearchGlobalReferenceTable = forwardRef(
               {/* AUTO FIT SWITCH */}
               {!isMobile && (
                 <label
-<<<<<<< HEAD
-                  className={`inline-flex items-center cursor-pointer select-none ${
-=======
                   className={`inline-flex items-center cursor-pointer select-none shrink-0 ${
->>>>>>> 51da56b54bc96cbcfaaea05ac23a427339f295a2
                     tableSize === "Half" ? "h-7" : "h-8"
                   }`}
                   title={autoFillGrid ? "Disable auto fit" : "Enable auto fit"}
@@ -1444,15 +1395,11 @@ const SearchGlobalReferenceTable = forwardRef(
                   >
                     <span
                       className={`absolute top-[2px] rounded-full bg-white shadow-md transition-all duration-200 ${
-<<<<<<< HEAD
-                        autoFillGrid ? "left-[50px]" : "left-[2px]"
-=======
                         autoFillGrid
                           ? tableSize === "Half"
                             ? "left-[55px]"
                             : "left-[50px]"
                           : "left-[2px]"
->>>>>>> 51da56b54bc96cbcfaaea05ac23a427339f295a2
                       } ${tableSize === "Half" ? "w-6 h-6" : "w-7 h-7"}`}
                     />
 
@@ -1469,20 +1416,13 @@ const SearchGlobalReferenceTable = forwardRef(
                 </label>
               )}
 
-<<<<<<< HEAD
-=======
               {/* REFRESH */}
->>>>>>> 51da56b54bc96cbcfaaea05ac23a427339f295a2
               {onRefresh && (
                 <div className="relative flex-1 md:flex-none min-w-[40px]">
                   <button
                     type="button"
                     onClick={onRefresh}
-<<<<<<< HEAD
-                    className={`w-full text-xs font-medium text-slate-600 bg-white border border-slate-300 rounded-md hover:bg-slate-50 hover:text-blue-600 active:scale-[0.98] transition flex items-center justify-center ${
-=======
                     className={`w-full text-xs font-medium text-white bg-blue-600 border border-slate-300 rounded-md hover:bg-slate-50 hover:text-blue-600 active:scale-[0.98] transition flex items-center justify-center ${
->>>>>>> 51da56b54bc96cbcfaaea05ac23a427339f295a2
                       tableSize === "Half" ? "h-7 px-2 py-1" : "h-8 px-3 py-2"
                     }`}
                     title="Refresh Data"
@@ -1492,29 +1432,18 @@ const SearchGlobalReferenceTable = forwardRef(
                       spin={isFetching}
                       className="mr-1 md:mr-0 lg:mr-1"
                     />
-<<<<<<< HEAD
-                    <span className="hidden lg:inline">Refresh</span>
-=======
                     <span className={` ${tableSize === "Half" ? "inline lg:hidden" : "hidden lg:inline"}`}>Refresh</span>
->>>>>>> 51da56b54bc96cbcfaaea05ac23a427339f295a2
                   </button>
                 </div>
               )}
 
-<<<<<<< HEAD
-=======
               {/* EXPORT */}
->>>>>>> 51da56b54bc96cbcfaaea05ac23a427339f295a2
               <div className="relative flex-1 md:flex-none min-w-[80px]" data-sgrt-export>
                 <button
                   type="button"
                   onClick={() => hasDataFiltered && setShowExportMenu((p) => !p)}
                   disabled={!hasDataFiltered}
-<<<<<<< HEAD
-                  className={`w-full text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 active:scale-[0.98] transition ${
-=======
                   className={`w-full text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 active:scale-[0.98] transition flex items-center justify-center ${
->>>>>>> 51da56b54bc96cbcfaaea05ac23a427339f295a2
                     tableSize === "Half"
                       ? "h-7 md:w-38 px-3 py-1"
                       : "h-8 md:w-[80px] px-3 py-2"
@@ -1609,11 +1538,7 @@ const SearchGlobalReferenceTable = forwardRef(
                 <button
                   type="button"
                   onClick={() => setShowColumnChooser((p) => !p)}
-<<<<<<< HEAD
-                  className={`w-full text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-[0.98] transition ${
-=======
                   className={`w-full text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-[0.98] transition flex items-center justify-center ${
->>>>>>> 51da56b54bc96cbcfaaea05ac23a427339f295a2
                     tableSize === "Half"
                       ? "h-7 text-xs px-2 py-1"
                       : "h-8 text-sm px-3 py-2"
@@ -1704,15 +1629,9 @@ const SearchGlobalReferenceTable = forwardRef(
                           className={`global-tran-th-ui bg-blue-100 select-none relative ${
                             isStickyLeft ? "sticky z-40" : ""
                           } ${actionCol ? "cursor-default" : "cursor-pointer"} ${col.className || ""}`}
-<<<<<<< HEAD
-                          draggable={!isMobile && !groupBy.includes(col.key) && !actionCol}
-                          onDragStart={(e) => {
-                            if (!isMobile && !actionCol) handleColDragStart(e, col.key);
-=======
                           draggable={!isMobile && showGroupBy && !groupBy.includes(col.key) && !actionCol}
                           onDragStart={(e) => {
                             if (!isMobile && showGroupBy && !actionCol) handleColDragStart(e, col.key);
->>>>>>> 51da56b54bc96cbcfaaea05ac23a427339f295a2
                           }}
                           onDragOver={(e) => {
                             if (!isMobile && showGroupBy) e.preventDefault();
@@ -1722,11 +1641,7 @@ const SearchGlobalReferenceTable = forwardRef(
                           }}
                           onClick={() => handleSort(col.key, col.sortable)}
                           title={
-<<<<<<< HEAD
-                            !isMobile && !actionCol
-=======
                             !isMobile && showGroupBy && !actionCol
->>>>>>> 51da56b54bc96cbcfaaea05ac23a427339f295a2
                               ? "Click to sort • Drag to reorder/group"
                               : col.sortable
                                 ? "Click to sort"
@@ -1855,10 +1770,7 @@ const SearchGlobalReferenceTable = forwardRef(
                           key={row.__idx ?? idx}
                           className="global-tran-tr-ui hover:bg-gray-50 cursor-pointer"
                           onClick={() => {
-<<<<<<< HEAD
-=======
                             if (onRowClick) onRowClick(row);
->>>>>>> 51da56b54bc96cbcfaaea05ac23a427339f295a2
                             if (isMobile) handleRowOpen(row);
                           }}
                           onDoubleClick={() => {
