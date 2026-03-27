@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Swal from "sweetalert2";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import {
+  useGetCurrentDayV2,
+  useformatToDatev2,
+} from "@/NAYSA Cloud/Global/dates"; //
 
 // UI
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -29,11 +33,13 @@ import PostTranModal from "../../../Lookup/SearchPostRef.jsx";
 import AttachDocumentModal from "../../../Lookup/SearchAttachment.jsx";
 import DocumentSignatories from "../../../Lookup/SearchSignatory.jsx";
 import AllTranHistory from "../../../Lookup/SearchGlobalTranHistory.jsx";
+import AllTranDocNo from "../../../Lookup/SearchDocNo.jsx";
 
 // Configuration
 import { fetchData, postRequest } from "../../../Configuration/BaseURL.jsx";
 import { useReset } from "../../../Components/ResetContext";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
+import DateFormatInput from "@/NAYSA Cloud/Global/DateFormatInput.jsx";
 
 import {
   docTypeNames,
@@ -85,9 +91,17 @@ import { faAdd } from "@fortawesome/free-solid-svg-icons/faAdd";
 const JV = () => {
   const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const [topTab, setTopTab] = useState("details"); // "details" | "history"
   const { user } = useAuth();
   const { resetFlag } = useReset();
+  const [isViewDocument, setIsViewDocument] = useState(false);
+  useEffect(() => {
+    const p = new URLSearchParams(location.search);
+    if (p.get("viewDocument") === "true") {
+      setIsViewDocument(true);
+    }
+  }, []);
   const [state, setState] = useState({
     // HS Option
     glCurrMode: "M",
@@ -117,10 +131,13 @@ const JV = () => {
     isSaveDisabled: false,
     isResetDisabled: false,
     isFetchDisabled: false,
+    // showAllTranDocNo: false,
+    // showPostModal: false,
+    // showAllTranDocNo: false,
 
     // Header information
     header: {
-      jv_date: new Date().toISOString().split("T")[0],
+      jv_date: useGetCurrentDayV2(),
     },
 
     branchCode: "HO",
@@ -179,6 +196,7 @@ const JV = () => {
     showBillCodeModal: false,
     showSlModal: false,
     showPostModal: false, //new modal
+    showAllTranDocNo: false,
   });
 
   const updateState = (updates) => {
@@ -268,6 +286,7 @@ const JV = () => {
     showBillCodeModal,
     showSlModal,
     showPostModal, //new modal
+    showAllTranDocNo,
   } = state;
 
   const [focusedCell, setFocusedCell] = useState(null); // { index: number, field: string }
@@ -384,6 +403,17 @@ const JV = () => {
   }, [state.documentID]);
 
   useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "F1") {
+        e.preventDefault();
+        updateState({ showAllTranDocNo: true });
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  useEffect(() => {
     handleReset();
   }, []);
 
@@ -406,7 +436,8 @@ const JV = () => {
     loadDocControl();
     loadCompanyData();
     updateState({
-      header: { jv_date: new Date().toISOString().split("T")[0] },
+      header: { jv_date: useGetCurrentDayV2() }, // Sets default to today
+      documentDate: useGetCurrentDayV2(),
       branchCode: "HO",
       branchName: "Head Office",
       refDocNo: "",
@@ -542,11 +573,7 @@ const JV = () => {
       }
 
       // Format header date
-      let jvDateForHeader = "";
-      if (data.jvDate) {
-        const d = new Date(data.jvDate);
-        jvDateForHeader = isNaN(d) ? "" : d.toISOString().split("T")[0];
-      }
+      const jvDateForHeader = data.jvDate ? useformatToDatev2(data.jvDate) : "";
 
       // Format rows
       const retrievedDetailRows = (data.dt1 || []).map((item) => ({
@@ -573,7 +600,7 @@ const JV = () => {
         documentID: data.jvId,
         documentNo: data.jvNo,
         branchCode: data.branchCode,
-        header: { jv_date: jvDateForHeader },
+        header: { ...state.header, jv_date: jvDateForHeader },
         selectedJVType: data.jvtranType,
         noReprints: noReprints,
         selectedRefDocType: data.refDocType,
@@ -705,6 +732,14 @@ const JV = () => {
     // if (!detailRows || detailRows.length === 0) {
     //   return;
     // }
+    if (action === "Upsert" && detailRowsGL.length === 0) {
+      Swal.fire({
+        icon: "warning",
+        title: "Validation Error",
+        text: "Please add at least one GL Entry before saving.",
+      });
+      return;
+    }
 
     if (documentStatus === "") {
       updateState({ isLoading: true });
@@ -814,8 +849,13 @@ const JV = () => {
             "jvNo",
           );
           if (response) {
-            useSwalshowSaveSuccessDialog(handleReset, () =>
-              handleSaveAndPrint(response.data[0].jvId),
+            useSwalshowSaveSuccessDialog(
+              () => {
+                handleReset();
+                setTopTab("history"); // Switches the view to the history tab automatically
+                setHistoryRefreshKey((prev) => prev + 1); // Triggers the auto-sync
+              },
+              () => handleSaveAndPrint(response.data[0].jvId), // or sviId
             );
           }
         } catch (error) {
@@ -863,14 +903,15 @@ const JV = () => {
     }
   };
 
-  const handleAddRowGL = () => {
+  const handleAddRowGL = (index = null) => {
+    
     updateState({
       detailRowsGL: [
         ...detailRowsGL,
         {
           acctCode: "",
           rcCode: "",
-          sltypeCode: "CU",
+          sltypeCode: "",
           slCode: "",
           particular: "",
           vatCode: "",
@@ -890,8 +931,9 @@ const JV = () => {
     });
   };
 
+  const updatedRows = [...detailRows];
   const handleDeleteRow = (index) => {
-    const updatedRows = [...detailRows];
+    
     updatedRows.splice(index, 1);
 
     updateState({ detailRows: updatedRows });
@@ -960,7 +1002,7 @@ const JV = () => {
   };
 
   const handleCopy = async () => {
-    if (!detailRows || detailRows.length === 0) {
+    if (!detailRowsGL || detailRowsGL.length === 0) {
       return;
     }
 
@@ -968,10 +1010,20 @@ const JV = () => {
       updateState({
         documentNo: "",
         documentID: "",
-        documentStatus: "",
+        documentStatus: "", // Reset so it doesn't think it's finalized
         status: "OPEN",
+        isDocNoDisabled: false,
+        isFetchDisabled: false,
+        noReprints: "0",
       });
     }
+    Swal.fire({
+      icon: "success",
+      title: "Transaction Copied",
+      text: "Identifiers cleared. You can now modify and save this as a new JV.",
+      timer: 2000,
+      showConfirmButton: false,
+    });
   };
 
   //  ** View Document and Transaction History Retrieval ***
@@ -1165,7 +1217,7 @@ const JV = () => {
   };
 
   const handleDetailChangeGL = async (index, field, value) => {
-    const updatedRowsGL = [...state.detailRowsGL];
+    const updatedRowsGL = [...detailRowsGL];
     let row = { ...updatedRowsGL[index] };
 
     if (
@@ -1228,7 +1280,7 @@ const JV = () => {
       row[field] = value;
     }
 
-    updatedRowsGL[index] = row;
+    updatedRowsGL.push(newRow);
     updateState({ detailRowsGL: updatedRowsGL });
   };
 
@@ -1342,15 +1394,15 @@ const JV = () => {
   };
 
   const handleCloseCancel = async (confirmation) => {
-    if (confirmation && documentStatus !== "OPEN" && documentID !== null) {
+    if (confirmation && documentID !== null) {
       const result = await useHandleCancel(
         docType,
         documentID,
-        "NSI",
+        user.USER_CODE, // Use the real logged-in user code
+        confirmation.password,
         confirmation.reason,
         updateState,
       );
-
       if (result.success) {
         Swal.fire({
           icon: "success",
@@ -1542,7 +1594,6 @@ const JV = () => {
           onPost={handlePost}
           onCancel={handleCancel}
           onCopy={handleCopy}
-       
           onAttach={handleAttach}
           activeTopTab={topTab}
           showActions={topTab === "details"}
@@ -1550,10 +1601,19 @@ const JV = () => {
           onDetails={() => setTopTab("details")}
           onHistory={() => setTopTab("history")}
           disableRouteNavigation={true}
-          isSaveDisabled={isSaveDisabled}
-          isResetDisabled={isResetDisabled}
-          detailsRoute="/page/SOA"
+          detailsRoute="/page/JV"
+          isSaveDisabled={
+            state.isSaveDisabled || isFormDisabled || detailRowsGL.length === 0
+          }
+          isResetDisabled={state.isResetDisabled}
+          isAttachDisabled={!documentID}
           isPrintDisabled={!documentID || displayStatus === "CANCELLED"}
+          isCopyDisabled={!documentID || displayStatus === "CANCELLED"}
+          isCancelDisabled={
+            !documentID ||
+            displayStatus === "CANCELLED" ||
+            displayStatus === "FINALIZED"
+          }
         />
       </div>
 
@@ -1679,28 +1739,25 @@ const JV = () => {
                   </button>
                 </div>
 
+                {/* JV Date Picker - Updated to match APV behavior */}
                 <div className="relative">
-                  <input
-                    type="date"
-                    id="JVDate"
-                    className="peer global-tran-textbox-ui"
-                    value={header.jv_date}
-                    max="9999-12-31" /* Restricts the year to 4 digits visually in most browsers */
-                    onChange={(e) =>
-                      setHeader((prev) => ({
-                        ...prev,
-                        jv_date: e.target.value,
-                      }))
-                    }
-                    disabled={isFormDisabled}
-                  />
-                  <label
-                    htmlFor="JVDate"
-                    className="global-tran-floating-label"
-                  >
-                    JV Date
-                  </label>
-                </div>
+  <DateFormatInput
+    id="jv_date"
+    value={header.jv_date} // header refers to state.header via destructuring
+    disabled={isFormDisabled}
+    updateState={(updates) => {
+      if (updates.jv_date !== undefined) {
+        // Update the header nested inside the main state
+        updateState({
+          header: { ...state.header, jv_date: updates.jv_date },
+        });
+      }
+    }}
+  />
+  <label htmlFor="jv_date" className="global-tran-floating-label">
+    JV Date
+  </label>
+</div>
               </div>
               {/* Column 2 */}
               <div className="global-tran-textbox-group-div-ui">
@@ -1858,11 +1915,6 @@ const JV = () => {
                     value={refDocNo}
                     placeholder=" "
                     onChange={(e) => updateState({ refDocNo: e.target.value })}
-                    //  onClick={() => {
-                    //         if (!state.isDocNoDisabled) {
-                    //             fetchTranData(state.documentNo,state.branchCode);
-                    //         }
-                    //     }}
                     className="peer global-tran-textbox-ui"
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
@@ -2027,17 +2079,23 @@ const JV = () => {
               </button>
             </div>
 
-            {/* Action Button */}
-            <div className="flex justify-end">
-              <button
-                onClick={() => handleActivityOption("GenerateGL")}
-                className="global-tran-button-generateGL"
-                disabled={isLoading} // Optionally disable button while loading
-                style={{ visibility: isFormDisabled ? "hidden" : "visible" }}
-              >
-                {isLoading ? "Generating..." : "Generate GL Entries"}
-              </button>
-            </div>
+           {/* Action Button */}
+<div className="flex justify-end">
+  <button
+    onClick={() => handleActivityOption("GenerateGL")}
+    className="global-tran-button-generateGL"
+    // Disable if loading OR if the transaction type is "Regular" (JV01)
+    disabled={isLoading || selectedJVType === "JV01"} 
+    style={{ 
+      visibility: isFormDisabled ? "hidden" : "visible",
+      // Optional: Visual cue that it's disabled
+      opacity: (isLoading || selectedJVType === "JV01") ? 0.5 : 1,
+      cursor: (isLoading || selectedJVType === "JV01") ? "not-allowed" : "pointer"
+    }}
+  >
+    {isLoading ? "Generating..." : "Generate GL Entries"}
+  </button>
+</div>
           </div>
 
           {/* GL Details Table */}
@@ -2631,19 +2689,25 @@ const JV = () => {
                           }
                         />
                       </td>
+                      {/* SL Ref. Date - Updated to match APV behavior */}
                       <td className="global-tran-td-ui">
-                        <input
-                          type="date"
-                          className="w-[100px] global-tran-td-inputclass-ui"
-                          value={row.slRefDate || ""}
-                          onChange={(e) =>
-                            handleDetailChangeGL(
-                              index,
-                              "slRefDate",
-                              e.target.value,
-                            )
-                          }
-                        />
+                        <div className="w-[110px]">
+                          <DateFormatInput
+                            id={`slRefDate_${index}`}
+                            value={row.slRefDate || ""}
+                            disabled={isFormDisabled}
+                            className="w-[100px] global-tran-td-inputclass-ui text-center pr-7"
+                            updateState={(updates) => {
+                              if (updates[`slRefDate_${index}`] !== undefined) {
+                                handleDetailChangeGL(
+                                  index,
+                                  "slRefDate",
+                                  updates[`slRefDate_${index}`],
+                                );
+                              }
+                            }}
+                          />
+                        </div>
                       </td>
                       <td className="global-tran-td-ui">
                         <input
@@ -2814,7 +2878,6 @@ const JV = () => {
           />
         )}
 
-        {/* Cancellation Modal */}
         {showCancelModal && (
           <CancelTranModal
             isOpen={showCancelModal}
@@ -2846,6 +2909,27 @@ const JV = () => {
             params={{ noReprints, documentID, docType }}
             onClose={handleCloseSignatory}
             onCancel={() => updateState({ showSignatoryModal: false })}
+          />
+        )}
+        {showAllTranDocNo && (
+          <AllTranDocNo
+            isOpen={showAllTranDocNo}
+            params={{
+              branchCode,
+              branchName,
+              docType,
+              documentTitle,
+              fieldNo: "jvNo",
+            }}
+            onRetrieve={(data) => {
+              fetchTranData(data.docNo, branchCode);
+              updateState({ showAllTranDocNo: false });
+            }}
+            onSelected={(data) => {
+              handleReset();
+              updateState({ showAllTranDocNo: false, documentNo: data.docNo });
+            }}
+            onClose={() => updateState({ showAllTranDocNo: false })}
           />
         )}
 
