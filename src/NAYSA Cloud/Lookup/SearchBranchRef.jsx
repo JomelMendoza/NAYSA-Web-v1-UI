@@ -195,12 +195,12 @@ const BranchLookupModal = ({
               <p className="text-sm font-medium">Loading...</p>
             </div>
           ) : (
-            <table className="min-w-full border-separate border-spacing-0">
+            <table className="min-w-full border-separate border-spacing-0 table-fixed">
               <thead className="sticky top-0 z-10 bg-slate-200">
                 <tr>
                   {[
-                    { label: "Branch Code", key: "branchCode" },
-                    { label: "Branch Name", key: "branchName" },
+                    { label: "Branch Code", key: "branchCode", width: "w-[100px]" },
+                    { label: "Branch Name", key: "branchName"},
                   ].map((col) => (
                     <th key={col.key} className="global-lookup-th-ui">
                       <div
@@ -236,8 +236,8 @@ const BranchLookupModal = ({
                       onClick={() => handleApply(branch)}
                       className="group hover:bg-blue-50 cursor-pointer transition-colors"
                     >
-                      <td className="global-lookup-td-ui w-[120px] font-bold">{branch.branchCode}</td>
-                      <td className="global-lookup-td-ui w-[300px]">{branch.branchName}</td>
+                      <td className="global-lookup-td-ui font-bold">{branch.branchCode}</td>
+                      <td className="global-lookup-td-ui">{branch.branchName}</td>
                     </tr>
                   ))
                 ) : (

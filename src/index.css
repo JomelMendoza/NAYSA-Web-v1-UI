@@ -548,7 +548,7 @@ body {
   }
 
   .global-lookup-th-text-ui {
-    @apply px-1 py-1 text-[10px] sm:text-[11px] lg:text-xs font-bold text-gray-800 cursor-pointer
+    @apply px-1 py-1 text-[10px] sm:text-[11px] lg:text-xs font-bold text-gray-600 cursor-pointer whitespace-nowrap
     dark:text-gray-300;
   }
 
@@ -558,9 +558,9 @@ body {
   }
 
   .global-lookup-td-ui {
-    @apply text-[10px] sm:text-[10px] lg:text-[11px] text-gray-700 px-2 py-1 sm:px-3 sm:py-1.5 break-words
-    dark:text-white;
-  }
+  @apply text-[10px] sm:text-[10px] lg:text-[11px] text-gray-700 px-2 py-1 sm:px-3 sm:py-1.5 
+         break-all whitespace-normal overflow-hidden dark:text-white;
+}
 
   .global-lookup-td-apply-ui {
     @apply text-[10px] sm:text-[10px] lg:text-xs text-gray-900 px-2 text-center border border-blue-100
