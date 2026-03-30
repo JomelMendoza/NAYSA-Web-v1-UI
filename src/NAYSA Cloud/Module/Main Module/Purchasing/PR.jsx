@@ -23,6 +23,7 @@ import AllTranDocNo from "../../../Lookup/SearchDocNo.jsx";
 import GlobalLookupModalv1 from "../../../Lookup/SearchGlobalLookupv1.jsx";
 import JobCodeLookupModal from "../../../Lookup/SearchJobCodesRef.jsx";
 import ExcelBatchUploadModal from "../../../Lookup/SearchGlobalExcelBatchUpload.jsx";
+import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 
 // Configuration
 import {  apiClient,fetchDataJson } from "../../../Configuration/BaseURL.jsx";
@@ -1198,6 +1199,7 @@ if (field === 'prStatus') {
 
     
         const isZero = Number(noReprints) === 0;
+                        await fetchTranData(documentNo, branchCode);
                         const onSaveAndPrint =
                           isZero
                             ? () => updateState({ showSignatoryModal: true })                  
@@ -1535,9 +1537,16 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
           onDetails={() => setTopTab("details")}
           onHistory={() => setTopTab("history")}
           disableRouteNavigation={true}         
-          isSaveDisabled={isSaveDisabled} 
-          isResetDisabled={isResetDisabled} 
           detailsRoute="/page/PR"
+
+          isSaveDisabled={state.isSaveDisabled || isFormDisabled ||  ((detailRows?.length || 0)=== 0)} 
+          isResetDisabled={state.isResetDisabled}
+          isAttachDisabled={!documentID}
+          isPrintDisabled={!documentID || displayStatus === "CANCELLED"}
+          isCopyDisabled={!documentID || displayStatus === "CANCELLED"}
+          isCancelDisabled={!documentID || displayStatus === "CANCELLED" || displayStatus === "FINALIZED"|| displayStatus === "CLOSED"}
+
+
         />
       </div>
 
@@ -1579,352 +1588,186 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
         
 
           {/* PR Header Form Section */}
-          <div
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 rounded-lg relative"
-            id="pr_hd"
-          >
-            {/* Columns 1–3 (Header fields) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 rounded-lg relative" id="pr_hd">
             <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* Column 1: Branch / PR No / PR Date */}
+
+              {/* Column 1 */}
               <div className="global-tran-textbox-group-div-ui">
-                {/* Branch */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="branchName"
-                    placeholder=" "
-                    value={branchName}
-                    readOnly
-                    onFocus={(e) => e.target.blur()}
-                    className="peer global-tran-textbox-ui cursor-pointer select-none"
-                  />
-                  <label
-                    htmlFor="branchName"
-                    className="global-tran-floating-label"
-                  >
-                    Branch
-                  </label>
-                  <button
-                    type="button"
-                    className={`global-tran-textbox-button-search-padding-ui ${
-                      isFetchDisabled
-                        ? "global-tran-textbox-button-search-disabled-ui"
-                        : "global-tran-textbox-button-search-enabled-ui"
-                    } global-tran-textbox-button-search-ui`}
-                    disabled={
-                      state.isFetchDisabled ||
-                      state.isDocNoDisabled ||
-                      isFormDisabled
-                    }
-                    onClick={() =>
-                      !isFormDisabled && updateState({ branchModalOpen: true })
-                    }
-                  >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} />
-                  </button>
-                </div>
+                <FieldRenderer
+                  id="branchName"
+                  label="Branch"
+                  type="lookup"
+                  value={branchName || ""}
+                  disabled={state.isFetchDisabled || state.isDocNoDisabled || isFormDisabled}
+                  readOnly
+                  lookupDisabled={isFetchDisabled}
+                  onLookup={() => !isFormDisabled && updateState({ branchModalOpen: true })}
+                />
 
-                {/* PR No */}
-                <div className="relative">
-                        <input
-                            type="text"
-                            id="prNo"
-                            value={state.documentNo}
-                            onChange={(e) => updateState({ documentNo: e.target.value })}
-                            // onBlur={handleDocNoBlur}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                handleDocNoBlur();
-                                e.preventDefault(); 
-                                document.getElementById("documentDate")?.focus();
-                              }}}
-                            placeholder=" "
-                            className={`peer global-tran-textbox-ui ${state.isDocNoDisabled ? 'bg-blue-100 cursor-not-allowed' : ''}`}
-                            disabled={state.isDocNoDisabled}
-                        />
-                        <label htmlFor="prNo" className="global-tran-floating-label">
-                    PR No.
-                  </label>
-                  <button
-                            className={`global-tran-textbox-button-search-padding-ui ${
-                                (state.isFetchDisabled || state.isDocNoDisabled)
-                                ? "global-tran-textbox-button-search-disabled-ui"
-                                : "global-tran-textbox-button-search-enabled-ui"
-                            } global-tran-textbox-button-search-ui`}
-                            // disabled={state.isFetchDisabled || state.isDocNoDisabled}
-                            onClick={() => {updateState({showAllTranDocNo:true})}}
-                        >
-                            <FontAwesomeIcon icon={faMagnifyingGlass} />
-                        </button>
-                </div>
+                <FieldRenderer
+                  id="prNo"
+                  label="PR No."
+                  type="lookup"
+                  value={state.documentNo || ""}
+                  disabled={state.isDocNoDisabled}
+                  onChange={(val) => updateState({ documentNo: val })}
+                  onLookup={() => updateState({ showAllTranDocNo: true })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleDocNoBlur();
+                      e.preventDefault();
+                      document.getElementById("documentDate")?.focus();
+                    }
+                  }}
+                />
 
-                {/* PR Date */}
-                <div className="relative">
-                 <DateFormatInput
-                    id="documentDate"
-                    value={documentDate}
-                    updateState={updateState}
-                    disabled={isFormDisabled}
+                <div className="relative w-full">
+                  <div
+                    className={`flex items-stretch global-ref-textbox-ui ${
+                      !isFormDisabled
+                        ? "global-ref-textbox-enabled"
+                        : "global-ref-textbox-disabled"
+                    }`}
+                  >
+                    <DateFormatInput
+                      id="documentDate"
+                      className="peer flex-grow bg-transparent border-none px-3 focus:outline-none cursor-pointer"
+                      value={documentDate}
+                      disabled={isFormDisabled}
+                      updateState={updateState}
                     />
-                  <label
-                    htmlFor="PRDate"
-                    className="global-tran-floating-label"
-                  >
+                  </div>
+                  <label htmlFor="documentDate" className="global-ref-floating-label">
                     PR Date
                   </label>
                 </div>
 
-                {/* PR Tran Type */}
-                <div className="relative">
-                  <select
-                    id="prTranType"
-                    className="peer global-tran-textbox-ui"
-                    value={selectedPrTranType}
-                    onChange={handlePrTranTypeChange}
-                    disabled={isFormDisabled || detailRows.length>0 }
-                  >
-                    <option value="PRO1">Regular Transaction</option>
-                    <option value="PR02">Job Order</option>
-                  </select>
-                  <label
-                    htmlFor="prTranType"
-                    className="global-tran-floating-label"
-                  >
-                    Tran Type
-                  </label>
-                  <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-                    <svg
-                      className="h-4 w-4 text-gray-500"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </div>
-                </div>
+                <FieldRenderer
+                  id="prTranType"
+                  label="Tran Type"
+                  type="select"
+                  value={selectedPrTranType || ""}
+                  disabled={isFormDisabled || detailRows.length > 0}
+                  onChange={(val) => handlePrTranTypeChange({ target: { value: val } })}
+                  options={[
+                    { label: "Regular Transaction", value: "PRO1" },
+                    { label: "Job Order", value: "PR02" },
+                  ]}
+                />
               </div>
 
-              {/* Column 2: Responsibility Center / Requesting Dept / Tran Type */}
+              {/* Column 2 */}
               <div className="global-tran-textbox-group-div-ui">
-                {/* Responsibility Center */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="rcName"
-                    value={rcName}
-                    readOnly
-                    placeholder=" "
-                    className="peer global-tran-textbox-ui"
-                  />
-                  <label
-                    htmlFor="rcName"
-                    className="global-tran-floating-label"
-                  >
-                    Responsibility Center
-                  </label>
-                  <button
-                    type="button"
-                    className={`global-tran-textbox-button-search-padding-ui ${
-                      isFetchDisabled
-                        ? "global-tran-textbox-button-search-disabled-ui"
-                        : "global-tran-textbox-button-search-enabled-ui"
-                    } global-tran-textbox-button-search-ui`}
-                    disabled={isFormDisabled}
-                    onClick={() =>
-                      !isFormDisabled &&
-                      updateState({
-                        rcLookupModalOpen: true,
-                        rcLookupContext: "rc",
-                      })
-                    }
-                  >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} />
-                  </button>
-                </div>
+                <FieldRenderer
+                  id="rcName"
+                  label="Responsibility Center"
+                  type="lookup"
+                  value={rcName || ""}
+                  disabled={isFormDisabled}
+                  readOnly
+                  lookupDisabled={isFetchDisabled}
+                  onLookup={() =>
+                    !isFormDisabled &&
+                    updateState({
+                      rcLookupModalOpen: true,
+                      rcLookupContext: "rc",
+                    })
+                  }
+                />
 
-                {/* Requesting Dept. */}
-                <div className="relative group flex-[1.3]">
-                  <input
-                    type="text"
-                    id="rcName"
-                    value={reqRcName}
-                    readOnly
-                    placeholder=" "
-                    className="peer global-tran-textbox-ui"
-                  />
-                  <label
-                    htmlFor="reqRcName"
-                    className="global-tran-floating-label"
-                  >
-                    Requesting Dept.
-                  </label>
-                  <button
-                    type="button"
-                    className={`global-tran-textbox-button-search-padding-ui ${
-                      isFetchDisabled
-                        ? "global-tran-textbox-button-search-disabled-ui"
-                        : "global-tran-textbox-button-search-enabled-ui"
-                    } global-tran-textbox-button-search-ui`}
-                    disabled={isFormDisabled}
-                    onClick={() =>
-                      !isFormDisabled &&
-                      updateState({
-                        rcLookupModalOpen: true,
-                        rcLookupContext: "reqDept",
-                      })
-                    }
-                  >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} />
-                  </button>
-                </div>
+                <FieldRenderer
+                  id="reqRcName"
+                  label="Requesting Dept."
+                  type="lookup"
+                  value={reqRcName || ""}
+                  disabled={isFormDisabled}
+                  readOnly
+                  lookupDisabled={isFetchDisabled}
+                  onLookup={() =>
+                    !isFormDisabled &&
+                    updateState({
+                      rcLookupModalOpen: true,
+                      rcLookupContext: "reqDept",
+                    })
+                  }
+                />
 
-                {/* PR Type */}
-                <div className="relative">
-                  <select
-                    id="prType"
-                    className="peer global-tran-textbox-ui"
-                    value={selectedPrType}
-                    onChange={handlePrTypeChange}
-                    disabled={isFormDisabled}
+                <FieldRenderer
+                  id="prType"
+                  label="PR Type"
+                  type="select"
+                  value={selectedPrType || ""}
+                  disabled={isFormDisabled}
+                  onChange={(val) => handlePrTypeChange({ target: { value: val } })}
+                  options={[
+                    { label: "Regular", value: "REG" },
+                    { label: "Priority", value: "PRI" },
+                    { label: "Urgent", value: "URG" },
+                  ]}
+                />
+
+                <div className="relative w-full">
+                  <div
+                    className={`flex items-stretch global-ref-textbox-ui ${
+                      !isFormDisabled
+                        ? "global-ref-textbox-enabled"
+                        : "global-ref-textbox-disabled"
+                    }`}
                   >
-                    <option value="">Regular</option>
-                    <option value="">Priority</option>
-                    <option value="">Urgent</option>
-                  </select>
-                  <label
-                    htmlFor="prType"
-                    className="global-tran-floating-label"
-                  >
-                    PR Type
-                  </label>
-                  <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-                    <svg
-                      className="h-4 w-4 text-gray-500"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
+                    <DateFormatInput
+                      id="headerDateNeeded"
+                      className="peer flex-grow bg-transparent border-none px-3 focus:outline-none cursor-pointer"
+                      value={headerDateNeeded}
+                      disabled={isFormDisabled}
+                      updateState={updateState}
+                    />
                   </div>
-                </div>
-
-                {/* Date Needed */}
-                <div className="relative">                
-                  <DateFormatInput
-                    id="headerDateNeeded"
-                    value={headerDateNeeded}
-                    updateState={updateState}
-                    disabled={isFormDisabled}
-                  />                 
-                  <label
-                    htmlFor="dateNeeded"
-                    className="global-tran-floating-label"
-                  >
+                  <label htmlFor="headerDateNeeded" className="global-ref-floating-label">
                     Date Needed
                   </label>
                 </div>
-
-                
               </div>
 
-              {/* Column 3: PR Type / Date Needed / Ref No / Total Qty */}
+              {/* Column 3 */}
               <div className="global-tran-textbox-group-div-ui">
-                
+                <FieldRenderer
+                  id="refPrNo1"
+                  label="Ref Doc No1."
+                  type="text"
+                  value={refPrNo1 || ""}
+                  disabled={isFormDisabled}
+                  onChange={(val) => updateState({ refPrNo1: val })}
+                  maxLength={useGetFieldLength(tblFieldArray, "refpr_no1")}
+                />
 
-                {/* Ref No (Ref PR No1) */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="refPrNo1"
-                    value={refPrNo1}
-                    placeholder=" "
-                    onChange={(e) => updateState({ refPrNo1: e.target.value })}
-                    className="peer global-tran-textbox-ui"                  
-                    disabled={isFormDisabled}
-                    maxLength={useGetFieldLength(tblFieldArray, "refpr_no1")} 
-                  />
-                  <label
-                    htmlFor="refPrNo1"
-                    className="global-tran-floating-label"
-                  >
-                    Ref Doc No1.
-                  </label>
-                </div>
+                <FieldRenderer
+                  id="refPrNo2"
+                  label="Ref Doc No2."
+                  type="text"
+                  value={refPrNo2 || ""}
+                  disabled={isFormDisabled}
+                  onChange={(val) => updateState({ refPrNo2: val })}
+                  maxLength={useGetFieldLength(tblFieldArray, "refpr_no2")}
+                />
 
-
-                 {/* Ref No (Ref PR No1) */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="refPrNo2"
-                    value={refPrNo2}
-                    placeholder=" "
-                    onChange={(e) => updateState({ refPrNo2: e.target.value })}
-                    className="peer global-tran-textbox-ui"                  
-                    disabled={isFormDisabled}
-                    maxLength={useGetFieldLength(tblFieldArray, "refpr_no2")} 
-                  />
-                  <label
-                    htmlFor="refPrNo2"
-                    className="global-tran-floating-label"
-                  >
-                    Ref Doc No2.
-                  </label>
-                </div>
-
-
-
-                {/* PR Type */}
-              <div className="relative">
-                <select
-                id="documentStatus"
-                className="peer global-tran-textbox-ui"
-                value={documentStatus || "O"}
-                onChange={(e) => handleHeaderStatusChange(e.target.value)}
-                disabled={isFormDisabled || !documentID?.length || documentStatus !=="O" }
-              >
-                <option value="O">Open</option>
-                <option value="C">Closed</option>
-                
-                {/* 2. Only render "Cancelled" if no rows have a PO record */}
-                {!hasExistingPO && documentStatus !=="C" && (
-                  <option value="X">Cancelled</option>
-                )}
-              </select>
-                <label htmlFor="prType" className="global-tran-floating-label">
-                  PR Status
-                </label>
-                <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-                  <svg
-                    className="h-4 w-4 text-gray-500"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
-                </div>
-              </div>
+                <FieldRenderer
+                  id="documentStatus"
+                  label="PR Status"
+                  type="select"
+                  value={documentStatus || "O"}
+                  disabled={isFormDisabled || !documentID?.length || documentStatus !== "O"}
+                  onChange={(val) => handleHeaderStatusChange(val)}
+                  options={[
+                    { label: "Open", value: "O" },
+                    { label: "Closed", value: "C" },
+                    ...( !hasExistingPO && documentStatus !== "C"
+                      ? [{ label: "Cancelled", value: "X" }]
+                      : []),
+                  ]}
+                />
               </div>
 
-              {/* Remarks (spans all 3 header columns) */}
+              {/* Remarks */}
               <div className="col-span-full">
                 <div className="relative p-2">
                   <textarea
@@ -1935,7 +1778,7 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
                     value={remarks}
                     onChange={(e) => updateState({ remarks: e.target.value })}
                     disabled={isFormDisabled}
-                    maxLength={useGetFieldLength(tblFieldArray, "remarks")} 
+                    maxLength={useGetFieldLength(tblFieldArray, "remarks")}
                   />
                   <label
                     htmlFor="remarks"
@@ -1945,10 +1788,10 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
                   </label>
                 </div>
               </div>
-
-              
             </div>
           </div>
+
+          
         </div>
 
         {/* =====================

@@ -1654,7 +1654,6 @@ export default function INTAXINQ() {
           </div>
 
           <div className="global-tran-table-main-div-ui">
-            <div className="max-h-[600px] overflow-y-auto relative">
               <SearchGlobalReportTable
                 ref={tableRef}
                 columns={cols_Att}
@@ -1663,7 +1662,6 @@ export default function INTAXINQ() {
                 rightActionLabel="View"
                 onRowAction={handleViewTop}
               />
-            </div>
           </div>
         </div>
 
@@ -1678,7 +1676,6 @@ export default function INTAXINQ() {
           </div>
 
           <div className="global-tran-table-main-div-ui">
-            <div className="max-h-[600px] overflow-y-auto relative">
               <SearchGlobalReportTable
                 ref={tableRef}
                 columns={cols}
@@ -1690,7 +1687,6 @@ export default function INTAXINQ() {
                   window.open(url, "_blank", "noopener,noreferrer");
                 }}
               />
-            </div>
           </div>
         </div>
       </div>

@@ -632,7 +632,6 @@ const ARAgingSummaryTab = forwardRef(function ARAgingSummaryTab({ registerAction
         </div>
 
         <div className="global-tran-table-main-div-ui">
-          <div className="max-h-[600px] overflow-y-auto relative">
             <SearchGlobalReportTable
               ref={tableRefTop}
               columns={columnConfigS}
@@ -651,7 +650,6 @@ const ARAgingSummaryTab = forwardRef(function ARAgingSummaryTab({ registerAction
               }}
             />
           </div>
-        </div>
       </div>
 
       {/* Detailed (BOTTOM) */}
@@ -663,7 +661,6 @@ const ARAgingSummaryTab = forwardRef(function ARAgingSummaryTab({ registerAction
         </div>
 
         <div className="global-tran-table-main-div-ui">
-          <div className="max-h-[600px] overflow-y-auto relative">
             <SearchGlobalReportTable
               ref={tableRefBottom}
               columns={columnConfig}
@@ -682,7 +679,6 @@ const ARAgingSummaryTab = forwardRef(function ARAgingSummaryTab({ registerAction
               }}
             />
           </div>
-        </div>
       </div>
 
       {/* Modals */}

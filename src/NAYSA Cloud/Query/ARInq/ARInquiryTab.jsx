@@ -566,8 +566,8 @@ const ARInquiryTab = forwardRef(function ARInquiryTab({ registerActions }, ref) 
           </div>
         </div>
 
-        <div className="global-tran-table-main-div-ui">
-          <div className="max-h-[600px] overflow-y-auto relative">
+      <div className="global-tran-table-main-div-ui">
+        
             <SearchGlobalReportTable
               ref={tableRef}
               columns={columnConfig}
@@ -585,8 +585,9 @@ const ARInquiryTab = forwardRef(function ARInquiryTab({ registerActions }, ref) 
                 cache[baseKey] = { ...prev, table: tbl };
               }}
             />
-          </div>
+        
         </div>
+
       </div>
 
       {/* === Modals (unchanged) === */}

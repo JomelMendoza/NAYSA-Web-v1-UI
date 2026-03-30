@@ -96,7 +96,7 @@ const PayeeSetupTab = forwardRef(
 
     // Helper variable to determine if we are manually adding a new code
     const isManualNew = form.__isNew && generationMode === "M";
-
+    
     const sl = useMemo(
       () => normalizeUpper(form?.sltypeCode || "SU"),
       [form?.sltypeCode]
@@ -133,6 +133,7 @@ const PayeeSetupTab = forwardRef(
       }),
       []
     );
+    const isRetrievedRecord = !form.__isNew && !!form[f.code];
 
     const col = useMemo(
       () => ({
@@ -408,16 +409,16 @@ const PayeeSetupTab = forwardRef(
                 onChange={
                   isManualNew
                     ? (v) => {
-                        const val = getValue(v);
-                        onChangeForm({ [f.code]: val, custCode: val });
-                      }
+                      const val = getValue(v);
+                      onChangeForm({ [f.code]: val, custCode: val });
+                    }
                     : undefined
                 }
                 // Only trigger the lookup modal if NOT creating a new Manual record
                 onLookup={isManualNew ? undefined : openPayeeLookup}
                 // Unlock the field if it's a new Manual record
                 readOnly={!isManualNew}
-                disabled={isLoading}
+                disabled={isLoading || isRetrievedRecord}
                 maxLength={getLen(col.code, 20)}
               />
 

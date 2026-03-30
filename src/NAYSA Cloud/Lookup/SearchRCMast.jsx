@@ -1,34 +1,80 @@
-import React, { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import React, { useState, useMemo, useEffect } from "react";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faTimes,
   faSpinner,
   faSyncAlt,
+  faSort,
+  faSearch,
+  faEraser,
+  faChevronLeft,
+  faChevronRight,
 } from "@fortawesome/free-solid-svg-icons";
-import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx"; // Updated to use your apiClient
+import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 
-const RCLookupModal = ({ isOpen, onClose, customParam }) => {
+// Debounce hook for smooth filtering
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
+
+const RCLookupModal = ({ 
+  isOpen, 
+  onClose, 
+  source, 
+  customParam = "ActiveAll",
+  title = "Select Responsibility Center",
+  withPagination = false 
+}) => {
   const [filters, setFilters] = useState({
     rcCode: "",
     rcName: "",
     rcType: "",
   });
 
-  // 1. Fetching with Polling (Auto-Refresh every 10s)
+  const [sortConfig, setSortConfig] = useState({
+    key: "",
+    direction: "asc",
+  });
+
+  const [currentPage, setCurrentPage] = useState(1);
+  
+  // Standardized page size logic
+  const pageSize = withPagination ? 100 : 999999; 
+
+  const hasActiveFilters = Object.values(filters).some((val) => val !== "");
+
+  const resetFilters = () =>
+    setFilters({
+      rcCode: "",
+      rcName: "",
+      rcType: "",
+    });
+
+  const debouncedFilters = useDebounce(filters, 300);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedFilters]);
+
+  // Fetching data using TanStack Query
   const {
     data: rcList = [],
     isLoading,
     isFetching,
-    error,
-    isError,
     refetch,
   } = useQuery({
     queryKey: ["lookupRCMast", customParam],
     queryFn: async () => {
       const { data: result } = await apiClient.get("/lookupRCMast", {
         params: {
-          PARAMS: customParam ?? "ActiveAll",
+          PARAMS: customParam || "ActiveAll",
         },
       });
 
@@ -36,29 +82,52 @@ const RCLookupModal = ({ isOpen, onClose, customParam }) => {
       return Array.isArray(rawData) ? rawData : JSON.parse(rawData);
     },
     enabled: isOpen,
-    staleTime: 1000 * 5, // Consider data stale after 5s
-    refetchInterval: 1000 * 10, // 🔄 AUTO-REFRESH: Every 10 seconds
-    refetchIntervalInBackground: false,
+    staleTime: 1000 * 60 * 5,
+    placeholderData: keepPreviousData,
   });
 
-  // 2. High-Performance Filtering
-  const filtered = useMemo(() => {
-    return rcList.filter(
-      (item) =>
-        (item.rcCode || "")
-          .toLowerCase()
-          .includes(filters.rcCode.toLowerCase()) &&
-        (item.rcName || "")
-          .toLowerCase()
-          .includes(filters.rcName.toLowerCase()) &&
-        (item.rcType || "")
-          .toLowerCase()
-          .includes(filters.rcType.toLowerCase()),
-    );
-  }, [filters, rcList]);
+  // Client-side Filter and Sort Logic
+  const filteredAndSorted = useMemo(() => {
+    if (!rcList.length) return [];
+
+    let result = rcList.filter((item) => {
+      return (
+        (item.rcCode || "").toLowerCase().includes(debouncedFilters.rcCode.toLowerCase()) &&
+        (item.rcName || "").toLowerCase().includes(debouncedFilters.rcName.toLowerCase()) &&
+        (item.rcType || "").toLowerCase().includes(debouncedFilters.rcType.toLowerCase())
+      );
+    });
+
+    if (sortConfig.key) {
+      result.sort((a, b) => {
+        const aVal = String(a[sortConfig.key] ?? "");
+        const bVal = String(b[sortConfig.key] ?? "");
+        return sortConfig.direction === "asc"
+          ? aVal.localeCompare(bVal, undefined, { numeric: true })
+          : bVal.localeCompare(aVal, undefined, { numeric: true });
+      });
+    }
+
+    return result;
+  }, [rcList, debouncedFilters, sortConfig]);
+
+  // Pagination Logic
+  const paginatedData = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredAndSorted.slice(startIndex, startIndex + pageSize);
+  }, [filteredAndSorted, currentPage, pageSize]);
+
+  const totalPages = Math.ceil(filteredAndSorted.length / pageSize) || 1;
+
+  const handleSort = (key) => {
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
+    }));
+  };
 
   const handleApply = (selectedRC) => {
-    onClose(selectedRC);
+    onClose(selectedRC, source);
     setFilters({ rcCode: "", rcName: "", rcType: "" });
   };
 
@@ -66,194 +135,163 @@ const RCLookupModal = ({ isOpen, onClose, customParam }) => {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4 animate-fade-in">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col relative overflow-hidden transform animate-scale-in border border-slate-200">
-        {/* Header */}
-        <div className="flex items-center justify-between p-2 border-b bg-slate-100">
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <h2 className="text-md font-bold text-blue-800 propercase tracking-tight pl-2">
-                Select Responsibility Center
-              </h2>
-              {/* Visual sync indicator */}
-              <div className="absolute -top-1 -right-4 flex h-2 w-2">
-                <span
-                  className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 ${isFetching ? "block" : "hidden"}`}
-                ></span>
-                <span
-                  className={`relative inline-flex rounded-full h-2 w-2 bg-blue-500 ${isFetching ? "block" : "hidden"}`}
-                ></span>
-              </div>
-            </div>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col relative overflow-hidden transform animate-scale-in border border-slate-200">
+        
+        {/* Header Section - Matches Cutoff UI */}
+        <div className="flex items-center justify-between bg-slate-100 border-b border-slate-200">
+          <div className="flex items-center gap-2 pl-3">
+            <h2 className="global-lookup-headertext-ui">{title}</h2>
+            {isFetching && (
+                <div className="flex h-2 w-2 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                </div>
+            )}
           </div>
-          <div className="flex items-center gap-2">
+
+          <div className="flex items-center gap-1">
+            {hasActiveFilters && (
+              <button
+                onClick={resetFilters}
+                className="px-2 py-1 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded transition-all flex items-center gap-1.5"
+              >
+                <FontAwesomeIcon icon={faEraser} />
+                CLEAR
+              </button>
+            )}
+            
+            {isFetching && (
+              <span className="text-[9px] text-blue-500 animate-pulse font-bold flex items-center gap-1 uppercase mt-0.5">
+                <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
+                Syncing...
+              </span>
+            )}
+
             <button
               onClick={() => refetch()}
-              className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all"
-              title="Manual Refresh"
+              className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+              title="Refresh Data"
             >
               <FontAwesomeIcon icon={faSyncAlt} size="sm" spin={isFetching} />
             </button>
+
             <button
-              onClick={() => onClose(null)}
-              className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-all"
+              onClick={() => onClose(null, source)}
+              className="p-2 text-slate-400 hover:text-red-600 transition-colors"
             >
               <FontAwesomeIcon icon={faTimes} size="lg" />
             </button>
           </div>
         </div>
 
-        {/* Main Content */}
-        <div className="flex-grow overflow-hidden flex flex-col">
+        {/* Table Body - Uses Global UI Classes */}
+        <div className="flex-grow overflow-auto custom-scrollbar bg-white">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center h-64 text-slate-400">
-              <FontAwesomeIcon
-                icon={faSpinner}
-                spin
-                size="2x"
-                className="mb-4 text-blue-500"
-              />
-              <p className="text-sm">Fetching Responsibility Centers...</p>
-            </div>
-          ) : isError ? (
-            <div className="p-4 m-4 text-center bg-red-50 border border-red-200 text-red-700 rounded-lg">
-              <p className="font-bold text-sm">Error Loading Data</p>
-              <p className="text-xs">{error.message}</p>
+              <FontAwesomeIcon icon={faSpinner} spin size="2x" className="mb-4 text-blue-500" />
+              <p className="text-sm font-medium">Loading...</p>
             </div>
           ) : (
-            <div className="overflow-auto custom-scrollbar">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-200 sticky top-0 z-10">
-                  <tr>
-                    <th className="px-4 py-2 text-left">
-                      <label className="block text-[13px] font-bold text-slate-600 propercase mb-1 ">
-                        RC Code
-                      </label>
-                      <input
-                        type="text"
-                        value={filters.rcCode}
-                        onChange={(e) =>
-                          setFilters((p) => ({ ...p, rcCode: e.target.value }))
-                        }
-                        placeholder="Filter..."
-                        className="w-full px-2 py-1 text-xs border rounded bg-white outline-none focus:ring-2 focus:ring-blue-500/20"
-                      />
-                    </th>
-                    <th className="px-4 py-2 text-left">
-                      <label className="block text-[13px] font-bold text-slate-600 propercase mb-1">
-                        Description
-                      </label>
-                      <input
-                        type="text"
-                        value={filters.rcName}
-                        onChange={(e) =>
-                          setFilters((p) => ({ ...p, rcName: e.target.value }))
-                        }
-                        placeholder="Filter..."
-                        className="w-full px-2 py-1 text-xs border rounded bg-white outline-none focus:ring-2 focus:ring-blue-500/20"
-                      />
-                    </th>
-                    <th className="px-4 py-2 text-left">
-                      <label className="block text-[13px] font-bold text-slate-600 propercase mb-1">
-                        Type
-                      </label>
-                      <input
-                        type="text"
-                        value={filters.rcType}
-                        onChange={(e) =>
-                          setFilters((p) => ({ ...p, rcType: e.target.value }))
-                        }
-                        placeholder="Filter..."
-                        className="w-full px-2 py-1 text-xs border rounded bg-white outline-none focus:ring-2 focus:ring-blue-500/20"
-                      />
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {filtered.length > 0 ? (
-                    filtered.map((rcItem, index) => (
-                      <tr
-                        key={index}
-                        onClick={() => handleApply(rcItem)}
-                        className="group hover:bg-blue-50 cursor-pointer transition-colors"
+            <table className="min-w-full border-separate border-spacing-0">
+              <thead className="sticky top-0 z-10 bg-slate-200">
+                <tr>
+                  {[
+                    { label: "RC Code", key: "rcCode" },
+                    { label: "Description", key: "rcName" },
+                    { label: "Type", key: "rcType" },
+                  ].map((col) => (
+                    <th key={col.key} className="global-lookup-th-ui">
+                      <div
+                        onClick={() => handleSort(col.key)}
+                        className="flex items-center gap-3 cursor-pointer group mb-1"
                       >
-                        <td className="px-4 py-2 text-xs font-bold text-slate-700 w-[120px]">
-                          {rcItem.rcCode}
-                        </td>
-                        <td className="px-4 py-2 text-xs text-slate-600">
-                          {rcItem.rcName}
-                        </td>
-                        <td className="px-4 py-2 text-xs text-slate-600 w-[120px]">
-                          {rcItem.rcType}
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td
-                        colSpan="3"
-                        className="px-4 py-10 text-center text-slate-400 text-sm"
-                      >
-                        No matching records found.
-                      </td>
+                        <span className="global-lookup-th-text-ui">{col.label}</span>
+                        <FontAwesomeIcon
+                          icon={faSort}
+                          className={`mb-2 text-[10px] ${sortConfig.key === col.key ? "text-gray-600" : "opacity-30 group-hover:opacity-100"}`}
+                        />
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={filters[col.key]}
+                          onChange={(e) => setFilters(prev => ({ ...prev, [col.key]: e.target.value }))}
+                          placeholder="Filter..."
+                          className="global-lookup-filter-text-ui"
+                        />
+                        <FontAwesomeIcon icon={faSearch} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px]" />
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-100">
+                {paginatedData.length > 0 ? (
+                  paginatedData.map((rcItem, index) => (
+                    <tr
+                      key={rcItem.rcCode || index}
+                      onClick={() => handleApply(rcItem)}
+                      className="group hover:bg-blue-50 cursor-pointer transition-colors"
+                    >
+                      <td className="global-lookup-td-ui w-[140px] font-bold">{rcItem.rcCode}</td>
+                      <td className="global-lookup-td-ui w-[280px]">{rcItem.rcName}</td>
+                      <td className="global-lookup-td-ui w-[120px]">{rcItem.rcType}</td>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="3" className="px-4 py-20 text-center text-slate-400 italic text-sm">
+                      No matching records found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="p-2 px-4 border-t bg-slate-50 flex justify-between items-center">
-          <span className="text-[11px] text-slate-500 font-medium">
-            {filtered.length} Records Found
-          </span>
-          <div className="flex items-center gap-2">
-            {isFetching && (
-              <span className="text-[10px] text-blue-500 animate-pulse flex items-center gap-1">
-                <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
-                Auto-syncing...
-              </span>
-            )}
+        {/* Footer Section - Matches Cutoff UI */}
+        <div className="global-lookup-footer-records-div-ui">
+          <div className="flex flex-col">
+            <span className="global-lookup-footer-records-text-ui">
+              Total Records: {filteredAndSorted.length}
+            </span>
           </div>
+
+          {withPagination && totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="h-8 w-8 rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 disabled:opacity-40"
+              >
+                <FontAwesomeIcon icon={faChevronLeft} className="text-[10px]" />
+              </button>
+              <span className="text-[11px] font-semibold text-slate-600">
+                {currentPage} / {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="h-8 w-8 rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-100 disabled:opacity-40"
+              >
+                <FontAwesomeIcon icon={faChevronRight} className="text-[10px]" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
       <style jsx="true">{`
-        .animate-fade-in {
-          animation: fadeIn 0.15s ease-out forwards;
-        }
-        .animate-scale-in {
-          animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-          }
-          to {
-            opacity: 1;
-          }
-        }
-        @keyframes scaleIn {
-          from {
-            transform: scale(0.95);
-            opacity: 0;
-          }
-          to {
-            transform: scale(1);
-            opacity: 1;
-          }
-        }
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 5px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #e2e8f0;
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #cbd5e1;
-        }
+        .animate-fade-in { animation: fadeIn 0.15s ease-out forwards; }
+        .animate-scale-in { animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
       `}</style>
     </div>
   );
