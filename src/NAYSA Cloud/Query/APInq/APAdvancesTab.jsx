@@ -750,7 +750,6 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
         </div>
 
         <div className="global-tran-table-main-div-ui">
-          <div className="max-h-[600px] overflow-y-auto relative">
             <SearchGlobalReportTable
               ref={tableRefTop}
               columns={columnConfigS}
@@ -769,7 +768,6 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
               }}
             />
           </div>
-        </div>
       </div>
 
       {/* === Detailed (BOTTOM TABLE) === */}
@@ -783,7 +781,6 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
         </div>
 
         <div className="global-tran-table-main-div-ui">
-          <div className="max-h-[600px] overflow-y-auto relative">
             <SearchGlobalReportTable
               ref={tableRefBottom}
               columns={columnConfig}
@@ -802,7 +799,6 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
               }}
             />
           </div>
-        </div>
       </div>
 
       {/* === Modals === */}

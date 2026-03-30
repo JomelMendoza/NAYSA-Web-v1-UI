@@ -12,7 +12,7 @@ import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 export const useGenerateGLEntries = async (docCode, glData) => {
   const payload = { json_data: glData };
 
-    console.log("Payload for GL generation:", JSON.stringify(payload, null, 2));
+    //console.log("Payload for GL generation:", JSON.stringify(payload, null, 2));
 
   try {
     const response = await postRequest("generateGL" + docCode, JSON.stringify(payload));

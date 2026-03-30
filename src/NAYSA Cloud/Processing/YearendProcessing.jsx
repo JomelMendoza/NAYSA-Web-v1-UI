@@ -1073,10 +1073,10 @@ const YearendGLProcessingModal = ({
                         )}
 
                     {!validationPassed && validationDone && (
-                      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-[11px] sm:text-xs text-amber-800">
-                        Password remains disabled until no open or unposted
-                        transactions are found for the selected branches and cut off range.
-                      </div>
+                     <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-[11px] sm:text-xs text-slate-700">
+                      Password remains disabled until no open or unposted
+                      transactions are found for the selected branches and cut off range.
+                    </div>
                     )}
                   </div>
                 </div>

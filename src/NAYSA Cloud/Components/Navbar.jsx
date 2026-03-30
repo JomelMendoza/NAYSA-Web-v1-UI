@@ -1,489 +1,1699 @@
 
-// import React, { useState, useEffect } from "react";
-// import { Bell, BookOpen, Menu } from "lucide-react";
-// import { FiSun, FiMoon } from 'react-icons/fi';
+
+// import React, {
+//   useState,
+//   useEffect,
+//   useRef,
+//   useCallback,
+//   useLayoutEffect,
+// } from "react";
+// import ReactDOM from "react-dom";
+// import Webcam from "react-webcam";
+// import {
+//   Menu,
+//   LogOut,
+//   Fingerprint,
+//   KeyRound,
+//   ChevronDown,
+//   ShieldCheck,
+//   Camera,
+//   Upload,
+//   Trash2,
+//   X,
+//   RotateCcw,
+//   ImagePlus,
+// } from "lucide-react";
+// import { AnimatePresence, motion } from "framer-motion";
+// import { FiSun, FiMoon } from "react-icons/fi";
+// import { useSwalDeleteConfirm } from "../Global/behavior";
 // import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
+// import apiClient from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 
-// const Navbar = ({ onMenuClick, onLogout }) => {
-//     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-//     const [isDark, setIsDark] = useState(false);
-//     const { user } = useAuth();
+// const DEFAULT_AVATAR = "/3135715.png";
 
-//     useEffect(() => {
-//         if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-//             document.documentElement.classList.add('dark');
-//             setIsDark(true);
-//         } else {
-//             document.documentElement.classList.remove('dark');
-//             localStorage.theme = 'light';
-//             setIsDark(false);
-//         }
-//     }, []);
+// const Navbar = ({
+//   onMenuClick,
+//   onLogout,
+//   onBiometricClick,
+//   onUpdateClick,
+// }) => {
+//   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+//   const [isDark, setIsDark] = useState(false);
+//   const [dropdownStyle, setDropdownStyle] = useState({});
+//   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
+//   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+//   const [capturedImage, setCapturedImage] = useState(null);
+//   const [profileImageSrc, setProfileImageSrc] = useState(DEFAULT_AVATAR);
+//   const [isMobileView, setIsMobileView] = useState(false);
 
-//     const toggleDarkMode = () => {
-//         const newMode = !isDark;
-//         setIsDark(newMode);
-//         document.documentElement.classList.toggle('dark', newMode);
-//         localStorage.theme = newMode ? 'dark' : 'light';
+//   const triggerRef = useRef(null);
+//   const dropdownRef = useRef(null);
+//   const webcamRef = useRef(null);
+//   const fileInputRef = useRef(null);
+
+//   const { user, setUser } = useAuth();
+
+//   const apiBaseUrl = (apiClient?.defaults?.baseURL || "").replace(/\/$/, "");
+//   const companyDb =
+//     apiClient?.defaults?.headers?.common?.["X-Company-DB"] || "";
+
+//   const buildProfileImageUrl = useCallback(
+//     (userCode, bust = true) => {
+//       if (!userCode) return DEFAULT_AVATAR;
+
+//       const params = new URLSearchParams();
+
+//       if (companyDb) {
+//         params.set("company", companyDb);
+//       }
+
+//       if (bust) {
+//         params.set("t", Date.now().toString());
+//       }
+
+//       return `${apiBaseUrl}/user/profile-image/${encodeURIComponent(
+//         userCode
+//       )}?${params.toString()}`;
+//     },
+//     [apiBaseUrl, companyDb]
+//   );
+
+//   const handleProfileImageError = (e) => {
+//     e.currentTarget.onerror = null;
+//     e.currentTarget.src = DEFAULT_AVATAR;
+//   };
+
+//   const refreshProfileImage = useCallback(() => {
+//     if (!user?.USER_CODE) {
+//       setProfileImageSrc(DEFAULT_AVATAR);
+//       return;
+//     }
+
+//     setProfileImageSrc(buildProfileImageUrl(user.USER_CODE, true));
+//   }, [user?.USER_CODE, buildProfileImageUrl]);
+
+//   useEffect(() => {
+//     refreshProfileImage();
+//   }, [refreshProfileImage]);
+
+//   useEffect(() => {
+//     const cachedTheme = localStorage.getItem("theme");
+
+//     if (cachedTheme === "dark") {
+//       document.documentElement.classList.add("dark");
+//       setIsDark(true);
+//     } else {
+//       document.documentElement.classList.remove("dark");
+//       setIsDark(false);
+//       if (!cachedTheme) localStorage.setItem("theme", "light");
+//     }
+//   }, []);
+
+//   useEffect(() => {
+//     const checkMobile = () => {
+//       setIsMobileView(window.innerWidth < 640);
 //     };
 
-//     // This handler calls the "Smart Logout" in AppContent
-//     const handleLogoutClick = async () => {
+//     checkMobile();
+//     window.addEventListener("resize", checkMobile);
+
+//     return () => window.removeEventListener("resize", checkMobile);
+//   }, []);
+
+//   useEffect(() => {
+//     const styleId = "global-swal-zindex-fix";
+//     let styleTag = document.getElementById(styleId);
+
+//     if (!styleTag) {
+//       styleTag = document.createElement("style");
+//       styleTag.id = styleId;
+//       styleTag.innerHTML = `
+//         .swal2-container {
+//           z-index: 3000000 !important;
+//         }
+//       `;
+//       document.head.appendChild(styleTag);
+//     }
+
+//     return () => {};
+//   }, []);
+
+//   const toggleDarkMode = () => {
+//     const newMode = !isDark;
+//     setIsDark(newMode);
+
+//     if (newMode) {
+//       document.documentElement.classList.add("dark");
+//       localStorage.setItem("theme", "dark");
+//     } else {
+//       document.documentElement.classList.remove("dark");
+//       localStorage.setItem("theme", "light");
+//     }
+//   };
+
+//   const updateDropdownPosition = useCallback(() => {
+//     if (!triggerRef.current) return;
+
+//     const rect = triggerRef.current.getBoundingClientRect();
+//     const isMobile = window.innerWidth < 640;
+//     const margin = isMobile ? 8 : 12;
+
+//     if (isMobile) {
+//       const mobileWidth = Math.min(window.innerWidth - 16, 360);
+
+//       setDropdownStyle({
+//         position: "fixed",
+//         top: rect.bottom + margin,
+//         left: Math.max((window.innerWidth - mobileWidth) / 2, 8),
+//         width: mobileWidth,
+//         zIndex: 999999,
+//       });
+
+//       return;
+//     }
+
+//     const dropdownWidth = 320;
+//     let left = rect.right - dropdownWidth;
+
+//     if (left < 8) left = 8;
+//     if (left + dropdownWidth > window.innerWidth - 8) {
+//       left = window.innerWidth - dropdownWidth - 8;
+//     }
+
+//     setDropdownStyle({
+//       position: "fixed",
+//       top: rect.bottom + margin,
+//       left,
+//       width: dropdownWidth,
+//       zIndex: 999999,
+//     });
+//   }, []);
+
+//   useLayoutEffect(() => {
+//     if (!isDropdownOpen) return;
+
+//     updateDropdownPosition();
+
+//     const handleReposition = () => updateDropdownPosition();
+
+//     window.addEventListener("resize", handleReposition);
+//     window.addEventListener("scroll", handleReposition, true);
+
+//     return () => {
+//       window.removeEventListener("resize", handleReposition);
+//       window.removeEventListener("scroll", handleReposition, true);
+//     };
+//   }, [isDropdownOpen, updateDropdownPosition]);
+
+//   useEffect(() => {
+//     const handleClickOutside = (event) => {
+//       const clickedTrigger =
+//         triggerRef.current && triggerRef.current.contains(event.target);
+//       const clickedDropdown =
+//         dropdownRef.current && dropdownRef.current.contains(event.target);
+
+//       if (!clickedTrigger && !clickedDropdown) {
 //         setIsDropdownOpen(false);
-//         if (onLogout) {
-//             await onLogout();
-//         }
+//       }
 //     };
 
-//     return (
-//         <div className="fixed top-0 left-0 w-full z-40 bg-white dark:bg-gray-900 border-b dark:border-gray-800">
-//             <div className="w-full h-12 flex items-center justify-between px-4 dark:text-white text-sm sm:text-base">
-//                 <div className="flex items-center space-x-2 text-blue-900 font-extrabold dark:text-gray-100">
-//                     <Menu className="cursor-pointer" onClick={onMenuClick} />
-//                     <img src="naysa_logo.png" className="w-[70px] h-[35px] object-contain" alt="Logo" />
-//                     <span className="hidden md:inline">Financials</span>
-//                 </div>
+//     document.addEventListener("mousedown", handleClickOutside);
+//     return () => document.removeEventListener("mousedown", handleClickOutside);
+//   }, []);
 
-//                 <div className="flex-grow flex justify-center">
-//                     <span className="font-bold text-xs sm:text-lg text-blue-900 dark:text-white whitespace-nowrap uppercase tracking-tighter sm:tracking-normal">
-//                         NAYSA-SOLUTIONS INC.
-//                     </span>
-//                 </div>
+//   const biometricRow = {
+//     pathUrl: "/security-settings/biometric",
+//   };
 
-//                 <div className="flex items-center space-x-2 sm:space-x-4">
-//                     <button onClick={toggleDarkMode} className="p-1.5 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
-//                         {isDark ? <FiSun size={16} /> : <FiMoon size={16} />}
+//   const handleBiometricAction = useCallback(
+//     (row) => {
+//       const isAbsolute = row.pathUrl.startsWith("http");
+//       const url = isAbsolute
+//         ? row.pathUrl
+//         : `${window.location.origin}${row.pathUrl}`;
+
+//       window.open(url, "_blank", "noopener,noreferrer");
+//       onBiometricClick?.(row);
+//     },
+//     [onBiometricClick]
+//   );
+
+//   const handleLogoutClick = async () => {
+//     setIsDropdownOpen(false);
+
+//     try {
+//       const result = await useSwalDeleteConfirm(
+//         "Confirm Logout",
+//         "Are you sure you want to logout?",
+//         "Yes, logout!"
+//       );
+
+//       if (result?.isConfirmed && onLogout) {
+//         await onLogout();
+//       }
+//     } catch (error) {
+//       console.error("Logout confirmation failed:", error);
+//     }
+//   };
+
+//   const closePhotoModal = () => {
+//     setCapturedImage(null);
+//     setIsPhotoModalOpen(false);
+
+//     if (fileInputRef.current) {
+//       fileInputRef.current.value = "";
+//     }
+//   };
+
+//   const dataURLToFile = (dataUrl, fileName = "profile.jpg") => {
+//     const arr = dataUrl.split(",");
+//     const mimeMatch = arr[0].match(/:(.*?);/);
+//     const mime = mimeMatch ? mimeMatch[1] : "image/jpeg";
+//     const bstr = atob(arr[1]);
+//     let n = bstr.length;
+//     const u8arr = new Uint8Array(n);
+
+//     while (n--) {
+//       u8arr[n] = bstr.charCodeAt(n);
+//     }
+
+//     return new File([u8arr], fileName, { type: mime });
+//   };
+
+//   const uploadProfileImageFile = async (file) => {
+//     if (!file || !user?.USER_CODE) return;
+
+//     try {
+//       setIsUploadingPhoto(true);
+
+//       const formData = new FormData();
+//       formData.append("USER_CODE", user.USER_CODE);
+//       formData.append("PROFILE_IMAGE", file);
+
+//       await apiClient.post("/user/profile-image", formData, {
+//         headers: {
+//           "Content-Type": "multipart/form-data",
+//         },
+//       });
+
+//       refreshProfileImage();
+
+//       if (typeof setUser === "function") {
+//         setUser((prev) => ({
+//           ...prev,
+//           PROFILE_IMG_UPDATED: Date.now(),
+//         }));
+//       }
+
+//       closePhotoModal();
+//     } catch (error) {
+//       console.error("FULL ERROR:", error);
+//       console.error("RESPONSE DATA:", error?.response?.data);
+
+//       alert(
+//         error?.response?.data?.message ||
+//           JSON.stringify(error?.response?.data) ||
+//           "Upload failed"
+//       );
+//     } finally {
+//       setIsUploadingPhoto(false);
+//       if (fileInputRef.current) fileInputRef.current.value = "";
+//     }
+//   };
+
+//   const handleFileChange = async (e) => {
+//     const file = e.target.files?.[0];
+//     if (!file) return;
+//     await uploadProfileImageFile(file);
+//   };
+
+//   const handleCapture = () => {
+//     const imageSrc = webcamRef.current?.getScreenshot();
+//     if (!imageSrc) return;
+//     setCapturedImage(imageSrc);
+//   };
+
+//   const handleRetake = () => {
+//     setCapturedImage(null);
+//   };
+
+//   const handleSaveCapturedPhoto = async () => {
+//     if (!capturedImage) return;
+
+//     const file = dataURLToFile(
+//       capturedImage,
+//       `profile_${user?.USER_CODE || "user"}.jpg`
+//     );
+
+//     await uploadProfileImageFile(file);
+//   };
+
+//   const handleDeletePhoto = async () => {
+//     if (!user?.USER_CODE) return;
+
+//     try {
+//       const result = await useSwalDeleteConfirm(
+//         "Remove Profile Photo",
+//         "Are you sure you want to remove your profile photo?",
+//         "Yes, remove it!"
+//       );
+
+//       if (!result?.isConfirmed) return;
+
+//       setIsUploadingPhoto(true);
+
+//       await apiClient.delete(
+//         `/user/profile-image/${encodeURIComponent(user.USER_CODE)}`
+//       );
+
+//       setProfileImageSrc(DEFAULT_AVATAR);
+
+//       if (typeof setUser === "function") {
+//         setUser((prev) => ({
+//           ...prev,
+//           PROFILE_IMG_UPDATED: Date.now(),
+//         }));
+//       }
+
+//       closePhotoModal();
+//     } catch (error) {
+//       console.error("Failed to delete profile image:", error);
+//       alert(error?.response?.data?.message || "Failed to remove profile image.");
+//     } finally {
+//       setIsUploadingPhoto(false);
+//     }
+//   };
+
+//   const dropdownItemClass =
+//     "group flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors duration-150";
+
+//   const dropdownIconWrapClass =
+//     "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-colors dark:bg-slate-700 dark:text-slate-200";
+
+//   const dropdownContent = (
+//     <AnimatePresence>
+//       {isDropdownOpen && (
+//         <motion.div
+//           ref={dropdownRef}
+//           initial={{ opacity: 0, y: 8, scale: 0.98 }}
+//           animate={{ opacity: 1, y: 0, scale: 1 }}
+//           exit={{ opacity: 0, y: 6, scale: 0.98 }}
+//           transition={{ duration: 0.18 }}
+//           style={dropdownStyle}
+//           className={`overflow-hidden border border-slate-200 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.18)] dark:border-slate-700 dark:bg-gray-800 ${
+//             isMobileView
+//               ? "max-h-[calc(100vh-90px)] rounded-[20px] overflow-y-auto"
+//               : "rounded-[24px]"
+//           }`}
+//         >
+//           <div
+//             className={`text-center ${
+//               isMobileView ? "px-4 pb-4 pt-4" : "px-5 pb-4 pt-5"
+//             }`}
+//           >
+//             <div
+//               className={`group relative mx-auto mb-3 ${
+//                 isMobileView ? "h-16 w-16" : "h-20 w-20"
+//               }`}
+//             >
+//               <div
+//                 className={`overflow-hidden rounded-full border-4 border-white bg-slate-100 shadow-md transition-all duration-200 ease-out group-hover:scale-125 group-hover:border-blue-200 group-hover:shadow-[0_0_0_4px_rgba(59,130,246,0.18),0_12px_24px_rgba(59,130,246,0.18)] dark:border-gray-800 dark:bg-slate-700 dark:group-hover:border-blue-400 ${
+//                   isMobileView ? "h-16 w-16" : "h-20 w-20"
+//                 }`}
+//               >
+//                 <img
+//                   src={profileImageSrc}
+//                   alt="User"
+//                   className="h-full w-full object-cover transition-transform duration-200 ease-out group-hover:scale-110"
+//                   onError={handleProfileImageError}
+//                 />
+//               </div>
+
+//               <button
+//                 type="button"
+//                 onClick={() => {
+//                   setIsDropdownOpen(false);
+//                   setIsPhotoModalOpen(true);
+//                 }}
+//                 className={`absolute -bottom-1 -right-1 flex items-center justify-center rounded-full border border-white bg-blue-600 text-white shadow-md hover:bg-blue-700 dark:border-gray-800 ${
+//                   isMobileView ? "h-7 w-7" : "h-8 w-8"
+//                 }`}
+//                 title="Change profile photo"
+//               >
+//                 <Camera className={isMobileView ? "h-3.5 w-3.5" : "h-4 w-4"} />
+//               </button>
+//             </div>
+
+//             <div
+//               className={`truncate font-semibold text-slate-800 dark:text-white ${
+//                 isMobileView ? "text-sm" : "text-[15px]"
+//               }`}
+//             >
+//               {user?.USER_NAME || "User"}
+//             </div>
+
+//             <div
+//               className={`mt-1 break-all text-slate-500 dark:text-slate-400 ${
+//                 isMobileView ? "text-xs" : "text-sm"
+//               }`}
+//             >
+//               {user?.EMAIL_ADD || "No email available"}
+//             </div>
+
+//             <div
+//               className={`mt-2 inline-flex max-w-full items-center gap-1 rounded-full border px-3 py-1 font-medium text-slate-600 dark:text-slate-300 ${
+//                 isMobileView ? "text-[10px]" : "text-[11px]"
+//               }`}
+//             >
+//               <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+//               <span className="truncate">
+//                 {user?.USER_CODE || "User Account"}
+//               </span>
+//             </div>
+
+//             <button
+//               type="button"
+//               onClick={() => {
+//                 setIsDropdownOpen(false);
+//                 setIsPhotoModalOpen(true);
+//               }}
+//               className={`mt-3 inline-flex items-center gap-2 rounded-full bg-slate-100 font-medium text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 ${
+//                 isMobileView ? "px-3 py-2 text-[11px]" : "px-3 py-2 text-xs"
+//               }`}
+//             >
+//               <Camera className="h-3.5 w-3.5" />
+//               Change Photo
+//             </button>
+//           </div>
+
+//           <div className="border-t border-slate-200 dark:border-slate-700" />
+
+//           <div className="p-2">
+//             <button
+//               onClick={() => {
+//                 setIsDropdownOpen(false);
+//                 handleBiometricAction(biometricRow);
+//               }}
+//               className={`${dropdownItemClass} hover:bg-slate-100 dark:hover:bg-slate-700`}
+//             >
+//               <div className={dropdownIconWrapClass}>
+//                 <Fingerprint className="h-4 w-4" />
+//               </div>
+//               <div className="min-w-0">
+//                 <div className="text-sm font-medium text-slate-800 dark:text-slate-100">
+//                   Biometrics Settings
+//                 </div>
+//                 <div className="text-xs text-slate-500 dark:text-slate-400">
+//                   Manage biometric login
+//                 </div>
+//               </div>
+//             </button>
+
+//             <button
+//               onClick={() => {
+//                 setIsDropdownOpen(false);
+//                 onUpdateClick?.();
+//               }}
+//               className={`${dropdownItemClass} hover:bg-slate-100 dark:hover:bg-slate-700`}
+//             >
+//               <div className={dropdownIconWrapClass}>
+//                 <KeyRound className="h-4 w-4" />
+//               </div>
+//               <div className="min-w-0">
+//                 <div className="text-sm font-medium text-slate-800 dark:text-slate-100">
+//                   Update Account
+//                 </div>
+//                 <div className="text-xs text-slate-500 dark:text-slate-400">
+//                   Edit profile/password
+//                 </div>
+//               </div>
+//             </button>
+//           </div>
+
+//           <div className="border-t border-slate-200 dark:border-slate-700" />
+
+//           <div className="p-2">
+//             <button
+//               onClick={handleLogoutClick}
+//               className={`${dropdownItemClass} hover:bg-red-50 dark:hover:bg-red-500/10`}
+//             >
+//               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400">
+//                 <LogOut className="h-4 w-4" />
+//               </div>
+//               <div className="min-w-0">
+//                 <div className="text-sm font-medium text-red-600 dark:text-red-400">
+//                   Logout
+//                 </div>
+//                 <div className="text-xs text-slate-500 dark:text-slate-400">
+//                   Sign out
+//                 </div>
+//               </div>
+//             </button>
+//           </div>
+//         </motion.div>
+//       )}
+//     </AnimatePresence>
+//   );
+
+//   const photoModalContent = (
+//     <AnimatePresence>
+//       {isPhotoModalOpen && (
+//         <motion.div
+//           initial={{ opacity: 0 }}
+//           animate={{ opacity: 1 }}
+//           exit={{ opacity: 0 }}
+//           style={{ isolation: "isolate" }}
+//           className="fixed inset-0 z-[1000000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+//         >
+//           <motion.div
+//             initial={{ opacity: 0, scale: 0.92, y: 20 }}
+//             animate={{ opacity: 1, scale: 1, y: 0 }}
+//             exit={{ opacity: 0, scale: 0.96, y: 10 }}
+//             transition={{ type: "spring", stiffness: 260, damping: 22 }}
+//             className="relative w-full max-w-md overflow-hidden rounded-[28px] border border-white/20 bg-white/95 shadow-[0_20px_60px_rgba(0,0,0,0.30)] backdrop-blur-xl dark:border-slate-700/80 dark:bg-slate-900/95"
+//           >
+//             <div className="flex items-center justify-between border-b border-slate-200/80 px-5 py-4 dark:border-slate-700">
+//               <div>
+//                 <h2 className="text-base font-medium tracking-tight text-slate-800 dark:text-white">
+//                   Profile Photo
+//                 </h2>
+//                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+//                   Capture or upload a new profile image
+//                 </p>
+//               </div>
+
+//               <button
+//                 type="button"
+//                 onClick={closePhotoModal}
+//                 disabled={isUploadingPhoto}
+//                 className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-300 dark:hover:bg-slate-800"
+//               >
+//                 <X className="h-5 w-5" />
+//               </button>
+//             </div>
+
+//             <div className="p-5">
+//               <div className="mb-4 rounded-[24px] bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200 p-2 dark:from-slate-800 dark:via-slate-800 dark:to-slate-700">
+//                 <div className="relative h-64 w-full overflow-hidden rounded-[20px] bg-black">
+//                   {capturedImage ? (
+//                     <img
+//                       src={capturedImage}
+//                       alt="Captured preview"
+//                       className="h-full w-full object-cover"
+//                     />
+//                   ) : (
+//                     <Webcam
+//                       ref={webcamRef}
+//                       audio={false}
+//                       mirrored
+//                       screenshotFormat="image/jpeg"
+//                       videoConstraints={{
+//                         width: 640,
+//                         height: 480,
+//                         facingMode: "user",
+//                       }}
+//                       className="h-full w-full object-cover"
+//                     />
+//                   )}
+
+//                   {!capturedImage && (
+//                     <>
+//                       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-black/10" />
+
+//                       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+//                         <div className="relative h-40 w-40 rounded-full border-[3px] border-white/85 shadow-[0_0_0_9999px_rgba(0,0,0,0.18)]">
+//                           <div className="absolute -left-1 -top-1 h-5 w-5 rounded-tl-full border-l-4 border-t-4 border-white" />
+//                           <div className="absolute -right-1 -top-1 h-5 w-5 rounded-tr-full border-r-4 border-t-4 border-white" />
+//                           <div className="absolute -bottom-1 -left-1 h-5 w-5 rounded-bl-full border-b-4 border-l-4 border-white" />
+//                           <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-br-full border-b-4 border-r-4 border-white" />
+//                         </div>
+//                       </div>
+
+//                       <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/45 px-3 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
+//                         Center your face before capturing
+//                       </div>
+//                     </>
+//                   )}
+//                 </div>
+//               </div>
+
+//               <input
+//                 ref={fileInputRef}
+//                 type="file"
+//                 accept="image/png,image/jpeg,image/jpg,image/webp"
+//                 className="hidden"
+//                 onChange={handleFileChange}
+//               />
+
+//               {!capturedImage ? (
+//                 <>
+//                   <div className="mt-4 flex items-center justify-center gap-4">
+//                     <button
+//                       type="button"
+//                       onClick={() => fileInputRef.current?.click()}
+//                       disabled={isUploadingPhoto}
+//                       className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-700 shadow-sm transition hover:scale-105 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
+//                       title="Upload photo"
+//                     >
+//                       <ImagePlus className="h-5 w-5" />
 //                     </button>
 
-//                     <div className="relative">
-//                         <div 
-//                             className="w-8 h-8 rounded-full overflow-hidden border-2 border-transparent hover:border-blue-500 cursor-pointer transition-all"
-//                             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-//                         >
-//                             <img src="3135715.png" alt="User" className="w-full h-full object-cover" />
-//                         </div>
+//                     <button
+//                       type="button"
+//                       onClick={handleCapture}
+//                       disabled={isUploadingPhoto}
+//                       className="flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-[0_10px_30px_rgba(37,99,235,0.25)] ring-4 ring-blue-100 transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-800 dark:ring-blue-900/30"
+//                       title="Capture photo"
+//                     >
+//                       <div className="h-11 w-11 rounded-full border-[5px] border-blue-600 dark:border-blue-400" />
+//                     </button>
 
-//                         {isDropdownOpen && (
-//                             <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-2xl py-2 border dark:border-gray-700 animate-in fade-in slide-in-from-top-2">
-//                                 <div className="px-4 py-2 text-[10px] text-gray-400 border-b dark:border-gray-700 mb-1 truncate">
-//                                     {user?.USER_CODE || 'User'}
-//                                 </div>
-//                                 <button className="block px-4 py-2 text-sm w-full text-left hover:bg-gray-100 dark:hover:bg-gray-700">Account Settings</button>
-//                                 <button 
-//                                     onClick={handleLogoutClick}
-//                                     className="block px-4 py-2 text-sm text-red-600 w-full text-left hover:bg-gray-100 dark:hover:bg-gray-700 font-medium"
-//                                 >
-//                                     Logout
-//                                 </button>
-//                             </div>
-//                         )}
-//                     </div>
-//                 </div>
+//                     <button
+//                       type="button"
+//                       onClick={handleDeletePhoto}
+//                       disabled={isUploadingPhoto}
+//                       className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600 shadow-sm transition hover:scale-105 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20"
+//                       title="Remove photo"
+//                     >
+//                       <Trash2 className="h-5 w-5" />
+//                     </button>
+//                   </div>
+
+//                   <div className="mt-5 grid grid-cols-1 gap-3">
+//                     <button
+//                       type="button"
+//                       onClick={() => fileInputRef.current?.click()}
+//                       disabled={isUploadingPhoto}
+//                       className="flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+//                     >
+//                       <Upload className="h-4 w-4" />
+//                       Upload Photo
+//                     </button>
+
+//                     <button
+//                       type="button"
+//                       onClick={handleCapture}
+//                       disabled={isUploadingPhoto}
+//                       className="flex items-center justify-center gap-2 rounded-2xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
+//                     >
+//                       <Camera className="h-4 w-4" />
+//                       Capture Photo
+//                     </button>
+//                   </div>
+//                 </>
+//               ) : (
+//                 <>
+//                   <div className="mt-4 flex items-center justify-center gap-4">
+//                     <button
+//                       type="button"
+//                       onClick={handleRetake}
+//                       disabled={isUploadingPhoto}
+//                       className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-700 shadow-sm transition hover:scale-105 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
+//                       title="Retake"
+//                     >
+//                       <RotateCcw className="h-5 w-5" />
+//                     </button>
+
+//                     <button
+//                       type="button"
+//                       onClick={handleSaveCapturedPhoto}
+//                       disabled={isUploadingPhoto}
+//                       className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-600 text-white shadow-[0_12px_30px_rgba(37,99,235,0.35)] transition hover:scale-105 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+//                       title="Save photo"
+//                     >
+//                       <Upload className="h-6 w-6" />
+//                     </button>
+
+//                     <button
+//                       type="button"
+//                       onClick={handleDeletePhoto}
+//                       disabled={isUploadingPhoto}
+//                       className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600 shadow-sm transition hover:scale-105 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20"
+//                       title="Remove photo"
+//                     >
+//                       <Trash2 className="h-5 w-5" />
+//                     </button>
+//                   </div>
+
+//                   <div className="mt-5 grid grid-cols-1 gap-3">
+//                     <button
+//                       type="button"
+//                       onClick={handleSaveCapturedPhoto}
+//                       disabled={isUploadingPhoto}
+//                       className="flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+//                     >
+//                       <Upload className="h-4 w-4" />
+//                       {isUploadingPhoto ? "Saving..." : "Save Captured Photo"}
+//                     </button>
+
+//                     <button
+//                       type="button"
+//                       onClick={handleRetake}
+//                       disabled={isUploadingPhoto}
+//                       className="flex items-center justify-center gap-2 rounded-2xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
+//                     >
+//                       <RotateCcw className="h-4 w-4" />
+//                       Retake Photo
+//                     </button>
+//                   </div>
+//                 </>
+//               )}
 //             </div>
+//           </motion.div>
+//         </motion.div>
+//       )}
+//     </AnimatePresence>
+//   );
+
+//   return (
+//     <>
+//       <div className="fixed left-0 top-0 z-[100] w-full border-b bg-white dark:border-gray-800 dark:bg-gray-900">
+//         <div className="flex h-12 w-full items-center justify-between px-4 text-sm dark:text-white sm:text-base">
+//           <div className="flex items-center space-x-2 font-extrabold text-blue-900 dark:text-gray-100">
+//             <motion.button
+//               type="button"
+//               whileTap={{ scale: 0.92 }}
+//               onClick={onMenuClick}
+//               className="rounded-md p-1 hover:bg-blue-50 dark:hover:bg-gray-800"
+//             >
+//               <Menu />
+//             </motion.button>
+
+//             <img
+//               src="/naysa_logo.png"
+//               className="h-[35px] w-[70px] object-contain"
+//               alt="Logo"
+//             />
+
+//             <span className="hidden md:inline">Financials</span>
+//           </div>
+
+//           <div className="flex-grow text-center">
+//             <span className="whitespace-nowrap text-xs font-bold uppercase tracking-tight text-blue-900 dark:text-white sm:text-lg">
+//               NAYSA-SOLUTIONS INC.
+//             </span>
+//           </div>
+
+//           <div className="flex items-center space-x-2 sm:space-x-4">
+//             <motion.button
+//               whileTap={{ scale: 0.92 }}
+//               onClick={toggleDarkMode}
+//               className="rounded-full bg-gray-100 p-1.5 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600"
+//             >
+//               {isDark ? <FiSun size={16} /> : <FiMoon size={16} />}
+//             </motion.button>
+
+//             <div className="relative">
+//               <motion.button
+//                 ref={triggerRef}
+//                 type="button"
+//                 whileTap={{ scale: 0.97 }}
+//                 onClick={() => setIsDropdownOpen((prev) => !prev)}
+//                 className="flex items-center gap-1 rounded-full px-1 py-1 hover:bg-slate-100 dark:hover:bg-gray-800 sm:gap-2"
+//               >
+//                 <div className="h-8 w-8 overflow-hidden rounded-full border border-slate-200 hover:border-blue-500 dark:border-slate-700">
+//                   <img
+//                     src={profileImageSrc}
+//                     alt="User"
+//                     className="h-full w-full object-cover"
+//                     onError={handleProfileImageError}
+//                   />
+//                 </div>
+
+//                 <ChevronDown
+//                   className={`hidden h-4 w-4 text-slate-500 transition-transform sm:block ${
+//                     isDropdownOpen ? "rotate-180" : ""
+//                   }`}
+//                 />
+//               </motion.button>
+//             </div>
+//           </div>
 //         </div>
-//     );
+//       </div>
+
+//       {typeof document !== "undefined"
+//         ? ReactDOM.createPortal(dropdownContent, document.body)
+//         : null}
+
+//       {typeof document !== "undefined"
+//         ? ReactDOM.createPortal(photoModalContent, document.body)
+//         : null}
+//     </>
+//   );
 // };
 
 // export default Navbar;
 
-// ORIGINAL
-// import React, { useState, useEffect } from "react";
-// import { Bell, BookOpen, Menu } from "lucide-react";
-// import { FiSun, FiMoon } from 'react-icons/fi';
-// import Swal from "sweetalert2"; 
-// import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 
-
-// const Navbar = ({ onMenuClick, onLogout }) => {
-//     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-//     const [isDark, setIsDark] = useState(false);
-//     const { user } = useAuth();
-
-//     useEffect(() => {
-//         const cachedTheme = localStorage.getItem('theme');
-//         if (cachedTheme === 'dark') {
-//             document.documentElement.classList.add('dark');
-//             setIsDark(true);
-//         } else {
-//             document.documentElement.classList.remove('dark');
-//             setIsDark(false);
-//             if (!cachedTheme) localStorage.setItem('theme', 'light');
-//         }
-//     }, []);
-
-//     const toggleDarkMode = () => {
-//         const newMode = !isDark;
-//         setIsDark(newMode);
-//         if (newMode) {
-//             document.documentElement.classList.add('dark');
-//             localStorage.setItem('theme', 'dark');
-//         } else {
-//             document.documentElement.classList.remove('dark');
-//             localStorage.setItem('theme', 'light');
-//         }
-//     };
-
-//     const handleLogoutClick = async () => {
-//         setIsDropdownOpen(false);
-
-//         let timerInterval;
-//         Swal.fire({
-//             title: "Confirm Logout",
-//             html: "Logging out automatically in <b>5</b> seconds...",
-//             icon: "warning",
-//             timer: 10000,
-//             timerProgressBar: true,
-//             showCancelButton: true,
-//             confirmButtonColor: "#3085d6",
-//             cancelButtonColor: "#d33",
-//             confirmButtonText: "Yes, logout!",
-//             cancelButtonText: "No",
-//             // Making buttons equal width via custom class
-//             customClass: {
-//                 confirmButton: 'min-w-[120px]',
-//                 cancelButton: 'min-w-[120px]'
-//             },
-//             didOpen: () => {
-//                 const b = Swal.getHtmlContainer().querySelector('b');
-//                 timerInterval = setInterval(() => {
-//                     const secondsLeft = Math.ceil(Swal.getTimerLeft() / 1000);
-//                     b.textContent = secondsLeft;
-//                 }, 100);
-//             },
-//             willClose: () => {
-//                 clearInterval(timerInterval);
-//             }
-//         }).then(async (result) => {
-//             /* LOGIC: 
-//                1. result.isConfirmed -> User clicked "Yes"
-//                2. result.dismiss === Swal.DismissReason.timer -> 5 seconds passed without clicking "No"
-//             */
-//             if (result.isConfirmed || result.dismiss === Swal.DismissReason.timer) {
-//                 if (onLogout) {
-//                     await onLogout();
-//                     window.location.href = "/"; 
-//                 }
-//             } else if (result.dismiss === Swal.DismissReason.cancel) {
-//                 // User explicitly clicked "No"
-//                 console.log("Logout cancelled by user.");
-//             }
-//         });
-//     };
-
-//     return (
-//         <div className="fixed top-0 left-0 w-full z-40 bg-white dark:bg-gray-900 border-b dark:border-gray-800">
-//             <div className="w-full h-12 flex items-center justify-between px-4 dark:text-white text-sm sm:text-base">
-
-//                 <div className="flex items-center space-x-2 text-blue-900 font-extrabold dark:text-gray-100">
-//                     <Menu className="cursor-pointer" onClick={onMenuClick} />
-//                     <img src="/naysa_logo.png" className="w-[70px] h-[35px] object-contain" alt="Logo" />
-//                     <span className="hidden md:inline">Financials</span>
-//                 </div>
-
-//                 <div className="flex-grow flex justify-center">
-//                     <span className="font-bold text-xs sm:text-lg text-blue-900 dark:text-white whitespace-nowrap uppercase tracking-tighter sm:tracking-normal">
-//                         NAYSA-SOLUTIONS INC.
-//                     </span>
-//                 </div>
-
-//                 <div className="flex items-center space-x-2 sm:space-x-4">
-//                     <button onClick={toggleDarkMode} className="p-1.5 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
-//                         {isDark ? <FiSun size={16} /> : <FiMoon size={16} />}
-//                     </button>
-
-//                     <div className="relative">
-//                         <div 
-//                             className="w-8 h-8 rounded-full overflow-hidden border-2 border-transparent hover:border-blue-500 cursor-pointer transition-all"
-//                             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-//                         >
-//                             <img src="/3135715.png" alt="User" className="w-full h-full object-cover" />
-//                         </div>
-
-//                         {isDropdownOpen && (
-//                             <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-2xl py-2 border dark:border-gray-700 animate-in fade-in slide-in-from-top-2">
-//                                 <div className="px-4 py-2 text-[10px] text-gray-400 border-b dark:border-gray-700 mb-1 truncate">
-//                                     {user?.USER_CODE || 'User'}
-//                                 </div>
-//                                 <button className="block px-4 py-2 text-sm w-full text-left hover:bg-gray-100 dark:hover:bg-gray-700">Account Settings</button>
-//                                 <button 
-//                                     onClick={handleLogoutClick}
-//                                     className="block px-4 py-2 text-sm text-red-600 w-full text-left hover:bg-gray-100 dark:hover:bg-gray-700 font-medium"
-//                                 >
-//                                     Logout
-//                                 </button>
-//                             </div>
-//                         )}
-//                     </div>
-//                 </div>
-//             </div>
-//         </div>
-//     );
-// };
-
-// export default Navbar;
-
-import React, { useState, useEffect, useRef, useCallback } from "react"; // Added useCallback
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useLayoutEffect,
+} from "react";
+import ReactDOM from "react-dom";
+import Webcam from "react-webcam";
 import {
-    Menu,
-    LogOut,
-    Fingerprint,
-    KeyRound,
-    ChevronDown,
-    Sun,
-    Moon,
-    ShieldCheck,
+  Menu,
+  LogOut,
+  Fingerprint,
+  KeyRound,
+  ChevronDown,
+  ShieldCheck,
+  Camera,
+  Upload,
+  Trash2,
+  X,
+  RotateCcw,
+  ImagePlus,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { FiSun, FiMoon } from "react-icons/fi";
 import { useSwalDeleteConfirm } from "../Global/behavior";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
+import apiClient from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
+
+const DEFAULT_AVATAR = "/3135715.png";
 
 const Navbar = ({
-    onMenuClick,
-    onLogout,
-    onBiometricClick,
-    onUpdateClick,
+  onMenuClick,
+  onLogout,
+  onBiometricClick,
+  onUpdateClick,
 }) => {
-    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const [isDark, setIsDark] = useState(false);
-    const dropdownRef = useRef(null);
-    const { user } = useAuth();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isDark, setIsDark] = useState(false);
+  const [dropdownStyle, setDropdownStyle] = useState({});
+  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [capturedImage, setCapturedImage] = useState(null);
+  const [profileImageSrc, setProfileImageSrc] = useState(DEFAULT_AVATAR);
+  const [isMobileView, setIsMobileView] = useState(false);
 
-    // --- LOGIC START ---
-    
-    // This function handles the logic of determining if the URL is absolute or relative
-    const handleBiometricAction = useCallback((row) => {
-        // Check if pathUrl is already a full URL (starts with http)
-        const isAbsolute = row.pathUrl.startsWith("http");
+  const triggerRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const webcamRef = useRef(null);
+  const fileInputRef = useRef(null);
 
-        // If absolute, use it; otherwise, join it with the current domain
-        const url = isAbsolute
-            ? row.pathUrl
-            : `${window.location.origin}${row.pathUrl}`;
+  const { user, setUser } = useAuth();
 
-        window.open(url, "_blank", "noopener,noreferrer");
-        
-        // Also call the prop function in case the parent needs to know
-        onBiometricClick?.(row);
-    }, [onBiometricClick]);
+  const apiBaseUrl = (apiClient?.defaults?.baseURL || "").replace(/\/$/, "");
+  const companyDb =
+    apiClient?.defaults?.headers?.common?.["X-Company-DB"] || "";
 
-    const biometricRow = {
-        pathUrl: "/security-settings/biometric"
-        // If you want to force the live site even on localhost, use:
-        // pathUrl: "https://naysafinancials.com/security-settings/biometric"
+  const buildProfileImageUrl = useCallback(
+    (userCode, bust = true) => {
+      if (!userCode) return DEFAULT_AVATAR;
+
+      const params = new URLSearchParams();
+
+      if (companyDb) {
+        params.set("company", companyDb);
+      }
+
+      if (bust) {
+        params.set("t", Date.now().toString());
+      }
+
+      return `${apiBaseUrl}/user/profile-image/${encodeURIComponent(
+        userCode
+      )}?${params.toString()}`;
+    },
+    [apiBaseUrl, companyDb]
+  );
+
+  const handleProfileImageError = (e) => {
+    e.currentTarget.onerror = null;
+    e.currentTarget.src = DEFAULT_AVATAR;
+  };
+
+  const refreshProfileImage = useCallback(() => {
+    if (!user?.USER_CODE) {
+      setProfileImageSrc(DEFAULT_AVATAR);
+      return;
+    }
+
+    setProfileImageSrc(buildProfileImageUrl(user.USER_CODE, true));
+  }, [user?.USER_CODE, buildProfileImageUrl]);
+
+  useEffect(() => {
+    refreshProfileImage();
+  }, [refreshProfileImage]);
+
+  useEffect(() => {
+    const cachedTheme = localStorage.getItem("theme");
+
+    if (cachedTheme === "dark") {
+      document.documentElement.classList.add("dark");
+      setIsDark(true);
+    } else {
+      document.documentElement.classList.remove("dark");
+      setIsDark(false);
+      if (!cachedTheme) localStorage.setItem("theme", "light");
+    }
+  }, []);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobileView(window.innerWidth < 640);
     };
 
-    // --- LOGIC END ---
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
 
-    useEffect(() => {
-        const cachedTheme = localStorage.getItem("theme");
-        if (cachedTheme === "dark") {
-            document.documentElement.classList.add("dark");
-            setIsDark(true);
-        } else {
-            document.documentElement.classList.remove("dark");
-            setIsDark(false);
-            if (!cachedTheme) localStorage.setItem("theme", "light");
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  useEffect(() => {
+    const styleId = "global-swal-zindex-fix";
+    let styleTag = document.getElementById(styleId);
+
+    if (!styleTag) {
+      styleTag = document.createElement("style");
+      styleTag.id = styleId;
+      styleTag.innerHTML = `
+        .swal2-container {
+          z-index: 3000000 !important;
         }
-    }, []);
+      `;
+      document.head.appendChild(styleTag);
+    }
 
-    useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-                setIsDropdownOpen(false);
-            }
-        };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
+    return () => {};
+  }, []);
 
-    const toggleDarkMode = () => {
-        const newMode = !isDark;
-        setIsDark(newMode);
-        if (newMode) {
-            document.documentElement.classList.add("dark");
-            localStorage.setItem("theme", "dark");
-        } else {
-            document.documentElement.classList.remove("dark");
-            localStorage.setItem("theme", "light");
-        }
+  const toggleDarkMode = () => {
+    const newMode = !isDark;
+    setIsDark(newMode);
+
+    if (newMode) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+  };
+
+  const updateDropdownPosition = useCallback(() => {
+    if (!triggerRef.current) return;
+
+    const rect = triggerRef.current.getBoundingClientRect();
+    const isMobile = window.innerWidth < 640;
+    const margin = isMobile ? 8 : 12;
+
+    if (isMobile) {
+      const mobileWidth = Math.min(window.innerWidth - 16, 360);
+
+      setDropdownStyle({
+        position: "fixed",
+        top: rect.bottom + margin,
+        left: Math.max((window.innerWidth - mobileWidth) / 2, 8),
+        width: mobileWidth,
+        zIndex: 999999,
+      });
+
+      return;
+    }
+
+    const dropdownWidth = 320;
+    let left = rect.right - dropdownWidth;
+
+    if (left < 8) left = 8;
+    if (left + dropdownWidth > window.innerWidth - 8) {
+      left = window.innerWidth - dropdownWidth - 8;
+    }
+
+    setDropdownStyle({
+      position: "fixed",
+      top: rect.bottom + margin,
+      left,
+      width: dropdownWidth,
+      zIndex: 999999,
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!isDropdownOpen) return;
+
+    updateDropdownPosition();
+
+    const handleReposition = () => updateDropdownPosition();
+
+    window.addEventListener("resize", handleReposition);
+    window.addEventListener("scroll", handleReposition, true);
+
+    return () => {
+      window.removeEventListener("resize", handleReposition);
+      window.removeEventListener("scroll", handleReposition, true);
     };
+  }, [isDropdownOpen, updateDropdownPosition]);
 
-    const handleLogoutClick = async () => {
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      const clickedTrigger =
+        triggerRef.current && triggerRef.current.contains(event.target);
+      const clickedDropdown =
+        dropdownRef.current && dropdownRef.current.contains(event.target);
+
+      if (!clickedTrigger && !clickedDropdown) {
         setIsDropdownOpen(false);
-        try {
-            const result = await useSwalDeleteConfirm(
-                "Confirm Logout",
-                "Are you sure you want to logout?",
-                "Yes, logout!"
-            );
-            if (result?.isConfirmed && onLogout) {
-                await onLogout();
-            }
-        } catch (error) {
-            console.error("Logout confirmation failed:", error);
-        }
+      }
     };
 
-    const dropdownItemClass =
-        "group flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors duration-150";
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-    const dropdownIconWrapClass =
-        "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-colors dark:bg-slate-700 dark:text-slate-200";
+  const biometricRow = {
+    pathUrl: "/security-settings/biometric",
+  };
 
-    return (
-        <div className="fixed top-0 left-0 z-40 w-full border-b bg-white dark:border-gray-800 dark:bg-gray-900">
-            <div className="w-full h-12 flex items-center justify-between px-4 dark:text-white text-sm sm:text-base">
-                {/* Left */}
-                <div className="flex items-center space-x-2 text-blue-900 font-extrabold dark:text-gray-100">
-                    <motion.button
-                        type="button"
-                        whileTap={{ scale: 0.92 }}
-                        onClick={onMenuClick}
-                        className="rounded-md p-1 outline-none hover:bg-blue-50 dark:hover:bg-gray-800"
-                    >
-                        <Menu className="cursor-pointer" />
-                    </motion.button>
-                    <img src="/naysa_logo.png" className="w-[70px] h-[35px] object-contain" alt="Logo" />
-                    <span className="hidden md:inline">Financials</span>
-                </div>
+  const handleBiometricAction = useCallback(
+    (row) => {
+      const isAbsolute = row.pathUrl.startsWith("http");
+      const url = isAbsolute
+        ? row.pathUrl
+        : `${window.location.origin}${row.pathUrl}`;
 
-                {/* Center */}
-                <div className="flex-grow flex justify-center">
-                    <span className="font-bold text-xs sm:text-lg text-blue-900 dark:text-white whitespace-nowrap uppercase tracking-tighter sm:tracking-normal">
-                        NAYSA-SOLUTIONS INC.
-                    </span>
-                </div>
+      window.open(url, "_blank", "noopener,noreferrer");
+      onBiometricClick?.(row);
+    },
+    [onBiometricClick]
+  );
 
-                {/* Right */}
-                <div className="flex items-center space-x-2 sm:space-x-4">
-                    <motion.button
-                        whileTap={{ scale: 0.92 }}
-                        onClick={toggleDarkMode}
-                        className="p-1.5 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                    >
-                        {isDark ? <FiSun size={16} /> : <FiMoon size={16} />}
-                    </motion.button>
+  const handleLogoutClick = async () => {
+    setIsDropdownOpen(false);
 
-                    <div className="relative" ref={dropdownRef}>
-                        <motion.button
-                            type="button"
-                            whileTap={{ scale: 0.97 }}
-                            onClick={() => setIsDropdownOpen((prev) => !prev)}
-                            className="flex items-center gap-2 rounded-full border border-transparent px-1 py-1 hover:bg-slate-100 dark:hover:bg-gray-800"
-                        >
-                            <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700 hover:border-blue-500 cursor-pointer transition-all">
-                                <img src="/3135715.png" alt="User" className="w-full h-full object-cover" />
-                            </div>
-                            <ChevronDown className={`hidden sm:block h-4 w-4 text-slate-500 transition-transform duration-200 dark:text-slate-300 ${isDropdownOpen ? "rotate-180" : ""}`} />
-                        </motion.button>
+    try {
+      const result = await useSwalDeleteConfirm(
+        "Confirm Logout",
+        "Are you sure you want to logout?",
+        "Yes, logout!"
+      );
 
-                        <AnimatePresence>
-                            {isDropdownOpen && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                                    exit={{ opacity: 0, y: 6, scale: 0.98 }}
-                                    transition={{ duration: 0.18, ease: "easeOut" }}
-                                    className="absolute right-0 top-full mt-3 w-[320px] overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.18)] dark:border-slate-700 dark:bg-gray-800"
-                                >
-                                    <div className="px-5 pt-5 pb-4">
-                                        <div className="flex flex-col items-center text-center">
-                                            <div className="mb-3 h-20 w-20 overflow-hidden rounded-full border-4 border-white bg-slate-100 shadow-md dark:border-gray-800 dark:bg-slate-700">
-                                                <img src="/3135715.png" alt="User" className="h-full w-full object-cover" />
-                                            </div>
-                                            <div className="max-w-full truncate text-[15px] font-semibold text-slate-800 dark:text-white">
-                                                {user?.USER_NAME || "User"}
-                                            </div>
-                                            <div className="mt-1 max-w-full truncate text-sm text-slate-500 dark:text-slate-400">
-                                                {user?.EMAIL_ADD || "No email available"}
-                                            </div>
-                                            <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-[11px] font-medium text-slate-600 dark:border-slate-600 dark:text-slate-300">
-                                                <ShieldCheck className="h-3.5 w-3.5" />
-                                                {user?.USER_CODE || "User Account"}
-                                            </div>
-                                        </div>
-                                    </div>
+      if (result?.isConfirmed && onLogout) {
+        await onLogout();
+      }
+    } catch (error) {
+      console.error("Logout confirmation failed:", error);
+    }
+  };
 
-                                    <div className="border-t border-slate-200 dark:border-slate-700" />
+  const closePhotoModal = () => {
+    setCapturedImage(null);
+    setIsPhotoModalOpen(false);
 
-                                    <div className="p-2">
-                                        {/* BIOMETRIC BUTTON */}
-                                        <motion.button
-                                            whileHover={{ x: 2 }}
-                                            whileTap={{ scale: 0.98 }}
-                                            onClick={() => {
-                                                setIsDropdownOpen(false);
-                                                handleBiometricAction(biometricRow); // Using the logic here
-                                            }}
-                                            className={`${dropdownItemClass} hover:bg-slate-100 dark:hover:bg-slate-700/70`}
-                                        >
-                                            <div className={dropdownIconWrapClass}>
-                                                <Fingerprint className="h-4 w-4" />
-                                            </div>
-                                            <div className="min-w-0">
-                                                <div className="text-sm font-medium text-slate-800 dark:text-slate-100">
-                                                    Biometrics Settings
-                                                </div>
-                                                <div className="text-xs text-slate-500 dark:text-slate-400">
-                                                    Manage biometric login and verification
-                                                </div>
-                                            </div>
-                                        </motion.button>
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
-                                        <motion.button
-                                            whileHover={{ x: 2 }}
-                                            whileTap={{ scale: 0.98 }}
-                                            onClick={() => {
-                                                setIsDropdownOpen(false);
-                                                onUpdateClick?.();
-                                            }}
-                                            className={`${dropdownItemClass} hover:bg-slate-100 dark:hover:bg-slate-700/70`}
-                                        >
-                                            <div className={dropdownIconWrapClass}>
-                                                <KeyRound className="h-4 w-4" />
-                                            </div>
-                                            <div className="min-w-0">
-                                                <div className="text-sm font-medium text-slate-800 dark:text-slate-100">
-                                                    Update Account
-                                                </div>
-                                                <div className="text-xs text-slate-500 dark:text-slate-400">
-                                                    Edit profile and change password
-                                                </div>
-                                            </div>
-                                        </motion.button>
-                                    </div>
+  const dataURLToFile = (dataUrl, fileName = "profile.jpg") => {
+    const arr = dataUrl.split(",");
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : "image/jpeg";
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
 
-                                    <div className="mx-2 border-t border-slate-200 dark:border-slate-700" />
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
 
-                                    <div className="p-2">
-                                        <motion.button
-                                            whileHover={{ x: 2 }}
-                                            whileTap={{ scale: 0.98 }}
-                                            onClick={handleLogoutClick}
-                                            className={`${dropdownItemClass} hover:bg-red-50 dark:hover:bg-red-500/10`}
-                                        >
-                                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400">
-                                                <LogOut className="h-4 w-4" />
-                                            </div>
-                                            <div className="min-w-0">
-                                                <div className="text-sm font-medium text-red-600 dark:text-red-400">
-                                                    Logout
-                                                </div>
-                                                <div className="text-xs text-slate-500 dark:text-slate-400">
-                                                    Sign out from this session
-                                                </div>
-                                            </div>
-                                        </motion.button>
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
-                </div>
-            </div>
-        </div>
+    return new File([u8arr], fileName, { type: mime });
+  };
+
+  const uploadProfileImageFile = async (file) => {
+    if (!file || !user?.USER_CODE) return;
+
+    try {
+      setIsUploadingPhoto(true);
+
+      const formData = new FormData();
+      formData.append("USER_CODE", user.USER_CODE);
+      formData.append("PROFILE_IMAGE", file);
+
+      await apiClient.post("/user/profile-image", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      refreshProfileImage();
+
+      if (typeof setUser === "function") {
+        setUser((prev) => ({
+          ...prev,
+          PROFILE_IMG_UPDATED: Date.now(),
+        }));
+      }
+
+      closePhotoModal();
+    } catch (error) {
+      console.error("FULL ERROR:", error);
+      console.error("RESPONSE DATA:", error?.response?.data);
+
+      alert(
+        error?.response?.data?.message ||
+          JSON.stringify(error?.response?.data) ||
+          "Upload failed"
+      );
+    } finally {
+      setIsUploadingPhoto(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadProfileImageFile(file);
+  };
+
+  const handleCapture = () => {
+    const imageSrc = webcamRef.current?.getScreenshot();
+    if (!imageSrc) return;
+    setCapturedImage(imageSrc);
+  };
+
+  const handleRetake = () => {
+    setCapturedImage(null);
+  };
+
+  const handleSaveCapturedPhoto = async () => {
+    if (!capturedImage) return;
+
+    const file = dataURLToFile(
+      capturedImage,
+      `profile_${user?.USER_CODE || "user"}.jpg`
     );
+
+    await uploadProfileImageFile(file);
+  };
+
+  const handleDeletePhoto = async () => {
+    if (!user?.USER_CODE) return;
+
+    try {
+      const result = await useSwalDeleteConfirm(
+        "Remove Profile Photo",
+        "Are you sure you want to remove your profile photo?",
+        "Yes, remove it!"
+      );
+
+      if (!result?.isConfirmed) return;
+
+      setIsUploadingPhoto(true);
+
+      await apiClient.delete(
+        `/user/profile-image/${encodeURIComponent(user.USER_CODE)}`
+      );
+
+      setProfileImageSrc(DEFAULT_AVATAR);
+
+      if (typeof setUser === "function") {
+        setUser((prev) => ({
+          ...prev,
+          PROFILE_IMG_UPDATED: Date.now(),
+        }));
+      }
+
+      closePhotoModal();
+    } catch (error) {
+      console.error("Failed to delete profile image:", error);
+      alert(error?.response?.data?.message || "Failed to remove profile image.");
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
+
+  const dropdownItemClass =
+    "group flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors duration-150";
+
+  const dropdownIconWrapClass =
+    "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-colors dark:bg-slate-700 dark:text-slate-200";
+
+  const dropdownContent = (
+    <AnimatePresence>
+      {isDropdownOpen && (
+        <motion.div
+          ref={dropdownRef}
+          initial={{ opacity: 0, y: 8, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 6, scale: 0.98 }}
+          transition={{ duration: 0.18 }}
+          style={dropdownStyle}
+          className={`relative overflow-hidden border border-slate-200 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.18)] dark:border-slate-700 dark:bg-gray-800 ${
+            isMobileView
+              ? "max-h-[calc(100vh-90px)] rounded-[20px] overflow-y-auto"
+              : "rounded-[24px]"
+          }`}
+        >
+          <button
+            type="button"
+            onClick={() => setIsDropdownOpen(false)}
+            className="absolute right-3 top-3 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-600 shadow-sm transition hover:bg-slate-200 hover:text-slate-800 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+            title="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+
+          <div
+            className={`text-center ${
+              isMobileView ? "px-4 pb-4 pt-4" : "px-5 pb-4 pt-5"
+            }`}
+          >
+            <div
+              className={`group relative mx-auto mb-3 ${
+                isMobileView ? "h-16 w-16" : "h-20 w-20"
+              }`}
+            >
+              <div
+                className={`overflow-hidden rounded-full border-4 border-white bg-slate-100 shadow-md transition-all duration-200 ease-out group-hover:scale-125 group-hover:border-blue-200 group-hover:shadow-[0_0_0_4px_rgba(59,130,246,0.18),0_12px_24px_rgba(59,130,246,0.18)] dark:border-gray-800 dark:bg-slate-700 dark:group-hover:border-blue-400 ${
+                  isMobileView ? "h-16 w-16" : "h-20 w-20"
+                }`}
+              >
+                <img
+                  src={profileImageSrc}
+                  alt="User"
+                  className="h-full w-full object-cover transition-transform duration-200 ease-out group-hover:scale-110"
+                  onError={handleProfileImageError}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDropdownOpen(false);
+                  setIsPhotoModalOpen(true);
+                }}
+                className={`absolute -bottom-1 -right-1 flex items-center justify-center rounded-full border border-white bg-blue-600 text-white shadow-md hover:bg-blue-700 dark:border-gray-800 ${
+                  isMobileView ? "h-7 w-7" : "h-8 w-8"
+                }`}
+                title="Change profile photo"
+              >
+                <Camera className={isMobileView ? "h-3.5 w-3.5" : "h-4 w-4"} />
+              </button>
+            </div>
+
+            <div
+              className={`truncate font-semibold text-slate-800 dark:text-white ${
+                isMobileView ? "text-sm" : "text-[15px]"
+              }`}
+            >
+              {user?.USER_NAME || "User"}
+            </div>
+
+            <div
+              className={`mt-1 break-all text-slate-500 dark:text-slate-400 ${
+                isMobileView ? "text-xs" : "text-sm"
+              }`}
+            >
+              {user?.EMAIL_ADD || "No email available"}
+            </div>
+
+            <div
+              className={`mt-2 inline-flex max-w-full items-center gap-1 rounded-full border px-3 py-1 font-medium text-slate-600 dark:text-slate-300 ${
+                isMobileView ? "text-[10px]" : "text-[11px]"
+              }`}
+            >
+              <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">
+                {user?.USER_CODE || "User Account"}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsDropdownOpen(false);
+                setIsPhotoModalOpen(true);
+              }}
+              className={`mt-3 inline-flex items-center gap-2 rounded-full bg-slate-100 font-medium text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 ${
+                isMobileView ? "px-3 py-2 text-[11px]" : "px-3 py-2 text-xs"
+              }`}
+            >
+              <Camera className="h-3.5 w-3.5" />
+              Change Photo
+            </button>
+          </div>
+
+          <div className="border-t border-slate-200 dark:border-slate-700" />
+
+          <div className="p-2">
+            <button
+              onClick={() => {
+                setIsDropdownOpen(false);
+                handleBiometricAction(biometricRow);
+              }}
+              className={`${dropdownItemClass} hover:bg-slate-100 dark:hover:bg-slate-700`}
+            >
+              <div className={dropdownIconWrapClass}>
+                <Fingerprint className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-slate-800 dark:text-slate-100">
+                  Biometrics Settings
+                </div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  Manage biometric login
+                </div>
+              </div>
+            </button>
+
+            <button
+              onClick={() => {
+                setIsDropdownOpen(false);
+                onUpdateClick?.();
+              }}
+              className={`${dropdownItemClass} hover:bg-slate-100 dark:hover:bg-slate-700`}
+            >
+              <div className={dropdownIconWrapClass}>
+                <KeyRound className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-slate-800 dark:text-slate-100">
+                  Update Account
+                </div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  Edit profile/password
+                </div>
+              </div>
+            </button>
+          </div>
+
+          <div className="border-t border-slate-200 dark:border-slate-700" />
+
+          <div className="p-2">
+            <button
+              onClick={handleLogoutClick}
+              className={`${dropdownItemClass} hover:bg-red-50 dark:hover:bg-red-500/10`}
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400">
+                <LogOut className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-red-600 dark:text-red-400">
+                  Logout
+                </div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  Sign out
+                </div>
+              </div>
+            </button>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
+  const photoModalContent = (
+    <AnimatePresence>
+      {isPhotoModalOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          style={{ isolation: "isolate" }}
+          className="fixed inset-0 z-[1000000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.92, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 10 }}
+            transition={{ type: "spring", stiffness: 260, damping: 22 }}
+            className="relative w-full max-w-md overflow-hidden rounded-[28px] border border-white/20 bg-white/95 shadow-[0_20px_60px_rgba(0,0,0,0.30)] backdrop-blur-xl dark:border-slate-700/80 dark:bg-slate-900/95"
+          >
+            <div className="flex items-center justify-between border-b border-slate-200/80 px-5 py-4 dark:border-slate-700">
+              <div>
+                <h2 className="text-base font-medium tracking-tight text-slate-800 dark:text-white">
+                  Profile Photo
+                </h2>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Capture or upload a new profile image
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closePhotoModal}
+                disabled={isUploadingPhoto}
+                className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-5">
+              <div className="mb-4 rounded-[24px] bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200 p-2 dark:from-slate-800 dark:via-slate-800 dark:to-slate-700">
+                <div className="relative h-64 w-full overflow-hidden rounded-[20px] bg-black">
+                  {capturedImage ? (
+                    <img
+                      src={capturedImage}
+                      alt="Captured preview"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <Webcam
+                      ref={webcamRef}
+                      audio={false}
+                      mirrored
+                      screenshotFormat="image/jpeg"
+                      videoConstraints={{
+                        width: 640,
+                        height: 480,
+                        facingMode: "user",
+                      }}
+                      className="h-full w-full object-cover"
+                    />
+                  )}
+
+                  {!capturedImage && (
+                    <>
+                      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-black/10" />
+
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                        <div className="relative h-40 w-40 rounded-full border-[3px] border-white/85 shadow-[0_0_0_9999px_rgba(0,0,0,0.18)]">
+                          <div className="absolute -left-1 -top-1 h-5 w-5 rounded-tl-full border-l-4 border-t-4 border-white" />
+                          <div className="absolute -right-1 -top-1 h-5 w-5 rounded-tr-full border-r-4 border-t-4 border-white" />
+                          <div className="absolute -bottom-1 -left-1 h-5 w-5 rounded-bl-full border-b-4 border-l-4 border-white" />
+                          <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-br-full border-b-4 border-r-4 border-white" />
+                        </div>
+                      </div>
+
+                      <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/45 px-3 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
+                        Center your face before capturing
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/webp"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+
+              {!capturedImage ? (
+                <>
+                  <div className="mt-4 flex items-center justify-center gap-4">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploadingPhoto}
+                      className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-700 shadow-sm transition hover:scale-105 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
+                      title="Upload photo"
+                    >
+                      <ImagePlus className="h-5 w-5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleCapture}
+                      disabled={isUploadingPhoto}
+                      className="flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-[0_10px_30px_rgba(37,99,235,0.25)] ring-4 ring-blue-100 transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-800 dark:ring-blue-900/30"
+                      title="Capture photo"
+                    >
+                      <div className="h-11 w-11 rounded-full border-[5px] border-blue-600 dark:border-blue-400" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleDeletePhoto}
+                      disabled={isUploadingPhoto}
+                      className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600 shadow-sm transition hover:scale-105 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20"
+                      title="Remove photo"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-1 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploadingPhoto}
+                      className="flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <Upload className="h-4 w-4" />
+                      Upload Photo
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleCapture}
+                      disabled={isUploadingPhoto}
+                      className="flex items-center justify-center gap-2 rounded-2xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
+                    >
+                      <Camera className="h-4 w-4" />
+                      Capture Photo
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="mt-4 flex items-center justify-center gap-4">
+                    <button
+                      type="button"
+                      onClick={handleRetake}
+                      disabled={isUploadingPhoto}
+                      className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-700 shadow-sm transition hover:scale-105 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
+                      title="Retake"
+                    >
+                      <RotateCcw className="h-5 w-5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleSaveCapturedPhoto}
+                      disabled={isUploadingPhoto}
+                      className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-600 text-white shadow-[0_12px_30px_rgba(37,99,235,0.35)] transition hover:scale-105 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      title="Save photo"
+                    >
+                      <Upload className="h-6 w-6" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleDeletePhoto}
+                      disabled={isUploadingPhoto}
+                      className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600 shadow-sm transition hover:scale-105 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20"
+                      title="Remove photo"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-1 gap-3">
+                    <button
+                      type="button"
+                      onClick={handleSaveCapturedPhoto}
+                      disabled={isUploadingPhoto}
+                      className="flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <Upload className="h-4 w-4" />
+                      {isUploadingPhoto ? "Saving..." : "Save Captured Photo"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleRetake}
+                      disabled={isUploadingPhoto}
+                      className="flex items-center justify-center gap-2 rounded-2xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Retake Photo
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
+  return (
+    <>
+      <div className="fixed left-0 top-0 z-[100] w-full border-b bg-white dark:border-gray-800 dark:bg-gray-900">
+        <div className="flex h-12 w-full items-center justify-between px-4 text-sm dark:text-white sm:text-base">
+          <div className="flex items-center space-x-2 font-extrabold text-blue-900 dark:text-gray-100">
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.92 }}
+              onClick={onMenuClick}
+              className="rounded-md p-1 hover:bg-blue-50 dark:hover:bg-gray-800"
+            >
+              <Menu />
+            </motion.button>
+
+            <img
+              src="/naysa_logo.png"
+              className="h-[35px] w-[70px] object-contain"
+              alt="Logo"
+            />
+
+            <span className="hidden md:inline">Financials</span>
+          </div>
+
+          <div className="flex-grow text-center">
+            <span className="whitespace-nowrap text-xs font-bold uppercase tracking-tight text-blue-900 dark:text-white sm:text-lg">
+              NAYSA-SOLUTIONS INC.
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-2 sm:space-x-4">
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              onClick={toggleDarkMode}
+              className="rounded-full bg-gray-100 p-1.5 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600"
+            >
+              {isDark ? <FiSun size={16} /> : <FiMoon size={16} />}
+            </motion.button>
+
+            <div className="relative">
+              <motion.button
+                ref={triggerRef}
+                type="button"
+                whileTap={{ scale: 0.97 }}
+                onClick={() => setIsDropdownOpen((prev) => !prev)}
+                className="flex items-center gap-1 rounded-full px-1 py-1 hover:bg-slate-100 dark:hover:bg-gray-800 sm:gap-2"
+              >
+                <div className="h-8 w-8 overflow-hidden rounded-full border border-slate-200 hover:border-blue-500 dark:border-slate-700">
+                  <img
+                    src={profileImageSrc}
+                    alt="User"
+                    className="h-full w-full object-cover"
+                    onError={handleProfileImageError}
+                  />
+                </div>
+
+                <ChevronDown
+                  className={`hidden h-4 w-4 text-slate-500 transition-transform sm:block ${
+                    isDropdownOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </motion.button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {typeof document !== "undefined"
+        ? ReactDOM.createPortal(dropdownContent, document.body)
+        : null}
+
+      {typeof document !== "undefined"
+        ? ReactDOM.createPortal(photoModalContent, document.body)
+        : null}
+    </>
+  );
 };
 
 export default Navbar;

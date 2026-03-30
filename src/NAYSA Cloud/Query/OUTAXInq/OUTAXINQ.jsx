@@ -1658,7 +1658,6 @@ const { user, companyInfo, currentUserRow } = useAuth();
           </div>
 
           <div className="global-tran-table-main-div-ui">
-            <div className="max-h-[600px] overflow-y-auto relative">
               <SearchGlobalReportTable
                 ref={tableRef}
                 columns={cols_Att}
@@ -1668,7 +1667,6 @@ const { user, companyInfo, currentUserRow } = useAuth();
                 onRowAction={handleViewTop}
               />
             </div>
-          </div>
         </div>
 
         {/* Summary (TOP) */}
@@ -1682,7 +1680,6 @@ const { user, companyInfo, currentUserRow } = useAuth();
           </div>
 
           <div className="global-tran-table-main-div-ui">
-            <div className="max-h-[600px] overflow-y-auto relative">
               <SearchGlobalReportTable
                 ref={tableRef}
                 columns={cols}
@@ -1697,7 +1694,6 @@ const { user, companyInfo, currentUserRow } = useAuth();
             </div>
           </div>
         </div>
-      </div>
 
       {/* Modals */}
       {showBranchModal && (

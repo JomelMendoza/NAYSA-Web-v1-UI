@@ -1724,7 +1724,6 @@ export default function EWTINQ() {
           </div>
 
           <div className="global-tran-table-main-div-ui">
-            <div className="max-h-[600px] overflow-y-auto relative">
               <SearchGlobalReportTable
                 ref={tableRef}
                 columns={cols_Att}
@@ -1734,7 +1733,6 @@ export default function EWTINQ() {
                 onRowAction={handleViewTop}
               />
             </div>
-          </div>
         </div>
 
         <div className="global-tran-tab-div-ui">
@@ -1747,7 +1745,6 @@ export default function EWTINQ() {
           </div>
 
           <div className="global-tran-table-main-div-ui">
-            <div className="max-h-[600px] overflow-y-auto relative">
               <SearchGlobalReportTable
                 ref={tableRef}
                 columns={cols}
@@ -1761,7 +1758,6 @@ export default function EWTINQ() {
               />
             </div>
           </div>
-        </div>
       </div>
 
       {/* Modals */}

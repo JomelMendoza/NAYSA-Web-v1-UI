@@ -680,7 +680,6 @@ const APAgingSummaryTab = forwardRef(function APAgingSummaryTab({ registerAction
         </div>
 
         <div className="global-tran-table-main-div-ui">
-          <div className="max-h-[600px] overflow-y-auto relative">
             <SearchGlobalReportTable
               ref={tableRefBottom}
               columns={columnConfig}
@@ -699,7 +698,6 @@ const APAgingSummaryTab = forwardRef(function APAgingSummaryTab({ registerAction
               }}
             />
           </div>
-        </div>
       </div>
 
       {/* Modals */}
