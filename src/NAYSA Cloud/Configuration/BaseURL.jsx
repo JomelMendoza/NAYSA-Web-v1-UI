@@ -502,10 +502,10 @@ export async function pingExpiryCheck() {
 
 /* ───────── Convenience helpers ───────── */
 export const fetchData = async (endpoint, params = {}) => {
-  console.log(endpoint)
   const { data } = await apiClient.get(endpoint, { params });
   return data;
 };
+
 
 export const fetchDataJson = async (
   endpoint,

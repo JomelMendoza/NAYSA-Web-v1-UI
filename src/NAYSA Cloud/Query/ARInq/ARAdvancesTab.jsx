@@ -747,7 +747,6 @@ const ARAdvancesTab = forwardRef(function ARAdvancesTab({ registerActions }, ref
         </div>
 
         <div className="global-tran-table-main-div-ui">
-          <div className="max-h-[600px] overflow-y-auto relative">
             <SearchGlobalReportTable
               ref={tableRefTop}
               columns={columnConfigS}
@@ -766,7 +765,6 @@ const ARAdvancesTab = forwardRef(function ARAdvancesTab({ registerActions }, ref
               }}
             />
           </div>
-        </div>
       </div>
 
       {/* === Detailed (BOTTOM TABLE) === */}
@@ -780,7 +778,7 @@ const ARAdvancesTab = forwardRef(function ARAdvancesTab({ registerActions }, ref
         </div>
 
         <div className="global-tran-table-main-div-ui">
-          <div className="max-h-[600px] overflow-y-auto relative">
+
             <SearchGlobalReportTable
               ref={tableRefBottom}
               columns={columnConfig}
@@ -798,7 +796,7 @@ const ARAdvancesTab = forwardRef(function ARAdvancesTab({ registerActions }, ref
                 cache[baseKey] = { ...prev, tableBottom: tbl };
               }}
             />
-          </div>
+         
         </div>
       </div>
 

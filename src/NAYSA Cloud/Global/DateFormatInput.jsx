@@ -1,6 +1,6 @@
-
 import React, { useRef } from "react";
 import { PatternFormat } from "react-number-format";
+import { useSwalErrorAlert } from "@/NAYSA Cloud/Global/behavior.jsx";
 
 export const isStrictDateAllowed = ({ value }) => {
   const cleaned = String(value || "").replace(/\D/g, "").slice(0, 8);
@@ -52,10 +52,15 @@ export const usehandleDateBlur = (value, field, updateState) => {
     return false;
   }
 
+  const showInvalidDateAlert = () => {
+    useSwalErrorAlert("Invalid Date", "Please enter a valid date in MM/DD/YYYY format.");
+  };
+
   const regex = /^(0[1-9]|1[0-2])\/(0[1-9]|[12][0-9]|3[01])\/\d{4}$/;
 
   if (!regex.test(dateStr)) {
     updateState({ [field]: "" });
+    showInvalidDateAlert();
     return false;
   }
 
@@ -63,6 +68,7 @@ export const usehandleDateBlur = (value, field, updateState) => {
 
   if (year < 1900 || year > 2099) {
     updateState({ [field]: "" });
+    showInvalidDateAlert();
     return false;
   }
 
@@ -70,6 +76,7 @@ export const usehandleDateBlur = (value, field, updateState) => {
 
   if (day < 1 || day > maxDay) {
     updateState({ [field]: "" });
+    showInvalidDateAlert();
     return false;
   }
 
@@ -81,6 +88,7 @@ export const usehandleDateBlur = (value, field, updateState) => {
     parsed.getDate() !== day
   ) {
     updateState({ [field]: "" });
+    showInvalidDateAlert();
     return false;
   }
 
@@ -153,13 +161,24 @@ const DateFormatInput = ({
   };
 
   const handleNativeDateChange = (e) => {
-    const selectedValue = e.target.value; // yyyy-mm-dd
+    const selectedValue = e.target.value;
     const formattedValue = formatDateToMMDDYYYY(selectedValue);
 
     updateState({ [fieldName]: formattedValue });
 
     if (onChangeCustom) {
       onChangeCustom(selectedValue, fieldName, formattedValue);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Delete" && fieldName !== "documentDate") {
+      e.preventDefault();
+      updateState({ [fieldName]: "" });
+
+      if (onChangeCustom) {
+        onChangeCustom("", fieldName, "");
+      }
     }
   };
 
@@ -184,6 +203,7 @@ const DateFormatInput = ({
           }
         }}
         onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
         {...props}
       />
 
@@ -192,7 +212,7 @@ const DateFormatInput = ({
           <button
             type="button"
             onClick={handleOpenCalendar}
-            className="absolute top-1/2 right-2 -translate-y-1/2 text-gray-500 text-sm"
+            className="absolute inset-y-0 right-2 flex items-center text-gray-500"
             tabIndex={-1}
           >
             📅
