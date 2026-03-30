@@ -203,6 +203,8 @@ const JV = () => {
     setState((prev) => ({ ...prev, ...updates }));
   };
 
+  const dbDateString = "2026-03-29T00:00:00Z"; 
+  const dateObj = new Date(dbDateString);
   const [jvType, setJvType] = useState("");
   const [refDocType, setRefDocType] = useState("");
 
@@ -239,6 +241,7 @@ const JV = () => {
     defaultCurrRate,
 
     // Transaction Header
+    header,
     branchCode,
     branchName,
     custCode,
@@ -327,9 +330,9 @@ const JV = () => {
     discAcct: glAccountFilter.ActiveAll,
   };
   const customParam = customParamMap[accountModalSource] || null;
-  const [header, setHeader] = useState({
-    jv_date: new Date().toISOString().split("T")[0],
-  });
+  // const [header, setHeader] = useState({
+  //   jv_date: new Date().toISOString().split("T")[0],
+  // });
 
   const updateTotalsDisplay = (
     grossAmt,
@@ -591,6 +594,7 @@ const JV = () => {
         creditFx1: formatNumber(glRow.creditFx1),
         debitFx2: formatNumber(glRow.debitFx2),
         creditFx2: formatNumber(glRow.creditFx2),
+        slRefDate: glRow.slRefDate ? useformatToDatev2(glRow.slRefDate) : "",
       }));
 
       // Update state with fetched data
@@ -684,6 +688,7 @@ const JV = () => {
         creditFx1: formatNumber(glRow.creditFx1),
         debitFx2: formatNumber(glRow.debitFx2),
         creditFx2: formatNumber(glRow.creditFx2),
+        slRefDate: glRow.slRefDate ? useformatToDatev2(glRow.slRefDate) : "",
       }));
 
       // Update state with fetched data
@@ -903,42 +908,81 @@ const JV = () => {
     }
   };
 
-  const handleAddRowGL = (index = null) => {
-    
-    updateState({
-      detailRowsGL: [
-        ...detailRowsGL,
-        {
-          acctCode: "",
-          rcCode: "",
-          sltypeCode: "",
-          slCode: "",
-          particular: "",
-          vatCode: "",
-          vatName: "",
-          atcCode: "",
-          atcName: "",
-          debit: "0.00",
-          credit: "0.00",
-          debitFx1: "0.00",
-          creditFx1: "0.00",
-          debitFx2: "0.00",
-          creditFx2: "0.00",
-          slRefNo: "",
-          remarks: "",
-        },
-      ],
-    });
+const handleAddRowGL = (index = null) => {
+  const newRow = {
+    acctCode: "",
+    rcCode: "",
+    sltypeCode: "",
+    slCode: "",
+    particular: "",
+    vatCode: "",
+    vatName: "",
+    atcCode: "",
+    atcName: "",
+    debit: "0.00",
+    credit: "0.00",
+    debitFx1: "0.00",
+    creditFx1: "0.00",
+    debitFx2: "0.00",
+    creditFx2: "0.00",
+    slRefNo: "",
+    slRefDate: "",
+    remarks: "",
   };
 
-  const updatedRows = [...detailRows];
-  const handleDeleteRow = (index) => {
-    
-    updatedRows.splice(index, 1);
+  const updatedRowsGL = [...detailRowsGL];
 
-    updateState({ detailRows: updatedRows });
-    updateTotals(updatedRows);
-  };
+  if (index !== null && index >= 0) {
+
+    updatedRowsGL.splice(index + 1, 0, newRow);
+  } else {
+    
+    updatedRowsGL.push(newRow);
+  }
+
+  updateState({
+    detailRowsGL: updatedRowsGL,
+  });
+};
+
+
+  // const handleAddRowGL = (index = null) => {
+    
+  //   updateState({
+  //     detailRowsGL: [
+  //       ...detailRowsGL,
+  //       {
+  //         acctCode: "",
+  //         rcCode: "",
+  //         sltypeCode: "",
+  //         slCode: "",
+  //         particular: "",
+  //         vatCode: "",
+  //         vatName: "",
+  //         atcCode: "",
+  //         atcName: "",
+  //         debit: "0.00",
+  //         credit: "0.00",
+  //         debitFx1: "0.00",
+  //         creditFx1: "0.00",
+  //         debitFx2: "0.00",
+  //         creditFx2: "0.00",
+  //         slRefNo: "",
+  //         slRefDate: "",
+  //         remarks: "",
+  //       },
+  //     ],
+  //   });
+  // };
+
+  // const updatedRows = [...detailRows];
+  // const handleDeleteRow = (index) => {
+    
+  //   updatedRows.splice(index, 1);
+
+  //   updateState({ detailRows: updatedRows });
+  //   updateTotals(updatedRows);
+  // };
 
   const handleDeleteRowGL = (index) => {
     const updatedRows = [...detailRowsGL];
@@ -1217,8 +1261,8 @@ const JV = () => {
   };
 
   const handleDetailChangeGL = async (index, field, value) => {
-    const updatedRowsGL = [...detailRowsGL];
-    let row = { ...updatedRowsGL[index] };
+    const updatedRowsGL = [...state.detailRowsGL];
+  let row = { ...updatedRowsGL[index] };
 
     if (
       [
@@ -1280,7 +1324,7 @@ const JV = () => {
       row[field] = value;
     }
 
-    updatedRowsGL.push(newRow);
+  updatedRowsGL[index] = row;
     updateState({ detailRowsGL: updatedRowsGL });
   };
 
@@ -1740,21 +1784,28 @@ const JV = () => {
                 </div>
 
                 {/* JV Date Picker - Updated to match APV behavior */}
-                <div className="relative">
-  <DateFormatInput
-    id="jv_date"
-    value={header.jv_date} // header refers to state.header via destructuring
-    disabled={isFormDisabled}
-    updateState={(updates) => {
-      if (updates.jv_date !== undefined) {
-        // Update the header nested inside the main state
-        updateState({
-          header: { ...state.header, jv_date: updates.jv_date },
-        });
-      }
-    }}
-  />
-  <label htmlFor="jv_date" className="global-tran-floating-label">
+               <div className="relative w-full">
+  <div
+    className={`flex items-stretch global-ref-textbox-ui ${!isFormDisabled ? "global-ref-textbox-enabled" : "global-ref-textbox-disabled"}`}
+  >
+    <DateFormatInput
+      id="jv_date"
+      className="peer flex-grow bg-transparent border-none px-3 focus:outline-none cursor-pointer"
+      value={header.jv_date}
+      disabled={isFormDisabled}
+      updateState={(updates) => {
+        if (updates.jv_date !== undefined) {
+          updateState({
+            header: { ...header, jv_date: updates.jv_date },
+          });
+        }
+      }}
+    />
+  </div>
+  <label
+    htmlFor="jv_date"
+    className={`global-ref-floating-label ${!isFormDisabled ? "global-ref-label-enabled" : "global-ref-label-disabled"}`}
+  >
     JV Date
   </label>
 </div>
