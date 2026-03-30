@@ -947,8 +947,7 @@ const GlobalGLPostingModalv1 = ({
               <div className="text-[11px] leading-snug">
                 <div className="font-semibold text-red-700">Warning!</div>
                 <div className="text-gray-700">
-                  Before running this routine, ensure that the transaction
-                  entries are correct.
+                  Before posting, please ensure that all transaction entries are correct. Once posted, un-posting is not available.
                   <span className="font-semibold">
                     {" "}
                     Un-posting is not available.
