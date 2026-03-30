@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
+import { useNavigate, useLocation } from "react-router-dom";
 
 // UI
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -90,18 +91,42 @@ import DateFormatInput from "@/NAYSA Cloud/Global/DateFormatInput.jsx";
 import Header from "@/NAYSA Cloud/Components/Header";
 
 const APV = () => {
+  // View Document Const
+  const loadedFromUrlRef = useRef(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const {
+    companyInfo,
+    currentUserRow,
+    getAllDropDown,
+    refsLoaded,
+    getAllTopATCRow,
+    getAllTopVatRow,
+    getAllTopVatAmount,
+    getAllTopATCAmount,
+  } = useAuth();
+  const [isViewDocument, setIsViewDocument] = useState(false);
+  useEffect(() => {
+    const p = new URLSearchParams(location.search);
+    if (p.get("viewDocument") === "true") {
+      setIsViewDocument(true);
+    }
+  }, []);
+
+  const isViewDocumentUrl = isViewDocument;
+
   const { resetFlag } = useReset();
   const { user } = useAuth();
   const [topTab, setTopTab] = useState("details");
   const [state, setState] = useState({
     // HS Option
-    glCurrMode: "M",
-    glCurrDefault: "PHP",
+    glCurrMode: companyInfo?.glCurrMode || "",
+    glCurrDefault: companyInfo?.currCode || "",
     withCurr2: false,
     withCurr3: false,
-    glCurrGlobal1: "",
-    glCurrGlobal2: "",
-    glCurrGlobal3: "",
+    glCurrGlobal1: companyInfo?.glCurrGlobal1 || "",
+    glCurrGlobal2: companyInfo?.glCurrGlobal2 || "",
+    glCurrGlobal3: companyInfo?.glCurrGlobal3 || "",
 
     // Document information
     documentName: "",
@@ -130,27 +155,29 @@ const APV = () => {
       remarks: "",
       refDocNo1: "",
       refDocNo2: "",
+      fromDate: null,
+      toDate: null,
     },
     // Branch information
-    branchCode: "HO",
-    branchName: "Head Office",
+    branchCode: currentUserRow?.branchCode || "",
+    branchName: currentUserRow?.branchName || "",
 
     // Vendor information
     vendName: null,
     vendCode: null,
 
     // Currency information
-    currencyCode: "",
-    currencyName: "Philippine Peso",
-    currencyRate: "1.000000",
-    defaultCurrRate: "1.000000",
+    currCode: companyInfo?.currCode || "",
+    currName: companyInfo?.currName || "",
+    currRate: formatNumber(companyInfo?.currRate || 1, 6),
+    defaultCurrRate: formatNumber(companyInfo?.currRate || 1, 6),
 
     // AP information
     apTypes: [],
     selectedApType: "APV01",
     apAccountName: "",
     apAccountCode: "",
-    userCode: user?.USER_CODE,
+    userCode: currentUserRow?.userCode || "",
 
     // Detail rows
     detailRows: [],
@@ -207,7 +234,10 @@ const APV = () => {
     documentID,
     documentStatus,
     documentNo,
+    documentDate,
     status,
+    userCode,
+    noReprints,
 
     // Tabs & loading
     activeTab,
@@ -276,7 +306,6 @@ const APV = () => {
 
   const amountRefs = useRef([]);
 
-  const [isLoadingAPTypes, setIsLoadingAPTypes] = useState(false);
   // Document type constants
   const docType = docTypes.APV;
   const pdfLink = docTypePDFGuide[docType];
@@ -284,24 +313,17 @@ const APV = () => {
   const documentTitle = docTypeNames[docType] || "Transaction";
 
   // Status Global Setup
-  const displayStatus = status || "OPEN";
+  const displayStatus =
+    documentStatus && documentStatus !== "" ? documentStatus : status || "OPEN";
   const statusMap = {
     FINALIZED: "global-tran-stat-text-finalized-ui",
     CANCELLED: "global-tran-stat-text-closed-ui",
     CLOSED: "global-tran-stat-text-closed-ui",
   };
   const statusColor = statusMap[displayStatus] || "";
-  const isFormDisabled = ["FINALIZED", "CANCELLED", "CLOSED"].includes(
-    displayStatus,
-  );
-
-  const handleHistoryRowPick = useCallback((row) => {
-    const docNo = row?.docNo;
-    const branchCode = row?.branchCode;
-    if (!docNo || !branchCode) return;
-    fetchTranData(docNo, branchCode);
-    setTopTab("details");
-  });
+  const isFormDisabled =
+    isViewDocumentUrl ||
+    ["FINALIZED", "CANCELLED", "CLOSED"].includes(displayStatus);
 
   // Field visibility based on AP type
   useEffect(() => {
@@ -313,6 +335,21 @@ const APV = () => {
       },
     });
   }, [selectedApType]);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "F1") {
+        e.preventDefault();
+
+        if (!isDocNoDisabled && !isFormDisabled) {
+          updateState({ showAllTranDocNo: true });
+        }
+      }
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isDocNoDisabled, isFormDisabled]);
 
   // Loading spinner component
   const LoadingSpinner = () => (
@@ -529,6 +566,7 @@ const APV = () => {
   const handleReset = () => {
     loadDocControl();
     loadCompanyData();
+    fetchApTypes();
 
     updateState({
       header: {
@@ -536,6 +574,8 @@ const APV = () => {
         remarks: "",
         refDocNo1: "",
         refDocNo2: "",
+        fromDate: null,
+        toDate: null,
       },
       branchCode: "HO",
       branchName: "Head Office",
@@ -561,7 +601,7 @@ const APV = () => {
     updateTotalsDisplay(0, 0, 0, 0);
   };
 
-  const fetchTranData = async (documentNo, branchCode) => {
+  const fetchTranData = async (documentNo, branchCode, direction = "") => {
     const resetState = () => {
       updateState({
         documentNo: "",
@@ -575,17 +615,12 @@ const APV = () => {
     updateState({ isLoading: true });
 
     try {
-      console.log("Starting fetchTranData:", {
-        documentNo,
-        branchCode,
-        docType,
-      });
-
       const data = await useFetchTranData(
         documentNo,
         branchCode,
         docType,
         "apvNo",
+        direction,
       );
 
       console.log("Fetched data:", data);
@@ -708,10 +743,19 @@ const APV = () => {
         }
       }
 
+      const resolvedStatus =
+        data.apvCancelled === "Y"
+          ? "CANCELLED"
+          : data.apvStatus === "F"
+            ? "FINALIZED"
+            : data.apvStatus === "C"
+              ? "CLOSED"
+              : "OPEN";
+
       // Update state with fetched data
       const stateUpdates = {
-        documentStatus: data.docStatus || "OPEN",
-        status: data.docStatus || "OPEN",
+        documentStatus: resolvedStatus,
+        status: resolvedStatus,
         documentID: data.apvId,
         documentNo: data.apvNo,
         branchCode: data.branchCode,
@@ -752,6 +796,18 @@ const APV = () => {
       updateState({ isLoading: false });
     }
   };
+
+  const handleHistoryRowPick = useCallback(
+    async (row) => {
+      const docNo = row?.docNo;
+      const branchCode = row?.branchCode;
+      if (!docNo || !branchCode) return;
+
+      await fetchTranData(docNo, branchCode);
+      setTopTab("details");
+    },
+    [fetchTranData],
+  );
 
   const fetchRCNameByCode = async (rcCode) => {
     if (!rcCode) return "";
@@ -858,157 +914,189 @@ const APV = () => {
     `,
       confirmButtonText: "OK",
       confirmButtonColor: "#3085d6",
+      Q,
     });
   };
 
   const handleActivityOption = async (action) => {
-    // Basic validation - similar to SVI.jsx
+    // 1. Ensure focus is moved out of any active grid cell to capture the final value in state
+    const remarksEl = document.getElementById("remarks");
+    if (remarksEl) remarksEl.focus();
+
+    // 2. Validate empty GL before Upsert (Logic used in SVI)
     if (action === "Upsert" && detailRowsGL.length === 0) {
       updateState({ triggerGLEntries: true });
       return;
     }
 
-    if (!vendCode) {
-      Swal.fire({
-        icon: "error",
-        title: "Missing Payee",
-        text: "Please select a Payee before saving.",
-      });
-      return;
-    }
+    // 3. Prevent actions on finalized/cancelled documents
+    if (documentStatus === "" || documentStatus === "OPEN") {
+      updateState({ isLoading: true });
 
-    if (action === "Upsert" && !validateDebitCreditBalance()) {
-      showUnbalancedWarning();
-      return;
-    }
-
-    updateState({ isLoading: true });
-
-    try {
-      // Create complete data object - simplified like SVI.jsx
-      const serializableGlData = {
+      // Prepare data structure strictly matching sproc_PHP_APV params
+      const glData = {
         branchCode: branchCode,
         apvNo: documentNo || "",
         apvId: documentID || "",
         apvDate: header.apv_date,
-        apvtranType: selectedApType || "APV01",
+        apvtranType: selectedApType,
         tranMode: "M",
-        apAcct: apAccountCode,
+        acctCode: apAccountCode, // Linked AP Account Code
         vendCode: vendCode,
         vendName: vendName?.vendName || "",
         refapvNo1: header.refDocNo1 || "",
         refapvNo2: header.refDocNo2 || "",
-        acctCode: apAccountCode,
         currCode: currencyCode || "PHP",
         currRate: parseFormattedNumber(currencyRate) || 1,
         remarks: header.remarks || "",
-        userCode: "NSI",
+        userCode: user?.USER_CODE || "NSI",
+        // Detail mapping (Invoice Details)
         dt1: detailRows.map((row, index) => ({
           lnNo: String(index + 1),
-          invType: row.invType || "FG",
-          poNo: row.poNo || "",
-          rrNo: row.rrNo || "",
-          joNo: "",
-          svoNo: "",
-          siNo: row.siNo || "",
-          siDate: row.siDate || header.apv_date,
-          amount: parseFormattedNumber(row.amount || 0),
-          siAmount: parseFormattedNumber(row.siAmount || row.amount || 0),
-          debitAcct: row.debitAcct || "",
-          vatAcct: row.vatAcct || "",
-          advAcct: "",
-          sltypeCode: row.sltypeCode || "",
-          slCode: row.slCode || vendCode || "",
-          slName: row.slName || vendName?.vendName || "",
-          address1: "",
-          address2: "",
-          address3: "",
-          tin: vendName?.tin || "",
-          rcCode: row.rcCode || "",
-          vatCode: row.vatCode || "",
-          vatAmount: parseFormattedNumber(row.vatAmount || 0),
-          atcCode: row.atcCode || "",
-          atcAmount: parseFormattedNumber(row.atcAmount || 0),
-          paytermCode: row.paytermCode || "",
-          dueDate: row.dueDate || "",
-          ctrDate: "",
-          advpoNo: "",
-          advpoAmount: 0,
-          advAtcAmount: 0,
-          remarks: row.remarks || "",
-          lineId: row.line_id || "",
-          REC_RC: row.REC_RC || "N",
-          REC_SL: row.REC_SL || "N",
+          invType: row.invType,
+          siNo: row.siNo,
+          siDate: row.siDate,
+          amount: parseFormattedNumber(row.amount),
+          siAmount: parseFormattedNumber(row.siAmount),
+          debitAcct: row.debitAcct,
+          vatAcct: row.vatAcct,
+          sltypeCode: row.sltypeCode,
+          slCode: row.slCode,
+          slName: row.slName,
+          rcCode: row.rcCode,
+          vatCode: row.vatCode,
+          vatAmount: parseFormattedNumber(row.vatAmount),
+          atcCode: row.atcCode,
+          atcAmount: parseFormattedNumber(row.atcAmount),
+          paytermCode: row.paytermCode,
+          dueDate: row.dueDate,
         })),
+        // GL mapping
         dt2: detailRowsGL.map((entry, index) => ({
           recNo: String(index + 1),
-          acctCode: entry.acctCode || "",
-          rcCode: entry.rcCode || "",
-          slCode: entry.slCode || "",
-          particular: entry.particular || "",
-          vatCode: entry.vatCode || "",
-          vatName: entry.vatName || "",
-          atcCode: entry.atcCode || "",
-          atcName: entry.atcName || "",
-          debit: parseFormattedNumber(entry.debit || 0),
-          credit: parseFormattedNumber(entry.credit || 0),
-          debitFx1: parseFormattedNumber(entry.debitFx1 || 0),
-          creditFx1: parseFormattedNumber(entry.creditFx1 || 0),
-          debitFx2: parseFormattedNumber(entry.debitFx2 || 0),
-          creditFx2: parseFormattedNumber(entry.creditFx2 || 0),
-          slrefNo: entry.slRefNo || "",
-          slrefDate: entry.slrefDate || "",
-          remarks: entry.remarks || header.remarks || "",
+          acctCode: entry.acctCode,
+          rcCode: entry.rcCode,
+          sltypeCode: entry.sltypeCode,
+          slCode: entry.slCode,
+          particular: entry.particular,
+          debit: parseFormattedNumber(entry.debit),
+          credit: parseFormattedNumber(entry.credit),
+          debitFx1: parseFormattedNumber(entry.debitFx1),
+          creditFx1: parseFormattedNumber(entry.creditFx1),
+          slrefNo: entry.slRefNo,
+          slrefDate: entry.slrefDate,
           dt1Lineno: entry.dt1Lineno || "",
         })),
       };
 
-      console.log("Sending data for", action, ":", serializableGlData);
-
-      if (action === "GenerateGL") {
-        const newGlEntries = await useGenerateGLEntries(
-          docType,
-          serializableGlData,
-        );
-        if (newGlEntries) {
-          updateState({ detailRowsGL: newGlEntries });
+      try {
+        if (action === "GenerateGL") {
+          const newGlEntries = await useGenerateGLEntries(docType, glData);
+          if (newGlEntries) {
+            // Simply set the new entries directly without syncing
+            updateState({ detailRowsGL: newGlEntries });
+          }
         }
-      }
 
-      if (action === "Upsert") {
-        const response = await useTransactionUpsert(
-          docType,
-          serializableGlData,
-          updateState,
-          "apvId",
-          "apvNo",
-        );
-        if (response) {
-          useSwalshowSaveSuccessDialog(handleReset, () =>
-            handleSaveAndPrint(response.data[0].apvId),
+        if (action === "Upsert") {
+          // useTransactionUpsert will automatically trigger useSwalValidationAlert
+          // if the SPROC returns an errorMsg or errorCount > 0
+          const response = await useTransactionUpsert(
+            docType,
+            glData,
+            updateState,
+            "apvId",
+            "apvNo",
           );
-          // Update state with new document ID and number
-          updateState({
-            documentID: response.data[0].apvId,
-            documentNo: response.data[0].apvNo,
-            isDocNoDisabled: true,
-            isFetchDisabled: true,
-          });
+
+          if (response && response.status === "success") {
+            // Double check if SPROC sent back a validation fail inside the successful HTTP response
+            const resultData = response.data[0];
+            if (!resultData.errorMsg) {
+              useSwalshowSaveSuccessDialog(handleReset, () =>
+                handleSaveAndPrint(resultData.apvId),
+              );
+              updateState({
+                isDocNoDisabled: true,
+                isFetchDisabled: true,
+                documentStatus: resultData.docStatus || "OPEN",
+                status: resultData.docStatus || "OPEN",
+              });
+            }
+          }
         }
+      } catch (error) {
+        console.error(`APV ${action} Error:`, error);
+      } finally {
+        updateState({ isLoading: false });
       }
-    } catch (error) {
-      console.error("Error during operation:", error);
-      Swal.fire({
-        icon: "error",
-        title: "Operation Failed",
-        text: error.message || "An error occurred",
-      });
-    } finally {
-      updateState({ isLoading: false });
     }
   };
 
-  const handleAddRow = async () => {
+//   const syncGLReferenceFromInvoiceDetails = useCallback(
+//     (invoiceRows, glRows) => {
+//       if (!Array.isArray(invoiceRows) || !Array.isArray(glRows))
+//         return glRows || [];
+
+//       return glRows.map((glRow, glIndex) => {
+//         let sourceRow = null;
+
+//         // Primary link: dt1Lineno from generated GL entry
+//         if (
+//           glRow?.dt1Lineno !== undefined &&
+//           glRow?.dt1Lineno !== null &&
+//           glRow?.dt1Lineno !== ""
+//         ) {
+//           const targetLn = String(glRow.dt1Lineno);
+//           sourceRow =
+//             invoiceRows.find((invRow, invIndex) => {
+//               const invLn = String(invRow?.lnNo || invIndex + 1);
+//               return invLn === targetLn;
+//             }) || null;
+//         }
+
+//         // Fallback: same index
+//         if (!sourceRow && invoiceRows[glIndex]) {
+//           sourceRow = invoiceRows[glIndex];
+//         }
+
+//         return {
+//           ...glRow,
+//           slRefNo: sourceRow?.siNo || "",
+//           slrefDate: sourceRow?.siDate || "",
+//           // FIX: explicitly map the SL fields from the Invoice row to the GL row
+//           slCode: sourceRow?.slCode || glRow.slCode || "",
+//           slName: sourceRow?.slName || glRow.slName || "",
+//           sltypeCode: sourceRow?.sltypeCode || glRow.sltypeCode || "",
+//         };
+//       });
+//     },
+//     [],
+//   );
+
+//  useEffect(() => {
+//     if (!detailRowsGL.length) return;
+
+//     const syncedRows = syncGLReferenceFromInvoiceDetails(
+//       detailRows,
+//       detailRowsGL,
+//     );
+
+//     const hasChanges = syncedRows.some((row, index) => {
+//       return (
+//         (row.slRefNo || "") !== (detailRowsGL[index]?.slRefNo || "") ||
+//         (row.slrefDate || "") !== (detailRowsGL[index]?.slrefDate || "") ||
+//         // FIX: Tell the effect to trigger a state update if the SL Code changes
+//         (row.slCode || "") !== (detailRowsGL[index]?.slCode || "")
+//       );
+//     });
+
+//     if (hasChanges) {
+//       updateState({ detailRowsGL: syncedRows });
+//     }
+//   }, [detailRows, syncGLReferenceFromInvoiceDetails]);
+
+  const handleAddRow = async (insertIndex = null) => {
     try {
       const items = await handleFetchDetail(vendCode);
       const itemList = Array.isArray(items) ? items : [items];
@@ -1026,12 +1114,8 @@ const APV = () => {
             siNo: "",
             siDate: useGetCurrentDayV2(),
             amount: formatNumber(amount),
-            currency: vendName?.currCode || "",
             siAmount: formatNumber(amount),
             debitAcct: "",
-            REC_RC: "N",
-            rcCode: "",
-            rcName: "",
             sltypeCode: item.sltypeCode || "",
             slCode: vendCode || "",
             slName: vendName?.vendName || "",
@@ -1044,54 +1128,59 @@ const APV = () => {
             paytermCode: item.paytermCode || "",
             dueDate: useGetCurrentDayV2(),
             remarks: "",
-            REC_RC: item.REC_RC || "N", // Default to 'N' if not provided
-            REC_SL: item.REC_SL || "N", // Default to 'N' if not provided
+            REC_RC: item.REC_RC || "N",
+            REC_SL: item.REC_SL || "N",
           };
         }),
       );
 
-      const updatedRows = [...detailRows, ...newRows];
+      let updatedRows = [...detailRows];
+
+      // Positional Logic:
+      if (insertIndex !== null && insertIndex >= 0) {
+        updatedRows.splice(insertIndex + 1, 0, ...newRows);
+      } else {
+        updatedRows = [...updatedRows, ...newRows];
+      }
+
       updateState({ detailRows: updatedRows });
       updateTotals(updatedRows);
-
-      setTimeout(() => {
-        const tableContainer = document.querySelector(".max-h-\\[430px\\]");
-        if (tableContainer)
-          tableContainer.scrollTop = tableContainer.scrollHeight;
-      }, 100);
     } catch (error) {
-      console.error("Error adding new row:", error);
-      alert("Failed to add new row. Please select a Payee first.");
+      console.error("Error adding row:", error);
     }
   };
 
-  const handleAddRowGL = () => {
-    updateState({
-      detailRowsGL: [
-        ...detailRowsGL,
-        {
-          acctCode: "",
-          rcCode: "",
-          REQ_RC: "N",
-          sltypeCode: "VE",
-          slCode: "",
-          particular: "",
-          vatCode: "",
-          vatName: "",
-          atcCode: "",
-          atcName: "",
-          debit: "0.00",
-          credit: "0.00",
-          debitFx1: "0.00",
-          creditFx1: "0.00",
-          debitFx2: "0.00",
-          creditFx2: "0.00",
-          slRefNo: "",
-          slrefDate: "",
-          remarks: header.remarks || "",
-        },
-      ],
-    });
+  const handleAddRowGL = (index = null) => {
+    const newRow = {
+      acctCode: "",
+      rcCode: "",
+      sltypeCode: "VE",
+      slCode: "",
+      particular: "",
+      vatCode: "",
+      vatName: "",
+      atcCode: "",
+      atcName: "",
+      debit: "0.00",
+      credit: "0.00",
+      debitFx1: "0.00",
+      creditFx1: "0.00",
+      debitFx2: "0.00",
+      creditFx2: "0.00",
+      slRefNo: "",
+      slrefDate: "",
+      remarks: header.remarks || "",
+    };
+
+    const updatedRows = [...detailRowsGL];
+
+    if (index !== null && index >= 0) {
+      updatedRows.splice(index + 1, 0, newRow);
+    } else {
+      updatedRows.push(newRow);
+    }
+
+    updateState({ detailRowsGL: updatedRows });
   };
 
   const handleDeleteRow = async (index) => {
@@ -1201,14 +1290,12 @@ const APV = () => {
   };
 
   const handlePost = async () => {
-    if (documentID) {
+    if (!detailRows || detailRows.length === 0) {
+      return;
+    }
+
+    if (documentID && documentStatus === "") {
       updateState({ showPostingModal: true });
-    } else {
-      Swal.fire({
-        icon: "warning",
-        title: "No Document",
-        text: "Please save the document first before posting.",
-      });
     }
   };
 
@@ -1216,34 +1303,21 @@ const APV = () => {
     if (!detailRows || detailRows.length === 0) {
       return;
     }
-    updateState({ showSignatoryModal: true });
+    if (documentID) {
+      updateState({ showSignatoryModal: true });
+    }
   };
 
   const handleCancel = async () => {
-    console.log(
-      "Cancel button clicked - Document ID:",
-      documentID,
-      "Status:",
-      documentStatus,
-    );
+    if (!detailRows || detailRows.length === 0) {
+      return;
+    }
 
-    if (documentID) {
-      if (documentStatus === "FINALIZED" || documentStatus === "CLOSED") {
-        Swal.fire({
-          icon: "warning",
-          title: "Cannot Cancel",
-          text: "This document is already finalized or closed and cannot be cancelled.",
-        });
-        return;
-      }
-
+    if (
+      documentID &&
+      ["", "OPEN"].includes((documentStatus || "").toUpperCase())
+    ) {
       updateState({ showCancelModal: true });
-    } else {
-      Swal.fire({
-        icon: "warning",
-        title: "No Document",
-        text: "Please save the document first before cancelling.",
-      });
     }
   };
 
@@ -1257,20 +1331,13 @@ const APV = () => {
     }
 
     if (documentID) {
-      // Clear ALL transaction data including invoice details and GL entries
-      const resetDetailRows = detailRows.map((row) => ({
-        ...row,
-        siNo: "",
-      }));
-
       updateState({
         documentNo: "",
         documentID: "",
-        documentStatus: "OPEN",
-        APVDate: new Date().toISOString().split("T")[0],
+        documentStatus: "",
         status: "OPEN",
-        detailRows: resetDetailRows, // Use the reset rows with cleared invoice numbers
-        detailRowsGL: [], // Clear GL entries
+        documentDate: useGetCurrentDayV2(),
+        noReprints: "0",
       });
     }
   };
@@ -1278,7 +1345,6 @@ const APV = () => {
   const handleClosePost = async (confirmation) => {
     if (confirmation && documentID !== null) {
       try {
-        // You'll need to implement useHandlePost similar to useHandleCancel
         const result = await handlePost(
           docType,
           documentID,
@@ -1478,18 +1544,21 @@ const APV = () => {
     updatedRows[index] = { ...updatedRows[index], [field]: value };
     const row = updatedRows[index];
 
-    // Logic for Debit Account Selection
     if (field === "debitAcct" && typeof value === "object") {
-      // Normalize flag names coming from COAMastLookupModal
-      const reqRc = value.rcReq || value.REQ_RC || "N";
-      const reqSl = value.slReq || value.REQ_SL || "N";
+      // 1. Capture the flags from the modal keys (rcReq/slReq)
+      const rawRc = value.rcReq || value.REQ_RC || "N";
+      const rawSl = value.slReq || value.REQ_SL || "N";
+
+      // 2. Standardize to a boolean or 'Y'/'N' check
+      const isRcRequired = rawRc === "Y" || rawRc === "Yes";
+      const isSlRequired = rawSl === "Y" || rawSl === "Yes";
 
       row.debitAcct = value.acctCode || "";
-      row.REC_RC = reqRc;
-      row.REC_SL = reqSl;
+      row.REC_RC = isRcRequired ? "Y" : "N"; // Store as 'Y' for internal logic
+      row.REC_SL = isSlRequired ? "Y" : "N";
 
-      // Set RC Placeholder
-      if (reqRc === "Y") {
+      // 3. Set the placeholders based on the check
+      if (isRcRequired) {
         row.rcCode = "REQ RC";
         row.rcName = "";
       } else {
@@ -1497,14 +1566,15 @@ const APV = () => {
         row.rcName = "";
       }
 
-      // Set SL Placeholder (defaults to Payee if not required)
-      if (reqSl === "Y") {
+      if (isSlRequired) {
         row.slCode = "REQ SL";
         row.slName = "";
       } else {
         row.slCode = vendCode || "";
         row.slName = vendName?.vendName || "";
       }
+
+      console.log("Standardized Flags - RC:", row.REC_RC, "SL:", row.REC_SL);
     }
 
     // RC code selection from modal
@@ -1668,8 +1738,11 @@ const APV = () => {
   };
 
   const handleDetailChangeGL = async (index, field, value) => {
-    const updatedRowsGL = [...state.detailRowsGL];
-    let row = { ...updatedRowsGL[index] };
+    // 1. Create a deep clone of the current rows to prevent reference bleeding
+    const currentRows = [...state.detailRowsGL];
+
+    // 2. Isolate the specific row being edited
+    let row = { ...currentRows[index] };
 
     if (
       [
@@ -1681,6 +1754,7 @@ const APV = () => {
         "atcCode",
       ].includes(field)
     ) {
+      // Fetch fresh data for THIS specific row only
       const data = await useUpdateRowGLEntries(
         row,
         field,
@@ -1688,22 +1762,54 @@ const APV = () => {
         vendCode,
         docType,
       );
+
       if (data) {
+        // Standardize flags for THIS data result
+        const isRcReq =
+          data.REQ_RC === "Y" || data.rcReq === "Yes" || data.REQRC === "Y";
+        const isSlReq =
+          data.REQ_SL === "Y" || data.slReq === "Yes" || data.REQSL === "Y";
+
+        // Map data specifically to this row index
         row.acctCode = data.acctCode;
         row.sltypeCode = data.sltypeCode;
-        row.slCode = data.slCode;
-        row.rcCode = data.rcCode || (data.REQ_RC === "Y" ? "REQ RC" : "");
-        row.rcName = data.rcName;
-        row.vatCode = data.vatCode;
-        row.vatName = data.vatName;
-        row.atcCode = data.atcCode;
-        row.atcName = data.atcName;
-        row.particular = data.particular;
-        row.slRefNo = data.slRefNo;
-        row.slRefDate = data.slRefDate;
+
+        // --- Strict RC Isolation ---
+        if (isRcReq) {
+          // Only set REQ RC if it's actually empty or needs the placeholder
+          row.rcCode =
+            data.rcCode && data.rcCode !== "" ? data.rcCode : "REQ RC";
+          row.rcName = data.rcName || "";
+        } else {
+          // EXPLICITLY WIPE for this specific row if flag is N
+          row.rcCode = "";
+          row.rcName = "";
+        }
+
+        // --- Strict SL Isolation ---
+        if (isSlReq) {
+          row.slCode =
+            data.slCode && data.slCode !== "" ? data.slCode : "REQ SL";
+        } else {
+          // EXPLICITLY WIPE for this specific row if flag is N
+          row.slCode = "";
+          row.slName = "";
+        }
+
+        // Standard assignments
+        row.vatCode = data.vatCode || "";
+        row.vatName = data.vatName || "";
+        row.atcCode = data.atcCode || "";
+        row.atcName = data.atcName || "";
+        row.particular = data.particular || "";
+
+        // Update the required flags for this row only (used by JSX magnifying glass)
+        row.REQ_RC = isRcReq ? "Y" : "N";
+        row.REQ_SL = isSlReq ? "Y" : "N";
       }
     }
 
+    // Amount logic - ensures we only touch index [index]
     if (
       [
         "debit",
@@ -1724,7 +1830,6 @@ const APV = () => {
         debitFx2: "creditFx2",
         creditFx2: "debitFx2",
       };
-
       if (parsedValue > 0 && pairs[field]) {
         row[pairs[field]] = "0.00";
       }
@@ -1734,8 +1839,11 @@ const APV = () => {
       row[field] = value;
     }
 
-    updatedRowsGL[index] = row;
-    updateState({ detailRowsGL: updatedRowsGL });
+    // 3. Final Step: Put the isolated row back into the array at its specific index
+    currentRows[index] = row;
+
+    // Update state with the modified array
+    updateState({ detailRowsGL: currentRows });
   };
 
   const handleCloseAccountModal = (selectedAccount) => {
@@ -1832,168 +1940,65 @@ const APV = () => {
     updateState({
       showSlModal: false,
       selectedRowIndex: null,
+      accountModalSource: null,
     });
   };
 
   const handleCloseSlModalGL = async (selectedSl) => {
     if (selectedSl && selectedRowIndex !== null) {
-      if (accountModalSource !== null) {
-        handleDetailChange(selectedRowIndex, "slCode", selectedSl, false);
-      } else {
-        handleDetailChangeGL(selectedRowIndex, "slCode", selectedSl);
-        //  const result = await useTopRCRow(selectedSl.slCode);
-        //   if (result) {
-        //     handleDetailChangeGL(selectedRowIndex, 'slCode', result);
-        //   }
-      }
-      updateState({
-        showSlModal: false,
-        selectedRowIndex: null,
-        accountModalSource: null,
-      });
+      handleDetailChangeGL(selectedRowIndex, "slCode", selectedSl);
     }
+    updateState({
+      showSlModal: false,
+      selectedRowIndex: null,
+      accountModalSource: null,
+    });
   };
 
   const handleCloseCancel = async (confirmation) => {
-    console.log("Close cancel called with:", confirmation);
-    console.log("Document Status:", documentStatus, "Document ID:", documentID);
+    if (
+      confirmation &&
+      documentID !== null &&
+      ["", "OPEN"].includes((documentStatus || "").toUpperCase())
+    ) {
+      const result = await useHandleCancel(
+        docType,
+        documentID,
+        userCode,
+        confirmation.password,
+        confirmation.reason,
+        updateState,
+      );
 
-    if (confirmation && confirmation.reason && documentID) {
-      try {
-        console.log("Attempting to cancel document:", documentID);
-
-        const result = await useHandleCancel(
-          docType,
-          documentID,
-          "NSI",
-          confirmation.reason,
-          updateState,
-        );
-        console.log("Cancel result:", result);
-
-        // Check if result exists and has success property
-        if (result && result.success) {
-          Swal.fire({
-            icon: "success",
-            title: "Success",
-            text: result.message || "Document cancelled successfully",
-          });
-
-          // Refresh the data
-          if (documentNo && branchCode) {
-            await fetchTranData(documentNo, branchCode);
-          }
-        } else {
-          // Handle failure case
-          Swal.fire({
-            icon: "error",
-            title: "Cancel Failed",
-            text: result?.message || "Failed to cancel document",
-          });
-        }
-      } catch (error) {
-        console.error("Error in handleCloseCancel:", error);
+      if (result?.success) {
         Swal.fire({
-          icon: "error",
-          title: "Cancel Error",
-          text: error.message || "An unexpected error occurred",
+          icon: "success",
+          title: "Success",
+          text: "Cancellation Completed",
+          timer: 5000,
+          timerProgressBar: true,
+          showConfirmButton: false,
         });
       }
-    } else {
-      console.log("Cancel cancelled or missing data:", {
-        hasConfirmation: !!confirmation,
-        hasReason: confirmation?.reason,
-        hasDocumentID: !!documentID,
-      });
+
+      await fetchTranData(documentNo, branchCode);
     }
 
     updateState({ showCancelModal: false });
   };
 
   const handleCloseSignatory = async (mode) => {
-    console.log("ðŸ”„ handleCloseSignatory called with mode:", mode);
-    console.log("ðŸ“„ Current document state:", {
-      documentID,
-      documentNo,
-      docType,
-      status: documentStatus,
-    });
-
-    if (!documentID) {
-      console.error("âŒ Cannot print: documentID is undefined!");
-      Swal.fire({
-        icon: "error",
-        title: "Cannot Print",
-        text: "Document ID is missing. Please save the document first.",
-      });
-      updateState({ showSignatoryModal: false });
-      return;
-    }
-
     updateState({
       showSpinner: true,
       showSignatoryModal: false,
       noReprints: mode === "Final" ? 1 : 0,
     });
+    await useHandlePrint(documentID, docType, mode, userCode);
 
-    try {
-      console.log("ðŸ–¨ï¸ Calling useHandlePrint with:", {
-        documentID,
-        docType,
-        mode,
-        timestamp: new Date().toISOString(),
-      });
-
-      await useHandlePrint(documentID, docType, mode);
-
-      console.log("âœ… Printing completed successfully");
-    } catch (error) {
-      console.error("âŒ Printing failed:", error);
-      Swal.fire({
-        icon: "error",
-        title: "Print Failed",
-        text: error.message || "Failed to generate print document",
-      });
-    } finally {
-      updateState({ showSpinner: false });
-    }
+    updateState({
+      showSpinner: false,
+    });
   };
-
-  // ✅ 1. Initialize component (Runs ONCE)
-  useEffect(() => {
-    handleReset();
-    getDocumentControl();
-  }, []);
-
-  // ✅ 2. Handle Reset Flag ONLY
-  useEffect(() => {
-    if (resetFlag) {
-      handleReset();
-      console.log("Fields in APV reset!");
-    }
-  }, [resetFlag]);
-
-  // ✅ 3. Handle Spinner ONLY (Doesn't trigger server calls)
-  useEffect(() => {
-    let timer;
-    if (isLoading) {
-      timer = setTimeout(() => updateState({ showSpinner: true }), 200);
-    } else {
-      updateState({ showSpinner: false });
-    }
-    return () => clearTimeout(timer);
-  }, [isLoading]);
-
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === "F1") {
-        e.preventDefault();
-        updateState({ showAllTranDocNo: true });
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
 
   const handleTranDocNoRetrieval = async (data) => {
     await fetchTranData(data.docNo, branchCode, data.key);
@@ -2434,385 +2439,434 @@ const APV = () => {
           onDetails={() => setTopTab("details")}
           onHistory={() => setTopTab("history")}
           disableRouteNavigation={true}
-          isSaveDisabled={isSaveDisabled} // Pass disabled state
-          isResetDisabled={isResetDisabled} // Pass disabled state
+          // isSaveDisabled={isSaveDisabled} // Pass disabled state
+          // isResetDisabled={isResetDisabled} // Pass disabled state
           detailsRoute="/page/APV"
+          isSaveDisabled={
+            state.isSaveDisabled || isFormDisabled || detailRowsGL.length === 0
+          }
+          isResetDisabled={state.isResetDisabled}
+          isAttachDisabled={!documentID}
+          isPrintDisabled={!documentID || displayStatus === "CANCELLED"}
+          isCopyDisabled={!documentID || displayStatus === "CANCELLED"}
+          isCancelDisabled={
+            !documentID ||
+            displayStatus === "CANCELLED" ||
+            displayStatus === "FINALIZED"
+          }
         />
       </div>
 
-      <div className={topTab === "details" ? "" : "hidden"}></div>
-
-      {/* Page title and subheading */}
-      {/* Header Section */}
-      <div className="global-tran-header-ui">
-        <div className="global-tran-headertext-div-ui">
-          <h1 className="global-tran-headertext-ui">{documentTitle}</h1>
-        </div>
-
-        <div className="global-tran-headerstat-div-ui">
-          <div>
-            <p className="global-tran-headerstat-text-ui">Transaction Status</p>
-            <h1 className={`global-tran-stat-text-ui ${statusColor}`}>
-              {displayStatus}
-            </h1>
+      <div className={topTab === "details" ? "" : "hidden"}>
+        {/* Page title and subheading */}
+        {/* Header Section */}
+        <div className="global-tran-header-ui">
+          <div className="global-tran-headertext-div-ui">
+            <h1 className="global-tran-headertext-ui">{documentTitle}</h1>
           </div>
-        </div>
-      </div>
 
-      {/* Form Layout with Tabs */}
-      <div className="global-tran-header-div-ui">
-        {/* Tab Navigation */}
-        <div className="global-tran-header-tab-div-ui">
-          <button
-            className={`global-tran-tab-padding-ui ${
-              activeTab === "basic"
-                ? "global-tran-tab-text_active-ui"
-                : "global-tran-tab-text_inactive-ui"
-            }`}
-            onClick={() => updateState({ activeTab: "basic" })}
-          >
-            Basic Information
-          </button>
-        </div>
-
-        {/* APV Header Form Section */}
-        <div
-          id="apv_hd"
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 rounded-lg relative"
-        >
-          {/* Column 1 */}
-          <div className="global-tran-textbox-group-div-ui">
-            <FieldRenderer
-              id="branchName"
-              label="Branch"
-              type="lookup"
-              value={branchName || ""}
-              disabled={isFormDisabled}
-              onLookup={() => updateState({ branchModalOpen: true })}
-            />
-
-            {/* APV Number Field */}
-            <FieldRenderer
-              id="apvNo"
-              label="APV No."
-              type="lookup"
-              value={documentNo || ""}
-              disabled={isDocNoDisabled}
-              onLookup={() => updateState({ showAllTranDocNo: true })}
-            />
-
-            {/* APV Date Picker */}
-            <div className="relative w-full">
-              <div
-                className={`flex items-stretch global-ref-textbox-ui ${!isFormDisabled ? "global-ref-textbox-enabled" : "global-ref-textbox-disabled"}`}
-              >
-                <DateFormatInput
-                  id="apv_date"
-                  // Apply peer class and remove default borders to let the wrapper handle the UI
-                  className="peer flex-grow bg-transparent border-none px-3 focus:outline-none cursor-pointer"
-                  value={header.apv_date}
-                  disabled={isFormDisabled}
-                  updateState={(updates) => {
-                    if (updates.apv_date !== undefined) {
-                      updateState({
-                        header: {
-                          ...header,
-                          apv_date: updates.apv_date,
-                        },
-                      });
-                    }
-                  }}
-                />
-              </div>
-
-              <label
-                htmlFor="apv_date"
-                className={`global-ref-floating-label ${!isFormDisabled ? "global-ref-label-enabled" : "global-ref-label-disabled"}`}
-              >
-                APV Date
-              </label>
+          <div className="global-tran-headerstat-div-ui">
+            <div>
+              <p className="global-tran-headerstat-text-ui">
+                Transaction Status
+              </p>
+              <h1 className={`global-tran-stat-text-ui ${statusColor}`}>
+                {displayStatus}
+              </h1>
             </div>
           </div>
+        </div>
 
-          {/* Column 2 */}
-          <div className="global-tran-textbox-group-div-ui">
-            {/* Payee Code Input with optional lookup */}
-            <FieldRenderer
-              id="payeeCode"
-              label="Payee Code"
-              required
-              type="lookup"
-              value={vendName?.vendCode || ""}
-              disabled={isFormDisabled}
-              onLookup={() => updateState({ payeeModalOpen: true })}
-            />
-
-            {/* Payee Name Display */}
-            <FieldRenderer
-              id="payeeName"
-              label="Payee Name"
-              required
-              type="text"
-              value={vendName?.vendName || ""}
-              disabled={true}
-              onChange={() => {}}
-            />
-
-            {/* AP Account Code Input */}
-            <FieldRenderer
-              id="apAccountName"
-              label="AP Account"
-              type="lookup"
-              value={apAccountName || ""}
-              disabled={isFormDisabled}
-              onLookup={() =>
-                updateState({
-                  showAccountModal: true,
-                  accountModalSource: "apAccount",
-                })
-              }
-            />
-            <input
-              type="hidden"
-              id="apAccountCode"
-              value={apAccountCode || ""}
-            />
+        {/* Form Layout with Tabs */}
+        <div className="global-tran-header-div-ui">
+          {/* Tab Navigation */}
+          <div className="global-tran-header-tab-div-ui">
+            <button
+              className={`global-tran-tab-padding-ui ${
+                activeTab === "basic"
+                  ? "global-tran-tab-text_active-ui"
+                  : "global-tran-tab-text_inactive-ui"
+              }`}
+              onClick={() => updateState({ activeTab: "basic" })}
+            >
+              Basic Information
+            </button>
           </div>
 
-          {/* Column 3 */}
-          <div className="global-tran-textbox-group-div-ui">
-            <FieldRenderer
-              id="currCode"
-              label="Currency"
-              type="lookup"
-              value={
-                currencyCode
-                  ? `${currencyCode}${currencyName ? ` - ${currencyName}` : ""}`
-                  : ""
-              }
-              disabled={isFormDisabled}
-              onLookup={() => updateState({ currencyModalOpen: true })}
-            />
+          {/* APV Header Form Section */}
+          <div
+            id="apv_hd"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 rounded-lg relative"
+          >
+            {/* Column 1 */}
+            <div className="global-tran-textbox-group-div-ui">
+              <FieldRenderer
+                id="branchName"
+                label="Branch"
+                type="lookup"
+                value={branchName || ""}
+                disabled={isFormDisabled}
+                onLookup={() => updateState({ branchModalOpen: true })}
+              />
 
-            <FieldRenderer
-              id="currRate"
-              label="Currency Rate"
-              type="text"
-              value={currencyRate || ""}
-              disabled={isFormDisabled || glCurrDefault === currencyCode}
-              onChange={(val) => updateState({ currencyRate: val })}
-            />
+              {/* APV Number Field */}
+              <FieldRenderer
+                id="apvNo"
+                label="APV No."
+                type="lookup"
+                value={documentNo || ""}
+                disabled={isDocNoDisabled}
+                onLookup={() => updateState({ showAllTranDocNo: true })}
+                onKeyDown={(e) => {
+                  if (e.key === "F1") {
+                    e.preventDefault();
+                    if (!isDocNoDisabled) {
+                      updateState({ showAllTranDocNo: true });
+                    }
+                  }
+                }}
+              />
 
-            <FieldRenderer
-              id="selectedApType"
-              label="AP Type"
-              type="select"
-              value={selectedApType}
-              disabled={isFormDisabled}
-              onChange={(val) => handleAPTypeChange({ target: { value: val } })}
-              options={apTypes.map((t) => ({
-                label: t.DROPDOWN_NAME,
-                value: t.DROPDOWN_CODE,
-              }))}
-            />
-          </div>
+              {/* APV Date Picker */}
+              <div className="relative w-full">
+                <div
+                  className={`flex items-stretch global-ref-textbox-ui ${!isFormDisabled ? "global-ref-textbox-enabled" : "global-ref-textbox-disabled"}`}
+                >
+                  <DateFormatInput
+                    id="apv_date"
+                    // Apply peer class and remove default borders to let the wrapper handle the UI
+                    className="peer flex-grow bg-transparent border-none px-3 focus:outline-none cursor-pointer"
+                    value={header.apv_date}
+                    disabled={isFormDisabled}
+                    updateState={(updates) => {
+                      if (updates.apv_date !== undefined) {
+                        updateState({
+                          header: {
+                            ...header,
+                            apv_date: updates.apv_date,
+                          },
+                        });
+                      }
+                    }}
+                  />
+                </div>
 
-          {/* Column 4 */}
-          <div className="global-tran-textbox-group-div-ui">
-            <FieldRenderer
-              id="refDocNo1"
-              label="Ref Doc No. 1"
-              type="text"
-              value={header.refDocNo1 || ""}
-              disabled={isFormDisabled}
-              onChange={(val) =>
-                updateState({
-                  header: { ...header, refDocNo1: val },
-                })
-              }
-            />
+                <label
+                  htmlFor="apv_date"
+                  className={`global-ref-floating-label ${!isFormDisabled ? "global-ref-label-enabled" : "global-ref-label-disabled"}`}
+                >
+                  APV Date
+                </label>
+              </div>
+            </div>
 
-            <FieldRenderer
-              id="refDocNo2"
-              label="Ref Doc No. 2"
-              type="text"
-              value={header.refDocNo2 || ""}
-              disabled={isFormDisabled}
-              onChange={(val) =>
-                updateState({
-                  header: { ...header, refDocNo2: val },
-                })
-              }
-            />
-          </div>
+            {/* Column 2 */}
+            <div className="global-tran-textbox-group-div-ui">
+              {/* Payee Code Input with optional lookup */}
+              <FieldRenderer
+                id="payeeCode"
+                label="Payee Code"
+                required
+                type="lookup"
+                value={vendName?.vendCode || ""}
+                disabled={isFormDisabled}
+                onLookup={() => updateState({ payeeModalOpen: true })}
+              />
 
-          {/* Remarks Section */}
-          {/* Column 4 - Remarks */}
-          <div className="col-span-full">
-            <div className="relative w-full p-2">
-              <textarea
-                id="remarks"
-                placeholder=" "
-                rows={5}
-                className="peer global-tran-textbox-remarks-ui pt-2"
-                value={header.remarks || ""}
-                onChange={(e) =>
+              {/* Payee Name Display */}
+              <FieldRenderer
+                id="payeeName"
+                label="Payee Name"
+                required
+                type="text"
+                value={vendName?.vendName || ""}
+                disabled={true}
+                onChange={() => {}}
+              />
+
+              {/* AP Account Code Input */}
+              <FieldRenderer
+                id="apAccountName"
+                label="AP Account"
+                type="lookup"
+                value={apAccountName || ""}
+                disabled={isFormDisabled}
+                onLookup={() =>
                   updateState({
-                    header: { ...header, remarks: e.target.value },
+                    showAccountModal: true,
+                    accountModalSource: "apAccount",
                   })
                 }
-                disabled={isFormDisabled}
               />
-              <label
-                htmlFor="remarks"
-                className="global-tran-floating-label-remarks"
-              >
-                Remarks
-              </label>
+              <input
+                type="hidden"
+                id="apAccountCode"
+                value={apAccountCode || ""}
+              />
+            </div>
+
+            {/* Column 3 */}
+            <div className="global-tran-textbox-group-div-ui">
+              <FieldRenderer
+                id="currCode"
+                label="Currency"
+                type="text"
+                value={
+                  currencyCode
+                    ? `${currencyCode}${currencyName ? ` - ${currencyName}` : ""}`
+                    : ""
+                }
+                // Updated logic: Disable if form is finalized OR if a payee is already selected
+                disabled={isFormDisabled || !!vendCode}
+                // onLookup={() => updateState({ currencyModalOpen: true })}
+              />
+
+              <FieldRenderer
+                id="currRate"
+                label="Currency Rate"
+                type="amount"
+                value={currencyRate || ""}
+                disabled={
+                  isFormDisabled || glCurrDefault === currencyCode || !!vendCode
+                }
+                onChange={(val) => updateState({ currencyRate: val })}
+              />
+
+              <FieldRenderer
+                id="selectedApType"
+                label="AP Type"
+                type="select"
+                value={selectedApType}
+                disabled={isFormDisabled}
+                onChange={(val) =>
+                  handleAPTypeChange({ target: { value: val } })
+                }
+                options={apTypes.map((t) => ({
+                  label: t.DROPDOWN_NAME,
+                  value: t.DROPDOWN_CODE,
+                }))}
+              />
+            </div>
+
+            {/* Column 4 */}
+            <div className="global-tran-textbox-group-div-ui">
+              <FieldRenderer
+                id="refDocNo1"
+                label="Ref Doc No. 1"
+                type="text"
+                value={header.refDocNo1 || ""}
+                disabled={isFormDisabled}
+                maxLength={25}
+                onChange={(val) =>
+                  updateState({
+                    header: { ...header, refDocNo1: val },
+                  })
+                }
+              />
+
+              <FieldRenderer
+                id="refDocNo2"
+                label="Ref Doc No. 2"
+                type="text"
+                value={header.refDocNo2 || ""}
+                disabled={isFormDisabled}
+                maxLength={25}
+                onChange={(val) =>
+                  updateState({
+                    header: { ...header, refDocNo2: val },
+                  })
+                }
+              />
+            </div>
+
+            {/* Remarks Section */}
+            {/* Column 4 - Remarks */}
+            <div className="col-span-full">
+              <div className="relative w-full p-2">
+                <textarea
+                  id="remarks"
+                  placeholder=" "
+                  rows={5}
+                  className="peer global-tran-textbox-remarks-ui pt-2"
+                  value={header.remarks || ""}
+                  maxLength={4000}
+                  onChange={(e) =>
+                    updateState({
+                      header: { ...header, remarks: e.target.value },
+                    })
+                  }
+                  disabled={isFormDisabled}
+                />
+                <label
+                  htmlFor="remarks"
+                  className="global-tran-floating-label-remarks"
+                >
+                  Remarks
+                </label>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-      <br />
+        <br />
 
-      {fieldVisibility.invoiceDetails && (
-        <>
-          {/* APV Detail Section */}
-          <div id="apv_dtl" className="global-tran-tab-div-ui">
-            {/* Tab Navigation */}
-            <div className="global-tran-tab-nav-ui">
-              {/* Tabs */}
-              <div className="flex flex-row sm:flex-row">
-                <button
-                  className={`global-tran-tab-padding-ui ${
-                    GLactiveTab === "invoice"
-                      ? "global-tran-tab-text_active-ui"
-                      : "global-tran-tab-text_inactive-ui"
-                  }`}
-                  onClick={() => updateState({ GLactiveTab: "invoice" })}
-                  disabled={isFormDisabled}
-                >
-                  Invoice Details
-                </button>
+        {fieldVisibility.invoiceDetails && (
+          <>
+            {/* APV Detail Section */}
+            <div id="apv_dtl" className="global-tran-tab-div-ui">
+              {/* Tab Navigation */}
+              <div className="global-tran-tab-nav-ui">
+                {/* Tabs */}
+                <div className="flex flex-row sm:flex-row">
+                  <button
+                    className={`global-tran-tab-padding-ui ${
+                      GLactiveTab === "invoice"
+                        ? "global-tran-tab-text_active-ui"
+                        : "global-tran-tab-text_inactive-ui"
+                    }`}
+                    onClick={() => updateState({ GLactiveTab: "invoice" })}
+                    disabled={isFormDisabled}
+                  >
+                    Invoice Details
+                  </button>
+                </div>
+
+                {/* Action Button */}
+                <div className="flex justify-end">
+                  <button
+                    className="global-tran-button-lookup"
+                    disabled={isFormDisabled}
+                  >
+                    Get Reference RR
+                  </button>
+                </div>
               </div>
 
-              {/* Action Button */}
-              <div className="flex justify-end">
-                <button
-                  className="global-tran-button-lookup"
-                  disabled={isFormDisabled}
-                >
-                  Get Reference RR
-                </button>
-              </div>
-            </div>
-
-            {/* Invoice Details Button */}
-            <div className="global-tran-table-main-div-ui">
-              <div className="global-tran-table-main-sub-div-ui">
-                <table className="min-w-full border-collapse">
-                  <thead className="global-tran-thead-div-ui">
-                    <tr>
-                      <th className="global-tran-th-ui">LN</th>
-                      {fieldVisibility.invType && (
-                        <th className="global-tran-th-ui">Type</th>
-                      )}
-                      {fieldVisibility.rrNo && (
-                        <th className="global-tran-th-ui">RR No.</th>
-                      )}
-                      {fieldVisibility.poNo && (
-                        <th className="global-tran-th-ui">PO/JO No.</th>
-                      )}
-                      <th className="global-tran-th-ui">Invoice No.</th>
-                      <th className="global-tran-th-ui">Invoice Date</th>
-                      <th className="global-tran-th-ui">Original Amount</th>
-                      <th className="global-tran-th-ui">Currency</th>
-                      <th className="global-tran-th-ui">Invoice Amount</th>
-                      <th className="global-tran-th-ui">DR Account</th>
-                      <th className="global-tran-th-ui">RC Code</th>
-                      <th className="global-tran-th-ui">RC Name</th>
-                      {fieldVisibility.sltypeCode && (
-                        <th className="global-tran-th-ui" id="sltypeCode">
-                          SL Type Code
-                        </th>
-                      )}
-                      <th className="global-tran-th-ui">SL Code</th>
-                      <th className="global-tran-th-ui">VAT Code</th>
-                      <th className="global-tran-th-ui">VAT Name</th>
-                      <th className="global-tran-th-ui">VAT Amount</th>
-                      <th className="global-tran-th-ui">ATC</th>
-                      <th className="global-tran-th-ui">ATC Name</th>
-                      <th className="global-tran-th-ui">ATC Amount</th>
-                      <th className="global-tran-th-ui">Payment Terms</th>
-                      <th className="global-tran-th-ui">Due Date</th>
-                      {!isFormDisabled && (
-                        <th className="global-tran-th-ui sticky right-[43px] bg-blue-300 dark:bg-blue-900 z-30">
-                          Edit
-                        </th>
-                      )}
-                      {!isFormDisabled && (
-                        <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
-                          Delete
-                        </th>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody className="relative">
-                    {detailRows.map((row, index) => (
-                      <tr key={index} className="global-tran-tr-ui">
-                        <td className="global-tran-td-ui text-center">
-                          {index + 1}
-                        </td>
+              {/* Invoice Details Button */}
+              <div className="global-tran-table-main-div-ui">
+                <div className="global-tran-table-main-sub-div-ui">
+                  <table className="min-w-full border-collapse">
+                    <thead className="global-tran-thead-div-ui">
+                      <tr>
+                        <th className="global-tran-th-ui">LN</th>
                         {fieldVisibility.invType && (
-                          <td className="global-tran-td-ui">
-                            <select
-                              className="w-[50px] global-tran-td-inputclass-ui"
-                              value={row.invType || ""}
-                              onChange={(e) =>
-                                handleDetailChange(
-                                  index,
-                                  "invType",
-                                  e.target.value,
-                                  false,
-                                )
-                              }
-                              disabled={isFormDisabled}
-                            >
-                              <option value=""></option>
-                              <option value="FG">FG</option>
-                              <option value="MS">MS</option>
-                              <option value="RM">RM</option>
-                            </select>
-                          </td>
+                          <th className="global-tran-th-ui">Type</th>
                         )}
                         {fieldVisibility.rrNo && (
-                          <td className="global-tran-td-ui">
-                            <input
-                              type="text"
-                              className="w-[100px] global-tran-td-inputclass-ui"
-                              value={row.rrNo || ""}
-                              onChange={(e) =>
-                                handleDetailChange(
-                                  index,
-                                  "rrNo",
-                                  e.target.value,
-                                  false,
-                                )
-                              }
-                              disabled={isFormDisabled}
-                            />
-                          </td>
+                          <th className="global-tran-th-ui">RR No.</th>
                         )}
                         {fieldVisibility.poNo && (
+                          <th className="global-tran-th-ui">PO/JO No.</th>
+                        )}
+                        <th className="global-tran-th-ui">Invoice No.</th>
+                        <th className="global-tran-th-ui">Invoice Date</th>
+                        <th className="global-tran-th-ui">Original Amount</th>
+                        <th className="global-tran-th-ui">Currency</th>
+                        <th className="global-tran-th-ui">Invoice Amount</th>
+                        <th className="global-tran-th-ui">DR Account</th>
+                        <th className="global-tran-th-ui">RC Code</th>
+                        <th className="global-tran-th-ui">RC Name</th>
+                        {fieldVisibility.sltypeCode && (
+                          <th className="global-tran-th-ui" id="sltypeCode">
+                            SL Type Code
+                          </th>
+                        )}
+                        <th className="global-tran-th-ui">SL Code</th>
+                        <th className="global-tran-th-ui">VAT Code</th>
+                        <th className="global-tran-th-ui">VAT Name</th>
+                        <th className="global-tran-th-ui">VAT Amount</th>
+                        <th className="global-tran-th-ui">ATC</th>
+                        <th className="global-tran-th-ui">ATC Name</th>
+                        <th className="global-tran-th-ui">ATC Amount</th>
+                        <th className="global-tran-th-ui">Payment Terms</th>
+                        <th className="global-tran-th-ui">Due Date</th>
+                        {!isFormDisabled && (
+                          <th className="global-tran-th-ui sticky right-[43px] bg-blue-300 dark:bg-blue-900 z-30">
+                            Add
+                          </th>
+                        )}
+                        {!isFormDisabled && (
+                          <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
+                            Delete
+                          </th>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody className="relative">
+                      {detailRows.map((row, index) => (
+                        <tr key={index} className="global-tran-tr-ui">
+                          <td className="global-tran-td-ui text-center">
+                            {index + 1}
+                          </td>
+                          {fieldVisibility.invType && (
+                            <td className="global-tran-td-ui">
+                              <select
+                                className="w-[50px] global-tran-td-inputclass-ui"
+                                value={row.invType || ""}
+                                onChange={(e) =>
+                                  handleDetailChange(
+                                    index,
+                                    "invType",
+                                    e.target.value,
+                                    false,
+                                  )
+                                }
+                                disabled={isFormDisabled}
+                              >
+                                <option value=""></option>
+                                <option value="FG">FG</option>
+                                <option value="MS">MS</option>
+                                <option value="RM">RM</option>
+                              </select>
+                            </td>
+                          )}
+                          {fieldVisibility.rrNo && (
+                            <td className="global-tran-td-ui">
+                              <input
+                                type="text"
+                                className="w-[100px] global-tran-td-inputclass-ui"
+                                value={row.rrNo || ""}
+                                maxLength={25}
+                                onChange={(e) =>
+                                  handleDetailChange(
+                                    index,
+                                    "rrNo",
+                                    e.target.value,
+                                    false,
+                                  )
+                                }
+                                disabled={isFormDisabled}
+                              />
+                            </td>
+                          )}
+                          {fieldVisibility.poNo && (
+                            <td className="global-tran-td-ui">
+                              <input
+                                type="text"
+                                className="w-[100px] global-tran-td-inputclass-ui"
+                                value={row.poNo || ""}
+                                maxLength={25}
+                                onChange={(e) =>
+                                  handleDetailChange(
+                                    index,
+                                    "poNo",
+                                    e.target.value,
+                                    false,
+                                  )
+                                }
+                                disabled={isFormDisabled}
+                              />
+                            </td>
+                          )}
                           <td className="global-tran-td-ui">
                             <input
                               type="text"
                               className="w-[100px] global-tran-td-inputclass-ui"
-                              value={row.poNo || ""}
+                              value={row.siNo || ""}
+                              maxLength={25}
                               onChange={(e) =>
                                 handleDetailChange(
                                   index,
-                                  "poNo",
+                                  "siNo",
                                   e.target.value,
                                   false,
                                 )
@@ -2820,66 +2874,74 @@ const APV = () => {
                               disabled={isFormDisabled}
                             />
                           </td>
-                        )}
-                        <td className="global-tran-td-ui">
-                          <input
-                            type="text"
-                            className="w-[100px] global-tran-td-inputclass-ui"
-                            value={row.siNo || ""}
-                            onChange={(e) =>
-                              handleDetailChange(
-                                index,
-                                "siNo",
-                                e.target.value,
-                                false,
-                              )
-                            }
-                            disabled={isFormDisabled}
-                          />
-                        </td>
-                        <td className="global-tran-td-ui">
-                          <div className="w-[110px]">
-                            <DateFormatInput
-                              id={`siDate_${index}`}
-                              value={row.siDate || ""}
-                              disabled={isFormDisabled}
-                              className="w-[100px] global-tran-td-inputclass-ui text-center pr-7"
-                              updateState={(updates) => {
-                                if (updates[`siDate_${index}`] !== undefined) {
+                          <td className="global-tran-td-ui">
+                            <div className="w-[110px]">
+                              <DateFormatInput
+                                id={`siDate_${index}`}
+                                value={row.siDate || ""}
+                                disabled={isFormDisabled}
+                                className="w-[100px] global-tran-td-inputclass-ui text-center pr-7"
+                                updateState={(updates) => {
+                                  if (
+                                    updates[`siDate_${index}`] !== undefined
+                                  ) {
+                                    handleDetailChange(
+                                      index,
+                                      "siDate",
+                                      updates[`siDate_${index}`],
+                                      false,
+                                    );
+                                  }
+                                }}
+                              />
+                            </div>
+                          </td>
+                          <td className="global-tran-td-ui">
+                            <input
+                              type="text"
+                              ref={(el) => (amountRefs.current[index] = el)}
+                              className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
+                              value={row.amount}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                if (
+                                  /^\d{0,12}(\.\d{0,2})?$/.test(value) ||
+                                  value === ""
+                                ) {
                                   handleDetailChange(
                                     index,
-                                    "siDate",
-                                    updates[`siDate_${index}`],
+                                    "amount",
+                                    value,
                                     false,
                                   );
                                 }
                               }}
-                            />
-                          </div>
-                        </td>
-                        <td className="global-tran-td-ui">
-                          <input
-                            type="text"
-                            ref={(el) => (amountRefs.current[index] = el)}
-                            className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
-                            value={row.amount}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              if (
-                                /^\d{0,12}(\.\d{0,2})?$/.test(value) ||
-                                value === ""
-                              ) {
-                                handleDetailChange(
-                                  index,
-                                  "amount",
-                                  value,
-                                  false,
-                                );
-                              }
-                            }}
-                            onKeyDown={async (e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
+                              onKeyDown={async (e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  const value = e.target.value;
+                                  const num = parseFormattedNumber(value);
+                                  if (!isNaN(num)) {
+                                    await handleDetailChange(
+                                      index,
+                                      "amount",
+                                      num.toFixed(2),
+                                      true,
+                                    );
+                                  }
+                                }
+                              }}
+                              onFocus={(e) => {
+                                if (isFormDisabled) return;
+                                if (
+                                  e.target.value === "0.00" ||
+                                  e.target.value === "0"
+                                ) {
+                                  e.target.value = "";
+                                }
+                              }}
+                              onBlur={async (e) => {
+                                if (isFormDisabled) return;
                                 const value = e.target.value;
                                 const num = parseFormattedNumber(value);
                                 if (!isNaN(num)) {
@@ -2890,1297 +2952,1331 @@ const APV = () => {
                                     true,
                                   );
                                 }
+                              }}
+                            />
+                          </td>
+                          <td className="global-tran-td-ui">
+                            <input
+                              type="text"
+                              className="w-[80px] global-tran-td-inputclass-ui text-center"
+                              value={
+                                vendName?.currCode
+                                  ? `${vendName.currCode}`
+                                  : "PHP"
                               }
-                            }}
-                            onFocus={(e) => {
-                              if (isFormDisabled) return;
-                              if (
-                                e.target.value === "0.00" ||
-                                e.target.value === "0"
-                              ) {
-                                e.target.value = "";
+                              readOnly
+                              disabled={isFormDisabled}
+                            />
+                          </td>
+                          <td className="global-tran-td-ui">
+                            <input
+                              type="text"
+                              className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
+                              value={row.siAmount || row.amount || ""}
+                              readOnly
+                              disabled={isFormDisabled}
+                            />
+                          </td>
+                          {/* DR Account */}
+                          <td className="global-tran-td-ui relative">
+                            <div className="flex items-center">
+                              <input
+                                type="text"
+                                className="w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
+                                value={row.debitAcct || ""}
+                                readOnly
+                                disabled={isFormDisabled}
+                              />
+                              {!isFormDisabled && (
+                                <FontAwesomeIcon
+                                  icon={faMagnifyingGlass}
+                                  className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                                  onClick={() => {
+                                    updateState({
+                                      selectedRowIndex: index,
+                                      showAccountModal: true,
+                                      accountModalSource: "debitAcct",
+                                    });
+                                  }}
+                                />
+                              )}
+                            </div>
+                          </td>
+                          {/* RC Code */}
+                          <td className="global-tran-td-ui relative">
+                            <div className="flex items-center">
+                              <input
+                                type="text"
+                                className={`w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer ${
+                                  row.rcCode === "REQ RC"
+                                    ? "font-bold text-black"
+                                    : ""
+                                }`}
+                                value={row.rcCode || ""}
+                                readOnly
+                                disabled={isFormDisabled}
+                              />
+                              {!isFormDisabled &&
+                                (row.REC_RC === "Y" ||
+                                  row.rcCode === "REQ RC") && (
+                                  <FontAwesomeIcon
+                                    icon={faMagnifyingGlass}
+                                    className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                                    onClick={() => {
+                                      updateState({
+                                        selectedRowIndex: index,
+                                        showRcModal: true,
+                                        accountModalSource: "rcCode",
+                                      });
+                                    }}
+                                  />
+                                )}
+                            </div>
+                          </td>
+                          <td className="global-tran-td-ui">
+                            <input
+                              type="text"
+                              className="w-[250px] global-tran-td-inputclass-ui"
+                              value={row.rcName || ""}
+                              readOnly
+                              disabled={isFormDisabled}
+                            />
+                          </td>
+                          {fieldVisibility.sltypeCode && (
+                            <td className="global-tran-td-ui">
+                              <input
+                                type="text"
+                                className="w-[100px] global-tran-td-inputclass-ui"
+                                value={row.sltypeCode || ""}
+                                onChange={(e) =>
+                                  handleDetailChange(
+                                    index,
+                                    "sltypeCode",
+                                    e.target.value,
+                                    false,
+                                  )
+                                }
+                                disabled={isFormDisabled}
+                              />
+                            </td>
+                          )}
+                          {/* SL Code */}
+                          <td className="global-tran-td-ui relative">
+                            <div className="flex items-center">
+                              <input
+                                type="text"
+                                className={`w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer ${
+                                  row.slCode === "REQ SL"
+                                    ? "font-bold text-black"
+                                    : ""
+                                }`}
+                                value={row.slCode || ""}
+                                readOnly
+                                disabled={isFormDisabled}
+                              />
+                              {!isFormDisabled &&
+                                (row.REC_SL === "Y" ||
+                                  row.slCode === "REQ SL") && (
+                                  <FontAwesomeIcon
+                                    icon={faMagnifyingGlass}
+                                    className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                                    onClick={() => {
+                                      updateState({
+                                        selectedRowIndex: index,
+                                        showSlModal: true,
+                                        accountModalSource: "slCode",
+                                      });
+                                    }}
+                                  />
+                                )}
+                            </div>
+                          </td>
+                          {/* VAT Code */}
+                          <td className="global-tran-td-ui relative">
+                            <div className="flex items-center">
+                              <input
+                                type="text"
+                                className="w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
+                                value={row.vatCode || ""}
+                                readOnly
+                              />
+                              {!isFormDisabled && (
+                                <FontAwesomeIcon
+                                  icon={faMagnifyingGlass}
+                                  className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                                  onClick={() => {
+                                    updateState({
+                                      selectedRowIndex: index,
+                                      showVatModal: true,
+                                      accountModalSource: "vatCode",
+                                    });
+                                  }}
+                                />
+                              )}
+                            </div>
+                          </td>
+
+                          {/* VAT Name */}
+                          <td className="global-tran-td-ui">
+                            <input
+                              type="text"
+                              className="w-[250px] global-tran-td-inputclass-ui"
+                              value={row.vatName || ""}
+                              readOnly
+                            />
+                          </td>
+
+                          {/* VAT Amount */}
+                          <td className="global-tran-td-ui">
+                            <input
+                              type="text"
+                              className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
+                              value={
+                                formatNumber(
+                                  parseFormattedNumber(row.vatAmount),
+                                ) ||
+                                formatNumber(
+                                  parseFormattedNumber(row.vatAmount),
+                                ) ||
+                                ""
                               }
-                            }}
-                            onBlur={async (e) => {
-                              if (isFormDisabled) return;
-                              const value = e.target.value;
-                              const num = parseFormattedNumber(value);
-                              if (!isNaN(num)) {
-                                await handleDetailChange(
+                              readOnly
+                            />
+                          </td>
+
+                          {/* ATC Code */}
+                          <td className="global-tran-td-ui relative">
+                            <div className="flex items-center">
+                              <input
+                                type="text"
+                                className="w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
+                                value={row.atcCode || ""}
+                                readOnly
+                              />
+                              {!isFormDisabled && (
+                                <FontAwesomeIcon
+                                  icon={faMagnifyingGlass}
+                                  className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                                  onClick={() => {
+                                    updateState({
+                                      selectedRowIndex: index,
+                                      showAtcModal: true,
+                                      accountModalSource: "atcCode",
+                                    });
+                                  }}
+                                />
+                              )}
+                            </div>
+                          </td>
+
+                          {/* ATC Name */}
+                          <td className="global-tran-td-ui">
+                            <input
+                              type="text"
+                              className="w-[250px] global-tran-td-inputclass-ui"
+                              value={row.atcName || ""}
+                              readOnly
+                            />
+                          </td>
+
+                          {/* ATC Amount */}
+                          <td className="global-tran-td-ui">
+                            <input
+                              type="text"
+                              className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
+                              value={
+                                formatNumber(
+                                  parseFormattedNumber(row.atcAmount),
+                                ) ||
+                                formatNumber(
+                                  parseFormattedNumber(row.atcAmount),
+                                ) ||
+                                ""
+                              }
+                              onChange={(e) =>
+                                handleDetailChange(
                                   index,
-                                  "amount",
-                                  num.toFixed(2),
-                                  true,
-                                );
+                                  "atcAmount",
+                                  e.target.value,
+                                )
                               }
-                            }}
-                          />
-                        </td>
-                        <td className="global-tran-td-ui">
+                              readOnly
+                            />
+                          </td>
+                          <td className="global-tran-td-ui relative">
+                            <div className="flex items-center">
+                              <input
+                                type="text"
+                                className="w-[100px] global-tran-td-inputclass-ui text-center pr-6"
+                                value={row.paytermCode || ""}
+                                readOnly
+                                onDoubleClick={() =>
+                                  handlePaytermDoubleClick(index)
+                                }
+                                disabled={isFormDisabled}
+                              />
+                              {!isFormDisabled && (
+                                <FontAwesomeIcon
+                                  icon={faMagnifyingGlass}
+                                  className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                                  onClick={() => {
+                                    updateState({
+                                      selectedRowIndex: index,
+                                      showPaytermModal: true,
+                                    });
+                                  }}
+                                />
+                              )}
+                            </div>
+                          </td>
+                          <td className="global-tran-td-ui">
+                            <div className="w-[110px]">
+                              <DateFormatInput
+                                id={`dueDate_${index}`}
+                                value={row.dueDate || ""}
+                                disabled={isFormDisabled}
+                                className="w-[100px] global-tran-td-inputclass-ui text-center pr-7"
+                                updateState={(updates) => {
+                                  if (
+                                    updates[`dueDate_${index}`] !== undefined
+                                  ) {
+                                    handleDetailChange(
+                                      index,
+                                      "dueDate",
+                                      updates[`dueDate_${index}`],
+                                      false,
+                                    );
+                                  }
+                                }}
+                              />
+                            </div>
+                          </td>
+                          {!isFormDisabled && (
+                            <td className="global-tran-td-ui text-center sticky right-12">
+                              <button
+                                className="global-tran-td-button-add-ui"
+                                onClick={() => handleAddRow(index)} // Pass index here
+                              >
+                                <FontAwesomeIcon icon={faPlus} />{" "}
+                              </button>
+                            </td>
+                          )}
+                          {!isFormDisabled && (
+                            <td className="global-tran-td-ui text-center sticky right-0">
+                              <button
+                                className="global-tran-td-button-delete-ui"
+                                onClick={() => handleDeleteRow(index)}
+                              >
+                                <FontAwesomeIcon icon={faTrashAlt} />{" "}
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Invoice Details Footer */}
+              <div className="global-tran-tab-footer-main-div-ui">
+                {/* Add Button */}
+                <div className="global-tran-tab-footer-button-div-ui">
+                  <button
+                    onClick={handleAddRow}
+                    className="global-tran-tab-footer-button-add-ui"
+                    disabled={isFormDisabled}
+                  >
+                    <FontAwesomeIcon icon={faPlus} className="mr-2" />
+                    Add
+                  </button>
+                </div>
+
+                {/* Totals Section */}
+                <div className="global-tran-tab-footer-total-main-div-ui">
+                  {/* Total Invoice Amount */}
+                  <div className="global-tran-tab-footer-total-div-ui">
+                    <label className="global-tran-tab-footer-total-label-ui">
+                      Total Invoice Amount:
+                    </label>
+                    <label
+                      id="totalInvoiceAmount"
+                      className="global-tran-tab-footer-total-value-ui"
+                    >
+                      0.00
+                    </label>
+                  </div>
+
+                  {/* Total VAT Amount */}
+                  <div className="global-tran-tab-footer-total-div-ui">
+                    <label className="global-tran-tab-footer-total-label-ui">
+                      Total VAT Amount:
+                    </label>
+                    <label
+                      id="totalVATAmount"
+                      className="global-tran-tab-footer-total-value-ui"
+                    >
+                      0.00
+                    </label>
+                  </div>
+
+                  {/* Total ATC Amount */}
+                  <div className="global-tran-tab-footer-total-div-ui">
+                    <label className="global-tran-tab-footer-total-label-ui">
+                      Total ATC Amount:
+                    </label>
+                    <label
+                      id="totalATCAmount"
+                      className="global-tran-tab-footer-total-value-ui"
+                    >
+                      0.00
+                    </label>
+                  </div>
+
+                  {/* Total Payable Amount (Invoice + VAT - ATC) */}
+                  <div className="global-tran-tab-footer-total-div-ui">
+                    <label className="global-tran-tab-footer-total-label-ui">
+                      Total Payable Amount:
+                    </label>
+                    <label
+                      id="totalPayableAmount"
+                      className="global-tran-tab-footer-total-value-ui"
+                    >
+                      0.00
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* General Ledger Button */}
+        <div className="global-tran-tab-div-ui">
+          {/* Tab Navigation */}
+          <div className="global-tran-tab-nav-ui">
+            {/* Tabs */}
+            <div className="flex flex-row sm:flex-row">
+              <button
+                className={`global-tran-tab-padding-ui ${
+                  GLactiveTab === "invoice"
+                    ? "global-tran-tab-text_active-ui"
+                    : "global-tran-tab-text_inactive-ui"
+                }`}
+                onClick={() => updateState({ GLactiveTab: "invoice" })}
+              >
+                General Ledger
+              </button>
+            </div>
+
+            {/* Action Button */}
+            <div className="flex justify-end">
+              <button
+                onClick={() => handleActivityOption("GenerateGL")}
+                className="global-tran-button-generateGL"
+                disabled={isLoading || isFormDisabled}
+              >
+                {isLoading ? "Generating..." : "Generate GL Entries"}
+              </button>
+            </div>
+          </div>
+
+          {/* GL Details Table */}
+          <div className="global-tran-table-main-div-ui">
+            <div className="global-tran-table-main-sub-div-ui">
+              <table className="min-w-full border-collapse">
+                <thead className="global-tran-thead-div-ui">
+                  <tr>
+                    <th className="global-tran-th-ui">LN</th>
+                    <th className="global-tran-th-ui">Account Code</th>
+                    <th className="global-tran-th-ui">RC Code</th>
+                    <th className="global-tran-th-ui">SL Type Code</th>
+                    <th className="global-tran-th-ui">SL Code</th>
+                    <th className="global-tran-th-ui">Particulars</th>
+                    <th className="global-tran-th-ui">VAT Code</th>
+                    <th className="global-tran-th-ui">VAT Name</th>
+                    <th className="global-tran-th-ui">ATC Code</th>
+                    <th className="global-tran-th-ui ">ATC Name</th>
+
+                    <th className="global-tran-th-ui">
+                      Debit ({glCurrDefault})
+                    </th>
+                    <th className="global-tran-th-ui">
+                      Credit ({glCurrDefault})
+                    </th>
+
+                    <th
+                      className={`global-tran-th-ui ${withCurr2 ? "" : "hidden"}`}
+                    >
+                      Debit ({withCurr3 ? glCurrGlobal2 : currencyCode})
+                    </th>
+                    <th
+                      className={`global-tran-th-ui ${withCurr2 ? "" : "hidden"}`}
+                    >
+                      Credit ({withCurr3 ? glCurrGlobal2 : currencyCode})
+                    </th>
+                    <th
+                      className={`global-tran-th-ui ${withCurr3 ? "" : "hidden"}`}
+                    >
+                      Debit ({glCurrGlobal3})
+                    </th>
+                    <th
+                      className={`global-tran-th-ui ${withCurr3 ? "" : "hidden"}`}
+                    >
+                      Credit ({glCurrGlobal3})
+                    </th>
+
+                    <th className="global-tran-th-ui">SL Ref. No.</th>
+                    <th className="global-tran-th-ui">SL Ref. Date</th>
+                    <th className="global-tran-th-ui">Remarks</th>
+
+                    {!isFormDisabled && (
+                      <>
+                        <th className="global-tran-th-ui sticky right-[43px] bg-blue-300 dark:bg-blue-900 z-30">
+                          Add
+                        </th>
+                        <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
+                          Delete
+                        </th>
+                      </>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="relative">
+                  {detailRowsGL.map((row, index) => (
+                    <tr key={index} className="global-tran-tr-ui">
+                      <td className="global-tran-td-ui text-center">
+                        {index + 1}
+                      </td>
+
+                      <td className="global-tran-td-ui">
+                        <div className="relative w-fit">
                           <input
                             type="text"
-                            className="w-[80px] global-tran-td-inputclass-ui text-center"
-                            value={
-                              vendName?.currCode
-                                ? `${vendName.currCode}`
-                                : "PHP"
+                            className="w-[100px] pr-6 global-tran-td-inputclass-ui cursor-pointer"
+                            value={row.acctCode || ""}
+                            onChange={(e) =>
+                              handleDetailChangeGL(
+                                index,
+                                "acctCode",
+                                e.target.value,
+                              )
+                            }
+                            disabled={isFormDisabled}
+                          />
+                          {!isFormDisabled && (
+                            <FontAwesomeIcon
+                              icon={faMagnifyingGlass}
+                              className="absolute top-1/2 right-2 -translate-y-1/2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                              onClick={() => {
+                                updateState({
+                                  selectedRowIndex: index,
+                                  showAccountModal: true,
+                                  accountModalSource: "acctCode",
+                                });
+                              }}
+                            />
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="global-tran-td-ui">
+                        <div className="relative w-fit">
+                          <input
+                            type="text"
+                            className={`w-[100px] pr-6 global-tran-td-inputclass-ui cursor-pointer ${
+                              row.rcCode === "REQ RC"
+                                ? "font-bold text-black"
+                                : ""
+                            }`}
+                            value={row.rcCode || ""}
+                            onChange={(e) =>
+                              handleDetailChangeGL(
+                                index,
+                                "rcCode",
+                                e.target.value,
+                              )
                             }
                             readOnly
                             disabled={isFormDisabled}
                           />
-                        </td>
-                        <td className="global-tran-td-ui">
-                          <input
-                            type="text"
-                            className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
-                            value={row.siAmount || row.amount || ""}
-                            readOnly
-                            disabled={isFormDisabled}
-                          />
-                        </td>
-                        {/* DR Account */}
-                        <td className="global-tran-td-ui relative">
-                          <div className="flex items-center">
-                            <input
-                              type="text"
-                              className="w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
-                              value={row.debitAcct || ""}
-                              readOnly
-                              disabled={isFormDisabled}
-                            />
-                            {!isFormDisabled && (
+                          {!isFormDisabled &&
+                            (row.rcCode === "REQ RC" ||
+                              (row.rcCode && row.rcCode !== "REQ RC")) && (
                               <FontAwesomeIcon
                                 icon={faMagnifyingGlass}
-                                className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
-                                onClick={() => {
-                                  updateState({
-                                    selectedRowIndex: index,
-                                    showAccountModal: true,
-                                    accountModalSource: "debitAcct",
-                                  });
-                                }}
-                              />
-                            )}
-                          </div>
-                        </td>
-                        {/* RC Code */}
-                        <td className="global-tran-td-ui relative">
-                          <div className="flex items-center">
-                            <input
-                              type="text"
-                              className="w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
-                              value={row.rcCode || ""}
-                              readOnly
-                            />
-                            {!isFormDisabled && row.REQ_RC === "Y" && (
-                              <FontAwesomeIcon
-                                icon={faMagnifyingGlass}
-                                className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                                className="absolute top-1/2 right-2 -translate-y-1/2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
                                 onClick={() => {
                                   updateState({
                                     selectedRowIndex: index,
                                     showRcModal: true,
-                                    accountModalSource: "rcCode",
                                   });
                                 }}
                               />
                             )}
-                          </div>
-                        </td>
-                        <td className="global-tran-td-ui">
+                        </div>
+                      </td>
+
+                      <td className="global-tran-td-ui">
+                        <input
+                          type="text"
+                          className="w-[100px] global-tran-td-inputclass-ui"
+                          value={row.sltypeCode || ""}
+                          onChange={(e) =>
+                            handleDetailChangeGL(
+                              index,
+                              "sltypeCode",
+                              e.target.value,
+                            )
+                          }
+                          disabled={isFormDisabled}
+                        />
+                      </td>
+
+                      <td className="global-tran-td-ui">
+                        <div className="relative w-fit">
                           <input
                             type="text"
-                            className="w-[250px] global-tran-td-inputclass-ui"
-                            value={row.rcName || ""}
+                            className={`w-[100px] pr-6 global-tran-td-inputclass-ui cursor-pointer ${
+                              row.slCode === "REQ SL"
+                                ? "font-bold text-black"
+                                : ""
+                            }`}
+                            value={row.slCode || ""}
+                            onChange={(e) =>
+                              handleDetailChangeGL(
+                                index,
+                                "slCode",
+                                e.target.value,
+                              )
+                            }
                             readOnly
                             disabled={isFormDisabled}
                           />
-                        </td>
-                        {fieldVisibility.sltypeCode && (
-                          <td className="global-tran-td-ui">
-                            <input
-                              type="text"
-                              className="w-[100px] global-tran-td-inputclass-ui"
-                              value={row.sltypeCode || ""}
-                              onChange={(e) =>
-                                handleDetailChange(
-                                  index,
-                                  "sltypeCode",
-                                  e.target.value,
-                                  false,
-                                )
-                              }
-                              disabled={isFormDisabled}
-                            />
-                          </td>
-                        )}
-                        {/* SL Field */}
-                        {/* SL Code */}
-                        <td className="global-tran-td-ui relative">
-                          <div className="flex items-center">
-                            <input
-                              type="text"
-                              className="w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
-                              value={row.slCode || ""}
-                              readOnly
-                            />
-                            {!isFormDisabled && row.REQ_SL === "Y" && (
+                          {!isFormDisabled &&
+                            (row.slCode === "REQ SL" || row.slCode) && (
                               <FontAwesomeIcon
                                 icon={faMagnifyingGlass}
-                                className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                                className="absolute top-1/2 right-2 -translate-y-1/2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
                                 onClick={() => {
-                                  updateState({
-                                    selectedRowIndex: index,
-                                    showSlModal: true,
-                                    accountModalSource: "slCode",
-                                  });
+                                  if (row.slCode === "REQ SL" || row.slCode) {
+                                    updateState({
+                                      selectedRowIndex: index,
+                                      showSlModal: true,
+                                    });
+                                  }
                                 }}
                               />
                             )}
-                          </div>
-                        </td>
-                        {/* VAT Code */}
-                        <td className="global-tran-td-ui relative">
-                          <div className="flex items-center">
-                            <input
-                              type="text"
-                              className="w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
-                              value={row.vatCode || ""}
-                              readOnly
-                            />
-                            {!isFormDisabled && (
+                        </div>
+                      </td>
+
+                      <td className="global-tran-td-ui">
+                        <div className="relative inline-block">
+                          {/* Hidden span to measure text width */}
+                          <span className="invisible absolute whitespace-pre px-2">
+                            {row.particular || " "}
+                          </span>
+
+                          <input
+                            type="text"
+                            className="global-tran-td-inputclass-ui"
+                            style={{
+                              width: `${(row.particular?.length || 1) * 7}px`,
+                            }}
+                            value={row.particular || ""}
+                            onChange={(e) =>
+                              handleDetailChangeGL(
+                                index,
+                                "particular",
+                                e.target.value,
+                              )
+                            }
+                            disabled={isFormDisabled}
+                          />
+                        </div>
+                      </td>
+
+                      <td className="global-tran-td-ui">
+                        <div className="relative w-fit">
+                          <input
+                            type="text"
+                            className="w-[100px] pr-6 global-tran-td-inputclass-ui cursor-pointer"
+                            value={row.vatCode || ""}
+                            onChange={(e) =>
+                              handleDetailChangeGL(
+                                index,
+                                "vatCode",
+                                e.target.value,
+                              )
+                            }
+                            readOnly
+                            disabled={isFormDisabled}
+                          />
+                          {!isFormDisabled &&
+                            row.vatCode &&
+                            row.vatCode.length > 0 && (
                               <FontAwesomeIcon
                                 icon={faMagnifyingGlass}
-                                className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                                className="absolute top-1/2 right-2 -translate-y-1/2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
                                 onClick={() => {
                                   updateState({
                                     selectedRowIndex: index,
                                     showVatModal: true,
-                                    accountModalSource: "vatCode",
                                   });
                                 }}
                               />
                             )}
-                          </div>
-                        </td>
+                        </div>
+                      </td>
 
-                        {/* VAT Name */}
-                        <td className="global-tran-td-ui">
+                      <td className="global-tran-td-ui">
+                        <input
+                          type="text"
+                          className="w-[200px] global-tran-td-inputclass-ui"
+                          value={row.vatName || ""}
+                          readOnly
+                          disabled={isFormDisabled}
+                        />
+                      </td>
+
+                      <td className="global-tran-td-ui">
+                        <div className="relative w-fit">
                           <input
                             type="text"
-                            className="w-[250px] global-tran-td-inputclass-ui"
-                            value={row.vatName || ""}
-                            readOnly
-                          />
-                        </td>
-
-                        {/* VAT Amount */}
-                        <td className="global-tran-td-ui">
-                          <input
-                            type="text"
-                            className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
-                            value={
-                              formatNumber(
-                                parseFormattedNumber(row.vatAmount),
-                              ) ||
-                              formatNumber(
-                                parseFormattedNumber(row.vatAmount),
-                              ) ||
-                              ""
-                            }
-                            readOnly
-                          />
-                        </td>
-
-                        {/* ATC Code */}
-                        <td className="global-tran-td-ui relative">
-                          <div className="flex items-center">
-                            <input
-                              type="text"
-                              className="w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
-                              value={row.atcCode || ""}
-                              readOnly
-                            />
-                            {!isFormDisabled && (
-                              <FontAwesomeIcon
-                                icon={faMagnifyingGlass}
-                                className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
-                                onClick={() => {
-                                  updateState({
-                                    selectedRowIndex: index,
-                                    showAtcModal: true,
-                                    accountModalSource: "atcCode",
-                                  });
-                                }}
-                              />
-                            )}
-                          </div>
-                        </td>
-
-                        {/* ATC Name */}
-                        <td className="global-tran-td-ui">
-                          <input
-                            type="text"
-                            className="w-[250px] global-tran-td-inputclass-ui"
-                            value={row.atcName || ""}
-                            readOnly
-                          />
-                        </td>
-
-                        {/* ATC Amount */}
-                        <td className="global-tran-td-ui">
-                          <input
-                            type="text"
-                            className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
-                            value={
-                              formatNumber(
-                                parseFormattedNumber(row.atcAmount),
-                              ) ||
-                              formatNumber(
-                                parseFormattedNumber(row.atcAmount),
-                              ) ||
-                              ""
-                            }
+                            className="w-[100px] pr-6 global-tran-td-inputclass-ui cursor-pointer"
+                            value={row.atcCode || ""}
                             onChange={(e) =>
-                              handleDetailChange(
+                              handleDetailChangeGL(
                                 index,
-                                "atcAmount",
+                                "atcCode",
                                 e.target.value,
                               )
                             }
+                            readOnly
+                            disabled={isFormDisabled}
                           />
-                        </td>
-                        <td className="global-tran-td-ui relative">
-                          <div className="flex items-center">
-                            <input
-                              type="text"
-                              className="w-[100px] global-tran-td-inputclass-ui text-center pr-6"
-                              value={row.paytermCode || ""}
-                              readOnly
-                              onDoubleClick={() =>
-                                handlePaytermDoubleClick(index)
-                              }
-                              disabled={isFormDisabled}
-                            />
-                            {!isFormDisabled && (
+                          {!isFormDisabled &&
+                            (row.atcCode !== "" || row.atcCode) && (
                               <FontAwesomeIcon
                                 icon={faMagnifyingGlass}
-                                className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                                className="absolute top-1/2 right-2 -translate-y-1/2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
                                 onClick={() => {
-                                  updateState({
-                                    selectedRowIndex: index,
-                                    showPaytermModal: true,
-                                  });
+                                  if (row.atcCode !== "" || row.atcCode) {
+                                    updateState({
+                                      selectedRowIndex: index,
+                                      showAtcModal: true,
+                                    });
+                                  }
                                 }}
                               />
                             )}
-                          </div>
-                        </td>
-                        <td className="global-tran-td-ui">
-                          <div className="w-[110px]">
-                            <DateFormatInput
-                              id={`dueDate_${index}`}
-                              value={row.dueDate || ""}
-                              disabled={isFormDisabled}
-                              className="w-[100px] global-tran-td-inputclass-ui text-center pr-7"
-                              updateState={(updates) => {
-                                if (updates[`dueDate_${index}`] !== undefined) {
-                                  handleDetailChange(
-                                    index,
-                                    "dueDate",
-                                    updates[`dueDate_${index}`],
-                                    false,
-                                  );
-                                }
-                              }}
-                            />
-                          </div>
-                        </td>
-                        {!isFormDisabled && (
-                          <td className="global-tran-td-ui text-center sticky right-12">
-                            <button
-                              className="global-tran-td-button-add-ui"
-                              onClick={() => handleAddRow(index)}
-                            >
-                              <FontAwesomeIcon icon={faEdit} />
-                            </button>
-                          </td>
-                        )}
-                        {!isFormDisabled && (
-                          <td className="global-tran-td-ui text-center sticky right-0">
-                            <button
-                              className="global-tran-td-button-delete-ui"
-                              onClick={() => handleDeleteRow(index)}
-                            >
-                              <FontAwesomeIcon icon={faTrashAlt} />
-                            </button>
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                        </div>
+                      </td>
 
-            {/* Invoice Details Footer */}
-            <div className="global-tran-tab-footer-main-div-ui">
-              {/* Add Button */}
-              <div className="global-tran-tab-footer-button-div-ui">
-                <button
-                  onClick={handleAddRow}
-                  className="global-tran-tab-footer-button-add-ui"
-                  disabled={isFormDisabled}
-                >
-                  <FontAwesomeIcon icon={faPlus} className="mr-2" />
-                  Add
-                </button>
-              </div>
-
-              {/* Totals Section */}
-              <div className="global-tran-tab-footer-total-main-div-ui">
-                {/* Total Invoice Amount */}
-                <div className="global-tran-tab-footer-total-div-ui">
-                  <label className="global-tran-tab-footer-total-label-ui">
-                    Total Invoice Amount:
-                  </label>
-                  <label
-                    id="totalInvoiceAmount"
-                    className="global-tran-tab-footer-total-value-ui"
-                  >
-                    0.00
-                  </label>
-                </div>
-
-                {/* Total VAT Amount */}
-                <div className="global-tran-tab-footer-total-div-ui">
-                  <label className="global-tran-tab-footer-total-label-ui">
-                    Total VAT Amount:
-                  </label>
-                  <label
-                    id="totalVATAmount"
-                    className="global-tran-tab-footer-total-value-ui"
-                  >
-                    0.00
-                  </label>
-                </div>
-
-                {/* Total ATC Amount */}
-                <div className="global-tran-tab-footer-total-div-ui">
-                  <label className="global-tran-tab-footer-total-label-ui">
-                    Total ATC Amount:
-                  </label>
-                  <label
-                    id="totalATCAmount"
-                    className="global-tran-tab-footer-total-value-ui"
-                  >
-                    0.00
-                  </label>
-                </div>
-
-                {/* Total Payable Amount (Invoice + VAT - ATC) */}
-                <div className="global-tran-tab-footer-total-div-ui">
-                  <label className="global-tran-tab-footer-total-label-ui">
-                    Total Payable Amount:
-                  </label>
-                  <label
-                    id="totalPayableAmount"
-                    className="global-tran-tab-footer-total-value-ui"
-                  >
-                    0.00
-                  </label>
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* General Ledger Button */}
-      <div className="global-tran-tab-div-ui">
-        {/* Tab Navigation */}
-        <div className="global-tran-tab-nav-ui">
-          {/* Tabs */}
-          <div className="flex flex-row sm:flex-row">
-            <button
-              className={`global-tran-tab-padding-ui ${
-                GLactiveTab === "invoice"
-                  ? "global-tran-tab-text_active-ui"
-                  : "global-tran-tab-text_inactive-ui"
-              }`}
-              onClick={() => updateState({ GLactiveTab: "invoice" })}
-            >
-              General Ledger
-            </button>
-          </div>
-
-          {/* Action Button */}
-          <div className="flex justify-end">
-            <button
-              onClick={() => handleActivityOption("GenerateGL")}
-              className="global-tran-button-generateGL"
-              disabled={isLoading || isFormDisabled}
-            >
-              {isLoading ? "Generating..." : "Generate GL Entries"}
-            </button>
-          </div>
-        </div>
-
-        {/* GL Details Table */}
-        <div className="global-tran-table-main-div-ui">
-          <div className="global-tran-table-main-sub-div-ui">
-            <table className="min-w-full border-collapse">
-              <thead className="global-tran-thead-div-ui">
-                <tr>
-                  <th className="global-tran-th-ui">LN</th>
-                  <th className="global-tran-th-ui">Account Code</th>
-                  <th className="global-tran-th-ui">RC Code</th>
-                  <th className="global-tran-th-ui">SL Type Code</th>
-                  <th className="global-tran-th-ui">SL Code</th>
-                  <th className="global-tran-th-ui">Particulars</th>
-                  <th className="global-tran-th-ui">VAT Code</th>
-                  <th className="global-tran-th-ui">VAT Name</th>
-                  <th className="global-tran-th-ui">ATC Code</th>
-                  <th className="global-tran-th-ui ">ATC Name</th>
-
-                  <th className="global-tran-th-ui">Debit ({glCurrDefault})</th>
-                  <th className="global-tran-th-ui">
-                    Credit ({glCurrDefault})
-                  </th>
-
-                  <th
-                    className={`global-tran-th-ui ${withCurr2 ? "" : "hidden"}`}
-                  >
-                    Debit ({withCurr3 ? glCurrGlobal2 : currencyCode})
-                  </th>
-                  <th
-                    className={`global-tran-th-ui ${withCurr2 ? "" : "hidden"}`}
-                  >
-                    Credit ({withCurr3 ? glCurrGlobal2 : currencyCode})
-                  </th>
-                  <th
-                    className={`global-tran-th-ui ${withCurr3 ? "" : "hidden"}`}
-                  >
-                    Debit ({glCurrGlobal3})
-                  </th>
-                  <th
-                    className={`global-tran-th-ui ${withCurr3 ? "" : "hidden"}`}
-                  >
-                    Credit ({glCurrGlobal3})
-                  </th>
-
-                  <th className="global-tran-th-ui">SL Ref. No.</th>
-                  <th className="global-tran-th-ui">SL Ref. Date</th>
-                  <th className="global-tran-th-ui">Remarks</th>
-
-                  {!isFormDisabled && (
-                    <>
-                      <th className="global-tran-th-ui sticky right-[43px] bg-blue-300 dark:bg-blue-900 z-30">
-                        Add
-                      </th>
-                      <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
-                        Delete
-                      </th>
-                    </>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="relative">
-                {detailRowsGL.map((row, index) => (
-                  <tr key={index} className="global-tran-tr-ui">
-                    <td className="global-tran-td-ui text-center">
-                      {index + 1}
-                    </td>
-
-                    <td className="global-tran-td-ui">
-                      <div className="relative w-fit">
+                      <td className="global-tran-td-ui">
                         <input
                           type="text"
-                          className="w-[100px] pr-6 global-tran-td-inputclass-ui cursor-pointer"
-                          value={row.acctCode || ""}
+                          className="w-[200px] global-tran-td-inputclass-ui"
+                          value={row.atcName || ""}
                           onChange={(e) =>
                             handleDetailChangeGL(
                               index,
-                              "acctCode",
+                              "atcName",
                               e.target.value,
                             )
                           }
                           disabled={isFormDisabled}
                         />
-                        {!isFormDisabled && (
-                          <FontAwesomeIcon
-                            icon={faMagnifyingGlass}
-                            className="absolute top-1/2 right-2 -translate-y-1/2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
-                            onClick={() => {
-                              updateState({
-                                selectedRowIndex: index,
-                                showAccountModal: true,
-                                accountModalSource: "acctCode",
-                              });
-                            }}
-                          />
-                        )}
-                      </div>
-                    </td>
+                      </td>
 
-                    <td className="global-tran-td-ui">
-                      <div className="relative w-fit">
+                      <td className="global-tran-td-ui text-right">
                         <input
                           type="text"
-                          className="w-[100px] pr-6 global-tran-td-inputclass-ui cursor-pointer"
-                          value={row.rcCode || ""}
-                          onChange={(e) =>
-                            handleDetailChangeGL(
-                              index,
-                              "rcCode",
-                              e.target.value,
-                            )
-                          }
-                          readOnly
-                          disabled={isFormDisabled}
-                        />
-                        {!isFormDisabled &&
-                          (row.rcCode === "REQ RC" ||
-                            (row.rcCode && row.rcCode !== "REQ RC")) && (
-                            <FontAwesomeIcon
-                              icon={faMagnifyingGlass}
-                              className="absolute top-1/2 right-2 -translate-y-1/2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
-                              onClick={() => {
-                                updateState({
-                                  selectedRowIndex: index,
-                                  showRcModal: true,
-                                });
-                              }}
-                            />
-                          )}
-                      </div>
-                    </td>
-
-                    <td className="global-tran-td-ui">
-                      <input
-                        type="text"
-                        className="w-[100px] global-tran-td-inputclass-ui"
-                        value={row.sltypeCode || ""}
-                        onChange={(e) =>
-                          handleDetailChangeGL(
-                            index,
-                            "sltypeCode",
-                            e.target.value,
-                          )
-                        }
-                        disabled={isFormDisabled}
-                      />
-                    </td>
-
-                    <td className="global-tran-td-ui">
-                      <div className="relative w-fit">
-                        <input
-                          type="text"
-                          className="w-[100px] pr-6 global-tran-td-inputclass-ui cursor-pointer"
-                          value={row.slCode || ""}
-                          onChange={(e) =>
-                            handleDetailChangeGL(
-                              index,
-                              "slCode",
-                              e.target.value,
-                            )
-                          }
-                          readOnly
-                          disabled={isFormDisabled}
-                        />
-                        {!isFormDisabled &&
-                          (row.slCode === "REQ SL" || row.slCode) && (
-                            <FontAwesomeIcon
-                              icon={faMagnifyingGlass}
-                              className="absolute top-1/2 right-2 -translate-y-1/2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
-                              onClick={() => {
-                                if (row.slCode === "REQ SL" || row.slCode) {
-                                  updateState({
-                                    selectedRowIndex: index,
-                                    showSlModal: true,
-                                  });
-                                }
-                              }}
-                            />
-                          )}
-                      </div>
-                    </td>
-
-                    <td className="global-tran-td-ui">
-                      <div className="relative inline-block">
-                        {/* Hidden span to measure text width */}
-                        <span className="invisible absolute whitespace-pre px-2">
-                          {row.particular || " "}
-                        </span>
-
-                        <input
-                          type="text"
-                          className="global-tran-td-inputclass-ui"
-                          style={{
-                            width: `${(row.particular?.length || 1) * 7}px`,
-                          }}
-                          value={row.particular || ""}
-                          onChange={(e) =>
-                            handleDetailChangeGL(
-                              index,
-                              "particular",
-                              e.target.value,
-                            )
-                          }
-                          disabled={isFormDisabled}
-                        />
-                      </div>
-                    </td>
-
-                    <td className="global-tran-td-ui">
-                      <div className="relative w-fit">
-                        <input
-                          type="text"
-                          className="w-[100px] pr-6 global-tran-td-inputclass-ui cursor-pointer"
-                          value={row.vatCode || ""}
-                          onChange={(e) =>
-                            handleDetailChangeGL(
-                              index,
-                              "vatCode",
-                              e.target.value,
-                            )
-                          }
-                          readOnly
-                          disabled={isFormDisabled}
-                        />
-                        {!isFormDisabled &&
-                          row.vatCode &&
-                          row.vatCode.length > 0 && (
-                            <FontAwesomeIcon
-                              icon={faMagnifyingGlass}
-                              className="absolute top-1/2 right-2 -translate-y-1/2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
-                              onClick={() => {
-                                updateState({
-                                  selectedRowIndex: index,
-                                  showVatModal: true,
-                                });
-                              }}
-                            />
-                          )}
-                      </div>
-                    </td>
-
-                    <td className="global-tran-td-ui">
-                      <input
-                        type="text"
-                        className="w-[200px] global-tran-td-inputclass-ui"
-                        value={row.vatName || ""}
-                        readOnly
-                        disabled={isFormDisabled}
-                      />
-                    </td>
-
-                    <td className="global-tran-td-ui">
-                      <div className="relative w-fit">
-                        <input
-                          type="text"
-                          className="w-[100px] pr-6 global-tran-td-inputclass-ui cursor-pointer"
-                          value={row.atcCode || ""}
-                          onChange={(e) =>
-                            handleDetailChangeGL(
-                              index,
-                              "atcCode",
-                              e.target.value,
-                            )
-                          }
-                          readOnly
-                          disabled={isFormDisabled}
-                        />
-                        {!isFormDisabled &&
-                          (row.atcCode !== "" || row.atcCode) && (
-                            <FontAwesomeIcon
-                              icon={faMagnifyingGlass}
-                              className="absolute top-1/2 right-2 -translate-y-1/2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
-                              onClick={() => {
-                                if (row.atcCode !== "" || row.atcCode) {
-                                  updateState({
-                                    selectedRowIndex: index,
-                                    showAtcModal: true,
-                                  });
-                                }
-                              }}
-                            />
-                          )}
-                      </div>
-                    </td>
-
-                    <td className="global-tran-td-ui">
-                      <input
-                        type="text"
-                        className="w-[200px] global-tran-td-inputclass-ui"
-                        value={row.atcName || ""}
-                        onChange={(e) =>
-                          handleDetailChangeGL(index, "atcName", e.target.value)
-                        }
-                        disabled={isFormDisabled}
-                      />
-                    </td>
-
-                    <td className="global-tran-td-ui text-right">
-                      <input
-                        type="text"
-                        className="w-[120px] global-tran-td-inputclass-ui text-right"
-                        value={row.debit || ""}
-                        onChange={(e) => {
-                          const inputValue = e.target.value;
-                          const sanitizedValue = inputValue.replace(
-                            /[^0-9.]/g,
-                            "",
-                          );
-                          if (
-                            /^\d*\.?\d{0,2}$/.test(sanitizedValue) ||
-                            sanitizedValue === ""
-                          ) {
-                            handleDetailChangeGL(
-                              index,
-                              "debit",
-                              sanitizedValue,
+                          className="w-[120px] global-tran-td-inputclass-ui text-right"
+                          value={row.debit || ""}
+                          onChange={(e) => {
+                            const inputValue = e.target.value;
+                            const sanitizedValue = inputValue.replace(
+                              /[^0-9.]/g,
+                              "",
                             );
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleBlurGL(index, "debit", e.target.value, true);
-                          }
-                        }}
-                        onFocus={(e) => {
-                          if (
-                            e.target.value === "0.00" ||
-                            e.target.value === "0"
-                          ) {
-                            e.target.value = "";
-                            handleDetailChangeGL(index, "debit", "");
-                          }
-                        }}
-                        onBlur={(e) =>
-                          handleBlurGL(index, "debit", e.target.value)
-                        }
-                        disabled={isFormDisabled}
-                      />
-                    </td>
-
-                    <td className="global-tran-td-ui text-right">
-                      <input
-                        type="text"
-                        className="w-[120px] global-tran-td-inputclass-ui text-right"
-                        value={row.credit || ""}
-                        onChange={(e) => {
-                          const inputValue = e.target.value;
-                          const sanitizedValue = inputValue.replace(
-                            /[^0-9.]/g,
-                            "",
-                          );
-                          if (
-                            /^\d*\.?\d{0,2}$/.test(sanitizedValue) ||
-                            sanitizedValue === ""
-                          ) {
-                            handleDetailChangeGL(
-                              index,
-                              "credit",
-                              sanitizedValue,
-                            );
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleBlurGL(index, "credit", e.target.value, true);
-                          }
-                        }}
-                        onFocus={(e) => {
-                          if (
-                            e.target.value === "0.00" ||
-                            e.target.value === "0"
-                          ) {
-                            e.target.value = "";
-                            handleDetailChangeGL(index, "credit", "");
-                          }
-                        }}
-                        onBlur={(e) =>
-                          handleBlurGL(index, "credit", e.target.value)
-                        }
-                        disabled={isFormDisabled}
-                      />
-                    </td>
-
-                    <td
-                      className={`global-tran-td-ui text-right ${
-                        withCurr2 ? "" : "hidden"
-                      }`}
-                    >
-                      <input
-                        type="text"
-                        className="w-[120px] global-tran-td-inputclass-ui text-right"
-                        value={row.debitFx1 || ""}
-                        onChange={(e) => {
-                          const inputValue = e.target.value;
-                          const sanitizedValue = inputValue.replace(
-                            /[^0-9.]/g,
-                            "",
-                          );
-                          if (
-                            /^\d*\.?\d{0,2}$/.test(sanitizedValue) ||
-                            sanitizedValue === ""
-                          ) {
-                            handleDetailChangeGL(
-                              index,
-                              "debitFx1",
-                              sanitizedValue,
-                            );
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleBlurGL(
-                              index,
-                              "debitFx1",
-                              e.target.value,
-                              true,
-                            );
-                          }
-                        }}
-                        onFocus={(e) => {
-                          if (
-                            e.target.value === "0.00" ||
-                            e.target.value === "0"
-                          ) {
-                            e.target.value = "";
-                            handleDetailChangeGL(index, "debitFx1", "");
-                          }
-                        }}
-                        onBlur={(e) =>
-                          handleBlurGL(index, "debitFx1", e.target.value)
-                        }
-                        disabled={isFormDisabled}
-                      />
-                    </td>
-                    <td
-                      className={`global-tran-td-ui text-right ${
-                        withCurr2 ? "" : "hidden"
-                      }`}
-                    >
-                      <input
-                        type="text"
-                        className="w-[120px] global-tran-td-inputclass-ui text-right"
-                        value={row.creditFx1 || ""}
-                        onChange={(e) => {
-                          const inputValue = e.target.value;
-                          const sanitizedValue = inputValue.replace(
-                            /[^0-9.]/g,
-                            "",
-                          );
-                          if (
-                            /^\d*\.?\d{0,2}$/.test(sanitizedValue) ||
-                            sanitizedValue === ""
-                          ) {
-                            handleDetailChangeGL(
-                              index,
-                              "creditFx1",
-                              sanitizedValue,
-                            );
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleBlurGL(
-                              index,
-                              "creditFx1",
-                              e.target.value,
-                              true,
-                            );
-                          }
-                        }}
-                        onFocus={(e) => {
-                          if (
-                            e.target.value === "0.00" ||
-                            e.target.value === "0"
-                          ) {
-                            e.target.value = "";
-                            handleDetailChangeGL(index, "creditFx1", "");
-                          }
-                        }}
-                        onBlur={(e) =>
-                          handleBlurGL(index, "creditFx1", e.target.value)
-                        }
-                        disabled={isFormDisabled}
-                      />
-                    </td>
-
-                    <td
-                      className={`global-tran-td-ui text-right ${
-                        withCurr3 ? "" : "hidden"
-                      }`}
-                    >
-                      <input
-                        type="text"
-                        className="w-[120px] global-tran-td-inputclass-ui text-right"
-                        value={row.debitFx2 || ""}
-                        onChange={(e) => {
-                          const inputValue = e.target.value;
-                          const sanitizedValue = inputValue.replace(
-                            /[^0-9.]/g,
-                            "",
-                          );
-                          if (
-                            /^\d*\.?\d{0,2}$/.test(sanitizedValue) ||
-                            sanitizedValue === ""
-                          ) {
-                            handleDetailChangeGL(
-                              index,
-                              "debitFx2",
-                              sanitizedValue,
-                            );
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleBlurGL(
-                              index,
-                              "debitFx2",
-                              e.target.value,
-                              true,
-                            );
-                          }
-                        }}
-                        onFocus={(e) => {
-                          if (
-                            e.target.value === "0.00" ||
-                            e.target.value === "0"
-                          ) {
-                            e.target.value = "";
-                            handleDetailChangeGL(index, "debitFx2", "");
-                          }
-                        }}
-                        onBlur={(e) =>
-                          handleBlurGL(index, "debitFx2", e.target.value)
-                        }
-                        disabled={isFormDisabled}
-                      />
-                    </td>
-                    <td
-                      className={`global-tran-td-ui text-right ${
-                        withCurr3 ? "" : "hidden"
-                      }`}
-                    >
-                      <input
-                        type="text"
-                        className="w-[120px] global-tran-td-inputclass-ui text-right"
-                        value={row.creditFx2 || ""}
-                        onChange={(e) => {
-                          const inputValue = e.target.value;
-                          const sanitizedValue = inputValue.replace(
-                            /[^0-9.]/g,
-                            "",
-                          );
-                          if (
-                            /^\d*\.?\d{0,2}$/.test(sanitizedValue) ||
-                            sanitizedValue === ""
-                          ) {
-                            handleDetailChangeGL(
-                              index,
-                              "creditFx2",
-                              sanitizedValue,
-                            );
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleBlurGL(
-                              index,
-                              "creditFx2",
-                              e.target.value,
-                              true,
-                            );
-                          }
-                        }}
-                        onFocus={(e) => {
-                          if (
-                            e.target.value === "0.00" ||
-                            e.target.value === "0"
-                          ) {
-                            e.target.value = "";
-                            handleDetailChangeGL(index, "creditFx2", "");
-                          }
-                        }}
-                        onBlur={(e) =>
-                          handleBlurGL(index, "creditFx2", e.target.value)
-                        }
-                        disabled={isFormDisabled}
-                      />
-                    </td>
-
-                    <td className="global-tran-td-ui">
-                      <input
-                        type="text"
-                        className="w-[100px] global-tran-td-inputclass-ui"
-                        value={row.slRefNo || ""}
-                        maxLength={25}
-                        onChange={(e) =>
-                          handleDetailChangeGL(index, "slRefNo", e.target.value)
-                        }
-                        disabled={isFormDisabled}
-                      />
-                    </td>
-
-                    <td className="global-tran-td-ui">
-                      <div className="w-[110px]">
-                        <DateFormatInput
-                          id={`slrefDate_${index}`}
-                          value={row.slrefDate || ""}
-                          disabled={isFormDisabled}
-                          className="w-[100px] global-tran-td-inputclass-ui text-center pr-7"
-                          updateState={(updates) => {
-                            if (updates[`slrefDate_${index}`] !== undefined) {
+                            if (
+                              /^\d*\.?\d{0,2}$/.test(sanitizedValue) ||
+                              sanitizedValue === ""
+                            ) {
                               handleDetailChangeGL(
                                 index,
-                                "slrefDate",
-                                updates[`slrefDate_${index}`],
+                                "debit",
+                                sanitizedValue,
                               );
                             }
                           }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleBlurGL(
+                                index,
+                                "debit",
+                                e.target.value,
+                                true,
+                              );
+                            }
+                          }}
+                          onFocus={(e) => {
+                            if (
+                              e.target.value === "0.00" ||
+                              e.target.value === "0"
+                            ) {
+                              e.target.value = "";
+                              handleDetailChangeGL(index, "debit", "");
+                            }
+                          }}
+                          onBlur={(e) =>
+                            handleBlurGL(index, "debit", e.target.value)
+                          }
+                          disabled={isFormDisabled}
                         />
-                      </div>
-                    </td>
-
-                    <td className="global-tran-td-ui">
-                      <input
-                        type="text"
-                        className="w-[100px] global-tran-td-inputclass-ui"
-                        value={row.remarks || header.remarks || ""}
-                        style={{
-                          width: `${(row.particular?.length || 1) * 8}px`,
-                        }}
-                        onChange={(e) =>
-                          handleDetailChangeGL(index, "remarks", e.target.value)
-                        }
-                        disabled={isFormDisabled}
-                      />
-                    </td>
-
-                    {!isFormDisabled && (
-                      <td className="global-tran-td-ui text-center sticky right-10">
-                        <button
-                          className="global-tran-td-button-add-ui"
-                          onClick={() => handleAddRowGL(index)}
-                        >
-                          <FontAwesomeIcon icon={faEdit} />
-                        </button>
                       </td>
-                    )}
 
-                    {!isFormDisabled && (
-                      <td className="global-tran-td-ui text-center sticky right-0">
-                        <button
-                          className="global-tran-td-button-delete-ui"
-                          onClick={() => handleDeleteRowGL(index)}
-                        >
-                          <FontAwesomeIcon icon={faTrashAlt} />
-                        </button>
+                      <td className="global-tran-td-ui text-right">
+                        <input
+                          type="text"
+                          className="w-[120px] global-tran-td-inputclass-ui text-right"
+                          value={row.credit || ""}
+                          onChange={(e) => {
+                            const inputValue = e.target.value;
+                            const sanitizedValue = inputValue.replace(
+                              /[^0-9.]/g,
+                              "",
+                            );
+                            if (
+                              /^\d*\.?\d{0,2}$/.test(sanitizedValue) ||
+                              sanitizedValue === ""
+                            ) {
+                              handleDetailChangeGL(
+                                index,
+                                "credit",
+                                sanitizedValue,
+                              );
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleBlurGL(
+                                index,
+                                "credit",
+                                e.target.value,
+                                true,
+                              );
+                            }
+                          }}
+                          onFocus={(e) => {
+                            if (
+                              e.target.value === "0.00" ||
+                              e.target.value === "0"
+                            ) {
+                              e.target.value = "";
+                              handleDetailChangeGL(index, "credit", "");
+                            }
+                          }}
+                          onBlur={(e) =>
+                            handleBlurGL(index, "credit", e.target.value)
+                          }
+                          disabled={isFormDisabled}
+                        />
                       </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+                      <td
+                        className={`global-tran-td-ui text-right ${
+                          withCurr2 ? "" : "hidden"
+                        }`}
+                      >
+                        <input
+                          type="text"
+                          className="w-[120px] global-tran-td-inputclass-ui text-right"
+                          value={row.debitFx1 || ""}
+                          onChange={(e) => {
+                            const inputValue = e.target.value;
+                            const sanitizedValue = inputValue.replace(
+                              /[^0-9.]/g,
+                              "",
+                            );
+                            if (
+                              /^\d*\.?\d{0,2}$/.test(sanitizedValue) ||
+                              sanitizedValue === ""
+                            ) {
+                              handleDetailChangeGL(
+                                index,
+                                "debitFx1",
+                                sanitizedValue,
+                              );
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleBlurGL(
+                                index,
+                                "debitFx1",
+                                e.target.value,
+                                true,
+                              );
+                            }
+                          }}
+                          onFocus={(e) => {
+                            if (
+                              e.target.value === "0.00" ||
+                              e.target.value === "0"
+                            ) {
+                              e.target.value = "";
+                              handleDetailChangeGL(index, "debitFx1", "");
+                            }
+                          }}
+                          onBlur={(e) =>
+                            handleBlurGL(index, "debitFx1", e.target.value)
+                          }
+                          disabled={isFormDisabled}
+                        />
+                      </td>
+                      <td
+                        className={`global-tran-td-ui text-right ${
+                          withCurr2 ? "" : "hidden"
+                        }`}
+                      >
+                        <input
+                          type="text"
+                          className="w-[120px] global-tran-td-inputclass-ui text-right"
+                          value={row.creditFx1 || ""}
+                          onChange={(e) => {
+                            const inputValue = e.target.value;
+                            const sanitizedValue = inputValue.replace(
+                              /[^0-9.]/g,
+                              "",
+                            );
+                            if (
+                              /^\d*\.?\d{0,2}$/.test(sanitizedValue) ||
+                              sanitizedValue === ""
+                            ) {
+                              handleDetailChangeGL(
+                                index,
+                                "creditFx1",
+                                sanitizedValue,
+                              );
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleBlurGL(
+                                index,
+                                "creditFx1",
+                                e.target.value,
+                                true,
+                              );
+                            }
+                          }}
+                          onFocus={(e) => {
+                            if (
+                              e.target.value === "0.00" ||
+                              e.target.value === "0"
+                            ) {
+                              e.target.value = "";
+                              handleDetailChangeGL(index, "creditFx1", "");
+                            }
+                          }}
+                          onBlur={(e) =>
+                            handleBlurGL(index, "creditFx1", e.target.value)
+                          }
+                          disabled={isFormDisabled}
+                        />
+                      </td>
+
+                      <td
+                        className={`global-tran-td-ui text-right ${
+                          withCurr3 ? "" : "hidden"
+                        }`}
+                      >
+                        <input
+                          type="text"
+                          className="w-[120px] global-tran-td-inputclass-ui text-right"
+                          value={row.debitFx2 || ""}
+                          onChange={(e) => {
+                            const inputValue = e.target.value;
+                            const sanitizedValue = inputValue.replace(
+                              /[^0-9.]/g,
+                              "",
+                            );
+                            if (
+                              /^\d*\.?\d{0,2}$/.test(sanitizedValue) ||
+                              sanitizedValue === ""
+                            ) {
+                              handleDetailChangeGL(
+                                index,
+                                "debitFx2",
+                                sanitizedValue,
+                              );
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleBlurGL(
+                                index,
+                                "debitFx2",
+                                e.target.value,
+                                true,
+                              );
+                            }
+                          }}
+                          onFocus={(e) => {
+                            if (
+                              e.target.value === "0.00" ||
+                              e.target.value === "0"
+                            ) {
+                              e.target.value = "";
+                              handleDetailChangeGL(index, "debitFx2", "");
+                            }
+                          }}
+                          onBlur={(e) =>
+                            handleBlurGL(index, "debitFx2", e.target.value)
+                          }
+                          disabled={isFormDisabled}
+                        />
+                      </td>
+                      <td
+                        className={`global-tran-td-ui text-right ${
+                          withCurr3 ? "" : "hidden"
+                        }`}
+                      >
+                        <input
+                          type="text"
+                          className="w-[120px] global-tran-td-inputclass-ui text-right"
+                          value={row.creditFx2 || ""}
+                          onChange={(e) => {
+                            const inputValue = e.target.value;
+                            const sanitizedValue = inputValue.replace(
+                              /[^0-9.]/g,
+                              "",
+                            );
+                            if (
+                              /^\d*\.?\d{0,2}$/.test(sanitizedValue) ||
+                              sanitizedValue === ""
+                            ) {
+                              handleDetailChangeGL(
+                                index,
+                                "creditFx2",
+                                sanitizedValue,
+                              );
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleBlurGL(
+                                index,
+                                "creditFx2",
+                                e.target.value,
+                                true,
+                              );
+                            }
+                          }}
+                          onFocus={(e) => {
+                            if (
+                              e.target.value === "0.00" ||
+                              e.target.value === "0"
+                            ) {
+                              e.target.value = "";
+                              handleDetailChangeGL(index, "creditFx2", "");
+                            }
+                          }}
+                          onBlur={(e) =>
+                            handleBlurGL(index, "creditFx2", e.target.value)
+                          }
+                          disabled={isFormDisabled}
+                        />
+                      </td>
+
+                      <td className="global-tran-td-ui">
+                        <input
+                          type="text"
+                          className="w-[100px] global-tran-td-inputclass-ui"
+                          value={row.slRefNo || ""}
+                          maxLength={25}
+                          onChange={(e) =>
+                            handleDetailChangeGL(
+                              index,
+                              "slRefNo",
+                              e.target.value,
+                            )
+                          }
+                          disabled={isFormDisabled}
+                        />
+                      </td>
+
+                      <td className="global-tran-td-ui">
+                        <div className="w-[110px]">
+                          <DateFormatInput
+                            id={`slrefDate_${index}`}
+                            value={row.slrefDate || ""}
+                            disabled={isFormDisabled}
+                            className="w-[100px] global-tran-td-inputclass-ui text-center pr-7"
+                            updateState={(updates) => {
+                              if (updates[`slrefDate_${index}`] !== undefined) {
+                                handleDetailChangeGL(
+                                  index,
+                                  "slrefDate",
+                                  updates[`slrefDate_${index}`],
+                                );
+                              }
+                            }}
+                          />
+                        </div>
+                      </td>
+
+                      <td className="global-tran-td-ui">
+                        <input
+                          type="text"
+                          className="w-[100px] global-tran-td-inputclass-ui"
+                          value={row.remarks || header.remarks || ""}
+                          style={{
+                            width: `${(row.particular?.length || 1) * 8}px`,
+                          }}
+                          onChange={(e) =>
+                            handleDetailChangeGL(
+                              index,
+                              "remarks",
+                              e.target.value,
+                            )
+                          }
+                          disabled={isFormDisabled}
+                        />
+                      </td>
+
+                      {!isFormDisabled && (
+                        <td className="global-tran-td-ui text-center sticky right-10">
+                          <button
+                            className="global-tran-td-button-add-ui"
+                            onClick={() => handleAddRowGL(index)}
+                          >
+                            <FontAwesomeIcon icon={faPlus} />
+                          </button>
+                        </td>
+                      )}
+
+                      {!isFormDisabled && (
+                        <td className="global-tran-td-ui text-center sticky right-0">
+                          <button
+                            className="global-tran-td-button-delete-ui"
+                            onClick={() => handleDeleteRowGL(index)}
+                          >
+                            <FontAwesomeIcon icon={faTrashAlt} />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="global-tran-tab-footer-main-div-ui">
+            {/* Add Button */}
+            <div className="global-tran-tab-footer-button-div-ui">
+              <button
+                onClick={handleAddRowGL}
+                className="global-tran-tab-footer-button-add-ui"
+                disabled={isFormDisabled}
+              >
+                <FontAwesomeIcon icon={faPlus} className="mr-2" />
+                Add
+              </button>
+            </div>
+
+            {/* Totals Section */}
+            <div className="global-tran-tab-footer-total-main-div-ui">
+              {/* Total Debit */}
+              <div className="global-tran-tab-footer-total-div-ui">
+                <label
+                  htmlFor="TotalDebit"
+                  className="global-tran-tab-footer-total-label-ui"
+                >
+                  Total Debit:
+                </label>
+                <label
+                  htmlFor="TotalDebit"
+                  className="global-tran-tab-footer-total-value-ui"
+                >
+                  {totalDebit}
+                </label>
+              </div>
+
+              {/* Total Credit */}
+              <div className="global-tran-tab-footer-total-div-ui">
+                <label
+                  htmlFor="TotalCredit"
+                  className="global-tran-tab-footer-total-label-ui"
+                >
+                  Total Credit:
+                </label>
+                <label
+                  htmlFor="TotalCredit"
+                  className="global-tran-tab-footer-total-value-ui"
+                >
+                  {totalCredit}
+                </label>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="global-tran-tab-footer-main-div-ui">
-          {/* Add Button */}
-          <div className="global-tran-tab-footer-button-div-ui">
-            <button
-              onClick={handleAddRowGL}
-              className="global-tran-tab-footer-button-add-ui"
-              disabled={isFormDisabled}
-            >
-              <FontAwesomeIcon icon={faPlus} className="mr-2" />
-              Add
-            </button>
-          </div>
+        {/* Modals */}
+        {branchModalOpen && (
+          <BranchLookupModal
+            isOpen={branchModalOpen}
+            onClose={handleCloseBranchModal}
+          />
+        )}
 
-          {/* Totals Section */}
-          <div className="global-tran-tab-footer-total-main-div-ui">
-            {/* Total Debit */}
-            <div className="global-tran-tab-footer-total-div-ui">
-              <label
-                htmlFor="TotalDebit"
-                className="global-tran-tab-footer-total-label-ui"
-              >
-                Total Debit:
-              </label>
-              <label
-                htmlFor="TotalDebit"
-                className="global-tran-tab-footer-total-value-ui"
-              >
-                {totalDebit}
-              </label>
-            </div>
+        {currencyModalOpen && (
+          <CurrLookupModal
+            isOpen={currencyModalOpen}
+            onClose={handleCloseCurrencyModal}
+          />
+        )}
 
-            {/* Total Credit */}
-            <div className="global-tran-tab-footer-total-div-ui">
-              <label
-                htmlFor="TotalCredit"
-                className="global-tran-tab-footer-total-label-ui"
-              >
-                Total Credit:
-              </label>
-              <label
-                htmlFor="TotalCredit"
-                className="global-tran-tab-footer-total-value-ui"
-              >
-                {totalCredit}
-              </label>
-            </div>
-          </div>
-        </div>
-      </div>
+        {payeeModalOpen && (
+          <PayeeMastLookupModal
+            isOpen={payeeModalOpen}
+            onClose={handleClosePayeeModal}
+          />
+        )}
 
-      {/* Modals */}
-      {branchModalOpen && (
-        <BranchLookupModal
-          isOpen={branchModalOpen}
-          onClose={handleCloseBranchModal}
-        />
-      )}
+        {/* COA Account Modal*/}
+        {showAccountModal && (
+          <COAMastLookupModal
+            isOpen={showAccountModal}
+            onClose={handleCloseAccountModal}
+            source={accountModalSource}
+            customParam={accountModalSource === "apAccount" ? "APGL" : ""}
+          />
+        )}
 
-      {currencyModalOpen && (
-        <CurrLookupModal
-          isOpen={currencyModalOpen}
-          onClose={handleCloseCurrencyModal}
-        />
-      )}
-
-      {payeeModalOpen && (
-        <PayeeMastLookupModal
-          isOpen={payeeModalOpen}
-          onClose={handleClosePayeeModal}
-        />
-      )}
-
-      {/* COA Account Modal*/}
-      {showAccountModal && (
-        <COAMastLookupModal
-          isOpen={showAccountModal}
-          onClose={handleCloseAccountModal}
+        {/* RC Code Modal */}
+        <RCLookupModal
+          isOpen={showRcModal}
+          onClose={
+            accountModalSource === "rcCode"
+              ? handleCloseRcModal
+              : handleCloseRcModalGL
+          }
           source={accountModalSource}
-          customParam={accountModalSource === "apAccount" ? "APGL" : ""}
         />
-      )}
 
-      {/* RC Code Modal */}
-      <RCLookupModal
-        isOpen={showRcModal}
-        onClose={
-          accountModalSource === "rcCode"
-            ? handleCloseRcModal
-            : handleCloseRcModalGL
-        }
-        source={accountModalSource}
-      />
+        {/* VAT Code Modal */}
+        {showVatModal && (
+          <VATLookupModal isOpen={showVatModal} onClose={handleCloseVatModal} />
+        )}
 
-      {/* VAT Code Modal */}
-      {showVatModal && (
-        <VATLookupModal isOpen={showVatModal} onClose={handleCloseVatModal} />
-      )}
+        {/* ATC Code Modal */}
+        {showAtcModal && (
+          <ATCLookupModal isOpen={showAtcModal} onClose={handleCloseAtcModal} />
+        )}
 
-      {/* ATC Code Modal */}
-      {showAtcModal && (
-        <ATCLookupModal isOpen={showAtcModal} onClose={handleCloseAtcModal} />
-      )}
+        {/* SL Code Lookup Modal */}
+        {/* SL Code Lookup Modal */}
+        {showSlModal && (
+          <SLMastLookupModal
+            isOpen={showSlModal}
+            onClose={
+              accountModalSource === "slCode"
+                ? handleCloseSlModal
+                : handleCloseSlModalGL
+            }
+          />
+        )}
 
-      {/* SL Code Lookup Modal */}
-      {showSlModal && (
-        <SLMastLookupModal
-          isOpen={showSlModal}
-          onClose={handleCloseSlModalGL}
-        />
-      )}
+        {/* Payment Terms Lookup Modal */}
+        {showPaytermModal && (
+          <PaytermLookupModal
+            isOpen={showPaytermModal}
+            onClose={handleClosePaytermModal}
+          />
+        )}
 
-      {/* Payment Terms Lookup Modal */}
-      {showPaytermModal && (
-        <PaytermLookupModal
-          isOpen={showPaytermModal}
-          onClose={handleClosePaytermModal}
-        />
-      )}
+        {/* Cancellation Modal */}
+        {showCancelModal && (
+          <CancelTranModal
+            isOpen={showCancelModal}
+            onClose={handleCloseCancel}
+          />
+        )}
 
-      {/* Cancellation Modal */}
-      {showCancelModal && (
-        <CancelTranModal isOpen={showCancelModal} onClose={handleCloseCancel} />
-      )}
+        {showAttachModal && (
+          <AttachDocumentModal
+            isOpen={showAttachModal}
+            params={{
+              DocumentID: documentID,
+              DocumentName: documentName,
+              BranchName: branchName,
+              DocumentNo: documentNo,
+            }}
+            onClose={() => updateState({ showAttachModal: false })}
+          />
+        )}
 
-      {showAttachModal && (
-        <AttachDocumentModal
-          isOpen={showAttachModal}
-          params={{
-            DocumentID: documentID,
-            DocumentName: documentName,
-            BranchName: branchName,
-            DocumentNo: documentNo,
-          }}
-          onClose={() => updateState({ showAttachModal: false })}
-        />
-      )}
+        {showSignatoryModal && (
+          <DocumentSignatories
+            isOpen={showSignatoryModal}
+            params={{
+              documentID: documentID, // âœ… Pass the actual document ID
+              noReprints: 0, // âœ… Add this if needed
+              docType: docType, // âœ… Add this if needed
+            }}
+            onClose={handleCloseSignatory}
+            onCancel={() => updateState({ showSignatoryModal: false })}
+          />
+        )}
 
-      {showSignatoryModal && (
-        <DocumentSignatories
-          isOpen={showSignatoryModal}
-          params={{
-            documentID: documentID, // âœ… Pass the actual document ID
-            noReprints: 0, // âœ… Add this if needed
-            docType: docType, // âœ… Add this if needed
-          }}
-          onClose={handleCloseSignatory}
-          onCancel={() => updateState({ showSignatoryModal: false })}
-        />
-      )}
+        {showAllTranDocNo && (
+          <AllTranDocNo
+            isOpen={showAllTranDocNo}
+            params={{
+              branchCode,
+              branchName,
+              docType,
+              documentTitle,
+              fieldNo: "apvNo",
+            }}
+            onRetrieve={handleTranDocNoRetrieval}
+            onResponse={{ documentNo }}
+            onSelected={handleTranDocNoSelection}
+            onClose={() => updateState({ showAllTranDocNo: false })}
+          />
+        )}
 
-      {showAllTranDocNo && (
-        <AllTranDocNo
-          isOpen={showAllTranDocNo}
-          params={{
-            branchCode,
-            branchName,
-            docType,
-            documentTitle,
-            fieldNo: "apvNo",
-          }}
-          onRetrieve={handleTranDocNoRetrieval}
-          onResponse={{ documentNo }}
-          onSelected={handleTranDocNoSelection}
-          onClose={() => updateState({ showAllTranDocNo: false })}
-        />
-      )}
+        {/* Post Modal */}
+        {showPostingModal && (
+          <PostAPV
+            isOpen={showPostingModal}
+            userCode={userCode} // This should now work
+            onClose={() => updateState({ showPostingModal: false })}
+          />
+        )}
 
-      {/* Post Modal */}
-      {showPostingModal && (
-        <PostAPV
-          isOpen={showPostingModal}
-          userCode={userCode} // This should now work
-          onClose={() => updateState({ showPostingModal: false })}
-        />
-      )}
-      {showSpinner && <LoadingSpinner />}
+        {showSpinner && <LoadingSpinner />}
+      </div>
 
       <div className={topTab === "history" ? "" : "hidden"}>
         <AllTranHistory
           showHeader={false}
+          isActive={topTab === "history"}
           endpoint="/getAPVHistory"
-          cacheKey={`APV:${state.branchCode || ""}:${state.docNo || ""}`} // âœ… per-transaction
+          cacheKey={`APV:${state.branchCode || ""}:${state.documentNo || ""}`}
           activeTabKey="APV_Summary"
           branchCode={state.branchCode}
-          startDate={state.fromDate}
-          endDate={state.toDate}
           status={(() => {
             const s = (state.status || "").toUpperCase();
             if (s === "FINALIZED") return "F";
