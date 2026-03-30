@@ -138,11 +138,11 @@ const BranchLookupModal = ({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4 animate-fade-in">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col relative overflow-hidden transform animate-scale-in border border-slate-200">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col relative overflow-hidden transform animate-scale-in border border-slate-200">
         
         {/* Header Section */}
         <div className="flex items-center justify-between bg-slate-100 border-b border-slate-200">
-          <div className="flex items-center gap-2 pl-3">
+          <div className="flex items-center gap-2 pl-2 sm:pl-3">
             <h2 className="global-lookup-headertext-ui">{title}</h2>
             {isFetching && (
                 <div className="flex h-2 w-2 relative">
@@ -210,7 +210,7 @@ const BranchLookupModal = ({
                         <span className="global-lookup-th-text-ui">{col.label}</span>
                         <FontAwesomeIcon
                           icon={faSort}
-                          className={`mb-2 text-[10px] ${sortConfig.key === col.key ? "text-gray-600" : "opacity-30 group-hover:opacity-100"}`}
+                          className={`mb-1 text-[10px] ${sortConfig.key === col.key ? "text-gray-600" : "opacity-30 group-hover:opacity-100"}`}
                         />
                       </div>
                       <div className="relative">
@@ -236,7 +236,7 @@ const BranchLookupModal = ({
                       onClick={() => handleApply(branch)}
                       className="group hover:bg-blue-50 cursor-pointer transition-colors"
                     >
-                      <td className="global-lookup-td-ui w-[180px] font-bold">{branch.branchCode}</td>
+                      <td className="global-lookup-td-ui w-[120px] font-bold">{branch.branchCode}</td>
                       <td className="global-lookup-td-ui w-[300px]">{branch.branchName}</td>
                     </tr>
                   ))
