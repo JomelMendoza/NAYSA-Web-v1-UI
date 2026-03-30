@@ -348,9 +348,9 @@ const UsersTab = forwardRef(
           key: "__actions",
           label: "Actions",
           sortable: false,
-          width: 160,
+          width: 100, // Reduced from 160 as the buttons are small
           render: (row) => (
-            <div className="flex items-center justify-end gap-2">
+            <div className="flex items-center justify-center gap-2">
               <button
                 type="button"
                 onClick={(e) => {
@@ -380,19 +380,19 @@ const UsersTab = forwardRef(
           key: "roleCode",
           label: "Role Code",
           sortable: true,
-          width: 260,
+          width: 150, // Standardized for codes like 'ACCTG', 'ADM'
         },
         {
           key: "roleName",
           label: "Role Name",
           sortable: true,
-          width: 620,
+          width: 350, // Reduced from 620 to prevent pushing other columns out
         },
         {
           key: "active",
           label: "Active?",
           sortable: true,
-          width: 200,
+          width: 120, // Tightened for "Yes/No" values
           render: (row) => (row?.active === "Y" ? "Yes" : "No"),
         },
       ],
