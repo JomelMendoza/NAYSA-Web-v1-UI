@@ -21,7 +21,7 @@ import {
 
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import ButtonBar from "@/NAYSA Cloud/Global/ButtonBar";
-import AttachFileModal from "@/NAYSA Cloud/Lookup/AttachFileModal.jsx";
+import SearchAttachment from "@/NAYSA Cloud/Lookup/SearchAttachment.jsx";
 
 // Import Guides
 import { reftables, reftablesPDFGuide, reftablesVideoGuide } from "@/NAYSA Cloud/Global/reftable";
@@ -125,7 +125,7 @@ const emptyForm = {
 };
 
 const VendMast = () => {
-  const [generationMode, setGenerationMode] = useState("U");
+  const [generationMode, setGenerationMode] = useState("S");
   const [activeTab, setActiveTab] = useState("setup");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -161,7 +161,7 @@ const VendMast = () => {
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isAttachOpen, setIsAttachOpen] = useState(false);
-  const [attachmentRows, setAttachmentRows] = useState([]);
+  // CLEANUP: Removed attachmentRows state because it is now fully handled inside AttachFileModal
 
   // Tab Content Spacing Logic
   const contentPadding = "p-4 sm:p-6 lg:p-8";
@@ -457,8 +457,8 @@ const VendMast = () => {
       setForm({ ...emptyForm });
       setSelectedVendCode("");
       setIsEditing(false);
-      setAttachmentRows([]);
-
+      // Removed setAttachmentRows
+      
       await loadMasterList();
     } catch (e) {
       console.error(e);
@@ -629,7 +629,6 @@ const VendMast = () => {
 
     setIsEditing(true);
     setActiveTab("setup");
-    setAttachmentRows([]);
   };
 
   const handleEdit = async () => {
@@ -650,7 +649,6 @@ const VendMast = () => {
     setSelectedVendCode("");
     setForm({ ...emptyForm });
     setIsEditing(false);
-    setAttachmentRows([]);
   };
 
   const tabs = useMemo(
@@ -710,7 +708,6 @@ const VendMast = () => {
           label: <span className="hidden sm:inline ml-1">Edit</span>,
           icon: faPenToSquare,
           onClick: handleEdit,
-          // Disable if loading, already editing, or no record is retrieved yet
           disabled: isLoading || isEditing || !hasRecord,
           className: `${baseBtn} ${isLoading || isEditing || !hasRecord
               ? "bg-blue-400 opacity-50 cursor-not-allowed text-white"
@@ -722,8 +719,8 @@ const VendMast = () => {
           label: <span className="hidden sm:inline ml-1">Attach</span>,
           icon: faPaperclip,
           onClick: handleOpenAttach,
-          disabled: isLoading,
-          className: `${baseBtn} bg-blue-600 text-white hover:bg-blue-700`,
+          disabled: isLoading || !hasRecord, // Should not attach to empty record
+          className: `${baseBtn} ${isLoading || !hasRecord ? "bg-blue-400 opacity-50 cursor-not-allowed text-white" : "bg-blue-600 text-white hover:bg-blue-700"}`,
         },
         {
           key: "delete",
@@ -739,14 +736,12 @@ const VendMast = () => {
       ];
     }
 
-    // 2) Buttons for the "Reference Codes" Tab
     if (activeTab === "ref") {
       return [
         {
           key: "add",
           label: <span className="hidden sm:inline ml-1">Add</span>,
           icon: faPlus,
-          // Use the ref to trigger add in the child component
           onClick: () => refTabRef.current?.add?.(),
           className: `${baseBtn} bg-blue-600 text-white hover:bg-blue-700`,
         },
@@ -754,9 +749,7 @@ const VendMast = () => {
           key: "save",
           label: <span className="hidden sm:inline ml-1">Save</span>,
           icon: faSave,
-          // Use the ref to trigger save in the child component
           onClick: () => refTabRef.current?.save?.(),
-          // Disable based on state sent up from PayTermRef
           disabled: !refState.canSave,
           className: `${baseBtn} ${!refState.canSave
             ? "bg-blue-500 opacity-50 cursor-not-allowed text-white"
@@ -767,17 +760,13 @@ const VendMast = () => {
           key: "reset",
           label: <span className="hidden sm:inline ml-1">Reset</span>,
           icon: faUndo,
-          // Use the ref to trigger reset in the child component
           onClick: () => refTabRef.current?.reset?.(),
           className: `${baseBtn} bg-blue-600 text-white hover:bg-blue-700`,
         },
       ];
     }
 
-    // Default if on Master Data tab
     return [];
-
-    // Note: Added refState to the dependency array
   }, [activeTab, isLoading, isEditing, form, refState]);
 
   return (
@@ -830,7 +819,7 @@ const VendMast = () => {
                   className="flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm"
                 >
                   <FontAwesomeIcon icon={faInfoCircle} className="text-[12px]" />
-                  <span className="hidden sm:inline ml-1">Info</span> {/* Updated */}
+                  <span className="hidden sm:inline ml-1">Info</span>
                   <FontAwesomeIcon icon={faChevronDown} className="hidden sm:inline ml-1 text-[10px] opacity-80" />
                 </button>
 
@@ -913,13 +902,17 @@ const VendMast = () => {
         )}
       </div>
 
-      <AttachFileModal
+      <SearchAttachment
         isOpen={isAttachOpen}
         onClose={() => setIsAttachOpen(false)}
-        transaction="Payee Master Data"
-        branch={form.branchCode || "HO"}
-        documentNo={documentNo}
-        rows={attachmentRows}
+        params={{
+          DocumentID: documentNo,
+          Title: "Payee Master Data",
+          CodeLabel: "Payee Code",
+          Code: documentNo,
+          NameLabel: "Payee Name",
+          Name: form.vendName || "N/A"
+        }}
       />
     </div>
   );

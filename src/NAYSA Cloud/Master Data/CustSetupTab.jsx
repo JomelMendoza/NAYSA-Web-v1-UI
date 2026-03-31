@@ -34,15 +34,19 @@ const CustSetupTab = forwardRef(
       isLoading,
       isEditing,
       form = {},
-      generationMode = "S", // <-- Added generationMode prop
+      generationMode = "S",
+      sltypeOptions = [],
+      sourceOptions = [],
+      activeOptions = [],
       onChangeForm,
       onSelectCustomerCode,
-      sltypeOptions = [],
-      activeOptions = [],
+      // Removed onLookupCode from here since we are handling it internally now
+      payeeTypeOptions = [],
       mappedTaxClassOptions = [],
-      sourceOptions = [],
       handleTaxClassChange,
       handleBusinessNameChange,
+      handleCheckNameChange,
+      applyAutoNames
     },
     ref
   ) => {
@@ -87,7 +91,9 @@ const CustSetupTab = forwardRef(
 
     // Helper variable to determine if we are manually adding a new code
     const isManualNew = form.__isNew && generationMode === "M";
+    const isRetrievedRecord = !form.__isNew && !!form.custCode;
 
+    // THIS triggers the SearchCusMast modal!
     const openCustomerLookup = () => {
       if (isLoading) return;
       toggleLookup("cust", true);
@@ -125,24 +131,20 @@ const CustSetupTab = forwardRef(
               <FieldRenderer
                 label="Customer Code"
                 required
-                // Switch to a normal text field if it's a new Manual record
-                type={isManualNew ? "text" : "lookup"}
-                value={form?.custCode || ""}
-                // Only allow typing if it's a new Manual record
+                type={isManualNew || isRetrievedRecord ? "text" : "lookup"}
+                value={form.custCode || ""}
                 onChange={
                   isManualNew
                     ? (v) => {
-                        const val = getValue(v);
-                        onChangeForm({ custCode: val });
-                      }
+                      const val = getValue(v);
+                      onChangeForm({ custCode: val });
+                    }
                     : undefined
                 }
-                // Only trigger the lookup modal if NOT creating a new Manual record
-                onLookup={isManualNew ? undefined : openCustomerLookup}
-                // Unlock the field if it's a new Manual record
+                // FIX IS HERE: Points to openCustomerLookup instead of onLookupCode
+                onLookup={isManualNew || isRetrievedRecord ? undefined : openCustomerLookup}
                 readOnly={!isManualNew}
-                disabled={isLoading}
-                maxLength={getLen("cust_code", 20)}
+                disabled={isLoading || isRetrievedRecord}
               />
 
               <FieldRenderer
@@ -366,11 +368,10 @@ const CustSetupTab = forwardRef(
                   key={tab.id}
                   type="button"
                   onClick={() => setSalesTab(tab.id)}
-                  className={`px-4 py-2 text-sm font-semibold transition-all duration-200 whitespace-nowrap ${
-                    salesTab === tab.id
-                      ? "border-b-2 border-blue-600 text-blue-600"
-                      : "text-gray-500 hover:text-blue-600"
-                  }`}
+                  className={`px-4 py-2 text-sm font-semibold transition-all duration-200 whitespace-nowrap ${salesTab === tab.id
+                    ? "border-b-2 border-blue-600 text-blue-600"
+                    : "text-gray-500 hover:text-blue-600"
+                    }`}
                 >
                   {tab.label}
                 </button>

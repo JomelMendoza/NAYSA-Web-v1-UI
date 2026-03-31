@@ -31,7 +31,7 @@ const RolesTab = forwardRef(
       appliedUserRoles,
       setAppliedUserRoles,
       fetchUserRoles,
-      tableSize= "Half",
+      tableSize = "Half",
     },
     ref
   ) => {
@@ -41,6 +41,12 @@ const RolesTab = forwardRef(
     const [usersLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [mobileStep, setMobileStep] = useState("users");
+
+    /* ================= FILTER ACTIVE ROLES ================= */
+    // This ensures only active roles appear in this specific tab
+    const activeRoles = useMemo(() => {
+      return (Array.isArray(roles) ? roles : []).filter((r) => r.active === "Y");
+    }, [roles]);
 
     const appliedRolesSet = useMemo(() => {
       if (appliedUserRoles instanceof Set) return appliedUserRoles;
@@ -54,8 +60,8 @@ const RolesTab = forwardRef(
     }, [users, selectedUsers]);
 
     const roleTableData = useMemo(() => {
-      return Array.isArray(roles) ? roles : [];
-    }, [roles]);
+      return activeRoles; // Changed from roles
+    }, [activeRoles]);
 
     const userTableData = useMemo(() => {
       return Array.isArray(users) ? users : [];
@@ -71,10 +77,10 @@ const RolesTab = forwardRef(
 
     const allRoleCodes = useMemo(
       () =>
-        (Array.isArray(roles) ? roles : [])
+        activeRoles // Changed from roles
           .map((r) => r.roleCode)
           .filter(Boolean),
-      [roles]
+      [activeRoles]
     );
 
     const allUsersSelected =
@@ -137,7 +143,7 @@ const RolesTab = forwardRef(
       const preSelectedRoles = new Set();
 
       selectedUsers.forEach((userCode) => {
-        roles.forEach((role) => {
+        activeRoles.forEach((role) => { // Changed from roles
           if (appliedRolesSet.has(`${userCode}-${role.roleCode}`)) {
             preSelectedRoles.add(role.roleCode);
           }
@@ -147,7 +153,7 @@ const RolesTab = forwardRef(
       setSelectedRoles(Array.from(preSelectedRoles));
       setViewingRoles(true);
       setMobileStep("roles");
-    }, [selectedUsers, roles, appliedRolesSet]);
+    }, [selectedUsers, activeRoles, appliedRolesSet]);
 
     const handleResetUserRoleMatching = useCallback(() => {
       resetState();
@@ -171,20 +177,24 @@ const RolesTab = forwardRef(
         const rolesToRemove = [];
 
         selectedUsers.forEach((userCode) => {
+          // Loop through ALL roles (the full list) to identify assignments 
+          // that must be removed because they are either unselected OR now inactive.
           roles.forEach((role) => {
             const combo = `${userCode}-${role.roleCode}`;
-            if (
-              appliedRolesSet.has(combo) &&
-              !rolesToApply.includes(role.roleCode)
-            ) {
-              rolesToRemove.push({
-                userCode,
-                roleCode: role.roleCode,
-              });
+
+            if (appliedRolesSet.has(combo)) {
+              // Remove if it's not in the new selection OR if the role itself is no longer active
+              if (!rolesToApply.includes(role.roleCode) || role.active !== "Y") {
+                rolesToRemove.push({
+                  userCode,
+                  roleCode: role.roleCode,
+                });
+              }
             }
           });
         });
 
+        // 1. Save new role assignments
         if (rolesToApply.length > 0) {
           const payload = {
             dt1: rolesToApply.map((code) => ({
@@ -208,6 +218,7 @@ const RolesTab = forwardRef(
           }
         }
 
+        // 2. Delete assignments for unselected or inactive roles
         for (const item of rolesToRemove) {
           const payload = {
             dt1: [{ roleCode: item.roleCode }],
@@ -227,12 +238,13 @@ const RolesTab = forwardRef(
           }
         }
 
+        // 3. Update local state to reflect only active, selected roles
         const newAppliedCombinations = new Set(appliedRolesSet);
 
         selectedUsers.forEach((userCode) => {
           roles.forEach((role) => {
             const combo = `${userCode}-${role.roleCode}`;
-            if (rolesToApply.includes(role.roleCode)) {
+            if (rolesToApply.includes(role.roleCode) && role.active === "Y") {
               newAppliedCombinations.add(combo);
             } else {
               newAppliedCombinations.delete(combo);
@@ -260,7 +272,7 @@ const RolesTab = forwardRef(
       saving,
       selectedUsers,
       selectedRoles,
-      roles,
+      roles, // Full list is required here for the cleanup logic
       appliedRolesSet,
       setAppliedUserRoles,
       fetchUserRoles,
@@ -274,7 +286,7 @@ const RolesTab = forwardRef(
         const rows = [];
 
         (Array.isArray(users) ? users : []).forEach((u) => {
-          (Array.isArray(roles) ? roles : []).forEach((r) => {
+          activeRoles.forEach((r) => { // Changed from roles
             if (appliedRolesSet.has(`${u.userCode}-${r.roleCode}`)) {
               rows.push({
                 userCode: u.userCode || "",
@@ -307,9 +319,10 @@ const RolesTab = forwardRef(
           key: "__select",
           label: "Select",
           sortable: false,
+          filterable: false,
           width: 90,
           render: (row) => (
-            <div className="flex justify-end md:justify-center">
+            <div className="flex justify-end md:justify-center py-1">
               <input
                 type="checkbox"
                 className="h-6 w-6 md:h-4 md:w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
@@ -343,9 +356,10 @@ const RolesTab = forwardRef(
           key: "__select",
           label: "Select",
           sortable: false,
+          filterable: false,
           width: 90,
           render: (row) => (
-            <div className="flex justify-end md:justify-center">
+            <div className="flex justify-end md:justify-center py-1">
               <input
                 type="checkbox"
                 className="h-6 w-6 md:h-4 md:w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
