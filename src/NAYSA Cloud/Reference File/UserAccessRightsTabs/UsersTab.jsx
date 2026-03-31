@@ -348,9 +348,10 @@ const UsersTab = forwardRef(
           key: "__actions",
           label: "Actions",
           sortable: false,
+          filterable: false,
           width: 100, // Reduced from 160 as the buttons are small
           render: (row) => (
-            <div className="flex items-center justify-center gap-2">
+            <div className="flex items-center justify-center gap-2 py-1">
               <button
                 type="button"
                 onClick={(e) => {
@@ -444,6 +445,7 @@ const UsersTab = forwardRef(
           <div className="w-full xl:w-[380px] xl:flex-shrink-0">
             <div className="w-full bg-white rounded-xl p-3 sm:p-4 border border-gray-100 shadow-sm">
               <div className="space-y-4">
+                
                 <FieldRenderer
                   label="Role Code"
                   required
@@ -456,8 +458,10 @@ const UsersTab = forwardRef(
                   onBlur={handleCodeValidate}
                   onKeyDown={handleCodeValidate}
                   disabled={!isEditing || form.__existing}
+                  maxLength={10} // Add this limit based on your DB schema
                 />
 
+               
                 <FieldRenderer
                   label="Role Name"
                   required
@@ -465,6 +469,7 @@ const UsersTab = forwardRef(
                   value={form.roleName}
                   onChange={(v) => setField("roleName", v ?? "")}
                   disabled={!isEditing}
+                  maxLength={100} // Add this limit based on your DB schema
                 />
 
                 <FieldRenderer

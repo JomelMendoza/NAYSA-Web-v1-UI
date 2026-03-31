@@ -8,6 +8,7 @@ import {
   faSpinner,
   faSearch,
   faMinus,
+  faTrashAlt,
 } from "@fortawesome/free-solid-svg-icons";
 
 // Lookup/Modal
@@ -88,7 +89,7 @@ import Header from "@/NAYSA Cloud/Components/Header";
   const navigate = useNavigate();
   const location = useLocation(); 
   const [isViewDocument, setIsViewDocument] = useState(false);
-  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded } = useAuth();
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded,getAllTopHSDocRow } = useAuth();
   const decQty = companyInfo?.itemDecqtyPur ?? 2;
 
 
@@ -104,10 +105,12 @@ import Header from "@/NAYSA Cloud/Components/Header";
       
       
   const [topTab, setTopTab] = useState("details"); 
-  const { user } = useAuth();
   const { resetFlag } = useReset();
-
-
+  const docType = docTypes?.PR || "PR";
+  const hsDoc = getAllTopHSDocRow(docType);
+  const pdfLink = docTypePDFGuide[docType];
+  const videoLink = docTypeVideoGuide[docType];
+  const documentTitle = hsDoc.docName + 'Transaction';
 
   const [state, setState] = useState({
     // HS Option / Currency
@@ -121,9 +124,9 @@ import Header from "@/NAYSA Cloud/Components/Header";
     glCurrGlobal3: "",
 
     // Document information
-    documentName: "",
-    documentSeries: "Auto",
-    documentDocLen: 8,
+    documentName: hsDoc?.docName||"",
+    documentSeries: hsDoc?.docSeries||"Auto",
+    documentDocLen: hsDoc?.docLength||8,
     documentID: null,
     documentDate:useGetCurrentDayV2(),  
     dateNeeded:useGetCurrentDayV2(),  
@@ -279,12 +282,6 @@ import Header from "@/NAYSA Cloud/Components/Header";
     totalQtyNeeded: "",
   });
 
-  // PR.jsx
-  const docType = docTypes?.PR || "PR";
-
-  const pdfLink = docTypePDFGuide[docType];
-  const videoLink = docTypeVideoGuide[docType];
-  const documentTitle = docTypeNames[docType] || "Purchase Requisition";
 
   const displayStatus = status || "OPEN";
   const statusMap = {
@@ -423,46 +420,29 @@ useEffect(() => {
     updateTotalsDisplay(0);
   };
 
-  const loadCompanyData = async () => {
-    updateState({ isLoading: true });
-    try {
-     
-      const hsOption = await useTopHSOption();
-      if (hsOption) {
-        updateState({
-          glCurrMode: hsOption.glCurrMode,
-          glCurrDefault: hsOption.glCurrDefault,
-          currCode: hsOption.glCurrDefault,
-          glCurrGlobal1: hsOption.glCurrGlobal1,
-          glCurrGlobal2: hsOption.glCurrGlobal2,
-          glCurrGlobal3: hsOption.glCurrGlobal3,
-        });
-
-        const curr = await useTopCurrencyRow(hsOption.glCurrDefault);
-        if (curr) {
-          updateState({
-            currName: curr.currName,
-            currRate: formatNumber(1, 6),
-          });
-        }
-
-        
-
-     const tbls = 'pr_hd,pr_dt1'
-     const hdtblcol_result = await useFieldLenghtCheck(tbls);
-     if (hdtblcol_result){
-       updateState({tblFieldArray :hdtblcol_result })
-     }
 
 
 
-      }
-    } catch (err) {
-      console.error("Error fetching data:", err);
-    } finally {
-      updateState({ isLoading: false });
-    }
-  };
+  
+    const loadCompanyData = async () => {
+            updateState({ isLoading: true });
+          
+            try {
+              const hdtblcol_result = await useFieldLenghtCheck(
+                "pr_hd,pr_dt1"
+              );
+          
+              if (hdtblcol_result) {
+                updateState({ tblFieldArray: hdtblcol_result });
+              }
+            } catch (err) {
+              console.error("Error fetching data:", err);
+            } finally {
+              updateState({ isLoading: false });
+            }
+          };  
+
+
 
 
 
@@ -1825,16 +1805,12 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
                     <th className={`global-tran-th-ui ${isJobOrder ? 'hidden' : ''}`}>PO Qty</th>
                     <th className={`global-tran-th-ui ${isJobOrder ? 'hidden' : ''}`}>RR Qty</th>
                     <th className={`global-tran-th-ui ${!isJobOrder ? 'hidden' : ''}`}>JO No.</th>
-                  {!isFormDisabled &&  (
-                  <>
-                    <th className="global-tran-th-ui sticky right-[43px] bg-blue-300 dark:bg-blue-900 z-30">
-                      Add
-                    </th>
+                  
+                   {!isFormDisabled && (
                     <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
-                      Delete
+                      Actions
                     </th>
-                  </>
-                )}
+                  )}
 
                    
                   </tr>
@@ -2094,31 +2070,28 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
                             />
                           </td>
 
-                       
-                    
+                        {!isFormDisabled && (
+                          <td className="global-tran-td-ui text-center sticky right-0">
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                type="button"
+                                className="global-tran-td-button-add-ui"
+                                onClick={() => handleAddBlankRow(index)}
+                              >
+                                <FontAwesomeIcon icon={faPlus} />
+                              </button>
 
-                       {!isFormDisabled && (
-                          <td className="global-tran-td-ui text-center sticky right-12">
-                          <button
-                             className="global-tran-td-button-add-ui"
-                             onClick={() => handleAddBlankRow(index)}
-                           >
-                            <FontAwesomeIcon icon={faPlus} />
-                            </button>
-                            </td>
-                            )}
-                      
-                           {!isFormDisabled && (
-                           <td className="global-tran-td-ui text-center sticky right-0">
-                            <button
-                            className="global-tran-td-button-delete-ui"
-                            onClick={() => handleDeleteRow(index)}
-                            >
-                            <FontAwesomeIcon icon={faMinus} />
-                            </button>
-                             </td>
-                         )}
-
+                              <button
+                                type="button"
+                                className="global-tran-td-button-delete-ui"
+                                onClick={() => handleDeleteRow(index)}
+                              >
+                                <FontAwesomeIcon icon={faTrashAlt} />
+                              </button>
+                            </div>
+                          </td>
+                        )}
+                            
 
                     </tr>
                   ))}

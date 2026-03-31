@@ -43,11 +43,15 @@ const RoleAccessTab = forwardRef(({ roles = [], tableSize = "Half" }, ref) => {
 
   const [mobileStep, setMobileStep] = useState("roles");
 
+  /* ================= FILTER ACTIVE ROLES ================= */
+  // Ensure only active roles appear for menu configuration
+  const activeRoles = useMemo(() => {
+    return (Array.isArray(roles) ? roles : []).filter((r) => r.active === "Y");
+  }, [roles]);
+
   const selectedRoleDetails = useMemo(() => {
-    return (Array.isArray(roles) ? roles : []).filter((r) =>
-      selectedRoles.includes(r.roleCode)
-    );
-  }, [roles, selectedRoles]);
+    return activeRoles.filter((r) => selectedRoles.includes(r.roleCode));
+  }, [activeRoles, selectedRoles]);
 
   const allMenuCodes = useMemo(
     () =>
@@ -262,9 +266,10 @@ const RoleAccessTab = forwardRef(({ roles = [], tableSize = "Half" }, ref) => {
         key: "__select",
         label: "Select",
         sortable: false,
+        filterable: false,
         width: 90,
         render: (row) => (
-          <div className="flex justify-end md:justify-center">
+          <div className="flex justify-end md:justify-center py-1">
             <input
               type="checkbox"
               className="h-6 w-6 md:h-4 md:w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
@@ -297,9 +302,10 @@ const RoleAccessTab = forwardRef(({ roles = [], tableSize = "Half" }, ref) => {
         key: "__select",
         label: "Access",
         sortable: false,
+        filterable: false,
         width: 90,
         render: (row) => (
-          <div className="flex justify-end md:justify-center">
+          <div className="flex justify-end md:justify-center py-1">
             <input
               type="checkbox"
               className="h-6 w-6 md:h-4 md:w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
@@ -328,11 +334,11 @@ const RoleAccessTab = forwardRef(({ roles = [], tableSize = "Half" }, ref) => {
 
   const roleTableData = useMemo(
     () =>
-      (Array.isArray(roles) ? roles : []).map((row, index) => ({
+      activeRoles.map((row, index) => ({ // Using filtered activeRoles here
         ...row,
         __idx: index,
       })),
-    [roles]
+    [activeRoles]
   );
 
   const menuTableData = useMemo(

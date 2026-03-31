@@ -97,7 +97,7 @@ const SOA = () => {
   const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation(); 
-  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded ,getAllTopATCRow, getAllTopVatRow,getAllTopVatAmount,getAllTopATCAmount } = useAuth();
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded ,getAllTopATCRow, getAllTopVatRow,getAllTopVatAmount,getAllTopATCAmount,getAllTopHSDocRow } = useAuth();
   const [isViewDocument, setIsViewDocument] = useState(false);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
@@ -111,6 +111,15 @@ const SOA = () => {
 
   const [topTab, setTopTab] = useState("details"); // "details" | "history"
   const { resetFlag } = useReset();
+
+  const [focusedCell, setFocusedCell] = useState(null); // { index: number, field: string }
+  const docType = docTypes.SOA; 
+  const hsDoc = getAllTopHSDocRow(docType);
+  const pdfLink = docTypePDFGuide[docType];
+  const videoLink = docTypeVideoGuide[docType];
+  const documentTitle = hsDoc.docName + 'Transaction';
+ 
+
   const [state, setState] = useState({
 
     // HS Option
@@ -125,9 +134,9 @@ const SOA = () => {
 
 
     // Document information
-    documentName: "",
-    documentSeries: "Auto",
-    documentDocLen: 8,
+    documentName: hsDoc?.docName||"",
+    documentSeries: hsDoc?.docSeries||"Auto",
+    documentDocLen: hsDoc?.docLength||8,
     documentID: null,
     documentNo: "",
     documentStatus:"",
@@ -315,15 +324,7 @@ const SOA = () => {
 } = state;
 
 
-  const [focusedCell, setFocusedCell] = useState(null); // { index: number, field: string }
-
-  //Document Global Setup
-  const docType = docTypes.SOA; 
-  const pdfLink = docTypePDFGuide[docType];
-  const videoLink = docTypeVideoGuide[docType];
-  const documentTitle = docTypeNames[docType] || 'Transaction';
- 
-
+  
 
   //Status Global Setup
   const displayStatus = status || 'OPEN';
@@ -526,39 +527,31 @@ useEffect(() => {
 
 
 
-   const loadCompanyData = async () => {
 
-    updateState({isLoading:true})
 
-    try {
-     
-      // 🔹 2. Document row (independent)
-      const docRow = await useTopDocControlRow(docType);
-      if (docRow) {
-        updateState({
-          documentName: docRow.docName,
-          documentSeries: docRow.docName,
-          tdocumentDocLen: docRow.docName,
-        });
+  
+    
+      const loadCompanyData = async () => {
+      updateState({ isLoading: true });
+    
+      try {
+        const hdtblcol_result = await useFieldLenghtCheck(
+          "soa_hd,soa_dt1,soa_dt2"
+        );
+    
+        if (hdtblcol_result) {
+          updateState({ tblFieldArray: hdtblcol_result });
+        }
+      } catch (err) {
+        console.error("Error fetching data:", err);
+      } finally {
+        updateState({ isLoading: false });
       }
+    };
+    
 
 
 
-      
-     const tbls = 'soa_hd,soa_dt1,soa_dt2'
-     const hdtblcol_result = await useFieldLenghtCheck(tbls);
-     if (hdtblcol_result){
-       updateState({tblFieldArray :hdtblcol_result })
-     }
-      
-
-
-    } catch (err) {
-      console.error("Error fetching data:", err);
-    }
-
-     updateState({isLoading:false})
-  };
 
 
 
@@ -858,7 +851,7 @@ const handleActivityOption = async (action) => {
       );
 
       if (response) {
-        await fetchTranData(documentNo, branchCode);
+  
 
         const isZero = Number(noReprints) === 0;
         const onSaveAndPrint =
@@ -1831,7 +1824,7 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                 label="Branch"
                 type="lookup"
                 value={branchName || ""}
-                disabled={state.isFetchDisabled || state.isDocNoDisabled || isFormDisabled}
+                 disabled={state.isFetchDisabled || state.isDocNoDisabled || isFormDisabled}
                 readOnly
                 lookupDisabled={isFetchDisabled}
                 onLookup={() => updateState({ branchModalOpen: true })}
@@ -2198,17 +2191,12 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
               <th className="global-tran-th-ui">Discount Account</th>
               <th className="global-tran-th-ui">RC Code</th> 
                     
-            {!isFormDisabled && (
-              <th className="global-tran-th-ui sticky right-[43px] bg-blue-300 dark:bg-blue-900 z-30">
-                Add
-              </th>
-            )}
-
-            {!isFormDisabled && (
-              <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
-                Delete
-              </th>
-            )}
+             {!isFormDisabled && (
+                  <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
+                    Actions
+                  </th>
+                )}
+                
             </tr>
           </thead>
 
@@ -2707,26 +2695,26 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                 
 
                 {!isFormDisabled && (
-                <td className="global-tran-td-ui text-center sticky right-12">
-                  <button
-                    className="global-tran-td-button-add-ui"
-                    onClick={() => handleAddRow(index)}
-                  >
-                    <FontAwesomeIcon icon={faPlus} />
-                  </button>
-                </td>
-              )}
+                    <td className="global-tran-td-ui text-center sticky right-0">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          className="global-tran-td-button-add-ui"
+                          onClick={() => handleAddRow(index)}
+                        >
+                          <FontAwesomeIcon icon={faPlus} />
+                        </button>
 
-              {!isFormDisabled && (
-                <td className="global-tran-td-ui text-center sticky right-0">
-                  <button
-                    className="global-tran-td-button-delete-ui"
-                    onClick={() => handleDeleteRow(index)}
-                  >
-                    <FontAwesomeIcon icon={faMinus} />
-                  </button>
-                </td>
-              )}
+                        <button
+                          type="button"
+                          className="global-tran-td-button-delete-ui"
+                          onClick={() => handleDeleteRow(index)}
+                        >
+                          <FontAwesomeIcon icon={faTrashAlt} />
+                        </button>
+                      </div>
+                    </td>
+                  )}
                         
               </tr>
             ))}
@@ -2917,15 +2905,10 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                 <th className="global-tran-th-ui">SL Ref. Date</th>
                 <th className="global-tran-th-ui">Remarks</th>
                 
-                {!isFormDisabled && (
-                  <>
-                    <th className="global-tran-th-ui sticky right-[43px] bg-blue-300 dark:bg-blue-900 z-30">
-                      Add
-                    </th>
-                    <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
-                      Delete
-                    </th>
-                  </>
+                 {!isFormDisabled && (
+                  <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
+                    Actions
+                  </th>
                 )}
 
               </tr>
@@ -3311,25 +3294,25 @@ const handleCloseBillTermModal = async (selectedBillTerm) => {
                     />
                 </td>
                   
-                {!isFormDisabled && (
-                  <td className="global-tran-td-ui text-center sticky right-10">
-                    <button
-                      className="global-tran-td-button-add-ui"
-                      onClick={() => handleAddRowGL(index)}
-                    >
-                      <FontAwesomeIcon icon={faPlus} />
-                    </button>
-                  </td>
-                )}
-
-                {!isFormDisabled && (
+               {!isFormDisabled && (
                   <td className="global-tran-td-ui text-center sticky right-0">
-                    <button
-                      className="global-tran-td-button-delete-ui"
-                      onClick={() => handleDeleteRowGL(index)}
-                    >
-                      <FontAwesomeIcon icon={faMinus} />
-                    </button>
+                    <div className="flex items-center justify-center gap-1">
+                      <button
+                        type="button"
+                        className="global-tran-td-button-add-ui"
+                        onClick={() => handleAddRowGL(index)}
+                      >
+                        <FontAwesomeIcon icon={faPlus} />
+                      </button>
+
+                      <button
+                        type="button"
+                        className="global-tran-td-button-delete-ui"
+                        onClick={() => handleDeleteRowGL(index)}
+                      >
+                        <FontAwesomeIcon icon={faTrashAlt} />
+                      </button>
+                    </div>
                   </td>
                 )}
 

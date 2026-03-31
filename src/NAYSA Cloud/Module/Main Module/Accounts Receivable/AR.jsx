@@ -45,9 +45,7 @@ import {
   useTopAccountRow,
   useTopForexRate,
   useTopCurrencyRow,
-  useTopCompanyRow,
   useTopDocControlRow,
-  useTopBankMastRow,
 } from '@/NAYSA Cloud/Global/top1RefTable';
 
 
@@ -103,7 +101,7 @@ const AR = () => {
   const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation(); 
-  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded ,getAllTopATCRow, getAllTopVatRow,getAllTopVatAmount,getAllTopATCAmount } = useAuth();
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded ,getAllTopATCRow, getAllTopVatRow,getAllTopVatAmount,getAllTopATCAmount,getAllTopHSDocRow } = useAuth();
   const [isViewDocument, setIsViewDocument] = useState(false);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
@@ -116,11 +114,17 @@ const AR = () => {
 
 
   const [topTab, setTopTab] = useState("details"); // "details" | "history"
-  const { user } = useAuth();
   const { resetFlag } = useReset();
+  
+  const [focusedCell, setFocusedCell] = useState(null); // { index: number, field: string }
+  const docType = docTypes.AR; 
+  const hsDoc = getAllTopHSDocRow(docType);
+  const pdfLink = docTypePDFGuide[docType];
+  const videoLink = docTypeVideoGuide[docType];
+  const documentTitle = hsDoc.docName + 'Transaction';
+ 
+
   const [state, setState] = useState({
-
-
     // HS Option
     glCurrMode:companyInfo?.glCurrMode||"",
     glCurrDefault:companyInfo?.currCode||"",
@@ -133,9 +137,9 @@ const AR = () => {
 
     
     // Document information
-    documentName: "",
-    documentSeries: "Auto",
-    documentDocLen: 8,
+    documentName: hsDoc?.docName||"",
+    documentSeries: hsDoc?.docSeries||"Auto",
+    documentDocLen: hsDoc?.docLength||8,
     documentID: null,
     documentNo: "",
     documentStatus:"",
@@ -180,9 +184,9 @@ const AR = () => {
     arTypes :[],
     paymentTypes:[],
     checkTypes:[],
-    depBankCode:"",
-    depAcctName:"",
-    depAcctNo:"",
+    depBankCode:companyInfo?.depBankcode||"", 
+    depAcctName:companyInfo?.depositBankName||"", 
+    depAcctNo:companyInfo?.depositBankAcctNo||"", 
     currAmount:"0.00",
     checkAmount:"0.00",
     checkNo:"",
@@ -301,11 +305,6 @@ const AR = () => {
   depBankCode,
   depAcctName,
   depAcctNo,
-
-  def_depBankCode,
-  def_depAcctName,
-  def_depAcctNo,
-
   currAmount,
   checkAmount,
   checkNo,
@@ -357,17 +356,6 @@ const AR = () => {
 
 
 } = state;
-
-
-  const [focusedCell, setFocusedCell] = useState(null); // { index: number, field: string }
-
-  //Document Global Setup
-  const docType = docTypes.AR; 
-  const pdfLink = docTypePDFGuide[docType];
-  const videoLink = docTypeVideoGuide[docType];
-  const documentTitle = docTypeNames[docType] || 'Transaction';
- 
-
 
   //Status Global Setup
   const displayStatus = status || 'OPEN';
@@ -556,9 +544,9 @@ useEffect(() => {
       currName:companyInfo?.currName||"",
       currRate:formatNumber(companyInfo?.currRate||1,6) ,
 
-      depBankCode:def_depBankCode,
-      depAcctName:def_depAcctName,
-      depAcctNo:def_depAcctNo,
+      depBankCode:companyInfo?.depBankcode||"", 
+      depAcctName:companyInfo?.depositBankName||"", 
+      depAcctNo:companyInfo?.depositBankAcctNo||"", 
       
       refDocNo1: "",
       refDocNo2:"",
@@ -594,65 +582,29 @@ useEffect(() => {
   };
 
 
+
+
+
   
-   const loadCompanyData = async () => {
-
-    updateState({isLoading:true})
-
-    try {
-    
-
-      // 🔹 2. Document row (independent)
-      const docRow = await useTopDocControlRow(docType);
-      if (docRow) {
-        updateState({
-          documentName: docRow.docName,
-          documentSeries: docRow.docName,
-          tdocumentDocLen: docRow.docName,
-        });
-      }
-
-
-
-
-
-      // 🔹 4. Company + Bank row (dependent chain)
-      const company = await useTopCompanyRow();
-      if (company) {
-        updateState({ depBankCode: company.depBankcode });
-
-        const bank = await useTopBankMastRow(company.depBankcode);
-        if (bank) {
-          updateState({
-            depBankCode: bank.bankCode,
-            depAcctName: bank.acctName,
-            depAcctNo: bank.bankAcctNo,
-
-            def_depBankCode: bank.bankCode,
-            def_depAcctName: bank.acctName,
-            def_depAcctNo: bank.bankAcctNo,
-
-          });
-        }
-      }
-
-     const tbls = 'ar_hd,ar_dt1,ar_dt2'
-     const hdtblcol_result = await useFieldLenghtCheck(tbls);
-     if (hdtblcol_result){
-       updateState({tblFieldArray :hdtblcol_result })
-     }
-        
-
-
-
-    } catch (err) {
-      console.error("Error fetching data:", err);
-    }
-
-     updateState({isLoading:false})
-  };
-
-
+      const loadCompanyData = async () => {
+              updateState({ isLoading: true });
+            
+              try {
+                const hdtblcol_result = await useFieldLenghtCheck(
+                  "ar_hd,ar_dt1,ar_dt2"
+                );
+            
+                if (hdtblcol_result) {
+                  updateState({ tblFieldArray: hdtblcol_result });
+                }
+              } catch (err) {
+                console.error("Error fetching data:", err);
+              } finally {
+                updateState({ isLoading: false });
+              }
+            };  
+  
+  
 
 
 
@@ -982,7 +934,7 @@ const handleActivityOption = async (action) => {
       );
 
       if (response) {
-         await fetchTranData(documentNo, branchCode);
+        
 
         const isZero = Number(noReprints) === 0;
         const onSaveAndPrint = isZero
@@ -2453,17 +2405,12 @@ const handleCloseBranchModal = (selectedBranch) => {
               <th className="global-tran-th-ui hidden">Ref Doc Code</th>
               <th className="global-tran-th-ui hidden">Group ID</th>
                     
-            {!isFormDisabled && (
-              <th className="global-tran-th-ui sticky right-[43px] bg-blue-300 dark:bg-blue-900 z-30">
-                Add
-              </th>
-            )}
-
-            {!isFormDisabled && (
-              <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
-                Delete
-              </th>
-            )}
+              {!isFormDisabled && (
+                  <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
+                    Actions
+                  </th>
+                )}
+                
             </tr>
           </thead>
 
@@ -2800,34 +2747,28 @@ const handleCloseBranchModal = (selectedBranch) => {
                 </td>
 
 
+               {!isFormDisabled && (
+                    <td className="global-tran-td-ui text-center sticky right-0">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          className="global-tran-td-button-add-ui"
+                          onClick={() => handleAddRow(index)}
+                        >
+                          <FontAwesomeIcon icon={faPlus} />
+                        </button>
 
+                        <button
+                          type="button"
+                          className="global-tran-td-button-delete-ui"
+                          onClick={() => handleDeleteRow(index)}
+                        >
+                          <FontAwesomeIcon icon={faTrashAlt} />
+                        </button>
+                      </div>
+                    </td>
+                  )}
 
-
-
-
-
-                {!isFormDisabled && (
-                <td className="global-tran-td-ui text-center sticky right-12">
-                  <button
-                    className="global-tran-td-button-add-ui"
-                    onClick={() => handleAddRow(index)}
-                    
-                  >
-                    <FontAwesomeIcon icon={faPlus} />
-                  </button>
-                </td>
-              )}
-
-              {!isFormDisabled && (
-                <td className="global-tran-td-ui text-center sticky right-0">
-                  <button
-                    className="global-tran-td-button-delete-ui"
-                    onClick={() => handleDeleteRow(index)}
-                  >
-                    <FontAwesomeIcon icon={faMinus} />
-                  </button>
-                </td>
-              )}
                         
               </tr>
             ))}
@@ -2983,15 +2924,11 @@ const handleCloseBranchModal = (selectedBranch) => {
                 <th className="global-tran-th-ui">Remarks</th>
                 
                 {!isFormDisabled && (
-                  <>
-                    <th className="global-tran-th-ui sticky right-[43px] bg-blue-300 dark:bg-blue-900 z-30">
-                      Add
-                    </th>
-                    <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
-                      Delete
-                    </th>
-                  </>
+                  <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
+                    Actions
+                  </th>
                 )}
+
 
               </tr>
             </thead>
@@ -3379,25 +3316,25 @@ const handleCloseBranchModal = (selectedBranch) => {
                     />
                 </td>
                   
-                {!isFormDisabled && (
-                  <td className="global-tran-td-ui text-center sticky right-10">
-                    <button
-                      className="global-tran-td-button-add-ui"
-                      onClick={() => handleAddRowGL(index)}
-                    >
-                      <FontAwesomeIcon icon={faPlus} />
-                    </button>
-                  </td>
-                )}
-
-                {!isFormDisabled && (
+                 {!isFormDisabled && (
                   <td className="global-tran-td-ui text-center sticky right-0">
-                    <button
-                      className="global-tran-td-button-delete-ui"
-                      onClick={() => handleDeleteRowGL(index)}
-                    >
-                      <FontAwesomeIcon icon={faMinus} />
-                    </button>
+                    <div className="flex items-center justify-center gap-1">
+                      <button
+                        type="button"
+                        className="global-tran-td-button-add-ui"
+                        onClick={() => handleAddRowGL(index)}
+                      >
+                        <FontAwesomeIcon icon={faPlus} />
+                      </button>
+
+                      <button
+                        type="button"
+                        className="global-tran-td-button-delete-ui"
+                        onClick={() => handleDeleteRowGL(index)}
+                      >
+                        <FontAwesomeIcon icon={faTrashAlt} />
+                      </button>
+                    </div>
                   </td>
                 )}
 

@@ -101,7 +101,7 @@ const ARCM = () => {
   const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation(); 
-  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded ,getAllTopATCRow, getAllTopVatRow,getAllTopVatAmount,getAllTopATCAmount } = useAuth();
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded ,getAllTopATCRow, getAllTopVatRow,getAllTopVatAmount,getAllTopATCAmount,getAllTopHSDocRow } = useAuth();
   const [isViewDocument, setIsViewDocument] = useState(false);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
@@ -116,6 +116,16 @@ const ARCM = () => {
   const [topTab, setTopTab] = useState("details"); // "details" | "history"
   const { user } = useAuth();
   const { resetFlag } = useReset();
+  
+  const [focusedCell, setFocusedCell] = useState(null); // { index: number, field: string }
+  const docType = docTypes.ARCM; 
+  const hsDoc = getAllTopHSDocRow(docType);
+  const pdfLink = docTypePDFGuide[docType];
+  const videoLink = docTypeVideoGuide[docType];
+  const documentTitle = hsDoc.docName + 'Transaction';
+ 
+
+
   const [state, setState] = useState({
 
     // HS Option
@@ -130,9 +140,9 @@ const ARCM = () => {
 
     
     // Document information
-    documentName: "",
-    documentSeries: "Auto",
-    documentDocLen: 8,
+    documentName: hsDoc?.docName||"",
+    documentSeries: hsDoc?.docSeries||"Auto",
+    documentDocLen: hsDoc?.docLength||8,
     documentID: null,
     documentNo: "",
     documentDate:useGetCurrentDayV2(),    
@@ -322,16 +332,6 @@ const ARCM = () => {
   showAllTranDocNo
 
 } = state;
-
-
-  const [focusedCell, setFocusedCell] = useState(null); // { index: number, field: string }
-
-  //Document Global Setup
-  const docType = docTypes.ARCM; 
-  const pdfLink = docTypePDFGuide[docType];
-  const videoLink = docTypeVideoGuide[docType];
-  const documentTitle = docTypeNames[docType] || 'Transaction';
- 
 
 
   //Status Global Setup
@@ -533,41 +533,23 @@ useEffect(() => {
   };
 
 
-  
-   const loadCompanyData = async () => {
+  const loadCompanyData = async () => {
+  updateState({ isLoading: true });
 
-    updateState({isLoading:true})
+  try {
+    const hdtblcol_result = await useFieldLenghtCheck(
+      "arcm_hd,arcm_dt1,arcm_dt2"
+    );
 
-    try {
-     
- 
-
-      // 🔹 2. Document row (independent)
-      const docRow = await useTopDocControlRow(docType);
-      if (docRow) {
-        updateState({
-          documentName: docRow.docName,
-          documentSeries: docRow.docName,
-          tdocumentDocLen: docRow.docName,
-        });
-      }
-
-
-
-     const tbls = 'arcm_hd,arcm_dt1,arcm_dt2'
-     const hdtblcol_result = await useFieldLenghtCheck(tbls);
-     if (hdtblcol_result){
-       updateState({tblFieldArray :hdtblcol_result })
-     }
-      
-
-
-    } catch (err) {
-      console.error("Error fetching data:", err);
+    if (hdtblcol_result) {
+      updateState({ tblFieldArray: hdtblcol_result });
     }
-
-     updateState({isLoading:false})
-  };
+  } catch (err) {
+    console.error("Error fetching data:", err);
+  } finally {
+    updateState({ isLoading: false });
+  }
+};
 
 
 
@@ -851,7 +833,7 @@ const handleActivityOption = async (action) => {
       );
 
       if (response) {
-         await fetchTranData(documentNo, branchCode);
+
 
         const isZero = Number(noReprints) === 0;
         const onSaveAndPrint =
@@ -2139,17 +2121,13 @@ const handleCloseBranchModal = (selectedBranch) => {
               <th className="global-tran-th-ui hidden">VAT Rate</th>
               <th className="global-tran-th-ui hidden">ATC Rate</th>
                     
-            {!isFormDisabled && (
-              <th className="global-tran-th-ui sticky right-[43px] bg-blue-300 dark:bg-blue-900 z-30">
-                Add
-              </th>
-            )}
+              {!isFormDisabled && (
+                  <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
+                    Actions
+                  </th>
+                )}
 
-            {!isFormDisabled && (
-              <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
-                Delete
-              </th>
-            )}
+                
             </tr>
           </thead>
 
@@ -2476,29 +2454,27 @@ const handleCloseBranchModal = (selectedBranch) => {
                 </td>
 
 
+                  {!isFormDisabled && (
+                    <td className="global-tran-td-ui text-center sticky right-0">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          className="global-tran-td-button-add-ui"
+                          onClick={() => handleAddRow(index)}
+                        >
+                          <FontAwesomeIcon icon={faPlus} />
+                        </button>
 
-                {!isFormDisabled && (
-                <td className="global-tran-td-ui text-center sticky right-12">
-                  <button
-                    className="global-tran-td-button-add-ui"
-                    onClick={() => handleAddRow(index)}
-                    
-                  >
-                    <FontAwesomeIcon icon={faPlus} />
-                  </button>
-                </td>
-              )}
-
-              {!isFormDisabled && (
-                <td className="global-tran-td-ui text-center sticky right-0">
-                  <button
-                    className="global-tran-td-button-delete-ui"
-                    onClick={() => handleDeleteRow(index)}
-                  >
-                    <FontAwesomeIcon icon={faMinus} />
-                  </button>
-                </td>
-              )}
+                        <button
+                          type="button"
+                          className="global-tran-td-button-delete-ui"
+                          onClick={() => handleDeleteRow(index)}
+                        >
+                          <FontAwesomeIcon icon={faTrashAlt} />
+                        </button>
+                      </div>
+                    </td>
+                  )}
                         
               </tr>
             ))}
@@ -2652,15 +2628,10 @@ const handleCloseBranchModal = (selectedBranch) => {
                 <th className="global-tran-th-ui">SL Ref. Date</th>
                 <th className="global-tran-th-ui">Remarks</th>
                 
-                {!isFormDisabled && (
-                  <>
-                    <th className="global-tran-th-ui sticky right-[43px] bg-blue-300 dark:bg-blue-900 z-30">
-                      Add
-                    </th>
-                    <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
-                      Delete
-                    </th>
-                  </>
+              {!isFormDisabled && (
+                  <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
+                    Actions
+                  </th>
                 )}
 
               </tr>
@@ -3088,27 +3059,28 @@ const handleCloseBranchModal = (selectedBranch) => {
                     />
                 </td>
                   
-                {!isFormDisabled && (
-                  <td className="global-tran-td-ui text-center sticky right-10">
-                    <button
-                      className="global-tran-td-button-add-ui"
-                      onClick={() => handleAddRowGL(index)}
-                    >
-                      <FontAwesomeIcon icon={faPlus} />
-                    </button>
+                  {!isFormDisabled && (
+                  <td className="global-tran-td-ui text-center sticky right-0">
+                    <div className="flex items-center justify-center gap-1">
+                      <button
+                        type="button"
+                        className="global-tran-td-button-add-ui"
+                        onClick={() => handleAddRowGL(index)}
+                      >
+                        <FontAwesomeIcon icon={faPlus} />
+                      </button>
+
+                      <button
+                        type="button"
+                        className="global-tran-td-button-delete-ui"
+                        onClick={() => handleDeleteRowGL(index)}
+                      >
+                        <FontAwesomeIcon icon={faTrashAlt} />
+                      </button>
+                    </div>
                   </td>
                 )}
 
-                {!isFormDisabled && (
-                  <td className="global-tran-td-ui text-center sticky right-0">
-                    <button
-                      className="global-tran-td-button-delete-ui"
-                      onClick={() => handleDeleteRowGL(index)}
-                    >
-                      <FontAwesomeIcon icon={faMinus} />
-                    </button>
-                  </td>
-                )}
 
 
                 </tr>
