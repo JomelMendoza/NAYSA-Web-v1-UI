@@ -74,6 +74,8 @@ import {
   useFetchTranDataReversal,
   useHandleCancel,
   useHandlePost,
+  useFieldLenghtCheck,
+  useGetFieldLength,
 } from "@/NAYSA Cloud/Global/procedure";
 
 import { useHandlePrint } from "@/NAYSA Cloud/Global/report";
@@ -131,6 +133,7 @@ const JV = () => {
     isSaveDisabled: false,
     isResetDisabled: false,
     isFetchDisabled: false,
+    tblFieldArray: [],
     // showAllTranDocNo: false,
     // showPostModal: false,
     // showAllTranDocNo: false,
@@ -203,7 +206,7 @@ const JV = () => {
     setState((prev) => ({ ...prev, ...updates }));
   };
 
-  const dbDateString = "2026-03-29T00:00:00Z"; 
+  const dbDateString = "2026-03-29T00:00:00Z";
   const dateObj = new Date(dbDateString);
   const [jvType, setJvType] = useState("");
   const [refDocType, setRefDocType] = useState("");
@@ -229,6 +232,7 @@ const JV = () => {
     isSaveDisabled,
     isResetDisabled,
     isFetchDisabled,
+    tblFieldArray,
 
     // Currency
     glCurrMode,
@@ -484,6 +488,9 @@ const JV = () => {
         updateState({ refdocTypes: refDocType, selectedRefDocType: "JV" });
       }
 
+
+      
+
       const hsOption = await useTopHSOption();
       if (hsOption) {
         updateState({
@@ -500,13 +507,24 @@ const JV = () => {
           updateState({
             currName: curr.currName,
             currRate: formatNumber(1, 6),
-          });
-        }
+        });
       }
-    } catch (err) {
-      console.error("Error fetching data:", err);
     }
-  };
+
+    // load field lengths from database
+const tbls = "jv_hd,jv_dt1,jv_dt2";
+const hdtblcol_result = await useFieldLenghtCheck(tbls);
+if (hdtblcol_result) {
+  updateState({ tblFieldArray: hdtblcol_result });
+}
+  } catch (err) {
+    console.error("Error fetching data:", err);
+  } finally {
+    updateState({ isLoading: false });
+  }
+};
+
+  
 
   const loadCurrencyMode = (
     mode = glCurrMode,
@@ -908,46 +926,43 @@ const JV = () => {
     }
   };
 
-const handleAddRowGL = (index = null) => {
-  const newRow = {
-    acctCode: "",
-    rcCode: "",
-    sltypeCode: "",
-    slCode: "",
-    particular: "",
-    vatCode: "",
-    vatName: "",
-    atcCode: "",
-    atcName: "",
-    debit: "0.00",
-    credit: "0.00",
-    debitFx1: "0.00",
-    creditFx1: "0.00",
-    debitFx2: "0.00",
-    creditFx2: "0.00",
-    slRefNo: "",
-    slRefDate: "",
-    remarks: "",
+  const handleAddRowGL = (index = null) => {
+    const newRow = {
+      acctCode: "",
+      rcCode: "",
+      sltypeCode: "",
+      slCode: "",
+      particular: "",
+      vatCode: "",
+      vatName: "",
+      atcCode: "",
+      atcName: "",
+      debit: "0.00",
+      credit: "0.00",
+      debitFx1: "0.00",
+      creditFx1: "0.00",
+      debitFx2: "0.00",
+      creditFx2: "0.00",
+      slRefNo: "",
+      slRefDate: "",
+      remarks: "",
+    };
+
+    const updatedRowsGL = [...detailRowsGL];
+
+    if (index !== null && index >= 0) {
+      updatedRowsGL.splice(index + 1, 0, newRow);
+    } else {
+      updatedRowsGL.push(newRow);
+    }
+
+    updateState({
+      detailRowsGL: updatedRowsGL,
+    });
   };
 
-  const updatedRowsGL = [...detailRowsGL];
-
-  if (index !== null && index >= 0) {
-
-    updatedRowsGL.splice(index + 1, 0, newRow);
-  } else {
-    
-    updatedRowsGL.push(newRow);
-  }
-
-  updateState({
-    detailRowsGL: updatedRowsGL,
-  });
-};
-
-
   // const handleAddRowGL = (index = null) => {
-    
+
   //   updateState({
   //     detailRowsGL: [
   //       ...detailRowsGL,
@@ -977,7 +992,7 @@ const handleAddRowGL = (index = null) => {
 
   // const updatedRows = [...detailRows];
   // const handleDeleteRow = (index) => {
-    
+
   //   updatedRows.splice(index, 1);
 
   //   updateState({ detailRows: updatedRows });
@@ -1262,7 +1277,7 @@ const handleAddRowGL = (index = null) => {
 
   const handleDetailChangeGL = async (index, field, value) => {
     const updatedRowsGL = [...state.detailRowsGL];
-  let row = { ...updatedRowsGL[index] };
+    let row = { ...updatedRowsGL[index] };
 
     if (
       [
@@ -1324,7 +1339,7 @@ const handleAddRowGL = (index = null) => {
       row[field] = value;
     }
 
-  updatedRowsGL[index] = row;
+    updatedRowsGL[index] = row;
     updateState({ detailRowsGL: updatedRowsGL });
   };
 
@@ -1784,31 +1799,31 @@ const handleAddRowGL = (index = null) => {
                 </div>
 
                 {/* JV Date Picker - Updated to match APV behavior */}
-               <div className="relative w-full">
-  <div
-    className={`flex items-stretch global-ref-textbox-ui ${!isFormDisabled ? "global-ref-textbox-enabled" : "global-ref-textbox-disabled"}`}
-  >
-    <DateFormatInput
-      id="jv_date"
-      className="peer flex-grow bg-transparent border-none px-3 focus:outline-none cursor-pointer"
-      value={header.jv_date}
-      disabled={isFormDisabled}
-      updateState={(updates) => {
-        if (updates.jv_date !== undefined) {
-          updateState({
-            header: { ...header, jv_date: updates.jv_date },
-          });
-        }
-      }}
-    />
-  </div>
-  <label
-    htmlFor="jv_date"
-    className={`global-ref-floating-label ${!isFormDisabled ? "global-ref-label-enabled" : "global-ref-label-disabled"}`}
-  >
-    JV Date
-  </label>
-</div>
+                <div className="relative w-full">
+                  <div
+                    className={`flex items-stretch global-ref-textbox-ui ${!isFormDisabled ? "global-ref-textbox-enabled" : "global-ref-textbox-disabled"}`}
+                  >
+                    <DateFormatInput
+                      id="jv_date"
+                      className="peer flex-grow bg-transparent border-none px-3 focus:outline-none cursor-pointer"
+                      value={header.jv_date}
+                      disabled={isFormDisabled}
+                      updateState={(updates) => {
+                        if (updates.jv_date !== undefined) {
+                          updateState({
+                            header: { ...header, jv_date: updates.jv_date },
+                          });
+                        }
+                      }}
+                    />
+                  </div>
+                  <label
+                    htmlFor="jv_date"
+                    className={`global-ref-floating-label ${!isFormDisabled ? "global-ref-label-enabled" : "global-ref-label-disabled"}`}
+                  >
+                    JV Date
+                  </label>
+                </div>
               </div>
               {/* Column 2 */}
               <div className="global-tran-textbox-group-div-ui">
@@ -1975,6 +1990,7 @@ const handleAddRowGL = (index = null) => {
                       }
                     }}
                     disabled={isFormDisabled}
+                     maxLength={useGetFieldLength(tblFieldArray, "refDocNo")}
                   />
                   <label
                     htmlFor="refDocNo"
@@ -2002,16 +2018,18 @@ const handleAddRowGL = (index = null) => {
                 </div>
               </div>
               {/* Remarks Section - Now inside the 3-column container, spanning all 3 */}
-              <div className="col-span-full">
-                <div className="relative p-2">
+              {/* Remarks Section */}
+              <div className="lg:col-span-3">
+                <div className="relative p-2 h-full">
                   <textarea
                     id="remarks"
-                    placeholder=""
+                    placeholder=" "
                     rows={4}
-                    className="peer global-tran-textbox-remarks-ui pt-2"
+                    className="peer global-tran-textbox-remarks-ui pt-2 h-full"
                     value={remarks}
                     onChange={(e) => updateState({ remarks: e.target.value })}
                     disabled={isFormDisabled}
+                    maxLength={useGetFieldLength(tblFieldArray, "remarks")}
                   />
                   <label
                     htmlFor="remarks"
@@ -2024,89 +2042,73 @@ const handleAddRowGL = (index = null) => {
             </div>{" "}
             {/* End of the 3-column container */}
             {/* Column 4 - Totals (remains unchanged, but its parent is now the main 4-column grid) */}
+            {/* Column 4 */}
+            {/* Column 4 */}
             <div className="global-tran-textbox-group-div-ui">
-              {/* NEW FLEX CONTAINER FOR CURRENCY AND CURRENCY RATE */}
-              <div className="flex space-x-4">
-                {" "}
-                {/* Added flex container with spacing */}
-                {/* Currency */}
-                <div className="relative flex-grow w-2/3">
-                  {" "}
-                  {/* Used flex-grow to make it longer */}
-                  <input
-                    type="text"
-                    id="currCode"
-                    value={currCode}
-                    className="peer global-tran-textbox-ui hidden"
-                  />
-                  <input
-                    type="text"
-                    id="currName"
-                    value={currName}
-                    className="peer global-tran-textbox-ui"
-                  />
-                  <label
-                    htmlFor="currCode"
-                    className="global-tran-floating-label"
-                  >
-                    Currency
-                  </label>
-                  <button
-                    onClick={() => {
-                      updateState({ currencyModalOpen: true });
-                    }}
-                    className={`global-tran-textbox-button-search-padding-ui ${
-                      isFetchDisabled
-                        ? "global-tran-textbox-button-search-disabled-ui"
-                        : "global-tran-textbox-button-search-enabled-ui"
-                    } global-tran-textbox-button-search-ui`}
-                    disabled={isFormDisabled}
-                  >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} />
-                  </button>
-                </div>
-                {/* Currency Rate */}
-                <div className="relative flex-grow">
-                  {" "}
-                  {/* Used flex-grow to take remaining space (or you can use w-1/3) */}
-                  <input
-                    type="text"
-                    id="currRate"
-                    value={currRate}
-                    onChange={(e) => {
-                      const inputValue = e.target.value;
-                      const sanitizedValue = inputValue.replace(/[^0-9.]/g, "");
-                      if (
-                        /^\d*\.?\d{0,2}$/.test(sanitizedValue) ||
-                        sanitizedValue === ""
-                      ) {
-                        updateState({ currRate: sanitizedValue });
-                      }
-                    }}
-                    onBlur={handleCurrRateNoBlur}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        document.getElementById("refDocNo1")?.focus();
-                      }
-                    }}
-                    onFocus={(e) => {
-                      if (parseFormattedNumber(e.target.value) === 0) {
-                        e.target.value = "";
-                      }
-                    }}
-                    placeholder=" "
-                    className="peer global-tran-textbox-ui text-right"
-                    disabled={isFormDisabled || glCurrDefault === currCode}
-                  />
-                  <label
-                    htmlFor="currName"
-                    className="global-tran-floating-label"
-                  >
-                    {" "}
-                    Currency Rate
-                  </label>
-                </div>
+              {/* Currency */}
+              <div className="relative">
+                <input
+                  type="text"
+                  id="currCode"
+                  value={currCode}
+                  className="peer global-tran-textbox-ui hidden"
+                  readOnly
+                />
+                <input
+                  type="text"
+                  id="currName"
+                  value={currName}
+                  placeholder=" "
+                  className="peer global-tran-textbox-ui"
+                  readOnly
+                />
+                <label
+                  htmlFor="currName"
+                  className="global-tran-floating-label"
+                >
+                  Currency
+                </label>
+                <button
+                  type="button"
+                  onClick={() => updateState({ currencyModalOpen: true })}
+                  className={`global-tran-textbox-button-search-padding-ui ${
+                    isFetchDisabled
+                      ? "global-tran-textbox-button-search-disabled-ui"
+                      : "global-tran-textbox-button-search-enabled-ui"
+                  } global-tran-textbox-button-search-ui`}
+                  disabled={isFormDisabled}
+                >
+                  <FontAwesomeIcon icon={faMagnifyingGlass} />
+                </button>
+              </div>
+
+              {/* Currency Rate */}
+              <div className="relative">
+                <input
+                  type="text"
+                  id="currRate"
+                  value={currRate}
+                  onChange={(e) => {
+                    const inputValue = e.target.value;
+                    const sanitizedValue = inputValue.replace(/[^0-9.]/g, "");
+                    if (
+                      /^\d*\.?\d{0,6}$/.test(sanitizedValue) ||
+                      sanitizedValue === ""
+                    ) {
+                      updateState({ currRate: sanitizedValue });
+                    }
+                  }}
+                  onBlur={handleCurrRateNoBlur}
+                  placeholder=" "
+                  className="peer global-tran-textbox-ui text-right"
+                  disabled={isFormDisabled || glCurrDefault === currCode}
+                />
+                <label
+                  htmlFor="currRate"
+                  className="global-tran-floating-label"
+                >
+                  Currency Rate
+                </label>
               </div>
             </div>
           </div>
@@ -2130,23 +2132,26 @@ const handleAddRowGL = (index = null) => {
               </button>
             </div>
 
-           {/* Action Button */}
-<div className="flex justify-end">
-  <button
-    onClick={() => handleActivityOption("GenerateGL")}
-    className="global-tran-button-generateGL"
-    // Disable if loading OR if the transaction type is "Regular" (JV01)
-    disabled={isLoading || selectedJVType === "JV01"} 
-    style={{ 
-      visibility: isFormDisabled ? "hidden" : "visible",
-      // Optional: Visual cue that it's disabled
-      opacity: (isLoading || selectedJVType === "JV01") ? 0.5 : 1,
-      cursor: (isLoading || selectedJVType === "JV01") ? "not-allowed" : "pointer"
-    }}
-  >
-    {isLoading ? "Generating..." : "Generate GL Entries"}
-  </button>
-</div>
+            {/* Action Button */}
+            <div className="flex justify-end">
+              <button
+                onClick={() => handleActivityOption("GenerateGL")}
+                className="global-tran-button-generateGL"
+                // Disable if loading OR if the transaction type is "Regular" (JV01)
+                disabled={isLoading || selectedJVType === "JV01"}
+                style={{
+                  visibility: isFormDisabled ? "hidden" : "visible",
+                  // Optional: Visual cue that it's disabled
+                  opacity: isLoading || selectedJVType === "JV01" ? 0.5 : 1,
+                  cursor:
+                    isLoading || selectedJVType === "JV01"
+                      ? "not-allowed"
+                      : "pointer",
+                }}
+              >
+                {isLoading ? "Generating..." : "Generate GL Entries"}
+              </button>
+            </div>
           </div>
 
           {/* GL Details Table */}
@@ -2730,7 +2735,7 @@ const handleAddRowGL = (index = null) => {
                           type="text"
                           className="w-[100px] global-tran-td-inputclass-ui"
                           value={row.slRefNo || ""}
-                          maxLength={25}
+                          maxLength={useGetFieldLength(tblFieldArray, "slRefNo")}
                           onChange={(e) =>
                             handleDetailChangeGL(
                               index,
@@ -2765,13 +2770,8 @@ const handleAddRowGL = (index = null) => {
                           type="text"
                           className="w-[100px] global-tran-td-inputclass-ui"
                           value={row.remarks || header.remarks || ""}
-                          onChange={(e) =>
-                            handleDetailChangeGL(
-                              index,
-                              "remarks",
-                              e.target.value,
-                            )
-                          }
+                          maxLength={useGetFieldLength(tblFieldArray, "remarks")}
+                          onChange={(e) => handleDetailChangeGL(index, "remarks", e.target.value)}
                         />
                       </td>
 
