@@ -59,7 +59,7 @@ const INITIAL_REG = {
 const CurrRef = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const docType = "CURR"; 
+  const docType = "Currency"; 
   const guideRef = useRef(null);
   const formTopRef = useRef(null); 
   const pdfLink = reftablesPDFGuide[docType];

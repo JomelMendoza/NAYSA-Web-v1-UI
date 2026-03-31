@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import {
   useGetCurrentDayV2,
   useformatToDatev2,
-} from "@/NAYSA Cloud/Global/dates"; //
+} from "@/NAYSA Cloud/Global/dates";
 
 // UI
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -29,11 +29,13 @@ import SLMastLookupModal from "../../../Lookup/SearchSLMast.jsx";
 import BillTermLookupModal from "../../../Lookup/SearchBillTermRef.jsx";
 import BillCodeLookupModal from "../../../Lookup/SearchBillCodeRef.jsx";
 import CancelTranModal from "../../../Lookup/SearchCancelRef.jsx";
-import PostTranModal from "../../../Lookup/SearchPostRef.jsx";
+import PostJV from "./PostJV.jsx"; 
 import AttachDocumentModal from "../../../Lookup/SearchAttachment.jsx";
 import DocumentSignatories from "../../../Lookup/SearchSignatory.jsx";
 import AllTranHistory from "../../../Lookup/SearchGlobalTranHistory.jsx";
 import AllTranDocNo from "../../../Lookup/SearchDocNo.jsx";
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
+import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 
 // Configuration
 import { fetchData, postRequest } from "../../../Configuration/BaseURL.jsx";
@@ -59,7 +61,6 @@ import {
   useTopHSOption,
   useTopCompanyRow,
   useTopDocControlRow,
-  useTopDocDropDown,
   useTopVatAmount,
   useTopATCAmount,
   useTopBillCodeRow,
@@ -94,16 +95,19 @@ const JV = () => {
   const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const [topTab, setTopTab] = useState("details"); // "details" | "history"
-  const { user } = useAuth();
+  const [topTab, setTopTab] = useState("details");
+  
+  const { user, getAllTopHSDocRow, getAllDropDown, refsLoaded } = useAuth(); 
   const { resetFlag } = useReset();
   const [isViewDocument, setIsViewDocument] = useState(false);
+  
   useEffect(() => {
     const p = new URLSearchParams(location.search);
     if (p.get("viewDocument") === "true") {
       setIsViewDocument(true);
     }
   }, []);
+  
   const [state, setState] = useState({
     // HS Option
     glCurrMode: "M",
@@ -119,7 +123,6 @@ const JV = () => {
     documentSeries: "Auto",
     documentDocLen: 8,
     documentID: null,
-    // documentDate:useGetCurrentDay(),
     documentNo: "",
     documentStatus: "",
     status: "OPEN",
@@ -134,9 +137,6 @@ const JV = () => {
     isResetDisabled: false,
     isFetchDisabled: false,
     tblFieldArray: [],
-    // showAllTranDocNo: false,
-    // showPostModal: false,
-    // showAllTranDocNo: false,
 
     // Header information
     header: {
@@ -198,7 +198,7 @@ const JV = () => {
     showSignatoryModal: false,
     showBillCodeModal: false,
     showSlModal: false,
-    showPostModal: false, //new modal
+    showPostModal: false,
     showAllTranDocNo: false,
   });
 
@@ -206,13 +206,7 @@ const JV = () => {
     setState((prev) => ({ ...prev, ...updates }));
   };
 
-  const dbDateString = "2026-03-29T00:00:00Z";
-  const dateObj = new Date(dbDateString);
-  const [jvType, setJvType] = useState("");
-  const [refDocType, setRefDocType] = useState("");
-
   const {
-    // Document info
     documentName,
     documentSeries,
     documentDocLen,
@@ -220,21 +214,15 @@ const JV = () => {
     documentStatus,
     documentNo,
     status,
-
-    // Tabs & loading
     activeTab,
     GLactiveTab,
     isLoading,
     showSpinner,
-
-    // UI states / disable flags
     isDocNoDisabled,
     isSaveDisabled,
     isResetDisabled,
     isFetchDisabled,
     tblFieldArray,
-
-    // Currency
     glCurrMode,
     glCurrDefault,
     withCurr2,
@@ -243,8 +231,6 @@ const JV = () => {
     glCurrGlobal2,
     glCurrGlobal3,
     defaultCurrRate,
-
-    // Transaction Header
     header,
     branchCode,
     branchName,
@@ -265,20 +251,14 @@ const JV = () => {
     selectedJVType,
     selectedRefDocType,
     noReprints,
-
-    // Transaction details
     detailRows,
     detailRowsGL,
     totalDebit,
     totalCredit,
-
-    // Contexts
     modalContext,
     selectionContext,
     selectedRowIndex,
     accountModalSource,
-
-    // Modals
     showAccountModal,
     showRcModal,
     showVatModal,
@@ -292,17 +272,19 @@ const JV = () => {
     showSignatoryModal,
     showBillCodeModal,
     showSlModal,
-    showPostModal, //new modal
+    showPostModal,
     showAllTranDocNo,
   } = state;
 
-  const [focusedCell, setFocusedCell] = useState(null); // { index: number, field: string }
+  const [focusedCell, setFocusedCell] = useState(null);
 
-  // Document Global Setup
+  // Document Global Setup & Updated Transaction Name Logic
   const docType = docTypes.JV;
   const pdfLink = docTypePDFGuide[docType];
   const videoLink = docTypeVideoGuide[docType];
-  const documentTitle = docTypeNames[docType] || "Journal Voucher";
+  
+  const hsDoc = getAllTopHSDocRow ? getAllTopHSDocRow(docType) : null;
+  const documentTitle = hsDoc.docName + ' Transaction';
 
   // Status Global Setup
   const displayStatus = status || "OPEN";
@@ -316,7 +298,6 @@ const JV = () => {
     displayStatus,
   );
 
-  // Variables
   const [totals, setTotals] = useState({
     totalGrossAmount: "0.00",
     totalDiscountAmount: "0.00",
@@ -334,18 +315,8 @@ const JV = () => {
     discAcct: glAccountFilter.ActiveAll,
   };
   const customParam = customParamMap[accountModalSource] || null;
-  // const [header, setHeader] = useState({
-  //   jv_date: new Date().toISOString().split("T")[0],
-  // });
 
-  const updateTotalsDisplay = (
-    grossAmt,
-    discAmt,
-    netDisc,
-    vat,
-    atc,
-    amtDue,
-  ) => {
+  const updateTotalsDisplay = (grossAmt, discAmt, netDisc, vat, atc, amtDue) => {
     setTotals({
       totalGrossAmount: formatNumber(grossAmt),
       totalDiscountAmount: formatNumber(discAmt),
@@ -378,16 +349,11 @@ const JV = () => {
     }
     let timer;
     if (isLoading) {
-      timer = setTimeout(() => updateState({ showSpinner: true }), 200);
+      updateState({ showSpinner: true });
     } else {
       updateState({ showSpinner: false });
     }
-    return () => clearTimeout(timer);
   }, [resetFlag, isLoading]);
-
-  useEffect(() => {
-    // Handle custCode changes if needed
-  }, [custCode]);
 
   useEffect(() => {
     if (glCurrMode && glCurrDefault && currCode) {
@@ -424,27 +390,89 @@ const JV = () => {
     handleReset();
   }, []);
 
-  const LoadingSpinner = () => (
-    <div className="global-tran-spinner-main-div-ui">
-      <div className="global-tran-spinner-sub-div-ui">
-        <FontAwesomeIcon
-          icon={faSpinner}
-          spin
-          size="2x"
-          className="text-blue-500 mb-2"
-        />
-        <p>Please wait...</p>
-      </div>
-    </div>
-  );
+  // NEW Dropdown Fetching Logic (Adopted from CR.jsx)
+  useEffect(() => {
+    if (!refsLoaded) return;
+
+    // 1. Fetch data synchronously using the dropdown utility
+    const jvTran = getAllDropDown("JVTRAN_TYPE", docType);
+    const refDoc = getAllDropDown("JVDOC_TYPE", docType);
+
+    // 2. Build a single update object to avoid multiple re-renders
+    const updates = {};
+
+    if (jvTran.length > 0) {
+      updates.jvTypes = jvTran;
+      updates.selectedJVType = "JV01";
+    }
+
+    if (refDoc.length > 0) {
+      updates.refdocTypes = refDoc;
+      updates.selectedRefDocType = "JV";
+    }
+
+    // 3. Batch the update if any data was found
+    if (Object.keys(updates).length > 0) {
+      updateState(updates);
+    }
+  }, [docType, refsLoaded]);
+
+  // OPTIMIZED: Parallel data loading for speed (Removed dropdown calls)
+  const loadInitialData = async () => {
+    updateState({ isLoading: true, showSpinner: true });
+    try {
+      const [
+        hsOptionReq,
+        fieldLengthsReq,
+        docControlReq
+      ] = await Promise.all([
+        useTopHSOption(),
+        useFieldLenghtCheck("jv_hd,jv_dt1,jv_dt2"),
+        useTopDocControlRow(docType)
+      ]);
+
+      let currReq = null;
+      if (hsOptionReq?.glCurrDefault) {
+        currReq = await useTopCurrencyRow(hsOptionReq.glCurrDefault);
+      }
+
+      const stateUpdates = {
+        isLoading: false,
+        showSpinner: false,
+      };
+
+      if (docControlReq) {
+        stateUpdates.documentName = docControlReq.docName;
+        stateUpdates.documentSeries = docControlReq.docName;
+        stateUpdates.documentDocLen = docControlReq.docName;
+      }
+      if (hsOptionReq) {
+        stateUpdates.glCurrMode = hsOptionReq.glCurrMode;
+        stateUpdates.glCurrDefault = hsOptionReq.glCurrDefault;
+        stateUpdates.currCode = hsOptionReq.glCurrDefault;
+        stateUpdates.glCurrGlobal1 = hsOptionReq.glCurrGlobal1;
+        stateUpdates.glCurrGlobal2 = hsOptionReq.glCurrGlobal2;
+        stateUpdates.glCurrGlobal3 = hsOptionReq.glCurrGlobal3;
+      }
+      if (currReq) {
+        stateUpdates.currName = currReq.currName;
+        stateUpdates.currRate = formatNumber(1, 6);
+      }
+      if (fieldLengthsReq) {
+        stateUpdates.tblFieldArray = fieldLengthsReq;
+      }
+
+      updateState(stateUpdates);
+    } catch (err) {
+      console.error("Error fetching initial data:", err);
+      updateState({ isLoading: false, showSpinner: false });
+    }
+  };
 
   const handleReset = () => {
-    loadDocDropDown();
-    loadDocControl();
-    loadCompanyData();
+    loadInitialData(); 
     updateState({
-      header: { jv_date: useGetCurrentDayV2() }, // Sets default to today
-      documentDate: useGetCurrentDayV2(),
+      header: { jv_date: useGetCurrentDayV2() },
       branchCode: "HO",
       branchName: "Head Office",
       refDocNo: "",
@@ -461,8 +489,6 @@ const JV = () => {
       documentStatus: "",
       activeTab: "basic",
       GLactiveTab: "entries",
-      isLoading: false,
-      showSpinner: false,
       isDocNoDisabled: false,
       isSaveDisabled: false,
       isResetDisabled: false,
@@ -471,60 +497,6 @@ const JV = () => {
     });
     updateTotalsDisplay(0, 0, 0, 0, 0, 0);
   };
-
-  const loadCompanyData = async () => {
-    updateState({ isLoading: true });
-
-    try {
-      const [jvType, refDocType] = await Promise.all([
-        useTopDocDropDown(docType, "JVTRAN_TYPE"),
-        useTopDocDropDown(docType, "JVDOC_TYPE"),
-      ]);
-
-      if (jvType) {
-        updateState({ jvTypes: jvType, selectedJVType: "JV01" });
-      }
-      if (refDocType) {
-        updateState({ refdocTypes: refDocType, selectedRefDocType: "JV" });
-      }
-
-
-      
-
-      const hsOption = await useTopHSOption();
-      if (hsOption) {
-        updateState({
-          glCurrMode: hsOption.glCurrMode,
-          glCurrDefault: hsOption.glCurrDefault,
-          currCode: hsOption.glCurrDefault,
-          glCurrGlobal1: hsOption.glCurrGlobal1,
-          glCurrGlobal2: hsOption.glCurrGlobal2,
-          glCurrGlobal3: hsOption.glCurrGlobal3,
-        });
-
-        const curr = await useTopCurrencyRow(hsOption.glCurrDefault);
-        if (curr) {
-          updateState({
-            currName: curr.currName,
-            currRate: formatNumber(1, 6),
-        });
-      }
-    }
-
-    // load field lengths from database
-const tbls = "jv_hd,jv_dt1,jv_dt2";
-const hdtblcol_result = await useFieldLenghtCheck(tbls);
-if (hdtblcol_result) {
-  updateState({ tblFieldArray: hdtblcol_result });
-}
-  } catch (err) {
-    console.error("Error fetching data:", err);
-  } finally {
-    updateState({ isLoading: false });
-  }
-};
-
-  
 
   const loadCurrencyMode = (
     mode = glCurrMode,
@@ -540,27 +512,6 @@ if (hdtblcol_result) {
       withCurr2: calcWithCurr2,
       withCurr3: calcWithCurr3,
     });
-  };
-
-  const loadDocControl = async () => {
-    const data = await useTopDocControlRow(docType);
-    if (data) {
-      updateState({
-        documentName: data.docName,
-        documentSeries: data.docName,
-        documentDocLen: data.docName,
-      });
-    }
-  };
-
-  const loadDocDropDown = async () => {
-    const data = await useTopDocDropDown(docType, "JVTRAN_TYPE");
-    if (data) {
-      updateState({
-        jvTypes: data,
-        selectedJVType: "JV01",
-      });
-    }
   };
 
   const fetchTranData = async (documentNo, branchCode) => {
@@ -593,10 +544,8 @@ if (hdtblcol_result) {
         return resetState();
       }
 
-      // Format header date
       const jvDateForHeader = data.jvDate ? useformatToDatev2(data.jvDate) : "";
 
-      // Format rows
       const retrievedDetailRows = (data.dt1 || []).map((item) => ({
         ...item,
         jvAmount: formatNumber(item.jvAmount),
@@ -615,7 +564,6 @@ if (hdtblcol_result) {
         slRefDate: glRow.slRefDate ? useformatToDatev2(glRow.slRefDate) : "",
       }));
 
-      // Update state with fetched data
       updateState({
         documentStatus: data.jvStatus,
         status: data.docStatus,
@@ -683,14 +631,6 @@ if (hdtblcol_result) {
         return resetState();
       }
 
-      // Format header date
-      // let jvDateForHeader = '';
-      // if (data.jvDate) {
-      //   const d = new Date(data.jvDate);
-      //   jvDateForHeader = isNaN(d) ? '' : d.toISOString().split("T")[0];
-      // }
-
-      // Format rows
       const retrievedDetailRows = (data.dt1 || []).map((item) => ({
         ...item,
         jvAmount: formatNumber(item.jvAmount),
@@ -709,7 +649,6 @@ if (hdtblcol_result) {
         slRefDate: glRow.slRefDate ? useformatToDatev2(glRow.slRefDate) : "",
       }));
 
-      // Update state with fetched data
       updateState({
         custCode: data.slCode,
         custName: data.slName,
@@ -752,9 +691,6 @@ if (hdtblcol_result) {
   };
 
   const handleActivityOption = async (action) => {
-    // if (!detailRows || detailRows.length === 0) {
-    //   return;
-    // }
     if (action === "Upsert" && detailRowsGL.length === 0) {
       Swal.fire({
         icon: "warning",
@@ -792,19 +728,22 @@ if (hdtblcol_result) {
         branchCode: branchCode,
         jvNo: documentNo || "",
         jvId: documentID || "",
-        jvDate: header.jv_date,
+        jvDate: header.jv_date.includes("/") 
+          ? new Date(header.jv_date).toISOString().split("T")[0] 
+          : header.jv_date,
         jvtranType: selectedJVType,
         refDocType: selectedRefDocType,
         slCode: custCode,
         slName: custName,
         refDocNo: refDocNo,
         refDocNo2: refDocNo2,
+        docAmt: parseFormattedNumber(totals.totalGrossAmount) || 0,
         fromDate: fromDate,
         toDate: toDate,
         currCode: currCode || "PHP",
         currRate: parseFormattedNumber(currRate),
         remarks: remarks || "",
-        userCode: "NSI",
+        userCode: user.USER_CODE,
         dt1: detailRows.map((row, index) => ({
           lnNo: String(index + 1),
           jvSpecs: row.jvSpecs || "",
@@ -844,8 +783,6 @@ if (hdtblcol_result) {
         })),
       };
 
-      console.log("Payload", glData);
-
       if (action === "GenerateGL") {
         try {
           const newGlEntries = await useGenerateGLEntries(docType, glData);
@@ -875,10 +812,9 @@ if (hdtblcol_result) {
             useSwalshowSaveSuccessDialog(
               () => {
                 handleReset();
-                setTopTab("history"); // Switches the view to the history tab automatically
-                setHistoryRefreshKey((prev) => prev + 1); // Triggers the auto-sync
+                setTopTab("history");
               },
-              () => handleSaveAndPrint(response.data[0].jvId), // or sviId
+              () => handleSaveAndPrint(response.data[0].jvId), 
             );
           }
         } catch (error) {
@@ -961,44 +897,6 @@ if (hdtblcol_result) {
     });
   };
 
-  // const handleAddRowGL = (index = null) => {
-
-  //   updateState({
-  //     detailRowsGL: [
-  //       ...detailRowsGL,
-  //       {
-  //         acctCode: "",
-  //         rcCode: "",
-  //         sltypeCode: "",
-  //         slCode: "",
-  //         particular: "",
-  //         vatCode: "",
-  //         vatName: "",
-  //         atcCode: "",
-  //         atcName: "",
-  //         debit: "0.00",
-  //         credit: "0.00",
-  //         debitFx1: "0.00",
-  //         creditFx1: "0.00",
-  //         debitFx2: "0.00",
-  //         creditFx2: "0.00",
-  //         slRefNo: "",
-  //         slRefDate: "",
-  //         remarks: "",
-  //       },
-  //     ],
-  //   });
-  // };
-
-  // const updatedRows = [...detailRows];
-  // const handleDeleteRow = (index) => {
-
-  //   updatedRows.splice(index, 1);
-
-  //   updateState({ detailRows: updatedRows });
-  //   updateTotals(updatedRows);
-  // };
-
   const handleDeleteRowGL = (index) => {
     const updatedRows = [...detailRowsGL];
     updatedRows.splice(index, 1);
@@ -1037,20 +935,12 @@ if (hdtblcol_result) {
   };
 
   const handleCancel = async () => {
-    // if (!detailRows || detailRows.length === 0) {
-    //   return;
-    // }
-
     if (documentID && documentStatus === "") {
       updateState({ showCancelModal: true });
     }
   };
 
   const handlePost = async () => {
-    //  if (!detailRows || detailRows.length === 0) {
-    //       return;
-    //       }
-
     if (documentID && documentStatus === "") {
       updateState({ showPostModal: true });
     }
@@ -1069,7 +959,7 @@ if (hdtblcol_result) {
       updateState({
         documentNo: "",
         documentID: "",
-        documentStatus: "", // Reset so it doesn't think it's finalized
+        documentStatus: "",
         status: "OPEN",
         isDocNoDisabled: false,
         isFetchDisabled: false,
@@ -1085,7 +975,6 @@ if (hdtblcol_result) {
     });
   };
 
-  //  ** View Document and Transaction History Retrieval ***
   const cleanUrl = useCallback(() => {
     navigate(location.pathname, { replace: true });
   }, [navigate, location.pathname]);
@@ -1228,22 +1117,6 @@ if (hdtblcol_result) {
     if (runCalculations) {
       const origVatCode = row.vatCode || "";
       const origAtcCode = row.atcCode || "";
-
-      // shared calculation logic
-      async function recalcRow(newJvAmt) {
-        const newVatAmount = origVatCode
-          ? await useTopVatAmount(origVatCode, newJvAmt)
-          : 0;
-        const newNetOfVat = +(newJvAmt - newVatAmount).toFixed(2);
-        const newATCAmount = origAtcCode
-          ? await useTopATCAmount(origAtcCode, newNetOfVat)
-          : 0;
-        const newAmountDue = +(newJvAmt - newATCAmount).toFixed(2);
-
-        row.vatAmount = formatNumber(newVatAmount);
-        row.atcAmount = formatNumber(newATCAmount);
-        row.jvAmount = formatNumber(newAmountDue);
-      }
 
       if (field === "vatCode" || field === "atcCode") {
         async function updateVatAndAtc() {
@@ -1457,7 +1330,7 @@ if (hdtblcol_result) {
       const result = await useHandleCancel(
         docType,
         documentID,
-        user.USER_CODE, // Use the real logged-in user code
+        user.USER_CODE,
         confirmation.password,
         confirmation.reason,
         updateState,
@@ -1613,20 +1486,6 @@ if (hdtblcol_result) {
     }
   };
 
-  // const handleFieldBehavior = (option) => {
-  //   switch (option) {
-
-  //     case "disableOnSaved":
-  //      return (
-  //         isFormDisabled ||
-  //         (selectedJVType === "CR11" && state.documentNo !== "" )
-  //       );
-
-  //     default:
-  //       return false;
-  //   }
-  // };
-
   const handleJVTypeChange = (e) => {
     const selectedType = e.target.value;
     updateState({ selectedJVType: selectedType });
@@ -1677,8 +1536,6 @@ if (hdtblcol_result) {
       </div>
 
       <div className={topTab === "details" ? "" : "hidden"}>
-        {/* Page title and subheading */}
-
         {/* Header Section */}
         <div className="global-tran-header-ui">
           <div className="global-tran-headertext-div-ui">
@@ -1707,11 +1564,10 @@ if (hdtblcol_result) {
                   ? "global-tran-tab-text_active-ui"
                   : "global-tran-tab-text_inactive-ui"
               }`}
-              onClick={() => setActiveTab("basic")}
+              onClick={() => updateState({activeTab: "basic"})}
             >
               Basic Information
             </button>
-            {/* Provision for Other Tabs */}
           </div>
 
           {/* JV Header Form Section - Main Grid Container */}
@@ -1720,85 +1576,37 @@ if (hdtblcol_result) {
             id="jv_hd"
           >
             <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {" "}
-              {/* Nested grid for 2 columns */}
+              
               {/* Column 1 */}
               <div className="global-tran-textbox-group-div-ui">
-                {/* Branch Name Input with lookup button */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="branchName"
-                    placeholder=" "
-                    value={branchName}
-                    readOnly
-                    onFocus={(e) => e.target.blur()}
-                    className="peer global-tran-textbox-ui cursor-pointer select-none"
-                  />
-                  <label
-                    htmlFor="branchName"
-                    className="global-tran-floating-label"
-                  >
-                    Branch
-                  </label>
-                  <button
-                    type="button"
-                    className={`global-tran-textbox-button-search-padding-ui ${
-                      isFetchDisabled
-                        ? "global-tran-textbox-button-search-disabled-ui"
-                        : "global-tran-textbox-button-search-enabled-ui"
-                    } global-tran-textbox-button-search-ui`}
-                    disabled={
-                      state.isFetchDisabled ||
-                      state.isDocNoDisabled ||
-                      isFormDisabled
-                    }
-                  >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} />
-                  </button>
-                </div>
+                <FieldRenderer
+                  id="branchName"
+                  label="Branch"
+                  type="lookup"
+                  value={branchName || ""}
+                  disabled={state.isFetchDisabled || state.isDocNoDisabled || isFormDisabled}
+                  onLookup={() => updateState({ branchModalOpen: true })}
+                />
 
-                {/*  Number Field */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="jvNo"
-                    value={state.documentNo}
-                    onChange={(e) =>
-                      updateState({ documentNo: e.target.value })
+                <FieldRenderer
+                  id="jvNo"
+                  label="JV No."
+                  type="lookup"
+                  value={state.documentNo || ""}
+                  disabled={state.isDocNoDisabled}
+                  onChange={(val) => updateState({ documentNo: val })}
+                  onBlur={handleSviNoBlur}
+                  onLookup={() => updateState({ showAllTranDocNo: true })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleSviNoBlur();
+                      document.getElementById("jv_date")?.focus();
                     }
-                    onBlur={handleSviNoBlur}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        document.getElementById("JVDate")?.focus();
-                      }
-                    }}
-                    placeholder=" "
-                    className={`peer global-tran-textbox-ui ${state.isDocNoDisabled ? "bg-blue-100 cursor-not-allowed" : ""}`}
-                    disabled={state.isDocNoDisabled}
-                  />
-                  <label htmlFor="jvNo" className="global-tran-floating-label">
-                    JV No.
-                  </label>
-                  <button
-                    className={`global-tran-textbox-button-search-padding-ui ${
-                      state.isFetchDisabled || state.isDocNoDisabled
-                        ? "global-tran-textbox-button-search-disabled-ui"
-                        : "global-tran-textbox-button-search-enabled-ui"
-                    } global-tran-textbox-button-search-ui`}
-                    disabled={state.isFetchDisabled || state.isDocNoDisabled}
-                    onClick={() => {
-                      if (!state.isDocNoDisabled) {
-                        fetchTranData(state.documentNo, state.branchCode);
-                      }
-                    }}
-                  >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} />
-                  </button>
-                </div>
+                  }}
+                />
 
-                {/* JV Date Picker - Updated to match APV behavior */}
+                {/* JV Date Picker */}
                 <div className="relative w-full">
                   <div
                     className={`flex items-stretch global-ref-textbox-ui ${!isFormDisabled ? "global-ref-textbox-enabled" : "global-ref-textbox-disabled"}`}
@@ -1825,199 +1633,85 @@ if (hdtblcol_result) {
                   </label>
                 </div>
               </div>
+
               {/* Column 2 */}
               <div className="global-tran-textbox-group-div-ui">
-                {/* Customer Code */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="custCode"
-                    value={custCode}
-                    readOnly
-                    placeholder=" "
-                    className="peer global-tran-textbox-ui"
-                  />
-                  <label
-                    htmlFor="CustCode"
-                    className="global-tran-floating-label"
-                  >
-                    <span className="global-tran-asterisk-ui"> </span>Customer
-                    Code
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => updateState({ custModalOpen: true })}
-                    className={`global-tran-textbox-button-search-padding-ui ${
-                      isFetchDisabled
-                        ? "global-tran-textbox-button-search-disabled-ui"
-                        : "global-tran-textbox-button-search-enabled-ui"
-                    } global-tran-textbox-button-search-ui`}
-                    disabled={isFormDisabled}
-                  >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} />
-                  </button>
-                </div>
+                <FieldRenderer
+                  id="custCode"
+                  label="Customer Code"
+                  type="lookup"
+                  value={custCode || ""}
+                  disabled={isFormDisabled}
+                  readOnly
+                  lookupDisabled={isFetchDisabled}
+                  onLookup={() => updateState({ custModalOpen: true })}
+                />
 
-                {/* Customer Name Display - Make this wider */}
                 <div className="relative w-full md:w-6/6 lg:w-4/4">
-                  {" "}
-                  {/* Added width classes here */}
-                  <input
-                    type="text"
+                  <FieldRenderer
                     id="custName"
-                    placeholder=" "
-                    value={custName}
-                    className="peer global-tran-textbox-ui"
+                    label="Customer Name"
+                    type="text"
+                    value={custName || ""}
+                    disabled
+                    readOnly
                   />
-                  <label
-                    htmlFor="custName"
-                    className="global-tran-floating-label"
-                  >
-                    <span className="global-tran-asterisk-ui"> </span>Customer
-                    Name
-                  </label>
                 </div>
 
-                <div className="relative">
-                  <select
-                    id="jvType"
-                    className="peer global-tran-textbox-ui"
-                    value={selectedJVType}
-                    // disabled={handleFieldBehavior("disableOnSaved")}
-                    onChange={(e) => handleJVTypeChange(e)}
-                  >
-                    {jvTypes.length > 0 ? (
-                      <>
-                        {jvTypes.map((type) => (
-                          <option
-                            key={type.DROPDOWN_CODE}
-                            value={type.DROPDOWN_CODE}
-                          >
-                            {type.DROPDOWN_NAME}
-                          </option>
-                        ))}
-                      </>
-                    ) : (
-                      <option value="">Loading Transaction Types...</option>
-                    )}
-                  </select>
-                  <label
-                    htmlFor="jvType"
-                    className="global-tran-floating-label"
-                  >
-                    JV Type
-                  </label>
-                  <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-                    <svg
-                      className="h-4 w-4 text-gray-500"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </div>
-                </div>
+                <FieldRenderer
+                  id="selectedJVType"
+                  label="JV Type"
+                  type="select"
+                  value={selectedJVType}
+                  disabled={isFormDisabled}
+                  onChange={(val) => updateState({ selectedJVType: val })}
+                  options={jvTypes.map((t) => ({
+                    label: t.DROPDOWN_NAME,
+                    value: t.DROPDOWN_CODE,
+                  }))}
+                />
               </div>
+
               {/* Column 3 */}
-              {/* Ref Doc Type */}
               <div className="global-tran-textbox-group-div-ui">
-                <div className="relative">
-                  <select
-                    id="refDocType"
-                    className="peer global-tran-textbox-ui"
-                    value={selectedRefDocType}
-                    // disabled={handleFieldBehavior("disableOnSaved")}
-                    onChange={(e) => handleRefDocTypeChange(e)}
-                  >
-                    {refdocTypes.length > 0 ? (
-                      <>
-                        {refdocTypes.map((type) => (
-                          <option
-                            key={type.DROPDOWN_CODE}
-                            value={type.DROPDOWN_CODE}
-                          >
-                            {type.DROPDOWN_NAME}
-                          </option>
-                        ))}
-                      </>
-                    ) : (
-                      <option value="">Loading Ref Doc Types...</option>
-                    )}
-                  </select>
-                  <label
-                    htmlFor="refDocType"
-                    className="global-tran-floating-label"
-                  >
-                    JV Type
-                  </label>
-                  <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-                    <svg
-                      className="h-4 w-4 text-gray-500"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </div>
-                </div>
+                <FieldRenderer
+                  id="selectedRefDocType"
+                  label="Ref Doc Type"
+                  type="select"
+                  value={selectedRefDocType}
+                  disabled={isFormDisabled}
+                  onChange={(val) => updateState({ selectedRefDocType: val })}
+                  options={refdocTypes.map((t) => ({
+                    label: t.DROPDOWN_NAME,
+                    value: t.DROPDOWN_CODE,
+                  }))}
+                />
 
-                {/* Ref Doc No */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="refDocNo"
-                    value={refDocNo}
-                    placeholder=" "
-                    onChange={(e) => updateState({ refDocNo: e.target.value })}
-                    className="peer global-tran-textbox-ui"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        // reversal(refDocNo)
-                        fetchTranDataReversal(state.refDocNo, state.branchCode);
-                      }
-                    }}
-                    disabled={isFormDisabled}
-                     maxLength={useGetFieldLength(tblFieldArray, "refDocNo")}
-                  />
-                  <label
-                    htmlFor="refDocNo"
-                    className="global-tran-floating-label"
-                  >
-                    Ref Doc No.
-                  </label>
-                </div>
+                <FieldRenderer
+                  id="refDocNo"
+                  label="Ref Doc No."
+                  type="text"
+                  value={refDocNo || ""}
+                  disabled={isFormDisabled}
+                  onChange={(val) => updateState({ refDocNo: val })}
+                  maxLength={useGetFieldLength(tblFieldArray, "refDocNo") || 50}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      fetchTranDataReversal(state.refDocNo, state.branchCode);
+                    }
+                  }}
+                />
 
-                {/* Ref Amount No. */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="totalGrossAmount"
-                    value={totals.totalGrossAmount}
-                    placeholder=" "
-                    className="peer global-tran-textbox-ui text-right"
-                  />
-                  <label
-                    htmlFor="totalGrossAmount"
-                    className="global-tran-floating-label"
-                  >
-                    Reference Amount
-                  </label>
-                </div>
+                <FieldRenderer
+                  id="totalGrossAmount"
+                  label="Reference Amount"
+                  type="amount"
+                  value={totals.totalGrossAmount || ""}
+                  disabled
+                />
               </div>
-              {/* Remarks Section - Now inside the 3-column container, spanning all 3 */}
+
               {/* Remarks Section */}
               <div className="lg:col-span-3">
                 <div className="relative p-2 h-full">
@@ -2029,7 +1723,7 @@ if (hdtblcol_result) {
                     value={remarks}
                     onChange={(e) => updateState({ remarks: e.target.value })}
                     disabled={isFormDisabled}
-                    maxLength={useGetFieldLength(tblFieldArray, "remarks")}
+                    maxLength={useGetFieldLength(tblFieldArray, "remarks") || 250}
                   />
                   <label
                     htmlFor="remarks"
@@ -2039,77 +1733,36 @@ if (hdtblcol_result) {
                   </label>
                 </div>
               </div>
-            </div>{" "}
-            {/* End of the 3-column container */}
-            {/* Column 4 - Totals (remains unchanged, but its parent is now the main 4-column grid) */}
-            {/* Column 4 */}
+            </div>
+
             {/* Column 4 */}
             <div className="global-tran-textbox-group-div-ui">
               {/* Currency */}
-              <div className="relative">
-                <input
-                  type="text"
-                  id="currCode"
-                  value={currCode}
-                  className="peer global-tran-textbox-ui hidden"
-                  readOnly
-                />
-                <input
-                  type="text"
-                  id="currName"
-                  value={currName}
-                  placeholder=" "
-                  className="peer global-tran-textbox-ui"
-                  readOnly
-                />
-                <label
-                  htmlFor="currName"
-                  className="global-tran-floating-label"
-                >
-                  Currency
-                </label>
-                <button
-                  type="button"
-                  onClick={() => updateState({ currencyModalOpen: true })}
-                  className={`global-tran-textbox-button-search-padding-ui ${
-                    isFetchDisabled
-                      ? "global-tran-textbox-button-search-disabled-ui"
-                      : "global-tran-textbox-button-search-enabled-ui"
-                  } global-tran-textbox-button-search-ui`}
-                  disabled={isFormDisabled}
-                >
-                  <FontAwesomeIcon icon={faMagnifyingGlass} />
-                </button>
-              </div>
+              <FieldRenderer
+                id="currName"
+                label="Currency"
+                type="lookup"
+                value={currCode ? `${currCode}${currName ? ` - ${currName}` : ""}` : ""}
+                disabled={isFormDisabled}
+                onLookup={() => updateState({ currencyModalOpen: true })}
+                lookupDisabled={isFetchDisabled}
+              />
 
               {/* Currency Rate */}
-              <div className="relative">
-                <input
-                  type="text"
-                  id="currRate"
-                  value={currRate}
-                  onChange={(e) => {
-                    const inputValue = e.target.value;
-                    const sanitizedValue = inputValue.replace(/[^0-9.]/g, "");
-                    if (
-                      /^\d*\.?\d{0,6}$/.test(sanitizedValue) ||
-                      sanitizedValue === ""
-                    ) {
-                      updateState({ currRate: sanitizedValue });
-                    }
-                  }}
-                  onBlur={handleCurrRateNoBlur}
-                  placeholder=" "
-                  className="peer global-tran-textbox-ui text-right"
-                  disabled={isFormDisabled || glCurrDefault === currCode}
-                />
-                <label
-                  htmlFor="currRate"
-                  className="global-tran-floating-label"
-                >
-                  Currency Rate
-                </label>
-              </div>
+              <FieldRenderer
+                id="currRate"
+                label="Currency Rate"
+                type="amount"
+                value={currRate || ""}
+                disabled={isFormDisabled || glCurrDefault === currCode}
+                onChange={(val) => {
+                  const sanitizedValue = String(val).replace(/[^0-9.]/g, "");
+                  if (/^\d*\.?\d{0,6}$/.test(sanitizedValue) || sanitizedValue === "") {
+                    updateState({ currRate: sanitizedValue });
+                  }
+                }}
+                onBlur={handleCurrRateNoBlur}
+              />
             </div>
           </div>
         </div>
@@ -2126,7 +1779,7 @@ if (hdtblcol_result) {
                     ? "global-tran-tab-text_active-ui"
                     : "global-tran-tab-text_inactive-ui"
                 }`}
-                onClick={() => setGLActiveTab("invoice")}
+                onClick={() => updateState({GLactiveTab: "invoice"})}
               >
                 General Ledger
               </button>
@@ -2137,11 +1790,9 @@ if (hdtblcol_result) {
               <button
                 onClick={() => handleActivityOption("GenerateGL")}
                 className="global-tran-button-generateGL"
-                // Disable if loading OR if the transaction type is "Regular" (JV01)
                 disabled={isLoading || selectedJVType === "JV01"}
                 style={{
                   visibility: isFormDisabled ? "hidden" : "visible",
-                  // Optional: Visual cue that it's disabled
                   opacity: isLoading || selectedJVType === "JV01" ? 0.5 : 1,
                   cursor:
                     isLoading || selectedJVType === "JV01"
@@ -2206,14 +1857,9 @@ if (hdtblcol_result) {
                     <th className="global-tran-th-ui">Remarks</th>
 
                     {!isFormDisabled && (
-                      <>
-                        <th className="global-tran-th-ui sticky right-[43px] bg-blue-300 dark:bg-blue-900 z-30">
-                          Add
-                        </th>
-                        <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
-                          Delete
-                        </th>
-                      </>
+                      <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
+                        Actions
+                      </th>
                     )}
                   </tr>
                 </thead>
@@ -2341,7 +1987,7 @@ if (hdtblcol_result) {
                           className="w-[300px] global-tran-td-inputclass-ui"
                           value={row.particular || ""}
                           onChange={(e) =>
-                            handleDetailChange(
+                            handleDetailChangeGL(
                               index,
                               "particular",
                               e.target.value,
@@ -2432,7 +2078,7 @@ if (hdtblcol_result) {
                           className="w-[200px] global-tran-td-inputclass-ui"
                           value={row.atcName || ""}
                           onChange={(e) =>
-                            handleDetailChange(index, "atcName", e.target.value)
+                            handleDetailChangeGL(index, "atcName", e.target.value)
                           }
                         />
                       </td>
@@ -2735,7 +2381,7 @@ if (hdtblcol_result) {
                           type="text"
                           className="w-[100px] global-tran-td-inputclass-ui"
                           value={row.slRefNo || ""}
-                          maxLength={useGetFieldLength(tblFieldArray, "slRefNo")}
+                          maxLength={useGetFieldLength(tblFieldArray, "slRefNo") || 50}
                           onChange={(e) =>
                             handleDetailChangeGL(
                               index,
@@ -2745,7 +2391,6 @@ if (hdtblcol_result) {
                           }
                         />
                       </td>
-                      {/* SL Ref. Date - Updated to match APV behavior */}
                       <td className="global-tran-td-ui">
                         <div className="w-[110px]">
                           <DateFormatInput
@@ -2769,31 +2414,31 @@ if (hdtblcol_result) {
                         <input
                           type="text"
                           className="w-[100px] global-tran-td-inputclass-ui"
-                          value={row.remarks || header.remarks || ""}
-                          maxLength={useGetFieldLength(tblFieldArray, "remarks")}
+                          value={row.remarks || ""}
+                          maxLength={useGetFieldLength(tblFieldArray, "remarks") || 250}
                           onChange={(e) => handleDetailChangeGL(index, "remarks", e.target.value)}
                         />
                       </td>
 
                       {!isFormDisabled && (
-                        <td className="global-tran-td-ui text-center sticky right-10">
-                          <button
-                            className="global-tran-td-button-add-ui"
-                            onClick={() => handleAddRowGL(index)}
-                          >
-                            <FontAwesomeIcon icon={faPlus} />
-                          </button>
-                        </td>
-                      )}
-
-                      {!isFormDisabled && (
                         <td className="global-tran-td-ui text-center sticky right-0">
-                          <button
-                            className="global-tran-td-button-delete-ui"
-                            onClick={() => handleDeleteRowGL(index)}
-                          >
-                            <FontAwesomeIcon icon={faMinus} />
-                          </button>
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              className="global-tran-td-button-add-ui"
+                              onClick={() => handleAddRowGL(index)}
+                            >
+                              <FontAwesomeIcon icon={faPlus} />
+                            </button>
+
+                            <button
+                              type="button"
+                              className="global-tran-td-button-delete-ui"
+                              onClick={() => handleDeleteRowGL(index)}
+                            >
+                              <FontAwesomeIcon icon={faTrashAlt} />
+                            </button>
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -2936,9 +2581,13 @@ if (hdtblcol_result) {
           />
         )}
 
-        {/* Post Modal */}
+        {/* Post Modal - Now uses PostJV.jsx */}
         {showPostModal && (
-          <PostTranModal isOpen={showPostModal} onClose={handleClosePost} />
+          <PostJV
+            isOpen={showPostModal}
+            userCode={user.USER_CODE}
+            onClose={() => updateState({ showPostModal: false })}
+          />
         )}
 
         {showAttachModal && (
@@ -2991,7 +2640,7 @@ if (hdtblcol_result) {
         <AllTranHistory
           showHeader={false}
           endpoint="/getJVHistory"
-          cacheKey={`JV:${state.branchCode || ""}:${state.docNo || ""}`} // ✅ per-transaction
+          cacheKey={`JV:${state.branchCode || ""}:${state.docNo || ""}`}
           activeTabKey="JV_Summary"
           branchCode={state.branchCode}
           startDate={state.fromDate}
