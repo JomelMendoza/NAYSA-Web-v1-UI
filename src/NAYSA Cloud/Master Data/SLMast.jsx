@@ -481,7 +481,9 @@ const handleCheckDuplicateSLType = async (code) => {
     console.log("Save SL Mast:",payload)
   };
 
+
   const handleDeleteSL = async (row) => {
+    // 1. Initial restriction check based on SL Type
     if (!canDeleteSL) {
       return useSwalErrorAlert(
         "Delete Restricted",
@@ -489,19 +491,45 @@ const handleCheckDuplicateSLType = async (code) => {
       );
     }
 
-    const confirm = await useSwalDeleteConfirm(
-      "Confirm Delete",
-      `Are you sure you want to delete SL Code: ${row.slCode}?`
-    );
+    try {
+      // 2. API Check: Is the SL Code used in any transaction tables?
+      // We send the data in the format the SPROC expects: { json_data: { slCode: '...' } }
+      const checkRes = await apiClient.post("/checkInUsedSLMast", {
+        json_data: { slCode: row.slCode }
+      });
 
-    if (!confirm?.isConfirmed) return;
+      // 3. Parse the SPROC result
+      const sqlRow = checkRes?.data?.data?.[0];
+      const parsedData = JSON.parse(sqlRow?.result || '{"result":"0"}');
 
-    deleteSL({
-      json_data: {
-        slTypeCode: row.slTypeCode,
-        slCode: row.slCode,
-      },
-    });
+      // 4. If result is "1", the SL is used in tables like apv_dt1, cv_dt1, etc.
+      if (parsedData.result === "1") {
+        return useSwalErrorAlert(
+          "Cannot Delete",
+          `SL Code "${row.slCode}" is currently used in transactions and cannot be removed.`
+        );
+      }
+
+      // 5. Proceed to confirmation if NOT in use
+      const confirm = await useSwalDeleteConfirm(
+        "Confirm Delete",
+        `Are you sure you want to delete SL Code: ${row.slCode}?`
+      );
+
+      if (!confirm?.isConfirmed) return;
+
+      // 6. Execute actual deletion
+      deleteSL({
+        json_data: {
+          slTypeCode: row.slTypeCode,
+          slCode: row.slCode,
+        },
+      });
+
+    } catch (error) {
+      console.error("In-Use Check Error:", error);
+      useSwalErrorAlert("System Error", "Failed to verify if record is in use.");
+    }
   };
 
   const handleSaveSLType = () => {
@@ -521,19 +549,45 @@ const handleCheckDuplicateSLType = async (code) => {
     console.log("Save SL Type:",payload)
   };
 
-  const handleDeleteSLType = async (row) => {
-    const confirm = await useSwalDeleteConfirm(
-      "Confirm Delete",
-      `Are you sure you want to delete SL Type: ${row.slTypeCode}?`
-    );
+const handleDeleteSLType = async (row) => {
+    try {
+      // 1. API Check: Is this SL Type linked to any Master records?
+      // Matches SPROC @mode = 'CheckInUsedSLType'
+      const checkRes = await apiClient.post("/checkInUsedSLType", { 
+        json_data: { slTypeCode: row.slTypeCode } 
+      });
+      
+      // 2. Parse the stringified JSON result from the SPROC
+      const sqlRow = checkRes?.data?.data?.[0];
+      const parsedData = JSON.parse(sqlRow?.result || '{"result":"0"}');
 
-    if (!confirm?.isConfirmed) return;
+      // 3. If result is "1", it exists in sl_mast, cust_mast, or vend_mast
+      if (parsedData.result === "1") {
+        return useSwalErrorAlert(
+        `Cannot Delete Account Code: ${row.slTypeCode}`,
+        "Code was already used."
+      );
+      }
 
-    deleteSLType({
-      json_data: {
-        slTypeCode: row.slTypeCode,
-      },
-    });
+      // 4. Proceed to confirmation if NOT in use
+      const confirm = await useSwalDeleteConfirm(
+        "Confirm Delete",
+        `Are you sure you want to delete SL Type: ${row.slTypeCode}?`
+      );
+
+      if (!confirm?.isConfirmed) return;
+
+      // 5. Execute actual deletion
+      deleteSLType({
+        json_data: {
+          slTypeCode: row.slTypeCode,
+        },
+      });
+      
+    } catch (error) {
+      console.error("In-Use Check Error:", error);
+      useSwalErrorAlert("System Error", "Failed to verify if SL Type is in use.");
+    }
   };
 
   const handleSaveMatching = () => {

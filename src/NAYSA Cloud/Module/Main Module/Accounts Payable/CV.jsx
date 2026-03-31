@@ -23,6 +23,7 @@ import DocumentSignatories from "../../../Lookup/SearchSignatory.jsx";
 import GlobalLookupModalv1 from "../../../Lookup/SearchGlobalLookupv1.jsx";
 import AllTranHistory from "../../../Lookup/SearchGlobalTranHistory.jsx";
 import AllTranDocNo from "../../../Lookup/SearchDocNo.jsx";
+import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 
 
 // Configuration
@@ -969,9 +970,9 @@ const handleCurrRateNoBlur = (e) => {
           debitFx2: parseFormattedNumber(entry.debitFx2 || 0),
           creditFx2: parseFormattedNumber(entry.creditFx2 || 0),
           slRefNo: entry.slRefNo || "",
-          // slRefDate: entry.slRefDate ? new Date(entry.slRefDate).toISOString().split("T")[0] : null,
-          
-          slRefDate: entry.slRefDate || "",
+          slRefDate: entry.slRefDate && !isNaN(new Date(entry.slRefDate).getTime())
+            ? new Date(entry.slRefDate).toISOString().split("T")[0]
+            : null,
           remarks: entry.remarks || "",
           dt1Lineno: entry.dt1Lineno || ""
         }))
@@ -1436,7 +1437,8 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
 
   if (runCalculations) {  
   const origAmount = parseFormattedNumber(row.origAmount) || 0;
-  const origCurrRate = parseFormattedNumber(row.currRate) || 0;
+  const origCurrRate = formatNumber(parseFormattedNumber(row.currRate),6) || 0;
+  
   const origInvoiceAmount = parseFormattedNumber(row.siAmount) || 0;
   const origApplied = parseFormattedNumber(row.appliedAmount) || 0;
   const origUnapplied = parseFormattedNumber(row.unappliedAmount) || 0;
@@ -1467,7 +1469,7 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
     row.unappliedAmount = formatNumber(unapplied);
     row.balance = +(applied - unapplied).toFixed(2);
     row.origAmount = formatNumber(parseFormattedNumber(row.origAmount));
-    row.currRate = formatNumber(parseFormattedNumber(row.currRate));
+    row.currRate = formatNumber(parseFormattedNumber(row.currRate),6);
 
     
   if (selectedWithAPV === "Y") {
@@ -2545,9 +2547,25 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
         {/* Column 4 - Totals (remains unchanged, but its parent is now the main 4-column grid) */}
         <div className="global-tran-textbox-group-div-ui">
             <div className="relative">
-                <input type="text" id="totalFxAmountDue" value={totals.totalFxAmountDue} placeholder=" " className="peer global-tran-textbox-ui text-right"/>
-                <label htmlFor="totalFxAmountDue" className="global-tran-floating-label">Check Amount (Orig.)</label>
+                <input 
+                  type="text" 
+                  id="totalFxAmountDue" 
+                  value={totals.totalFxAmountDue} 
+                  placeholder=" " 
+                  className="peer global-tran-textbox-ui text-right"
+                  disabled
+                />
+                <label htmlFor="totalFxAmountDue" className="global-tran-floating-label">Check Amount (Orig.)</label>          
             </div>
+
+            {/* <FieldRenderer
+                id="totalFxAmountDue"
+                label="Check Amount (Orig.)"
+                type="amount"
+                value={totals.totalFxAmountDue || ""}
+                disabled
+            /> */}
+
 
     
                     {/* Currency */}
@@ -2574,11 +2592,20 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                             <FontAwesomeIcon icon={faMagnifyingGlass} />
                         </button>
                     </div>
+{/* 
+                    <FieldRenderer
+                        id="currCode"
+                        label="Currency"
+                        type="text"
+                        value={currCode || ""}
+                        disabled
+                        
+                    /> */}
 
  
 
                     {/* Currency Rate */}
-                    <div className="relative"> {/* Used flex-grow to take remaining space (or you can use w-1/3) */}
+                    <div className="relative">
                         <input type="text" id="currRate" value={currRate} 
                             onChange={(e) => {
                             const inputValue = e.target.value;
@@ -2604,11 +2631,46 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                         <label htmlFor="currName" className="global-tran-floating-label"> Currency Rate
                         </label>
                     </div>
+{/* 
+                    <FieldRenderer
+                                                  id="currRate"
+                                                  label="Currency Rate"
+                                                  type="amount"
+                                                  value={currRate || ""}
+                                                  disabled={isFormDisabled || glCurrDefault === currCode}
+                                                  onChange={(val) => {
+                                                    const sanitizedValue = String(val).replace(/[^0-9.]/g, "");
+                                                    if (/^\d*\.?\d{0,6}$/.test(sanitizedValue) || sanitizedValue === "") {
+                                                      updateState({ currRate: sanitizedValue });
+                                                    }
+                                                  }}
+                                                  onBlur={handleCurrRateNoBlur}
+                                                  onKeyDown={(e) => {
+                                                    if (e.key === "Enter") {
+                                                      e.preventDefault();
+                                                      document.getElementById("refDocNo1")?.focus();
+                                                    }
+                                                  }}
+                                                  onFocus={(e) => {
+                                                    if (parseFormattedNumber(e.target.value) === 0) {
+                                                      e.target.value = "";
+                                                    }
+                                                  }}
+                                                /> */}
 
             <div className="relative">
                 <input type="text" id="totalAmountDue" value={totals.totalAmountDue} placeholder=" " className="peer global-tran-textbox-ui text-right"/>
                 <label htmlFor="totalAmountDue" className="global-tran-floating-label">Check Amount (PHP)</label>
             </div>
+
+            
+            {/* <FieldRenderer
+                id="totalAmountDue"
+                label="Check Amount (PHP)"
+                type="amount"
+                value={totals.totalAmountDue || ""}
+                disabled
+            /> */}
         </div>
 
     </div>
@@ -2709,33 +2771,36 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
          
          {/* AP Type */}
           <td className="global-tran-td-ui" hidden={!isVisible_Dtl1("apType", selectedCvType, selectedWithAPV)}>
-            <select
+              <select
                   className="w-[120px] global-tran-td-inputclass-ui"
                   value={row.apType || ""}
                   onChange={(e) => handleDetailChange(index, 'apType', e.target.value)}
-            >
-                  {cvApTypeDd.length > 0 ?
-                      (
-                          <>
-                              {cvApTypeDd.map((type) => (
-                                  <option key={type.DROPDOWN_CODE} value={type.DROPDOWN_CODE}>
-                                      {type.DROPDOWN_NAME}
-                                  </option>
-                              ))}
-                          </>
-                      ) : (<option value="">Loading...</option>)}
+                  disabled={isFormDisabled || selectedWithAPV === 'Y'}
+              >
+                  {cvApTypeDd.length > 0 ? (
+                      <>
+                          {cvApTypeDd.map((type) => (
+                              <option key={type.DROPDOWN_CODE} value={type.DROPDOWN_CODE}>
+                                  {type.DROPDOWN_NAME}
+                              </option>
+                          ))}
+                      </>
+                  ) : (
+                      <option value="">Loading...</option>
+                  )}
               </select>
           </td>
 
           {/* APV No */}
-           <td className="global-tran-td-ui" hidden={!isVisible_Dtl1("apvNo", selectedCvType, selectedWithAPV)}>
-              <input
-                type="text"
-                className="w-[100px] global-tran-td-inputclass-ui"
-                value={row.apvNo || ""}
-                onChange={(e) => handleDetailChange(index, 'apvNo', e.target.value)}
-              />
-            </td>
+          <td className="global-tran-td-ui" hidden={!isVisible_Dtl1("apvNo", selectedCvType, selectedWithAPV)}>
+            <input
+              type="text"
+              className="w-[100px] global-tran-td-inputclass-ui"
+              value={row.apvNo || ""}
+              onChange={(e) => handleDetailChange(index, 'apvNo', e.target.value)}
+              disabled={isFormDisabled || selectedWithAPV === 'Y'}
+            />
+          </td>
 
           {/* RR No */}
            <td className="global-tran-td-ui" hidden={!isVisible_Dtl1("rrNo", selectedCvType, selectedWithAPV)}>
@@ -2744,6 +2809,7 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                 className="w-[100px] global-tran-td-inputclass-ui"
                 value={row.rrNo || ""}
                 onChange={(e) => handleDetailChange(index, 'rrNo', e.target.value)}
+                disabled={isFormDisabled || selectedWithAPV === 'Y'}
               />
             </td>
 
@@ -2754,6 +2820,7 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                 className="w-[100px] global-tran-td-inputclass-ui"
                 value={row.poNo || ""}
                 onChange={(e) => handleDetailChange(index, 'poNo', e.target.value)}
+                disabled={isFormDisabled || selectedWithAPV === 'Y'}
               />
             </td>
 
@@ -2763,7 +2830,9 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                 type="text"
                 className="w-[100px] global-tran-td-inputclass-ui"
                 value={row.siNo || ""}
+                maxLength={useGetFieldLength(tblFieldArray, "si_no")} 
                 onChange={(e) => handleDetailChange(index, 'siNo', e.target.value)}
+                disabled={isFormDisabled || selectedWithAPV === 'Y'}
               />
             </td>
 
@@ -2774,6 +2843,7 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                 className="w-[100px] global-tran-td-inputclass-ui"
                 value={row.siDate || ""}
                 onChange={(e) => handleDetailChange(index, 'siDate', e.target.value)}
+                disabled={isFormDisabled || selectedWithAPV === 'Y'}
               />
             </td>
 
@@ -2815,6 +2885,8 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                             e.target.blur();
                         }
                     }}
+                    
+                    disabled={isFormDisabled || selectedWithAPV === 'Y'}
                 />
             </td>
 
@@ -2826,6 +2898,7 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                 className="w-[100px] text-center global-tran-td-inputclass-ui"
                 value={row.currCode || currCode}
                 onChange={(e) => handleDetailChange(index, 'currCode', e.target.value)}
+                disabled={isFormDisabled || selectedWithAPV === 'Y'}
               />
             </td>
 
@@ -2866,6 +2939,7 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                             e.target.blur();
                         }
                     }}
+                    disabled={isFormDisabled || selectedWithAPV === 'Y'}
                 />
             </td>          
 
@@ -2892,28 +2966,32 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                             handleDetailChange(index, "appliedAmount", sanitizedValue, false);
                         }
                     }}
-                     onFocus={(e) => {
+                    onFocus={(e) => {
                         if (e.target.value === "0.00" || e.target.value === "0") {
-                          e.target.value = "";
+                            e.target.value = "";
                         }
-                      }}   
+                    }}   
                     onBlur={async (e) => {
                         const value = e.target.value;
                         const num = parseFormattedNumber(value);
+                        const invoiceAmt = parseFormattedNumber(row.siAmount) || 0; // siAmount is invoice amount
+
                         if (!isNaN(num)) {
-                            await handleDetailChange(index, "appliedAmount", num, true);
+                            // Final Validation before saving
+                            if (num > invoiceAmt) {
+                                Swal.fire({ icon: 'info', 
+                                text: 'Applied amount exceeded invoice amount.' });
+                                await handleDetailChange(index, "appliedAmount", invoiceAmt, true); // Force to max
+                            } else {
+                                await handleDetailChange(index, "appliedAmount", num, true);
+                            }
                         }
                         setFocusedCell(null);
                     }}
                     onKeyDown={async (e) => {
                         if (e.key === "Enter") {
                             e.preventDefault();
-                            const value = e.target.value;
-                            const num = parseFormattedNumber(value);
-                            if (!isNaN(num)) {
-                                await handleDetailChange(index, "appliedAmount", num, true);
-                            }
-                            e.target.blur();
+                            e.target.blur(); // Trigger the onBlur validation
                         }
                     }}
                 />
@@ -2927,18 +3005,31 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                     value={row.unappliedAmount || ""}
                     onChange={(e) => {
                         const inputValue = e.target.value;
-                        const sanitizedValue = inputValue.replace(/[^0-9.]/g, '');
-                        if (/^\d*\.?\d{0,6}$/.test(sanitizedValue) || sanitizedValue === "") {
+                        
+                        // 1. Updated Sanitization: Allow the minus sign (-)
+                        const sanitizedValue = inputValue.replace(/[^0-9.-]/g, '');
+
+                        // 2. Updated Regex: 
+                        // ^-?          -> Allows an optional leading minus sign
+                        // \d* -> Allows zero or more digits
+                        // \.?          -> Allows an optional decimal point
+                        // \d{0,6}$     -> Allows up to 6 decimal places
+                        if (/^-?\d*\.?\d{0,6}$/.test(sanitizedValue) || sanitizedValue === "" || sanitizedValue === "-") {
                             handleDetailChange(index, "unappliedAmount", sanitizedValue, false);
                         }
                     }}
-                     onFocus={(e) => {
+                    onFocus={(e) => {
                         if (e.target.value === "0.00" || e.target.value === "0") {
-                          e.target.value = "";
+                            e.target.value = "";
                         }
-                      }}   
+                    }}   
                     onBlur={async (e) => {
                         const value = e.target.value;
+                        // Handle the case where only a "-" is left in the box
+                        if (value === "-") {
+                            await handleDetailChange(index, "unappliedAmount", 0, true);
+                            return;
+                        }
                         const num = parseFormattedNumber(value);
                         if (!isNaN(num)) {
                             await handleDetailChange(index, "unappliedAmount", num, true);
@@ -2977,9 +3068,8 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                   type="text"
                   className="w-[100px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
                   value={row.debitAcct || ""}
-                  readOnly
                 />
-                {!isFormDisabled && (
+                {!isFormDisabled && selectedWithAPV !== 'Y' && (
                 <FontAwesomeIcon 
                   icon={faMagnifyingGlass} 
                   className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
@@ -3001,7 +3091,7 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                   value={row.apAcct || ""}
                   readOnly
                 />
-                {!isFormDisabled && (
+                {!isFormDisabled && selectedWithAPV !== 'Y' && (
                 <FontAwesomeIcon 
                   icon={faMagnifyingGlass} 
                   className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
@@ -3045,7 +3135,7 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                   value={row.rcCode || ""}
                   readOnly
                 />
-                {!isFormDisabled && (
+                {!isFormDisabled && selectedWithAPV !== 'Y' && (
                 <FontAwesomeIcon 
                   icon={faMagnifyingGlass} 
                   className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
@@ -3063,7 +3153,7 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
               <div className="flex items-center">
                 <input
                   type="text"
-                  className="w-[300px] global-tran-td-inputclass-ui text-center pr-6 cursor-pointer"
+                  className="w-[300px] global-tran-td-inputclass-ui pr-6 cursor-pointer"
                   value={row.rcName || ""}
                   readOnly
                 />

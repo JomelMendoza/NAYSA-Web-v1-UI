@@ -841,7 +841,7 @@ const GlobalGLPostingModalv1 = ({
                               <td
                                 key={column.key}
                                 className={[
-                                  "px-3 py-[6px]",
+                                  "px-3 py-[6px] whitespace-normal break-words",
                                   numberAlignClass(column),
                                   remarksCellClass(column),
                                   stickyBodyClasses,
