@@ -110,7 +110,7 @@ import Header from "@/NAYSA Cloud/Components/Header";
   const hsDoc = getAllTopHSDocRow(docType);
   const pdfLink = docTypePDFGuide[docType];
   const videoLink = docTypeVideoGuide[docType];
-  const documentTitle = hsDoc.docName + 'Transaction';
+  const documentTitle = hsDoc.docName + ' Transaction';
 
   const [state, setState] = useState({
     // HS Option / Currency

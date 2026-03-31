@@ -121,7 +121,7 @@ const AR = () => {
   const hsDoc = getAllTopHSDocRow(docType);
   const pdfLink = docTypePDFGuide[docType];
   const videoLink = docTypeVideoGuide[docType];
-  const documentTitle = hsDoc.docName + 'Transaction';
+  const documentTitle = hsDoc.docName + ' Transaction';
  
 
   const [state, setState] = useState({
