@@ -124,8 +124,7 @@ const CV = () => {
    const hsDoc = getAllTopHSDocRow(docType);
    const pdfLink = docTypePDFGuide[docType];
    const videoLink = docTypeVideoGuide[docType];
-  //  const documentTitle = hsDoc.docName + ' Transaction';
-   const documentTitle = 'Check Voucher Transaction';
+   const documentTitle = hsDoc.docName + ' Transaction';
  
    const [state, setState] = useState({
 
@@ -722,9 +721,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
     const retrievedDetailRows = (data.dt1 || []).map(item => ({
       
       ...item,
-      // siDate: item.siDate ? new Date(item.siDate).toISOString().split('T')[0] : '',
       siDate: item.siDate ? useformatToDatev2(item.siDate): "",
-      // siDate: useformatToDatev2(item.siDate),
       origAmount: formatNumber(item.origAmount),
       currRate: formatNumber(item.currRate),
       siAmount: formatNumber(item.siAmount),
@@ -759,7 +756,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       documentID: data.cvId,
       documentNo: data.cvNo,
       branchCode: data.branchCode,
-      branchName:data.branchName,
+      branchName: data.branchName,
       
       documentDate: useformatToDatev2(data.cvDate),
       selectedCvType: data.cvtranType,

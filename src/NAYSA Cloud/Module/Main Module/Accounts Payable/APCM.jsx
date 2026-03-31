@@ -1783,9 +1783,17 @@ const handleCloseBranchModal = (selectedBranch) => {
               onDetails={() => setTopTab("details")}
               onHistory={() => setTopTab("history")}
               disableRouteNavigation={true}         
-              isSaveDisabled={isSaveDisabled} 
-              isResetDisabled={isResetDisabled} 
+              // isSaveDisabled={isSaveDisabled} 
+              // isResetDisabled={isResetDisabled} 
               detailsRoute="/page/APCM"
+              
+              isSaveDisabled={state.isSaveDisabled || isFormDisabled || detailRowsGL.length === 0}
+              isResetDisabled={state.isResetDisabled}
+              isAttachDisabled={!documentID}
+              isPrintDisabled={!documentID || displayStatus === "CANCELLED"}
+              isCopyDisabled={!documentID || displayStatus === "CANCELLED"}
+              isCancelDisabled={!documentID ||displayStatus === "CANCELLED" ||displayStatus === "FINALIZED"}
+       
         />
       </div>
 
