@@ -423,11 +423,11 @@ const BankMast = () => {
       { key: "bankTypeCode", label: "Bank Type", sortable: true, width: 150 },
       { key: "acctCode", label: "Account Code", sortable: true, width: 100 },
       { key: "acctName", label: "Account Name", sortable: true, width: 150 },
-      { key: "bankAcctNo", label: "Bank Account No", sortable: true, width: 100 },
+      { key: "bankAcctNo", label: "Bank Account No.", sortable: true, width: 100 },
       { key: "bankAcctType", label: "Account Type", sortable: true, width: 100 },
       { key: "autoCk", label: "Auto Generated", sortable: true, width: 80 },
-      { key: "startCheckNo", label: "Start Check No", sortable: true, width: 100 },
-      { key: "lastCheckNo", label: "Last Check No", sortable: true, width: 100 },
+      { key: "startCheckNo", label: "Start Check No.", sortable: true, width: 100 },
+      { key: "lastCheckNo", label: "Last Check No.", sortable: true, width: 100 },
       { key: "currCode", label: "Currency", sortable: true, width: 80 },
       { key: "bankBranch", label: "Branch", sortable: true, width: 80 },
       {
@@ -438,7 +438,7 @@ const BankMast = () => {
         width: 250
       },
       { key: "bankContact", label: "Contact Person", sortable: true, width: 100 },
-      { key: "bankTelNo", label: "Contact No", sortable: true, width: 100 },
+      { key: "bankTelNo", label: "Contact No.", sortable: true, width: 100 },
       { key: "bankPosition", label: "Position", sortable: true, width: 100 },
     ],
     [isMobile] // Added isMobile to dependencies so the Action button triggers update correctly
@@ -572,7 +572,7 @@ const BankMast = () => {
                     <FieldRenderer label="Account Name" value={form.acctName} readOnly disabled={!isEditing} />
 
                     <FieldRenderer
-                      label="Bank Account No"
+                      label="Bank Account No."
                       value={form.bankAcctNo}
                       maxLength={50}
                       onChange={(val) => setField("bankAcctNo", String(val).replace(/-/g, "").slice(0, 50))}
@@ -602,7 +602,7 @@ const BankMast = () => {
                     />
 
                     <FieldRenderer
-                      label="Start Check No"
+                      label="Start Check No."
                       value={form.startCheckNo}
                       maxLength={30}
                       onChange={(val) => setField("startCheckNo", String(val).replace(/-/g, "").slice(0, 30))}
@@ -610,7 +610,7 @@ const BankMast = () => {
                     />
 
                     <FieldRenderer
-                      label="Last Check No"
+                      label="Last Check No."
                       value={form.lastCheckNo}
                       maxLength={30}
                       onChange={(val) => setField("lastCheckNo", String(val).replace(/-/g, "").slice(0, 30))}
@@ -672,7 +672,7 @@ const BankMast = () => {
                       disabled={!isEditing}
                     />
                     <FieldRenderer
-                      label="Contact No"
+                      label="Contact No."
                       value={form.bankTelNo}
                       maxLength={20}
                       onChange={(val) => setField("bankTelNo", String(val).slice(0, 20))}

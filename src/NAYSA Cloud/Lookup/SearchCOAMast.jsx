@@ -123,16 +123,16 @@ const COAMastLookupModal = ({
   };
 
   const handleApply = (coa) => {
-    onClose(
-      {
+    onClose({
         acctCode: coa.acctCode,
         acctName: coa.acctName,
-        rcReq: coa.reqRC,
-        slReq: coa.reqSL,
-      },
-      source
-    );
-  };
+        // Convert "Yes" strings to standard "Y" codes immediately
+        REQ_RC: coa.reqRC === "Yes" ? "Y" : "N", 
+        REQ_SL: coa.reqSL === "Yes" ? "Y" : "N",
+        rcReq: coa.reqRC === "Yes" ? "Y" : "N", // Keep both for safety
+        slReq: coa.reqSL === "Yes" ? "Y" : "N"
+    }, source);
+};
 
   if (!isOpen) return null;
 

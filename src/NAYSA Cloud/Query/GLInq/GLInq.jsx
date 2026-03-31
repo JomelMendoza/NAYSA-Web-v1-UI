@@ -1,4 +1,1123 @@
 
+// import React, { useState, useCallback, useMemo, useEffect } from "react";
+// import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+// import {
+//   faBars,
+//   faChevronLeft,
+//   faChevronRight,
+//   faMagnifyingGlass,
+//   faUndo,
+//   faPrint,
+//   faTimes,
+//   faFilter,
+//   faDatabase,
+//   faListOl,
+//   faTable,
+//   faThLarge,
+// } from "@fortawesome/free-solid-svg-icons";
+
+// import {
+//   useTopCompanyRow,
+//   useTopUserRow,
+//   useTopBranchRow,
+//   useTopCutOffRow,
+//   useTopAccountRow,
+//   useTopSLRow,
+// } from "@/NAYSA Cloud/Global/top1RefTable";
+
+// import {
+//   useHandlePrintQuery,
+// } from '@/NAYSA Cloud/Global/report';
+
+// import { useSelectedHSColConfig } from "@/NAYSA Cloud/Global/selectedData";
+// import { fetchData } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
+// import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
+// import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
+
+// import SearchGlobalReportTable from "@/NAYSA Cloud/Lookup/SearchGlobalReportTable.jsx";
+// import SearchBranchRef from "@/NAYSA Cloud/Lookup/SearchBranchRef.jsx";
+// import SearchSLMast from "@/NAYSA Cloud/Lookup/SearchSLMast.jsx";
+// import SearchRCMast from "@/NAYSA Cloud/Lookup/SearchRCMast.jsx";
+// import SearchCutOffRef from "@/NAYSA Cloud/Lookup/SearchCutOffRef.jsx";
+// import COAMastLookupModal from "@/NAYSA Cloud/Lookup/SearchCOAMast.jsx";
+// import CurrLookupModal from "@/NAYSA Cloud/Lookup/SearchCurrRef.jsx";
+
+// import GLQueryReport from "./GLQueryReport.jsx";
+// import SLQueryReport from "./SLQueryReport.jsx";
+// import TBQueryReport from "./TBQueryReport.jsx";
+// import TrialBalanceReport from "./TrialBalanceReport.jsx";
+// import BalSheetYTDReport from "./BalSheetYTDReport.jsx";
+// import IncomeStatementYTDReport from "./IncomeStatementYTDReport.jsx";
+// import IncomeStatementMTDReport from "./IncomeStatementMTDReport.jsx";
+// import IncomeExpenseReport from "./IncomeExpenseReport.jsx";
+
+// export default function GLINQ() {
+//   const { user, companyInfo, currentUserRow } = useAuth();
+
+//   const [activeTab, setActiveTab] = useState("glQuery");
+//   const [showFilterModal, setShowFilterModal] = useState(false);
+//   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+//   const [hideNav, setHideNav] = useState(false);
+
+//   const [isMobile, setIsMobile] = useState(false);
+//   const [mobileView, setMobileView] = useState("table");
+//   const [drilldownExpandedByTab, setDrilldownExpandedByTab] = useState({
+//     balSheetYTD: {},
+//     incStatementYTD: {},
+//   });
+
+//   useEffect(() => {
+//     const checkMobile = () => {
+//       const mobile = window.innerWidth < 768;
+//       setIsMobile(mobile);
+//       if (!mobile) setMobileView("table");
+//     };
+
+//     checkMobile();
+//     window.addEventListener("resize", checkMobile);
+//     return () => window.removeEventListener("resize", checkMobile);
+//   }, []);
+
+//   const tabRegistry = useMemo(
+//     () => ({
+//       glQuery: GLQueryReport,
+//       slQuery: SLQueryReport,
+//       tbQuery: TBQueryReport,
+//       trialBalance: TrialBalanceReport,
+//       balSheetYTD: BalSheetYTDReport,
+//       incStatementYTD: IncomeStatementYTDReport,
+//       isMTD: IncomeStatementMTDReport,
+//       incExp: IncomeExpenseReport,
+//     }),
+//     []
+//   );
+
+//   const tabConfigs = useMemo(() => {
+//     const entries = Object.entries(tabRegistry).map(([key, Report]) => [
+//       key,
+//       Report?.meta || {
+//         label: key,
+//         filters: [],
+//         icon: faListOl,
+//       },
+//     ]);
+
+//     return Object.fromEntries(entries);
+//   }, [tabRegistry]);
+
+//   const DEFAULT_FILTERS = useMemo(
+//     () => ({
+//       branchCode: currentUserRow?.branchCode || "",
+//       branchName: currentUserRow?.branchName || "",
+
+//       currCode: companyInfo?.currCode || "",
+//       currName: companyInfo?.currName || "",
+
+//       accCode: "",
+//       accName: "",
+//       accCodeStart: "",
+//       accNameStart: "",
+//       accCodeEnd: "",
+//       accNameEnd: "",
+
+//       slCode: "",
+//       slName: "",
+
+//       rcCode: "",
+//       rcName: "",
+//       rcCodeStart: "",
+//       rcNameStart: "",
+//       rcCodeEnd: "",
+//       rcNameEnd: "",
+
+//       cutoffCode: companyInfo?.cutoffCode || "",
+//       cutoffName: companyInfo?.cutoffName || "",
+//       cutoffStartCode: companyInfo?.cutoffCode || "",
+//       cutoffStartName: companyInfo?.cutoffName || "",
+//       cutoffEndCode: companyInfo?.cutoffCode || "",
+//       cutoffEndName: companyInfo?.cutoffName || "",
+
+//       compareYears: 5,
+
+//       showLookupModal: false,
+//       lookupType: "",
+//       cutoffModalType: "",
+//     }),
+//     [companyInfo, currentUserRow]
+//   );
+
+//   const [filtersByTab, setFiltersByTab] = useState(() => {
+//     const init = {};
+//     Object.keys(tabConfigs).forEach((k) => {
+//       init[k] = { ...DEFAULT_FILTERS };
+//     });
+//     return init;
+//   });
+
+//   const EMPTY_VIEW = useMemo(
+//     () => ({
+//       cols: [],
+//       rows: [],
+//       rightActionLabel: "View",
+//       hasLoaded: false,
+//       appliedFilters: null,
+//       loadedAt: null,
+//       isEmpty: false,
+//       emptyMessage: "",
+//       comparisonPeriods: [],
+//       summary: {
+//         totalDebit: 0,
+//         totalCredit: 0,
+//         netBalance: 0,
+//         totalAsset: 0,
+//         totalLiability: 0,
+//         totalIncome: 0,
+//         totalExpense: 0,
+//         netIncome: 0,
+//         totalRows: 0,
+//         summaryPeriodCode: "",
+//         summaryPeriodLabel: "",
+//       },
+//     }),
+//     []
+//   );
+
+//   const [views, setViews] = useState(() => {
+//     const init = {};
+//     Object.keys(tabConfigs).forEach((k) => {
+//       init[k] = { ...EMPTY_VIEW };
+//     });
+//     return init;
+//   });
+
+//   const [isLoading, setIsLoading] = useState(false);
+//   const [showSpinner, setShowSpinner] = useState(false);
+
+//   useEffect(() => {
+//     let t;
+//     if (isLoading) t = setTimeout(() => setShowSpinner(true), 200);
+//     else setShowSpinner(false);
+//     return () => clearTimeout(t);
+//   }, [isLoading]);
+
+//   useEffect(() => {
+//     setFiltersByTab((prev) => {
+//       const next = { ...prev };
+//       Object.keys(tabConfigs).forEach((k) => {
+//         if (!next[k]) next[k] = { ...DEFAULT_FILTERS };
+//       });
+//       return next;
+//     });
+
+//     setViews((prev) => {
+//       const next = { ...prev };
+//       Object.keys(tabConfigs).forEach((k) => {
+//         if (!next[k]) next[k] = { ...EMPTY_VIEW };
+//       });
+//       return next;
+//     });
+//   }, [tabConfigs, DEFAULT_FILTERS, EMPTY_VIEW]);
+
+//   const filters = filtersByTab[activeTab] || DEFAULT_FILTERS;
+//   const view = views[activeTab] || EMPTY_VIEW;
+//   const activeTabConfig = tabConfigs[activeTab] || tabConfigs.glQuery || {
+//     label: "GL Inquiry",
+//     filters: [],
+//     icon: faListOl,
+//   };
+
+//   const updateFilters = useCallback(
+//     (patch, tabKey = activeTab) => {
+//       setFiltersByTab((prev) => ({
+//         ...prev,
+//         [tabKey]: { ...(prev[tabKey] || DEFAULT_FILTERS), ...patch },
+//       }));
+//     },
+//     [activeTab, DEFAULT_FILTERS]
+//   );
+
+
+
+//   const updateDrilldownExpanded = useCallback((tabKey, updater) => {
+//   setDrilldownExpandedByTab((prev) => {
+//     const current = prev?.[tabKey] || {};
+//     const nextValue =
+//       typeof updater === "function" ? updater(current) : updater;
+
+//     return {
+//       ...prev,
+//       [tabKey]: nextValue || {},
+//     };
+//   });
+// }, []);
+
+
+  
+
+//   const applyToAllTabs = useCallback(
+//     (patch) => {
+//       setFiltersByTab((prev) => {
+//         const next = { ...prev };
+//         Object.keys(tabConfigs).forEach((k) => {
+//           next[k] = { ...(next[k] || DEFAULT_FILTERS), ...patch };
+//         });
+//         return next;
+//       });
+//     },
+//     [tabConfigs, DEFAULT_FILTERS]
+//   );
+
+
+  
+
+//   const normalizeRows = useCallback((resp) => {
+//     const directRows =
+//       resp?.data?.rows ??
+//       resp?.data?.data ??
+//       resp?.data?.data?.rows ??
+//       resp?.data?.rowsData;
+
+//     if (Array.isArray(directRows)) return directRows;
+
+//     const jsonText = resp?.data?.[0]?.result;
+//     if (jsonText) {
+//       const parsed = JSON.parse(jsonText);
+//       const block = parsed?.[0] || {};
+//       const rows = block?.dt1 ?? block?.rows ?? block?.data ?? [];
+//       return Array.isArray(rows) ? rows : [];
+//     }
+
+//     return [];
+//   }, []);
+
+//   const safeRightActionLabel = useCallback((colsResp) => {
+//     if (colsResp?.rightActionLabel) return colsResp.rightActionLabel;
+//     return "View";
+//   }, []);
+
+//   const parseAmount = useCallback((v) => {
+//     if (v == null) return 0;
+//     if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+
+//     const cleaned = String(v).replace(/,/g, "").trim();
+//     const parsed = parseFloat(cleaned);
+//     return Number.isFinite(parsed) ? parsed : 0;
+//   }, []);
+
+//   const summarizeRows = useCallback(
+//     (rows = []) => {
+//       let totalDebit = 0;
+//       let totalCredit = 0;
+
+//       rows.forEach((row) => {
+//         totalDebit += parseAmount(row?.debit ?? 0);
+//         totalCredit += parseAmount(row?.credit ?? 0);
+//       });
+
+//       return {
+//         totalDebit,
+//         totalCredit,
+//         netBalance: totalDebit - totalCredit,
+//         totalAsset: 0,
+//         totalLiability: 0,
+//         totalIncome: 0,
+//         totalExpense: 0,
+//         netIncome: 0,
+//         totalRows: Array.isArray(rows) ? rows.length : 0,
+//         summaryPeriodCode: "",
+//         summaryPeriodLabel: "",
+//       };
+//     },
+//     [parseAmount]
+//   );
+
+//   const summarizeBalanceSheetRows = useCallback(
+//     (rows = [], comparisonPeriods = []) => {
+//       const basePeriod = comparisonPeriods?.[0] || "";
+//       let totalAsset = 0;
+//       let totalLiability = 0;
+
+//       rows.forEach((row) => {
+//         const fsType = normalizeFsType(row?.fs_type);
+//         if (fsType !== "BS") return;
+
+//         const name = String( row?.fsconso_name ??"")
+//           .trim()
+//           .toLowerCase();
+
+//         const amount = parseAmount(row?.fs_amount??0
+//         );
+
+//         if (name.includes("total asset")) totalAsset = amount;
+//         if (name.includes("total liabil")) totalLiability = amount;
+//       });
+
+//       return {
+//         totalDebit: 0,
+//         totalCredit: 0,
+//         netBalance: 0,
+//         totalAsset,
+//         totalLiability,
+//         totalIncome: 0,
+//         totalExpense: 0,
+//         netIncome: 0,
+//         totalRows: Array.isArray(rows) ? rows.length : 0,
+//         summaryPeriodCode: basePeriod,
+//         summaryPeriodLabel: basePeriod ? formatCutoffHeaderLabel(basePeriod) : "",
+//       };
+//     },
+//     [parseAmount]
+//   );
+
+
+//  const summarizeIncomeStatementRows = useCallback(
+//     (rows = [], comparisonPeriods = []) => {
+//       const basePeriod = comparisonPeriods?.[0] || "";
+//       let totalIncome = 0;
+//       let totalExpense = 0;
+
+//       rows.forEach((row) => {
+//         const fsType = normalizeFsType(row?.fs_type);
+//         if (fsType !== "IS") return;
+
+//         const name = String(
+//           row?.fsconso_name??
+//             ""
+//         )
+//           .trim()
+//           .toLowerCase();
+
+//         const amount = parseAmount(row?.fs_amount ?? 0
+            
+//         );
+
+//         if (name.includes("net income")) totalIncome = amount;
+//         if (name.includes("total expen")) totalExpense = amount;
+//       });
+
+//       return {
+//         totalDebit: 0,
+//         totalCredit: 0,
+//         netBalance: 0,
+//         totalAsset: 0,
+//         totalLiability: 0,
+//         totalIncome,
+//         totalExpense,
+//         netIncome: totalIncome - totalExpense,
+//         totalRows: Array.isArray(rows) ? rows.length : 0,
+//         summaryPeriodCode: basePeriod,
+//         summaryPeriodLabel: basePeriod ? formatCutoffHeaderLabel(basePeriod) : "",
+//       };
+//     },
+//     [parseAmount]
+//   );
+
+
+//   const runSharedFinancialStatementYTD = useCallback(
+//     async (f) => {
+//       const balReport = tabRegistry.balSheetYTD;
+//       const isReport = tabRegistry.incStatementYTD;
+
+//       if (!balReport || !isReport) return;
+
+//       setIsLoading(true);
+
+//       const endpoint = balReport?.meta?.endpoint || "getBSIS_YTD";
+//       const compareYears = clampCompareYears(f?.compareYears);
+//       const payload = balReport.buildPayload({
+//         ...f,
+//         compareYears,
+//       });
+//       const comparisonPeriods = buildComparativeCutoffs(
+//         payload.cutoffCode || f.cutoffCode,
+//         compareYears
+//       );
+//       const startedAt = new Date().toISOString();
+
+//       try {
+//         const [colsResp, periodResponses] = await Promise.all([
+//           useSelectedHSColConfig(endpoint),
+//           Promise.all(
+//             comparisonPeriods.map((periodCode) => {
+//               const requestJson = balReport.buildJsonData({
+//                 ...payload,
+//                 cutoffCode: periodCode,
+//                 compareYears,
+//                 userCode:currentUserRow.userCode,
+//               });
+            
+//               return fetchData(endpoint, {
+//                 json_data: { json_data: requestJson },
+//               });       
+//             })
+//           ),
+//         ]);
+
+
+//         const colsArray = Array.isArray(colsResp) ? colsResp : [];
+//         const rowsByPeriod = {};
+
+//         comparisonPeriods.forEach((periodCode, idx) => {
+//           rowsByPeriod[periodCode] = normalizeRows(periodResponses[idx]);
+//         });
+
+//         const mergedRows = mergeComparativeFinancialStatementRows(
+//           rowsByPeriod,
+//           comparisonPeriods
+//         );
+
+//         const bsRows = mergedRows.filter(
+//           (row) => normalizeFsType(row?.fs_type) === "BS"
+//         );
+//         const isRows = mergedRows.filter(
+//           (row) => normalizeFsType(row?.fs_type) === "IS"
+//         );
+
+//         const bsIsEmpty = bsRows.length === 0;
+//         const isIsEmpty = isRows.length === 0;
+
+//         setViews((prev) => ({
+//           ...prev,
+//           balSheetYTD: {
+//             cols: colsArray,
+//             rows: bsRows,
+//             rightActionLabel: safeRightActionLabel(colsResp),
+//             hasLoaded: true,
+//             appliedFilters: payload,
+//             loadedAt: startedAt,
+//             isEmpty: bsIsEmpty,
+//             emptyMessage: bsIsEmpty
+//               ? "No Balance Sheet records found for the selected filters."
+//               : "",
+//             comparisonPeriods,
+//             summary: summarizeBalanceSheetRows(bsRows, comparisonPeriods),
+//           },
+//           incStatementYTD: {
+//             cols: colsArray,
+//             rows: isRows,
+//             rightActionLabel: safeRightActionLabel(colsResp),
+//             hasLoaded: true,
+//             appliedFilters: payload,
+//             loadedAt: startedAt,
+//             isEmpty: isIsEmpty,
+//             emptyMessage: isIsEmpty
+//               ? "No Income Statement records found for the selected filters."
+//               : "",
+//             comparisonPeriods,
+//             summary: summarizeIncomeStatementRows(isRows, comparisonPeriods),
+//           },
+//         }));
+//       } catch (e) {
+//         console.error("[GLINQ] runSharedFinancialStatementYTD failed:", e);
+
+//         const errorView = {
+//           hasLoaded: true,
+//           isEmpty: true,
+//           emptyMessage: "Unable to load records. Please try again.",
+//           loadedAt: new Date().toISOString(),
+//           comparisonPeriods: [],
+//           summary: {
+//             totalDebit: 0,
+//             totalCredit: 0,
+//             netBalance: 0,
+//             totalAsset: 0,
+//             totalLiability: 0,
+//             totalIncome: 0,
+//             totalExpense: 0,
+//             netIncome: 0,
+//             totalRows: 0,
+//             summaryPeriodCode: "",
+//             summaryPeriodLabel: "",
+//           },
+//         };
+
+//         setViews((prev) => ({
+//           ...prev,
+//           balSheetYTD: {
+//             ...(prev.balSheetYTD || EMPTY_VIEW),
+//             ...errorView,
+//           },
+//           incStatementYTD: {
+//             ...(prev.incStatementYTD || EMPTY_VIEW),
+//             ...errorView,
+//           },
+//         }));
+//       } finally {
+//         setIsLoading(false);
+//       }
+//     },
+//     [
+//       tabRegistry,
+//       normalizeRows,
+//       safeRightActionLabel,
+//       summarizeBalanceSheetRows,
+//       summarizeIncomeStatementRows,
+//       EMPTY_VIEW,
+//     ]
+//   );
+
+//   const runTabQuery = useCallback(
+//     async (tabKey, f) => {
+//       if (tabKey === "balSheetYTD" || tabKey === "incStatementYTD") {
+//         await runSharedFinancialStatementYTD(f);
+//         return;
+//       }
+
+//       const Report = tabRegistry[tabKey];
+//       if (!Report) return;
+
+//       setIsLoading(true);
+
+//       const endpoint = Report?.meta?.endpoint;
+//       if (
+//         !endpoint ||
+//         typeof Report?.buildPayload !== "function" ||
+//         typeof Report?.buildJsonData !== "function"
+//       ) {
+//         console.error(`[GLINQ] Missing meta/builders for tab: ${tabKey}`);
+//         setIsLoading(false);
+//         return;
+//       }
+
+//       const payload = Report.buildPayload(f);
+//       const startedAt = new Date().toISOString();
+
+//       try {
+//         const jsonData = Report.buildJsonData(payload);
+
+//         const [colsResp, rowsResp] = await Promise.all([
+//           useSelectedHSColConfig(endpoint),
+//           fetchData(endpoint, { json_data: { json_data: jsonData } }),
+//         ]);
+
+//         const colsArray = Array.isArray(colsResp) ? colsResp : [];
+//         const finalRows = normalizeRows(rowsResp);
+//         const isEmpty = !finalRows || finalRows.length === 0;
+
+//         setViews((prev) => ({
+//           ...prev,
+//           [tabKey]: {
+//             cols: colsArray,
+//             rows: finalRows,
+//             rightActionLabel: safeRightActionLabel(colsResp),
+//             hasLoaded: true,
+//             appliedFilters: payload,
+//             loadedAt: startedAt,
+//             isEmpty,
+//             emptyMessage: isEmpty
+//               ? "No records found for the selected filters."
+//               : "",
+//             comparisonPeriods: [],
+//             summary: summarizeRows(finalRows),
+//           },
+//         }));
+//       } catch (e) {
+//         console.error(`[GLINQ] runTabQuery failed for ${tabKey}:`, e);
+//         setViews((prev) => ({
+//           ...prev,
+//           [tabKey]: {
+//             ...(prev[tabKey] || EMPTY_VIEW),
+//             hasLoaded: true,
+//             isEmpty: true,
+//             emptyMessage: "Unable to load records. Please try again.",
+//             loadedAt: new Date().toISOString(),
+//             comparisonPeriods: [],
+//             summary: {
+//               totalDebit: 0,
+//               totalCredit: 0,
+//               netBalance: 0,
+//               totalAsset: 0,
+//               totalLiability: 0,
+//               totalIncome: 0,
+//               totalExpense: 0,
+//               netIncome: 0,
+//               totalRows: 0,
+//               summaryPeriodCode: "",
+//               summaryPeriodLabel: "",
+//             },
+//           },
+//         }));
+//       } finally {
+//         setIsLoading(false);
+//       }
+//     },
+//     [
+//       tabRegistry,
+//       normalizeRows,
+//       safeRightActionLabel,
+//       summarizeRows,
+//       EMPTY_VIEW,
+//       runSharedFinancialStatementYTD,
+//     ]
+//   );
+
+//   const parseGroupId = useCallback((groupId, tabSource) => {
+//     if (!groupId) return null;
+
+//     const parts = String(groupId)
+//       .split(/[|~]/)
+//       .map((p) => p.trim());
+
+//     if (parts.length <= 1) return null;
+
+//     switch (tabSource) {
+//       case "slQuery": {
+//         const [branchCode, cutOffCode, acctCode, sltypeCode, slCode] = parts;
+//         return { branchCode, cutOffCode, acctCode, sltypeCode, slCode };
+//       }
+//       case "tbQuery": {
+//         const [tbCutOff, tbAcct, rcCode] = parts;
+//         return { cutOffCode: tbCutOff, acctCode: tbAcct, rcCode };
+//       }
+//       default:
+//         return null;
+//     }
+//   }, []);
+
+//   const jumpToGLQueryFromSL = useCallback(
+//     async (row) => {
+//       const decoded = parseGroupId(row?.groupId, "slQuery");
+//       if (!decoded) return;
+
+//       const currentGL = filtersByTab.glQuery || DEFAULT_FILTERS;
+
+//       const [fBranch, fAcct, fPeriod, fSL] = await Promise.all([
+//         useTopBranchRow(decoded?.branchCode),
+//         useTopAccountRow(decoded?.acctCode),
+//         useTopCutOffRow(decoded?.cutOffCode),
+//         useTopSLRow(decoded?.slCode),
+//       ]);
+
+//       const glFilters = {
+//         ...currentGL,
+//         branchCode: decoded.branchCode,
+//         branchName: fBranch?.branchName || "",
+//         accCode: decoded.acctCode,
+//         accName: fAcct?.acctName || "",
+//         slCode: decoded.slCode,
+//         slName: fSL?.slName || "",
+//         cutoffStartCode: decoded.cutOffCode,
+//         cutoffStartName: fPeriod?.cutoffName || "",
+//         cutoffEndCode: decoded.cutOffCode,
+//         cutoffEndName: fPeriod?.cutoffName || "",
+//         rcCode: "",
+//         rcName: "",
+//         rcCodeStart: "",
+//         rcNameStart: "",
+//         rcCodeEnd: "",
+//         rcNameEnd: "",
+//       };
+
+//       updateFilters(glFilters, "glQuery");
+//       setActiveTab("glQuery");
+//       await runTabQuery("glQuery", glFilters);
+//     },
+//     [parseGroupId, filtersByTab, DEFAULT_FILTERS, updateFilters, runTabQuery]
+//   );
+
+//   const jumpToGLQueryFromTB = useCallback(
+//     async (row) => {
+//       const decoded = parseGroupId(row?.groupId, "tbQuery");
+//       if (!decoded) return;
+
+//       const currentGL = filtersByTab.glQuery || DEFAULT_FILTERS;
+
+//       const [fAcct, fPeriod] = await Promise.all([
+//         useTopAccountRow(decoded?.acctCode),
+//         useTopCutOffRow(decoded?.cutOffCode),
+//       ]);
+
+//       const glFilters = {
+//         ...currentGL,
+//         branchCode: "",
+//         branchName: "",
+//         accCode: decoded.acctCode,
+//         accName: fAcct?.acctName || "",
+//         slCode: "",
+//         slName: "",
+//         cutoffStartCode: decoded.cutOffCode,
+//         cutoffStartName: fPeriod?.cutoffName || "",
+//         cutoffEndCode: decoded.cutOffCode,
+//         cutoffEndName: fPeriod?.cutoffName || "",
+//         rcCode: "",
+//         rcName: "",
+//         rcCodeStart: "",
+//         rcNameStart: "",
+//         rcCodeEnd: "",
+//         rcNameEnd: "",
+//       };
+
+//       updateFilters(glFilters, "glQuery");
+//       setActiveTab("glQuery");
+//       await runTabQuery("glQuery", glFilters);
+//     },
+//     [parseGroupId, filtersByTab, DEFAULT_FILTERS, updateFilters, runTabQuery]
+//   );
+
+
+
+
+
+// const jumpToGLInquiryFromBS = useCallback(
+//   async ({ acctCode, acctName, rcCode = "", rcName = "", slCode = "", slName = "" }) => {
+//     const currentGL = filtersByTab.glQuery || DEFAULT_FILTERS;
+
+//     const fAcct = acctCode ? await useTopAccountRow(acctCode) : null;
+
+//     const glFilters = {
+//       ...currentGL,
+//       accCode: acctCode || "",
+//       accName: acctName || fAcct?.acctName || "",
+//       rcCode: rcCode || "",
+//       rcName: rcName || "",
+//       slCode: slCode || "",
+//       slName: slName || "",
+//       rcCodeStart: "",
+//       rcNameStart: "",
+//       rcCodeEnd: "",
+//       rcNameEnd: "",
+//     };
+
+//     updateFilters(glFilters, "glQuery");
+//     setActiveTab("glQuery");
+//     await runTabQuery("glQuery", glFilters);
+//   },
+//   [filtersByTab, DEFAULT_FILTERS, updateFilters, runTabQuery]
+// );
+
+
+
+
+
+//   const loadDefaults = useCallback(async () => {
+//     try {
+//       const [hsCompany, hsUser] = await Promise.all([
+//         useTopCompanyRow(),
+//         useTopUserRow(user?.USER_CODE),
+//       ]);
+
+//       if (hsCompany) {
+//         applyToAllTabs({
+//           cutoffCode: hsCompany.cutoffCode,
+//           cutoffName: hsCompany.cutoffName,
+//           cutoffStartCode: hsCompany.cutoffCode,
+//           cutoffStartName: hsCompany.cutoffName,
+//           cutoffEndCode: hsCompany.cutoffCode,
+//           cutoffEndName: hsCompany.cutoffName,
+//           currCode: hsCompany.currCode || companyInfo?.currCode || "",
+//           currName: hsCompany.currName || companyInfo?.currName || "",
+//           compareYears: 5,
+//         });
+//       }
+
+//       if (hsUser) {
+//         const hsBranch = await useTopBranchRow(hsUser.branchCode);
+//         applyToAllTabs({
+//           branchCode: hsUser.branchCode,
+//           branchName: hsBranch?.branchName || hsUser.branchName,
+//         });
+//       }
+//     } catch (err) {
+//       console.error("Error loading defaults:", err);
+//     }
+//   }, [applyToAllTabs, user?.USER_CODE, companyInfo]);
+
+//   useEffect(() => {
+//     if (!user?.USER_CODE) return;
+//     loadDefaults();
+//   }, [user?.USER_CODE, loadDefaults]);
+
+//   const handleReset = useCallback(() => {
+//     updateFilters(
+//       {
+//         ...DEFAULT_FILTERS,
+//         branchCode: filters.branchCode,
+//         branchName: filters.branchName,
+//         cutoffCode: filters.cutoffCode,
+//         cutoffName: filters.cutoffName,
+//         cutoffStartCode: filters.cutoffStartCode,
+//         cutoffStartName: filters.cutoffStartName,
+//         cutoffEndCode: filters.cutoffEndCode,
+//         cutoffEndName: filters.cutoffEndName,
+//         currCode: filters.currCode,
+//         currName: filters.currName,
+//         compareYears: 1,
+//       },
+//       activeTab
+//     );
+
+//     setViews((prev) => {
+//       if (activeTab === "balSheetYTD" || activeTab === "incStatementYTD") {
+//         return {
+//           ...prev,
+//           balSheetYTD: { ...EMPTY_VIEW },
+//           incStatementYTD: { ...EMPTY_VIEW },
+//         };
+//       }
+
+//       return {
+//         ...prev,
+//         [activeTab]: { ...EMPTY_VIEW },
+//       };
+//     });
+//   }, [updateFilters, DEFAULT_FILTERS, filters, activeTab, EMPTY_VIEW]);
+
+//   const handleNavSelect = useCallback((tabKey) => {
+//     setActiveTab(tabKey);
+//     setIsMobileNavOpen(false);
+//   }, []);
+
+ 
+
+//   const handlePrint = useCallback(() => {
+    
+//     const { cutoffCode, currCode, rcCode } = filters;
+
+
+//     if (activeTab === "balSheetYTD") {
+      
+//       const params = `cutoffCode:${cutoffCode}|currCode:${currCode}|rcCode:${rcCode}`;
+//       useHandlePrintQuery("BSYTD.rpt", currentUserRow?.userCode, params);
+//       return;
+//     }
+
+//     if (activeTab === "incStatementYTD") {
+//       const params = `cutoffCode:${cutoffCode}|currCode:${currCode}|rcCode:${rcCode}`;
+//       useHandlePrintQuery("ISYTD.rpt", currentUserRow?.userCode,params);
+//       return;
+//     }
+
+//     window.print();
+//   }, [activeTab, currentUserRow?.userCode]);
+
+
+
+
+  
+//   const handleFind = useCallback(() => setShowFilterModal(true), []);
+//   const handleApplyFilters = useCallback(async () => {
+//     setShowFilterModal(false);
+//     await runTabQuery(activeTab, filters);
+//   }, [activeTab, filters, runTabQuery]);
+
+//   const ActiveReport = tabRegistry[activeTab];
+//   const currentContext = buildContextText(filters, activeTab);
+
+//   return (
+//     <div className="global-ref-main-div-ui">
+//       {showSpinner && <LoadingSpinner />}
+
+//       <div className="global-ref-header-ui">
+//         <div className="flex w-full flex-col gap-6 md:flex-row md:items-center md:justify-between lg:min-h-[40px]">
+//           <div className="flex w-full md:w-auto md:justify-start">
+//             <h1 className="global-ref-headertext-ui w-full truncate text-center md:w-auto md:text-left">
+//               GL Inquiry
+//             </h1>
+//           </div>
+
+//           <div className="flex w-full md:w-auto md:justify-end">
+//             <div className="w-full overflow-visible md:w-auto">
+//               <div className="flex flex-nowrap items-center justify-center gap-2 md:justify-end">
+//                 <button
+//                   onClick={() => setIsMobileNavOpen(true)}
+//                   className="shrink-0 rounded-md bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:opacity-90 lg:hidden"
+//                 >
+//                   <FontAwesomeIcon icon={faBars} />
+//                 </button>
+
+//                 <button
+//                   onClick={handleFind}
+//                   className="shrink-0 rounded-md bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:opacity-90"
+//                 >
+//                   <FontAwesomeIcon icon={faMagnifyingGlass} />
+//                   <span className="ml-2 hidden lg:inline">Filter</span>
+//                 </button>
+
+//                 <button
+//                   onClick={handleReset}
+//                   className="shrink-0 rounded-md bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:opacity-90"
+//                 >
+//                   <FontAwesomeIcon icon={faUndo} />
+//                   <span className="ml-2 hidden lg:inline">Reset</span>
+//                 </button>
+
+//                 <button
+//                   onClick={handlePrint}
+//                   className="shrink-0 rounded-md bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:opacity-90"
+//                 >
+//                   <FontAwesomeIcon icon={faPrint} />
+//                   <span className="ml-2 hidden lg:inline">Print</span>
+//                 </button>
+
+//                 <button
+//                   onClick={() => setHideNav((v) => !v)}
+//                   className="hidden shrink-0 rounded-md bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:opacity-90 lg:inline-flex"
+//                 >
+//                   <FontAwesomeIcon
+//                     icon={hideNav ? faChevronRight : faChevronLeft}
+//                   />
+//                   <span className="ml-2 hidden xl:inline">
+//                     {hideNav ? "Expand Nav" : "Collapse Nav"}
+//                   </span>
+//                 </button>
+//               </div>
+//             </div>
+//           </div>
+//         </div>
+//       </div>
+
+//       <div className="mt-32 px-0 sm:mt-24">
+//         <div className="flex gap-3">
+//           <aside
+//             className={`hidden transition-all duration-200 lg:block ${
+//               hideNav ? "w-[88px]" : "w-[290px]"
+//             }`}
+//           >
+//             <div className="global-tran-tab-div-ui h-full">
+//               <div className="h-full overflow-hidden rounded-2xl border bg-white shadow-sm">
+//                 <div className="border-b px-4 py-4">
+//                   {!hideNav ? (
+//                     <>
+//                       <div className="text-sm font-semibold text-gray-800">
+//                         GL Reports
+//                       </div>
+//                       <div className="mt-1 text-xs text-gray-500">
+//                         Select a report, set filters, then load data.
+//                       </div>
+//                     </>
+//                   ) : (
+//                     <div className="text-center text-[11px] font-semibold text-blue-700">
+//                       GL
+//                     </div>
+//                   )}
+//                 </div>
+
+//                 <div className="p-3">
+//                   <ReportNavList
+//                     activeTab={activeTab}
+//                     tabConfigs={tabConfigs}
+//                     handleSelect={handleNavSelect}
+//                     collapsed={hideNav}
+//                   />
+//                 </div>
+//               </div>
+//             </div>
+//           </aside>
+
+//           <div className="min-w-0 flex-1">
+//             <div className="global-tran-tab-div-ui">
+//               <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
+//                 <div className="border-b bg-gradient-to-r from-blue-50 to-white px-4 py-3">
+//                   <div className="flex flex-col gap-1.5 md:flex-row md:items-center md:justify-between">
+//                     <div>
+//                       <div className="text-base font-semibold text-gray-800">
+//                         {activeTabConfig.label}
+//                       </div>
+//                       <div className="mt-0.5 text-[11px] text-gray-500">
+//                         Review balances, movements, and drilldown results using your
+//                         selected filters.
+//                       </div>
+//                     </div>
+
+//                     <div className="text-[10px] leading-4 text-gray-600 md:text-right">
+//                       {currentContext}
+//                     </div>
+//                   </div>
+//                 </div>
+
+//                 <div className="p-4">
+//                   <ContextCards summary={view.summary} activeTab={activeTab} />
+//                 </div>
+//               </div>
+//             </div>
+
+//             <div className="global-tran-tab-div-ui">
+//               <div className="global-tran-tab-nav-ui">
+//                 <div className="flex flex-wrap items-center justify-between gap-2">
+//                   <div className="flex items-center gap-2">
+//                     <button className="global-tran-tab-padding-ui global-tran-tab-text_active-ui">
+//                       {activeTabConfig.label}
+//                     </button>
+//                   </div>
+
+//                   {isMobile && (
+//                     <div className="inline-flex overflow-hidden rounded-md border border-gray-300 bg-white">
+//                       <button
+//                         type="button"
+//                         onClick={() => setMobileView("table")}
+//                         className={`flex h-8 items-center gap-1 px-3 text-[11px] font-medium ${
+//                           mobileView === "table"
+//                             ? "bg-blue-600 text-white"
+//                             : "bg-white text-gray-600"
+//                         }`}
+//                       >
+//                         <FontAwesomeIcon icon={faTable} />
+//                         Table
+//                       </button>
+
+//                       <button
+//                         type="button"
+//                         onClick={() => setMobileView("card")}
+//                         className={`flex h-8 items-center gap-1 px-3 text-[11px] font-medium ${
+//                           mobileView === "card"
+//                             ? "bg-blue-600 text-white"
+//                             : "bg-white text-gray-600"
+//                         }`}
+//                       >
+//                         <FontAwesomeIcon icon={faThLarge} />
+//                         Card
+//                       </button>
+//                     </div>
+//                   )}
+//                 </div>
+//               </div>
+
+//               <div className="global-tran-table-main-div-ui">
+             
+//                   <ActiveReport
+//                     view={view}
+//                     filters={filters}
+//                     tabConfig={activeTabConfig}
+//                     isMobile={isMobile}
+//                     mobileView={mobileView}
+//                     onJumpToGLFromSL={jumpToGLQueryFromSL}
+//                     onJumpToGLFromTB={jumpToGLQueryFromTB}
+//                     onJumpToGLInquiry={jumpToGLInquiryFromBS}
+//                     expandedMap={drilldownExpandedByTab[activeTab] || {}}
+//                     setExpandedMap={(updater) => updateDrilldownExpanded(activeTab, updater)}
+//                     SearchGlobalReportTable={SearchGlobalReportTable}
+//                     NoRecordsState={NoRecordsState}
+//                   />
+//                 </div>
+            
+//             </div>
+//           </div>
+//         </div>
+//       </div>
+
+//       {showFilterModal && (
+//         <FilterModal
+//           tabConfig={activeTabConfig}
+//           filters={filters}
+//           onClose={() => setShowFilterModal(false)}
+//           onApply={handleApplyFilters}
+//           updateLookupState={updateFilters}
+//           isLoading={isLoading}
+//         />
+//       )}
+
+//       <MobileNavDrawer
+//         isOpen={isMobileNavOpen}
+//         onClose={() => setIsMobileNavOpen(false)}
+//         activeTab={activeTab}
+//         tabConfigs={tabConfigs}
+//         handleSelect={handleNavSelect}
+//       />
+
+//       <LookupManager filters={filters} updateFilters={updateFilters} />
+//     </div>
+//   );
+// }
 import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -12,8 +1131,6 @@ import {
   faFilter,
   faDatabase,
   faListOl,
-  faTable,
-  faThLarge,
 } from "@fortawesome/free-solid-svg-icons";
 
 import {
@@ -25,10 +1142,7 @@ import {
   useTopSLRow,
 } from "@/NAYSA Cloud/Global/top1RefTable";
 
-import {
-  useHandlePrintQuery,
-} from '@/NAYSA Cloud/Global/report';
-
+import { useHandlePrintQuery } from "@/NAYSA Cloud/Global/report";
 import { useSelectedHSColConfig } from "@/NAYSA Cloud/Global/selectedData";
 import { fetchData } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
@@ -59,24 +1173,10 @@ export default function GLINQ() {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [hideNav, setHideNav] = useState(false);
 
-  const [isMobile, setIsMobile] = useState(false);
-  const [mobileView, setMobileView] = useState("table");
   const [drilldownExpandedByTab, setDrilldownExpandedByTab] = useState({
     balSheetYTD: {},
     incStatementYTD: {},
   });
-
-  useEffect(() => {
-    const checkMobile = () => {
-      const mobile = window.innerWidth < 768;
-      setIsMobile(mobile);
-      if (!mobile) setMobileView("table");
-    };
-
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
 
   const tabRegistry = useMemo(
     () => ({
@@ -236,23 +1336,18 @@ export default function GLINQ() {
     [activeTab, DEFAULT_FILTERS]
   );
 
-
-
   const updateDrilldownExpanded = useCallback((tabKey, updater) => {
-  setDrilldownExpandedByTab((prev) => {
-    const current = prev?.[tabKey] || {};
-    const nextValue =
-      typeof updater === "function" ? updater(current) : updater;
+    setDrilldownExpandedByTab((prev) => {
+      const current = prev?.[tabKey] || {};
+      const nextValue =
+        typeof updater === "function" ? updater(current) : updater;
 
-    return {
-      ...prev,
-      [tabKey]: nextValue || {},
-    };
-  });
-}, []);
-
-
-  
+      return {
+        ...prev,
+        [tabKey]: nextValue || {},
+      };
+    });
+  }, []);
 
   const applyToAllTabs = useCallback(
     (patch) => {
@@ -266,9 +1361,6 @@ export default function GLINQ() {
     },
     [tabConfigs, DEFAULT_FILTERS]
   );
-
-
-  
 
   const normalizeRows = useCallback((resp) => {
     const directRows =
@@ -341,12 +1433,11 @@ export default function GLINQ() {
         const fsType = normalizeFsType(row?.fs_type);
         if (fsType !== "BS") return;
 
-        const name = String( row?.fsconso_name ??"")
+        const name = String(row?.fsconso_name ?? "")
           .trim()
           .toLowerCase();
 
-        const amount = parseAmount(row?.fs_amount??0
-        );
+        const amount = parseAmount(row?.fs_amount ?? 0);
 
         if (name.includes("total asset")) totalAsset = amount;
         if (name.includes("total liabil")) totalLiability = amount;
@@ -369,8 +1460,7 @@ export default function GLINQ() {
     [parseAmount]
   );
 
-
- const summarizeIncomeStatementRows = useCallback(
+  const summarizeIncomeStatementRows = useCallback(
     (rows = [], comparisonPeriods = []) => {
       const basePeriod = comparisonPeriods?.[0] || "";
       let totalIncome = 0;
@@ -380,16 +1470,11 @@ export default function GLINQ() {
         const fsType = normalizeFsType(row?.fs_type);
         if (fsType !== "IS") return;
 
-        const name = String(
-          row?.fsconso_name??
-            ""
-        )
+        const name = String(row?.fsconso_name ?? "")
           .trim()
           .toLowerCase();
 
-        const amount = parseAmount(row?.fs_amount ?? 0
-            
-        );
+        const amount = parseAmount(row?.fs_amount ?? 0);
 
         if (name.includes("net income")) totalIncome = amount;
         if (name.includes("total expen")) totalExpense = amount;
@@ -411,7 +1496,6 @@ export default function GLINQ() {
     },
     [parseAmount]
   );
-
 
   const runSharedFinancialStatementYTD = useCallback(
     async (f) => {
@@ -443,16 +1527,15 @@ export default function GLINQ() {
                 ...payload,
                 cutoffCode: periodCode,
                 compareYears,
-                userCode:currentUserRow.userCode,
+                userCode: currentUserRow.userCode,
               });
-            
+
               return fetchData(endpoint, {
                 json_data: { json_data: requestJson },
-              });       
+              });
             })
           ),
         ]);
-
 
         const colsArray = Array.isArray(colsResp) ? colsResp : [];
         const rowsByPeriod = {};
@@ -553,6 +1636,7 @@ export default function GLINQ() {
       summarizeBalanceSheetRows,
       summarizeIncomeStatementRows,
       EMPTY_VIEW,
+      currentUserRow?.userCode,
     ]
   );
 
@@ -754,40 +1838,31 @@ export default function GLINQ() {
     [parseGroupId, filtersByTab, DEFAULT_FILTERS, updateFilters, runTabQuery]
   );
 
+  const jumpToGLInquiryFromBS = useCallback(
+    async ({ acctCode, acctName, rcCode = "", rcName = "", slCode = "", slName = "" }) => {
+      const currentGL = filtersByTab.glQuery || DEFAULT_FILTERS;
+      const fAcct = acctCode ? await useTopAccountRow(acctCode) : null;
 
+      const glFilters = {
+        ...currentGL,
+        accCode: acctCode || "",
+        accName: acctName || fAcct?.acctName || "",
+        rcCode: rcCode || "",
+        rcName: rcName || "",
+        slCode: slCode || "",
+        slName: slName || "",
+        rcCodeStart: "",
+        rcNameStart: "",
+        rcCodeEnd: "",
+        rcNameEnd: "",
+      };
 
-
-
-const jumpToGLInquiryFromBS = useCallback(
-  async ({ acctCode, acctName, rcCode = "", rcName = "", slCode = "", slName = "" }) => {
-    const currentGL = filtersByTab.glQuery || DEFAULT_FILTERS;
-
-    const fAcct = acctCode ? await useTopAccountRow(acctCode) : null;
-
-    const glFilters = {
-      ...currentGL,
-      accCode: acctCode || "",
-      accName: acctName || fAcct?.acctName || "",
-      rcCode: rcCode || "",
-      rcName: rcName || "",
-      slCode: slCode || "",
-      slName: slName || "",
-      rcCodeStart: "",
-      rcNameStart: "",
-      rcCodeEnd: "",
-      rcNameEnd: "",
-    };
-
-    updateFilters(glFilters, "glQuery");
-    setActiveTab("glQuery");
-    await runTabQuery("glQuery", glFilters);
-  },
-  [filtersByTab, DEFAULT_FILTERS, updateFilters, runTabQuery]
-);
-
-
-
-
+      updateFilters(glFilters, "glQuery");
+      setActiveTab("glQuery");
+      await runTabQuery("glQuery", glFilters);
+    },
+    [filtersByTab, DEFAULT_FILTERS, updateFilters, runTabQuery]
+  );
 
   const loadDefaults = useCallback(async () => {
     try {
@@ -867,15 +1942,10 @@ const jumpToGLInquiryFromBS = useCallback(
     setIsMobileNavOpen(false);
   }, []);
 
- 
-
   const handlePrint = useCallback(() => {
-    
     const { cutoffCode, currCode, rcCode } = filters;
 
-
     if (activeTab === "balSheetYTD") {
-      
       const params = `cutoffCode:${cutoffCode}|currCode:${currCode}|rcCode:${rcCode}`;
       useHandlePrintQuery("BSYTD.rpt", currentUserRow?.userCode, params);
       return;
@@ -883,17 +1953,13 @@ const jumpToGLInquiryFromBS = useCallback(
 
     if (activeTab === "incStatementYTD") {
       const params = `cutoffCode:${cutoffCode}|currCode:${currCode}|rcCode:${rcCode}`;
-      useHandlePrintQuery("ISYTD.rpt", currentUserRow?.userCode,params);
+      useHandlePrintQuery("ISYTD.rpt", currentUserRow?.userCode, params);
       return;
     }
 
     window.print();
-  }, [activeTab, currentUserRow?.userCode]);
+  }, [activeTab, filters, currentUserRow?.userCode]);
 
-
-
-
-  
   const handleFind = useCallback(() => setShowFilterModal(true), []);
   const handleApplyFilters = useCallback(async () => {
     setShowFilterModal(false);
@@ -1039,56 +2105,24 @@ const jumpToGLInquiryFromBS = useCallback(
                       {activeTabConfig.label}
                     </button>
                   </div>
-
-                  {isMobile && (
-                    <div className="inline-flex overflow-hidden rounded-md border border-gray-300 bg-white">
-                      <button
-                        type="button"
-                        onClick={() => setMobileView("table")}
-                        className={`flex h-8 items-center gap-1 px-3 text-[11px] font-medium ${
-                          mobileView === "table"
-                            ? "bg-blue-600 text-white"
-                            : "bg-white text-gray-600"
-                        }`}
-                      >
-                        <FontAwesomeIcon icon={faTable} />
-                        Table
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setMobileView("card")}
-                        className={`flex h-8 items-center gap-1 px-3 text-[11px] font-medium ${
-                          mobileView === "card"
-                            ? "bg-blue-600 text-white"
-                            : "bg-white text-gray-600"
-                        }`}
-                      >
-                        <FontAwesomeIcon icon={faThLarge} />
-                        Card
-                      </button>
-                    </div>
-                  )}
                 </div>
               </div>
 
               <div className="global-tran-table-main-div-ui">
-               <div className="relative max-h-[92vh] overflow-y-auto overflow-x-auto">
-                  <ActiveReport
-                    view={view}
-                    filters={filters}
-                    tabConfig={activeTabConfig}
-                    isMobile={isMobile}
-                    mobileView={mobileView}
-                    onJumpToGLFromSL={jumpToGLQueryFromSL}
-                    onJumpToGLFromTB={jumpToGLQueryFromTB}
-                    onJumpToGLInquiry={jumpToGLInquiryFromBS}
-                    expandedMap={drilldownExpandedByTab[activeTab] || {}}
-                    setExpandedMap={(updater) => updateDrilldownExpanded(activeTab, updater)}
-                    SearchGlobalReportTable={SearchGlobalReportTable}
-                    NoRecordsState={NoRecordsState}
-                  />
-                </div>
+                <ActiveReport
+                  view={view}
+                  filters={filters}
+                  tabConfig={activeTabConfig}
+                  onJumpToGLFromSL={jumpToGLQueryFromSL}
+                  onJumpToGLFromTB={jumpToGLQueryFromTB}
+                  onJumpToGLInquiry={jumpToGLInquiryFromBS}
+                  expandedMap={drilldownExpandedByTab[activeTab] || {}}
+                  setExpandedMap={(updater) =>
+                    updateDrilldownExpanded(activeTab, updater)
+                  }
+                  SearchGlobalReportTable={SearchGlobalReportTable}
+                  NoRecordsState={NoRecordsState}
+                />
               </div>
             </div>
           </div>
@@ -1118,6 +2152,7 @@ const jumpToGLInquiryFromBS = useCallback(
     </div>
   );
 }
+
 
 function buildContextText(filters, activeTab) {
   const branch = filters?.branchName || filters?.branchCode || "All Branches";

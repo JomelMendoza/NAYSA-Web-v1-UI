@@ -10,9 +10,6 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 
-// Shadcn UI Component Imports
-
-
 const FieldRenderer = ({
   id,
   name,
@@ -46,8 +43,8 @@ const FieldRenderer = ({
 
   const sharedClasses = `
     peer w-full h-8 sm:h-8
-    global-ref-textbox-ui 
-    !px-2 
+    global-ref-textbox-ui
+    !px-2
     !font-normal
     rounded-lg
     ${isEnabled ? "global-ref-textbox-enabled" : "global-ref-textbox-disabled"}
@@ -134,6 +131,28 @@ const FieldRenderer = ({
             disabled={disabled}
             readOnly={readOnly || isAudit}
             className={sharedClasses}
+            maxLength={maxLength}
+            onPaste={onPaste}
+            {...props}
+          />
+          {renderLabel()}
+        </>
+      )}
+
+      {type === "amount" && (
+        <>
+          <Input
+            id={inputId}
+            ref={inputRef}
+            type="text"
+            placeholder={placeholder}
+            value={getDisplayValue(value, "amount")}
+            onChange={handleChange}
+            onBlur={onBlur}
+            onKeyDown={onKeyDown}
+            disabled={disabled}
+            readOnly={readOnly || isAudit}
+            className={`${sharedClasses} text-right`}
             maxLength={maxLength}
             onPaste={onPaste}
             {...props}

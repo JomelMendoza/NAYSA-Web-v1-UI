@@ -42,12 +42,7 @@ body {
 
   /* bg-gradient-to-r from-blue-400 to-purple-300 */
   .global-tran-header-ui {
-    /* @apply fixed mt-24 top-12 left-6 right-6 z-30 bg-blue-300 p-1 rounded-lg text-blue-900 shadow-lg 
-            lg:p-1 mb-4 flex flex-col 
-            sm:flex-row sm:justify-between sm:items-center gap-y-1 sm:gap-y-0 sm:gap-x-4
-            md:mt-14
-            dark:bg-blue-900 dark:text-white; */
-      @apply fixed mt-24 top-12 left-6 right-6 z-30 bg-gradient-to-r from-blue-200 to-blue-200 p-1 rounded-lg text-blue-900 shadow-xl 
+      @apply fixed mt-24 top-12 left-6 right-6 z-30 bg-blue-100 p-1 rounded-lg text-blue-900 shadow-xl 
             lg:p-1 mb-4 flex flex-col 
             sm:flex-row sm:justify-between sm:items-center gap-y-1 sm:gap-y-0 sm:gap-x-4
             md:mt-14
@@ -325,7 +320,7 @@ body {
 
   .global-ref-header-ui {
     /* items-center centers children horizontally in flex-col (mobile) */
-    @apply bg-gradient-to-r from-blue-100 to-blue-100 p-2 rounded-lg text-blue-900 shadow-lg fixed top-14 left-6 right-6 z-30 
+    @apply bg-blue-100 p-2 rounded-lg text-blue-900 shadow-lg fixed top-14 left-6 right-6 z-30 
           flex flex-col items-center sm:flex-row sm:justify-between sm:items-center gap-4
 
           dark:from-blue-900 dark:bg-blue-900 dark:text-white;

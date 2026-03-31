@@ -1204,8 +1204,6 @@ const USER_TYPE_MAP = {
   R: "Regular",
   X: "Security Administrator",
   M: "Management",
-
-
 };
 
 const userTypeOptions = [
@@ -1240,7 +1238,6 @@ const UpdateUser = () => {
   const [viewCostamt, setViewCostamt] = useState("N");
   const [editUprice, setEditUprice] = useState("N");
   const [active, setActive] = useState("Yes");
-  
 
   const [selectedUser, setSelectedUser] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -1253,7 +1250,6 @@ const UpdateUser = () => {
   const exportRef = useRef(null);
   const guideRef = useRef(null);
   const codeInputRef = useRef(null);
-  
 
   const currentUserCode =
     user?.USER_CODE || user?.userCode || user?.code || "SYSTEM";
@@ -1338,21 +1334,15 @@ const UpdateUser = () => {
     const targetTab = searchParams.get("tab");
     const targetUser = searchParams.get("userCode");
 
-    // 1. Switch to pending tab if requested
     if (targetTab === "pending" && activeTab !== "pending") {
       setActiveTab("pending");
     }
 
-    // 2. If users have loaded and a target user is specified, auto-select them
     if (targetUser && users.length > 0) {
       const foundUser = users.find((u) => u.userCode === targetUser);
-      
-      // Only trigger if we found the user AND they aren't already selected 
-      // (prevents infinite loop re-renders)
+
       if (foundUser && selectedUser?.userCode !== targetUser) {
         handleEditUser(foundUser);
-        
-        // Clean up the URL so refreshing the page doesn't re-trigger it
         searchParams.delete("userCode");
         searchParams.delete("tab");
         setSearchParams(searchParams, { replace: true });
@@ -1382,7 +1372,9 @@ const UpdateUser = () => {
         "Failed to save user.";
 
       if (errorcount > 0) {
-        await useSwalErrorAlert("Validation Error", errormsg);
+        // Reverted: Using "" safely removes the title without printing "null"
+        // errormsg comes directly from your backend with the <b> tags
+        await useSwalErrorAlert("", errormsg);
         return;
       }
 
@@ -1419,7 +1411,8 @@ const UpdateUser = () => {
         error?.message ||
         "Error saving user.";
 
-      await useSwalErrorAlertAPI("Error", msg);
+      // Reverted: Removed the "System Error" injection
+      await useSwalErrorAlertAPI("", msg);
     },
   });
 
@@ -1438,7 +1431,7 @@ const UpdateUser = () => {
 
       const firstRow = data?.data?.[0] || {};
       const rawResult = firstRow?.result ?? Object.values(firstRow)[0] ?? data?.result ?? "";
-      
+
       let parsed = {};
       try {
         parsed = typeof rawResult === "string" ? JSON.parse(rawResult) : rawResult;
@@ -1447,9 +1440,10 @@ const UpdateUser = () => {
       }
 
       if (String(parsed?.result) === "1") {
+        // Reverted back to your exact format
         await useSwalErrorAlert(
-          "Duplicate User ID",
-          `The User ID "${userId.trim()}" already exists. Please use a different ID.`
+          "Duplicate",
+          `User ID "${userId.trim()}" already exists.`
         );
         setUserId("");
         setTimeout(() => {
@@ -1500,6 +1494,8 @@ const UpdateUser = () => {
         error?.response?.data?.details ||
         error?.message ||
         "Failed to delete user.";
+
+      // Reverted back to your exact format
       await useSwalErrorAlertAPI("Error", errorMsg);
     },
   });
@@ -1550,15 +1546,16 @@ const UpdateUser = () => {
     selectedUser,
   ]);
 
+  // Spinner is now strictly tied to loading data, not saving/deleting
   useEffect(() => {
     let timer;
-    if (saving) {
+    if (loading) {
       timer = setTimeout(() => setShowSpinner(true), 200);
     } else {
       setShowSpinner(false);
     }
     return () => clearTimeout(timer);
-  }, [saving]);
+  }, [loading]);
 
   const handleOpenBranchModal = () => {
     if (isEditing) setBranchModalOpen(true);
@@ -1602,11 +1599,25 @@ const UpdateUser = () => {
   };
 
   const handleSaveUser = async () => {
+    // --- 1. ADD THIS EMAIL VALIDATION BLOCK ---
+    const trimmedEmail = emailAdd.trim();
+    if (trimmedEmail !== "") {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(trimmedEmail)) {
+        await useSwalErrorAlert(
+          "", 
+          "<b>Invalid Input</b><br/>Please enter a valid email address."
+        );
+        return; // Stop saving
+      }
+    }
+    // ------------------------------------------
+
     const payload = {
       json_data: {
         userCode: userId.trim(),
         userName: userName.trim(),
-        emailAdd: emailAdd.trim(),
+        emailAdd: trimmedEmail,
         userType: userType || "",
         branchCode: branchCode || "",
         rcCode: rcCode || "",
@@ -1628,10 +1639,7 @@ const UpdateUser = () => {
     const targetUser = userToDelete || selectedUser;
 
     if (!targetUser?.userCode) {
-      await useSwalErrorAlert(
-        "Validation Error",
-        "Please select a user to delete."
-      );
+      await useSwalErrorAlert(null, "Please select a user to delete.");
       return;
     }
 
@@ -1701,6 +1709,12 @@ const UpdateUser = () => {
 
     setSelectedUser(userData);
     setIsEditing(true);
+
+    // Smooth scroll to top when retrieving an item
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   };
 
   const startNew = () => {
@@ -1709,14 +1723,17 @@ const UpdateUser = () => {
     setTimeout(() => {
       codeInputRef.current?.focus();
     }, 50);
+
+    // Smooth scroll to top when clicking Add
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
   };
 
   const handleResetPassword = async () => {
     if (!selectedUser?.userCode) {
-      await useSwalErrorAlert(
-        "Validation Error",
-        "Please select a user to reset password."
-      );
+      await useSwalErrorAlert(null, "Please select a user to reset password.");
       return;
     }
 
@@ -1729,8 +1746,6 @@ const UpdateUser = () => {
     if (!confirmRes?.isConfirmed) return;
 
     try {
-      setShowSpinner(true);
-
       const { data } = await apiClient.post("/users/request-password-reset", {
         userCode: selectedUser.userCode,
       });
@@ -1741,27 +1756,19 @@ const UpdateUser = () => {
           "Password reset link has been emailed to the user."
         );
       } else {
-        await useSwalErrorAlert(
-          "Error",
-          data?.message || "Failed to send the reset email."
-        );
+        await useSwalErrorAlert(null, data?.message || "Failed to send the reset email.");
       }
     } catch (error) {
       console.error("Password reset error:", error);
       const msg =
         error?.response?.data?.message || error.message || "Request failed.";
-      await useSwalErrorAlertAPI("Error", msg);
-    } finally {
-      setShowSpinner(false);
+      await useSwalErrorAlertAPI(null, msg);
     }
   };
 
   const handleReleaseAccount = async () => {
     if (!selectedUser?.userCode) {
-      await useSwalErrorAlert(
-        "Validation Error",
-        "Please select a user to approve account."
-      );
+      await useSwalErrorAlert(null, "Please select a user to approve account.");
       return;
     }
 
@@ -1774,8 +1781,6 @@ const UpdateUser = () => {
     if (!confirmRes?.isConfirmed) return;
 
     try {
-      setShowSpinner(true);
-
       const { data } = await apiClient.post("/users/approve", {
         userCode: selectedUser.userCode,
         mode: "release",
@@ -1794,15 +1799,13 @@ const UpdateUser = () => {
         await queryClient.invalidateQueries({ queryKey: ["users"] });
         await refetchUsers();
       } else {
-        await useSwalErrorAlert("Error", data?.message || "Approval failed.");
+        await useSwalErrorAlert(null, data?.message || "Approval failed.");
       }
     } catch (error) {
       await useSwalErrorAlertAPI(
-        "Error",
+        null,
         error?.response?.data?.message || error.message || "Approval failed."
       );
-    } finally {
-      setShowSpinner(false);
     }
   };
 
@@ -1842,10 +1845,7 @@ const UpdateUser = () => {
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error(`Error exporting to ${format}:`, error);
-      await useSwalErrorAlertAPI(
-        "Export Error",
-        `Failed to export to ${format.toUpperCase()}`
-      );
+      await useSwalErrorAlertAPI(null, `Failed to export to ${format.toUpperCase()}`);
     }
   };
 
@@ -1978,21 +1978,18 @@ const UpdateUser = () => {
         className: "w-[160px] min-w-[160px]",
       },
       {
-        // Use userTypeDisplay (mapped label) as the display key
         key: "userTypeDisplay",
         label: "User Type",
         sortable: true,
         className: "w-[180px] min-w-[180px]",
       },
       {
-        // branchDisplay = branchName ?? branchCode ?? "-"
         key: "branchDisplay",
         label: "Branch",
         sortable: true,
         className: "w-[140px] min-w-[140px]",
       },
       {
-        // rcDisplay = rcName ?? rcCode ?? "-"
         key: "rcDisplay",
         label: "Department",
         sortable: true,
@@ -2027,8 +2024,6 @@ const UpdateUser = () => {
     ];
   }, [selectedUser, activeTab, users, isMobile]);
 
-  // Convert stored value ("") to sentinel ("__none__") for the Select widget,
-  // and convert back on change.
   const userTypeSelectValue = userType === "" ? "__none__" : userType;
   const handleUserTypeChange = (v) => setUserType(v === "__none__" ? "" : v);
 
@@ -2061,13 +2056,11 @@ const UpdateUser = () => {
       )}
 
       <div className="fixed mt-4 top-14 left-6 right-6 z-30 global-ref-header-ui flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-
         <div className="flex items-center justify-center sm:justify-start w-full sm:w-auto">
           <h1 className="global-ref-headertext-ui text-center sm:text-left">{documentTitle}</h1>
         </div>
 
         <div className="flex gap-2 justify-center sm:justify-end text-xs flex-wrap">
-
           <button
             onClick={startNew}
             title="Add"
@@ -2150,7 +2143,6 @@ const UpdateUser = () => {
               <span className="hidden sm:inline">Approve</span>
             </button>
           )}
-
         </div>
       </div>
 
@@ -2179,6 +2171,7 @@ const UpdateUser = () => {
                   }
                 }}
                 disabled={!isEditing || !!selectedUser}
+                maxLength={50}
               />
 
               <FieldRenderer
@@ -2189,6 +2182,7 @@ const UpdateUser = () => {
                 value={userName}
                 onChange={(v) => setUserName(v ?? "")}
                 disabled={!isEditing}
+                maxLength={100}
               />
 
               <FieldRenderer
@@ -2251,6 +2245,7 @@ const UpdateUser = () => {
                 value={position}
                 onChange={(v) => setPosition(v ?? "")}
                 disabled={!isEditing}
+                maxLength={100}
               />
 
               <FieldRenderer
@@ -2262,6 +2257,7 @@ const UpdateUser = () => {
                 value={emailAdd}
                 onChange={(v) => setEmailAdd(v ?? "")}
                 disabled={!isEditing}
+                maxLength={100}
               />
             </div>
 
@@ -2435,7 +2431,6 @@ const UpdateUser = () => {
           </div>
         </div>
       )}
-
     </motion.div>
   );
 };

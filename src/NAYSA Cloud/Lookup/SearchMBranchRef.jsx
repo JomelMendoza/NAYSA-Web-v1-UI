@@ -1,13 +1,26 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import ReactDOM from "react-dom";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  X,
-  Building2,
-  CheckSquare,
-  Square,
-  Search,
-  CheckCircle2,
-} from "lucide-react";
+  faTimes,
+  faSpinner,
+  faSyncAlt,
+  faSort,
+  faSearch,
+  faEraser,
+} from "@fortawesome/free-solid-svg-icons";
+
+// Simple debounce hook to prevent excessive filtering
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+
+  return debouncedValue;
+}
 
 const BranchSelectionModal = ({
   isOpen,
@@ -15,62 +28,105 @@ const BranchSelectionModal = ({
   branchData = [],
   selectedBranches = [],
   onApply,
+  title = "Select Branches",
   isLoading = false,
+  isFetching = false,
+  onRefresh,
 }) => {
+  const [filters, setFilters] = useState({
+    branchCode: "",
+    branchName: "",
+  });
+
+  const [sortConfig, setSortConfig] = useState({
+    key: "",
+    direction: "asc",
+  });
+
   const [tempSelected, setTempSelected] = useState([]);
-  const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (!isOpen) return;
-    setTempSelected(selectedBranches);
-    setSearch("");
+
+    setTempSelected(Array.isArray(selectedBranches) ? selectedBranches : []);
+    setFilters({ branchCode: "", branchName: "" });
+
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, [isOpen, selectedBranches]);
 
-  const filteredBranchData = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
-    if (!keyword) return branchData;
+  const debouncedFilters = useDebounce(filters, 300);
 
-    return branchData.filter(
-      (item) =>
-        item.value?.toLowerCase().includes(keyword) ||
-        item.label?.toLowerCase().includes(keyword)
-    );
-  }, [branchData, search]);
+  const normalizedBranchData = useMemo(() => {
+    if (!Array.isArray(branchData)) return [];
 
-  const selectedBranchItems = useMemo(() => {
-    const map = new Map(branchData.map((item) => [item.value, item]));
-    return tempSelected.map(
-      (code) => map.get(code) || { value: code, label: code }
-    );
-  }, [tempSelected, branchData]);
+    return branchData.map((item) => ({
+      branchCode: item.branchCode ?? item.value ?? "",
+      branchName: item.branchName ?? item.label ?? "",
+    }));
+  }, [branchData]);
+
+  const filteredAndSorted = useMemo(() => {
+    if (!normalizedBranchData.length) return [];
+
+    let result = normalizedBranchData.filter((item) => {
+      return (
+        String(item.branchCode || "")
+          .toLowerCase()
+          .includes(debouncedFilters.branchCode.toLowerCase()) &&
+        String(item.branchName || "")
+          .toLowerCase()
+          .includes(debouncedFilters.branchName.toLowerCase())
+      );
+    });
+
+    if (sortConfig.key) {
+      result.sort((a, b) => {
+        const aVal = String(a[sortConfig.key] ?? "");
+        const bVal = String(b[sortConfig.key] ?? "");
+        return sortConfig.direction === "asc"
+          ? aVal.localeCompare(bVal, undefined, { numeric: true })
+          : bVal.localeCompare(aVal, undefined, { numeric: true });
+      });
+    }
+
+    return result;
+  }, [normalizedBranchData, debouncedFilters, sortConfig]);
+
+  const hasActiveFilters = Object.values(filters).some((val) => val !== "");
 
   const allFilteredSelected =
-    filteredBranchData.length > 0 &&
-    filteredBranchData.every((item) => tempSelected.includes(item.value));
+    filteredAndSorted.length > 0 &&
+    filteredAndSorted.every((item) => tempSelected.includes(item.branchCode));
+
+  const resetFilters = () => setFilters({ branchCode: "", branchName: "" });
+
+  const handleSort = (key) => {
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
+    }));
+  };
 
   const toggleBranch = (branchCode) => {
-    setTempSelected((prev) => {
-      const exists = prev.includes(branchCode);
-      return exists
+    setTempSelected((prev) =>
+      prev.includes(branchCode)
         ? prev.filter((code) => code !== branchCode)
-        : [...prev, branchCode];
-    });
+        : [...prev, branchCode]
+    );
   };
 
   const handleSelectAllFiltered = () => {
-    if (filteredBranchData.length === 0) return;
+    const filteredCodes = filteredAndSorted.map((item) => item.branchCode);
 
-    const visibleCodes = filteredBranchData.map((item) => item.value);
-
-    const nextSelection = allFilteredSelected
-      ? tempSelected.filter((code) => !visibleCodes.includes(code))
-      : Array.from(new Set([...tempSelected, ...visibleCodes]));
-
-    setTempSelected(nextSelection);
-  };
-
-  const handleClear = () => {
-    setTempSelected([]);
+    setTempSelected((prev) => {
+      if (allFilteredSelected) {
+        return prev.filter((code) => !filteredCodes.includes(code));
+      }
+      return Array.from(new Set([...prev, ...filteredCodes]));
+    });
   };
 
   const handleApply = () => {
@@ -81,164 +137,207 @@ const BranchSelectionModal = ({
   if (!isOpen) return null;
 
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/30 p-3">
-      <div className="w-full max-w-4xl bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden">
-        <div className="px-4 py-3 bg-blue-200 border-b border-blue-300 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-slate-800">
-            <Building2 size={18} />
-            <div>
-              <div className="text-sm sm:text-base font-semibold">
-                Select Branches
-              </div>
-              <div className="text-[11px] sm:text-xs text-slate-700">
-                Choose one or more branches for processing.
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 p-4 animate-fade-in">
+      <div className="absolute inset-0" onClick={() => onClose?.()} />
+
+      <div className="relative z-[10001] bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[78vh] flex flex-col overflow-hidden transform animate-scale-in border border-slate-200">
+        {/* Header */}
+        <div className="flex items-center justify-between p-2 border-b bg-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <h2 className="text-md font-bold text-blue-800 tracking-tight propercase pl-2">
+                {title}
+              </h2>
+              <div className="absolute -top-1 -right-4 flex h-2 w-2">
+                <span
+                  className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 ${
+                    isFetching ? "block" : "hidden"
+                  }`}
+                ></span>
+                <span
+                  className={`relative inline-flex rounded-full h-2 w-2 bg-blue-500 ${
+                    isFetching ? "block" : "hidden"
+                  }`}
+                ></span>
               </div>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md p-1 hover:bg-white/40 transition"
-          >
-            <X size={16} />
-          </button>
+          <div className="flex items-center gap-2">
+            {hasActiveFilters && (
+              <button
+                onClick={resetFilters}
+                className="px-2 py-1 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded transition-all flex items-center gap-1.5"
+              >
+                <FontAwesomeIcon icon={faEraser} />
+                CLEAR
+              </button>
+            )}
+
+            {typeof onRefresh === "function" && (
+              <button
+                onClick={onRefresh}
+                className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+              >
+                <FontAwesomeIcon icon={faSyncAlt} size="sm" spin={isFetching} />
+              </button>
+            )}
+
+            <button
+              onClick={() => onClose?.()}
+              className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+            >
+              <FontAwesomeIcon icon={faTimes} size="lg" />
+            </button>
+          </div>
         </div>
 
-        <div className="p-4 bg-slate-50 space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-2">
-            <div className="relative">
-              <Search
-                size={14}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+       
+
+        {/* Main Table Content */}
+        <div className="flex-grow overflow-auto custom-scrollbar bg-white">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center h-64 text-slate-400">
+              <FontAwesomeIcon
+                icon={faSpinner}
+                spin
+                size="2x"
+                className="mb-4 text-blue-500"
               />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search branch code or branch name..."
-                className="w-full rounded-lg border border-slate-300 bg-white pl-9 pr-3 py-2 text-xs sm:text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
-              />
+              <p className="text-sm">Loading branch data...</p>
             </div>
+          ) : (
+            <table className="min-w-full border-separate border-spacing-0">
+              <thead className="sticky top-0 z-10 bg-slate-200">
+                <tr>
+                  <th className="px-3 py-2 text-center border-b border-slate-200 w-[70px]">
+                    <div className="flex items-center justify-center mb-1.5">
+                      <label className="block text-[12px] font-semibold text-slate-600 propercase mb-1">
+                        Select
+                      </label>
+                    </div>
+                    <div className="flex items-center justify-center">
+                      <input
+                        type="checkbox"
+                        checked={allFilteredSelected && filteredAndSorted.length > 0}
+                        onChange={handleSelectAllFiltered}
+                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+                    </div>
+                  </th>
 
-            <button
-              type="button"
-              onClick={handleSelectAllFiltered}
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              <CheckSquare size={14} />
-              {allFilteredSelected ? "Unselect Filtered" : "Select All Filtered"}
-            </button>
+                  {[
+                    { label: "Branch Code", key: "branchCode" },
+                    { label: "Branch Name", key: "branchName" },
+                  ].map((col) => (
+                    <th
+                      key={col.key}
+                      className="px-3 py-2 text-left border-b border-slate-200"
+                    >
+                      <div
+                        onClick={() => handleSort(col.key)}
+                        className="flex items-center gap-1 cursor-pointer group mb-1.5"
+                      >
+                        <label className="block text-[12px] font-semibold text-slate-600 propercase mb-1">
+                          {col.label}
+                        </label>
+                        <FontAwesomeIcon
+                          icon={faSort}
+                          className={`text-[9px] ${
+                            sortConfig.key === col.key
+                              ? "text-blue-500"
+                              : "opacity-20"
+                          }`}
+                        />
+                      </div>
 
-            <button
-              type="button"
-              onClick={handleClear}
-              disabled={tempSelected.length === 0}
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            >
-              <Square size={14} />
-              Clear
-            </button>
-          </div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={filters[col.key]}
+                          onChange={(e) =>
+                            setFilters((prev) => ({
+                              ...prev,
+                              [col.key]: e.target.value,
+                            }))
+                          }
+                          placeholder="Filter..."
+                          className="w-full pl-7 pr-2 py-1.5 text-xs font-normal border border-slate-200 rounded bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                        />
+                        <FontAwesomeIcon
+                          icon={faSearch}
+                          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-300 text-[9px]"
+                        />
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
 
-          <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_.85fr] gap-3">
-            <div className="rounded-lg border border-slate-200 overflow-hidden bg-white">
-              <div className="px-3 py-2 bg-slate-50 border-b text-[11px] sm:text-xs font-medium text-slate-600 flex items-center justify-between">
-                <span>Available Branches</span>
-                <span>{filteredBranchData.length} found</span>
-              </div>
-
-              <div className="max-h-[360px] overflow-y-auto divide-y divide-slate-100">
-                {isLoading ? (
-                  <div className="px-3 py-3 text-xs text-slate-500">
-                    Loading branches...
-                  </div>
-                ) : filteredBranchData.length === 0 ? (
-                  <div className="px-3 py-3 text-xs text-slate-500">
-                    No branches found.
-                  </div>
-                ) : (
-                  filteredBranchData.map((item) => {
-                    const checked = tempSelected.includes(item.value);
+              <tbody className="divide-y divide-slate-100">
+                {filteredAndSorted.length > 0 ? (
+                  filteredAndSorted.map((branch, index) => {
+                    const checked = tempSelected.includes(branch.branchCode);
 
                     return (
-                      <label
-                        key={item.value}
-                        className={`flex items-start gap-3 px-3 py-2.5 cursor-pointer transition ${
-                          checked ? "bg-blue-50" : "hover:bg-slate-50"
+                      <tr
+                        key={branch.branchCode || index}
+                        className={`group cursor-pointer transition-colors ${
+                          checked ? "bg-blue-50 hover:bg-blue-100" : "hover:bg-blue-50"
                         }`}
+                        onClick={() => toggleBranch(branch.branchCode)}
                       >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleBranch(item.value)}
-                          className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                        />
+                        <td className="px-3 py-2 text-center w-[70px]">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleBranch(branch.branchCode)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          />
+                        </td>
 
-                        <div className="min-w-0">
-                          <div className="text-xs sm:text-sm font-medium text-slate-800">
-                            {item.value}
-                          </div>
-                          <div className="text-[11px] text-slate-500 break-words">
-                            {item.label}
-                          </div>
-                        </div>
-                      </label>
+                        <td className="px-3 py-2 text-xs text-slate-600 w-[150px]">
+                          {branch.branchCode}
+                        </td>
+
+                        <td className="px-3 py-2 text-xs text-slate-600">
+                          {branch.branchName}
+                        </td>
+                      </tr>
                     );
                   })
-                )}
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-slate-200 overflow-hidden bg-white">
-              <div className="px-3 py-2 bg-slate-50 border-b text-[11px] sm:text-xs font-medium text-slate-600 flex items-center justify-between">
-                <span>Selected Branches</span>
-                <span>{tempSelected.length}</span>
-              </div>
-
-              <div className="min-h-[220px] max-h-[360px] overflow-y-auto p-3">
-                {selectedBranchItems.length === 0 ? (
-                  <div className="text-xs text-slate-400">
-                    No branches selected.
-                  </div>
                 ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {selectedBranchItems.map((item) => (
-                      <div
-                        key={item.value}
-                        className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] sm:text-xs text-blue-700"
-                      >
-                        <span className="max-w-[220px] truncate">
-                          {item.value} - {item.label}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => toggleBranch(item.value)}
-                          className="rounded-full hover:bg-blue-100 p-0.5"
-                        >
-                          <X size={12} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+                  <tr>
+                    <td
+                      colSpan="3"
+                      className="px-4 py-20 text-center text-slate-400 italic text-sm"
+                    >
+                      No matching branches found.
+                    </td>
+                  </tr>
                 )}
-              </div>
-            </div>
-          </div>
+              </tbody>
+            </table>
+          )}
         </div>
 
-        <div className="px-4 py-3 border-t bg-white flex items-center justify-between gap-2">
-          <div className="text-[11px] text-slate-500">
-            {tempSelected.length > 0
-              ? `${tempSelected.length} branch(es) selected`
-              : "No branches selected"}
+        {/* Footer */}
+        <div className="p-3 px-4 border-t bg-slate-50 flex items-center justify-between gap-3">
+          <div className="flex flex-col">
+            <span className="text-[12px] text-slate-500 font-medium">
+              Total Records: {filteredAndSorted.length}
+            </span>
+            <span className="text-[11px] text-blue-600 font-medium">
+              Selected: {tempSelected.length}
+            </span>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={onClose}
-              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-50"
+              onClick={() => onClose?.()}
+              className="px-4 py-2 text-[12px] font-semibold text-slate-600 bg-white border border-slate-300 hover:bg-slate-100 rounded transition-all"
             >
               Cancel
             </button>
@@ -246,14 +345,41 @@ const BranchSelectionModal = ({
             <button
               type="button"
               onClick={handleApply}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-blue-700"
+              className="px-4 py-2 text-[12px] font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded transition-all"
             >
-              <CheckCircle2 size={14} />
               Apply Selection
             </button>
           </div>
         </div>
       </div>
+
+      <style jsx="true">{`
+        .animate-fade-in {
+          animation: fadeIn 0.15s ease-out forwards;
+        }
+        .animate-scale-in {
+          animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes scaleIn {
+          from { transform: scale(0.95); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 5px;
+          height: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #e2e8f0;
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #cbd5e1;
+        }
+      `}</style>
     </div>,
     document.body
   );
