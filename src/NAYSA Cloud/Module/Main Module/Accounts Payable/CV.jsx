@@ -970,9 +970,9 @@ const handleCurrRateNoBlur = (e) => {
           debitFx2: parseFormattedNumber(entry.debitFx2 || 0),
           creditFx2: parseFormattedNumber(entry.creditFx2 || 0),
           slRefNo: entry.slRefNo || "",
-          // slRefDate: entry.slRefDate ? new Date(entry.slRefDate).toISOString().split("T")[0] : null,
-          
-          slRefDate: entry.slRefDate || "",
+          slRefDate: entry.slRefDate && !isNaN(new Date(entry.slRefDate).getTime())
+            ? new Date(entry.slRefDate).toISOString().split("T")[0]
+            : null,
           remarks: entry.remarks || "",
           dt1Lineno: entry.dt1Lineno || ""
         }))
@@ -1437,7 +1437,8 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
 
   if (runCalculations) {  
   const origAmount = parseFormattedNumber(row.origAmount) || 0;
-  const origCurrRate = parseFormattedNumber(row.currRate) || 0;
+  const origCurrRate = formatNumber(parseFormattedNumber(row.currRate),6) || 0;
+  
   const origInvoiceAmount = parseFormattedNumber(row.siAmount) || 0;
   const origApplied = parseFormattedNumber(row.appliedAmount) || 0;
   const origUnapplied = parseFormattedNumber(row.unappliedAmount) || 0;
@@ -1468,7 +1469,7 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
     row.unappliedAmount = formatNumber(unapplied);
     row.balance = +(applied - unapplied).toFixed(2);
     row.origAmount = formatNumber(parseFormattedNumber(row.origAmount));
-    row.currRate = formatNumber(parseFormattedNumber(row.currRate));
+    row.currRate = formatNumber(parseFormattedNumber(row.currRate),6);
 
     
   if (selectedWithAPV === "Y") {
@@ -2965,28 +2966,32 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                             handleDetailChange(index, "appliedAmount", sanitizedValue, false);
                         }
                     }}
-                     onFocus={(e) => {
+                    onFocus={(e) => {
                         if (e.target.value === "0.00" || e.target.value === "0") {
-                          e.target.value = "";
+                            e.target.value = "";
                         }
-                      }}   
+                    }}   
                     onBlur={async (e) => {
                         const value = e.target.value;
                         const num = parseFormattedNumber(value);
+                        const invoiceAmt = parseFormattedNumber(row.siAmount) || 0; // siAmount is invoice amount
+
                         if (!isNaN(num)) {
-                            await handleDetailChange(index, "appliedAmount", num, true);
+                            // Final Validation before saving
+                            if (num > invoiceAmt) {
+                                Swal.fire({ icon: 'info', 
+                                text: 'Applied amount exceeded invoice amount.' });
+                                await handleDetailChange(index, "appliedAmount", invoiceAmt, true); // Force to max
+                            } else {
+                                await handleDetailChange(index, "appliedAmount", num, true);
+                            }
                         }
                         setFocusedCell(null);
                     }}
                     onKeyDown={async (e) => {
                         if (e.key === "Enter") {
                             e.preventDefault();
-                            const value = e.target.value;
-                            const num = parseFormattedNumber(value);
-                            if (!isNaN(num)) {
-                                await handleDetailChange(index, "appliedAmount", num, true);
-                            }
-                            e.target.blur();
+                            e.target.blur(); // Trigger the onBlur validation
                         }
                     }}
                 />
@@ -3000,18 +3005,31 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                     value={row.unappliedAmount || ""}
                     onChange={(e) => {
                         const inputValue = e.target.value;
-                        const sanitizedValue = inputValue.replace(/[^0-9.]/g, '');
-                        if (/^\d*\.?\d{0,6}$/.test(sanitizedValue) || sanitizedValue === "") {
+                        
+                        // 1. Updated Sanitization: Allow the minus sign (-)
+                        const sanitizedValue = inputValue.replace(/[^0-9.-]/g, '');
+
+                        // 2. Updated Regex: 
+                        // ^-?          -> Allows an optional leading minus sign
+                        // \d* -> Allows zero or more digits
+                        // \.?          -> Allows an optional decimal point
+                        // \d{0,6}$     -> Allows up to 6 decimal places
+                        if (/^-?\d*\.?\d{0,6}$/.test(sanitizedValue) || sanitizedValue === "" || sanitizedValue === "-") {
                             handleDetailChange(index, "unappliedAmount", sanitizedValue, false);
                         }
                     }}
-                     onFocus={(e) => {
+                    onFocus={(e) => {
                         if (e.target.value === "0.00" || e.target.value === "0") {
-                          e.target.value = "";
+                            e.target.value = "";
                         }
-                      }}   
+                    }}   
                     onBlur={async (e) => {
                         const value = e.target.value;
+                        // Handle the case where only a "-" is left in the box
+                        if (value === "-") {
+                            await handleDetailChange(index, "unappliedAmount", 0, true);
+                            return;
+                        }
                         const num = parseFormattedNumber(value);
                         if (!isNaN(num)) {
                             await handleDetailChange(index, "unappliedAmount", num, true);
