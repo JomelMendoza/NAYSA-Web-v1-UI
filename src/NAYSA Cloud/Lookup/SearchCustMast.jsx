@@ -190,7 +190,7 @@ const CustomerMastLookupModal = ({ isOpen, onClose, customParam }) => {
                                     <tr key={idx} onClick={() => onClose(cust)} className="hover:bg-blue-50 cursor-pointer transition-colors group">
                                         {columnConfig.map(col => (
                                             <td key={col.key} className="px-4 py-3 text-[12px] text-slate-700 font-medium">
-                                                {col.key === "custCode" ? <span className="font-bold text-[#1e40af]">{cust[col.key]}</span> : cust[col.key]}
+                                                {col.key === "custCode" ? <span className="font-bold">{cust[col.key]}</span> : cust[col.key]}
                                             </td>
                                         ))}
                                     </tr>

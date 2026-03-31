@@ -556,7 +556,6 @@ const APInquiryTab = forwardRef(function APInquiryTab({ registerActions }, ref) 
         </div>
 
         <div className="global-tran-table-main-div-ui">
-          <div className="max-h-[600px] overflow-y-auto relative">
             <SearchGlobalReportTable
               ref={tableRef}
               columns={columnConfig}
@@ -574,7 +573,6 @@ const APInquiryTab = forwardRef(function APInquiryTab({ registerActions }, ref) 
                 cache[baseKey] = { ...prev, table: tbl };
               }}
             />
-          </div>
         </div>
       </div>
 

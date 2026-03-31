@@ -190,7 +190,7 @@ const PayeeMastLookupModal = ({ isOpen, onClose, customParam }) => {
                                     <tr key={idx} onClick={() => onClose(payee)} className="hover:bg-blue-50 cursor-pointer transition-colors group">
                                         {columnConfig.map(col => (
                                             <td key={col.key} className="px-4 py-3 text-[12px] text-slate-700 font-medium">
-                                                {col.key === "vendCode" ? <span className="font-bold text-[#1e40af]">{payee[col.key]}</span> : payee[col.key]}
+                                                {col.key === "vendCode" ? <span className="font-bold">{payee[col.key]}</span> : payee[col.key]}
                                             </td>
                                         ))}
                                     </tr>

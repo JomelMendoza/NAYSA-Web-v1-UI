@@ -7,6 +7,7 @@ import React, {
   useRef,
   useState,
   useCallback,
+  useMemo,
 } from "react";
 import {
   apiClient,
@@ -20,17 +21,13 @@ import {
   fetchData,
   bioLoginVerifyPasswordless,
 } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
-import Swal from "sweetalert2";
 
 import {
   useTopUserRow,
   useTopCompanyGlobalTables,
 } from "@/NAYSA Cloud/Global/top1RefTable";
 
-import {
-  useSwalSuccessAlert,
-} from "@/NAYSA Cloud/Global/behavior.jsx";
-
+import { useSwalSuccessAlert } from "@/NAYSA Cloud/Global/behavior.jsx";
 
 const AuthContext = createContext(null);
 
@@ -47,6 +44,7 @@ const IDLE_LIMIT_MINUTES =
   typeof import.meta.env.VITE_SESSION_LIFETIME !== "undefined"
     ? parseInt(import.meta.env.VITE_SESSION_LIFETIME, 10)
     : 60;
+
 const IDLE_LIMIT_MS = IDLE_LIMIT_MINUTES * 60 * 1000;
 
 /* -------- Heartbeats -------- */
@@ -62,6 +60,10 @@ const TAB_ID = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const HB_LEASE_KEY = "naysa_hb_leader";
 const HB_LEASE_MS = Math.max(EXPIRE_HEARTBEAT_MS * 1.25, 45_000);
 
+/* ---------------- Local cache keys ---------------- */
+const USER_CACHE_KEY = "naysa_user";
+const AUTH_REFS_CACHE_KEY = "naysa_auth_refs";
+
 function readLease() {
   try {
     return JSON.parse(localStorage.getItem(HB_LEASE_KEY) || "null");
@@ -73,6 +75,7 @@ function readLease() {
 function tryAcquireLeader() {
   const now = Date.now();
   const cur = readLease();
+
   if (!cur || !cur.id || cur.expiresAt <= now) {
     localStorage.setItem(
       HB_LEASE_KEY,
@@ -80,6 +83,7 @@ function tryAcquireLeader() {
     );
     return true;
   }
+
   return cur.id === TAB_ID;
 }
 
@@ -91,8 +95,6 @@ function renewLeader() {
   );
 }
 
-/* ---------------- Local user cache ---------------- */
-const USER_CACHE_KEY = "naysa_user";
 const cacheUser = (u) => {
   try {
     if (u) localStorage.setItem(USER_CACHE_KEY, JSON.stringify(u));
@@ -100,12 +102,36 @@ const cacheUser = (u) => {
   } catch {}
 };
 
+const readCachedUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem(USER_CACHE_KEY) || "null");
+  } catch {
+    return null;
+  }
+};
+
+const cacheAuthRefs = (refs) => {
+  try {
+    if (refs) localStorage.setItem(AUTH_REFS_CACHE_KEY, JSON.stringify(refs));
+    else localStorage.removeItem(AUTH_REFS_CACHE_KEY);
+  } catch {}
+};
+
+const readCachedAuthRefs = () => {
+  try {
+    return JSON.parse(localStorage.getItem(AUTH_REFS_CACHE_KEY) || "null");
+  } catch {
+    return null;
+  }
+};
+
 export default function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+  const [user, setUserState] = useState(() => readCachedUser());
   const [loading, setLoading] = useState(true);
 
   const [refsLoading, setRefsLoading] = useState(false);
   const [refsLoaded, setRefsLoaded] = useState(false);
+
   const [companyInfo, setCompanyInfo] = useState(null);
   const [allDropDown, setallDropDown] = useState(null);
   const [currentUserRow, setCurrentUserRow] = useState(null);
@@ -113,7 +139,7 @@ export default function AuthProvider({ children }) {
   const [globalTables, setGlobalTables] = useState(null);
   const [allVATList, setAllVATList] = useState(null);
   const [allATCList, setAllATCList] = useState(null);
-
+  const [allHSDoc, setAllHSDoc] = useState(null);
   const logoutLatchRef = useRef(false);
   const pendingLogoutNoticeRef = useRef(false);
   const lastActivity = useRef(Date.now());
@@ -121,35 +147,83 @@ export default function AuthProvider({ children }) {
   const remoteHbTimer = useRef(null);
   const expireHbTimer = useRef(null);
   const bcRef = useRef(null);
+  const isMountedRef = useRef(true);
+
+  const safeSetUser = useCallback((value) => {
+    if (!isMountedRef.current) return;
+    setUserState(value);
+  }, []);
+
+  const clearRefStates = useCallback(() => {
+    setCompanyInfo(null);
+    setallDropDown(null);
+    setCurrentUserRow(null);
+    setCurrentMenu(null);
+    setGlobalTables(null);
+    setAllVATList(null);
+    setAllATCList(null);
+    setAllHSDoc(null);
+    setRefsLoaded(false);
+    setRefsLoading(false);
+  }, []);
+
+  const persistRefsToCache = useCallback((nextRefs) => {
+    cacheAuthRefs({
+      companyInfo: nextRefs.companyInfo ?? null,
+      allDropDown: nextRefs.allDropDown ?? null,
+      currentUserRow: nextRefs.currentUserRow ?? null,
+      currentMenu: nextRefs.currentMenu ?? null,
+      globalTables: nextRefs.globalTables ?? null,
+      allVATList: nextRefs.allVATList ?? null,
+      allATCList: nextRefs.allATCList ?? null,
+      allHSDoc:nextRefs.allHSDoc ?? null,
+      refsLoaded: !!nextRefs.refsLoaded,
+    });
+  }, []);
+
+  const hydrateRefsFromCache = useCallback(() => {
+    try {
+      const cachedRefs = readCachedAuthRefs();
+      if (!cachedRefs) return;
+
+      setCompanyInfo(cachedRefs.companyInfo ?? null);
+      setallDropDown(cachedRefs.allDropDown ?? null);
+      setCurrentUserRow(cachedRefs.currentUserRow ?? null);
+      setCurrentMenu(cachedRefs.currentMenu ?? null);
+      setGlobalTables(cachedRefs.globalTables ?? null);
+      setAllVATList(cachedRefs.allVATList ?? null);
+      setAllATCList(cachedRefs.allATCList ?? null);
+      setAllHSDoc(cachedRefs.allHSDoc ?? null);
+
+      // cache is fallback only; do not trust it as fully loaded
+      setRefsLoaded(false);
+    } catch (err) {
+      console.error("Failed to hydrate auth refs from cache:", err);
+    }
+  }, []);
 
   const hardLogout = useCallback(() => {
-    setUser(null);
+    safeSetUser(null);
 
     try {
-      localStorage.removeItem("naysa_user");
+      localStorage.removeItem(USER_CACHE_KEY);
+      localStorage.removeItem(AUTH_REFS_CACHE_KEY);
       sessionStorage.removeItem("menuItems");
       sessionStorage.removeItem("routeRows");
     } catch {}
 
     cacheUser(null);
+    cacheAuthRefs(null);
     markAuthReady(false);
 
-    setCompanyInfo(null);
-    setallDropDown(null);
-    setCurrentUserRow(null);
-    setGlobalTables(null);
-    setCurrentMenu(null);
-    setRefsLoaded(false);
-    setRefsLoading(false);
-    setAllATCList(null);
-    setAllVATList(null);
+    clearRefStates();
 
     lastActivity.current = Date.now();
 
     if (idleTimer.current) clearTimeout(idleTimer.current);
     if (remoteHbTimer.current) clearTimeout(remoteHbTimer.current);
     if (expireHbTimer.current) clearTimeout(expireHbTimer.current);
-  }, []);
+  }, [clearRefStates, safeSetUser]);
 
   const serverLogout = useCallback(
     async (reason = "manual") => {
@@ -160,34 +234,40 @@ export default function AuthProvider({ children }) {
       const msg =
         reason === "idle"
           ? {
-              icon: "warning",
               title: "Signed out for inactivity",
               text: "You were inactive and have been signed out.",
             }
           : reason === "expired"
           ? {
-              icon: "warning",
               title: "Session expired",
               text: "Your session expired. Please sign in again.",
             }
           : reason === "remote"
           ? {
-              icon: "info",
               title: "Signed out",
               text: "Your account was signed in elsewhere or the server ended the session.",
             }
           : {
-              icon: "warning",
               title: "Session ended",
-              text: "Your session has ended. ",
+              text: "Your session has ended.",
             };
 
-      try {
-        await apiClient.post("/logout", null, {
-          headers: { "X-Skip-Logout-Broadcast": "1" },
-        });
-      } catch (err) {
-        console.warn("Logout API failed, continuing local logout:", err);
+      const shouldCallLogoutApi = reason === "manual";
+
+      if (shouldCallLogoutApi) {
+        try {
+          await apiClient.post("/logout", null, {
+            withCredentials: true,
+            headers: { "X-Skip-Logout-Broadcast": "1" },
+          });
+        } catch (err) {
+          const status = err?.response?.status;
+
+          // expected if session already gone
+          if (![401, 403, 419].includes(status)) {
+            console.warn("Logout API failed, continuing local logout:", err);
+          }
+        }
       }
 
       try {
@@ -198,7 +278,7 @@ export default function AuthProvider({ children }) {
 
       if (document.visibilityState === "visible") {
         try {
-          useSwalSuccessAlert(msg.title,msg.text)
+          useSwalSuccessAlert(msg.title, msg.text);
         } catch {}
       } else {
         pendingLogoutNoticeRef.current = true;
@@ -212,7 +292,19 @@ export default function AuthProvider({ children }) {
   }, [serverLogout]);
 
   useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    hydrateRefsFromCache();
+  }, [hydrateRefsFromCache]);
+
+  useEffect(() => {
     if (typeof BroadcastChannel === "undefined") return;
+
     const bc = new BroadcastChannel(AUTH_BC_NAME);
     bcRef.current = bc;
 
@@ -222,58 +314,39 @@ export default function AuthProvider({ children }) {
       if (e.data.type === "logout") {
         if (isBioAuthInProgress()) return;
         if (logoutLatchRef.current) return;
+
         logoutLatchRef.current = true;
 
         const reason = e.data.reason;
         const showPopup = document.visibilityState === "visible";
 
-        if (tryAcquireLeader()) {
-          try {
-            await apiClient.post("/logout", null, {
-              headers: { "X-Skip-Logout-Broadcast": "1" },
-            });
-          } catch {}
-          renewLeader();
-        }
-
+        // do not call /logout again from other tabs
         hardLogout();
 
         const msg =
           reason === "idle"
             ? {
-                icon: "warning",
                 title: "Signed out for inactivity",
                 text: "You were inactive and have been signed out. Please sign in again.",
               }
             : reason === "expired"
             ? {
-                icon: "warning",
                 title: "Session expired",
                 text: "Your session expired.",
               }
             : reason === "remote"
             ? {
-                icon: "info",
                 title: "Signed out",
                 text: "Your account was signed in elsewhere or the server ended the session.",
               }
             : {
-                icon: "warning",
                 title: "Session ended",
-                text: "Your session has ended. ",
+                text: "Your session has ended.",
               };
 
         if (showPopup) {
           try {
-            useSwalSuccessAlert(msg.title,msg.text)
-            // await Swal.fire({
-            //   ...msg,
-            //   timer: 3000,
-            //   timerProgressBar: true,
-            //   showConfirmButton: false,
-            //   allowOutsideClick: false,
-            //   allowEscapeKey: false,
-            // });
+            useSwalSuccessAlert(msg.title, msg.text);
           } catch {}
         } else {
           pendingLogoutNoticeRef.current = true;
@@ -294,7 +367,11 @@ export default function AuthProvider({ children }) {
     return () => bc.close();
   }, [hardLogout]);
 
+
+  
   useEffect(() => {
+    let cancelled = false;
+
     (async () => {
       try {
         const code = getTenant();
@@ -304,57 +381,147 @@ export default function AuthProvider({ children }) {
 
         const res = await apiClient.get("/me", {
           withCredentials: true,
-          headers: { "X-Skip-Logout-Broadcast": "1", "X-Use-Credentials": "1" },
+          headers: {
+            "X-Skip-Logout-Broadcast": "1",
+            "X-Use-Credentials": "1",
+          },
         });
 
+        if (cancelled) return;
+
         const me = res?.data;
-        setUser(me);
+        safeSetUser(me);
         cacheUser(me);
         logoutLatchRef.current = false;
         markAuthReady(true);
       } catch {
-        setUser(null);
+        if (cancelled) return;
+
+        safeSetUser(null);
         cacheUser(null);
         markAuthReady(false);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
-  }, []);
 
-  const loadStaticRefs = useCallback(async () => {
-    if (!user || !user.USER_CODE || refsLoaded || refsLoading) return;
-
-    try {
-      setRefsLoading(true);
-
-     const [userRow, currentMenu,globalTbl] = await Promise.all([
-        useTopUserRow(user.USER_CODE),
-        fetchData("menu-items", { USER_CODE: user?.USER_CODE }),     
-        useTopCompanyGlobalTables(),   
-      ]);
-
-      setCurrentUserRow(userRow ?? null);
-      setCurrentMenu(currentMenu ?? null);
-      setRefsLoaded(true);
-      setallDropDown(globalTbl.allDropdown ?? null)
-      setCompanyInfo(globalTbl?.company?.[0] ?? null);
-      setAllVATList(globalTbl?.vatList ?? null)
-      setAllATCList(globalTbl?.atcList?? null)
-    
+    return () => {
+      cancelled = true;
+    };
+  }, [safeSetUser]);
 
 
 
-    } catch (err) {
-      console.error("Failed to load static company/user:", err);
-    } finally {
-      setRefsLoading(false);
-    }
-  }, [user, refsLoaded, refsLoading]);
 
   useEffect(() => {
+    if (!user?.USER_CODE) return;
+
+    let cancelled = false;
+
+    const loadStaticRefs = async () => {
+      try {
+        setRefsLoading(true);
+
+        const results = await Promise.allSettled([
+          useTopUserRow(user.USER_CODE),
+          fetchData("menu-items", { USER_CODE: user.USER_CODE }),
+          useTopCompanyGlobalTables(),
+        ]);
+
+        if (cancelled) return;
+
+        const userRowResult = results[0];
+        const currentMenuResult = results[1];
+        const globalTblResult = results[2];
+
+        const nextUserRow =
+          userRowResult.status === "fulfilled"
+            ? userRowResult.value ?? null
+            : null;
+
+        const nextCurrentMenu =
+          currentMenuResult.status === "fulfilled"
+            ? currentMenuResult.value ?? null
+            : null;
+
+        const nextGlobalTbl =
+          globalTblResult.status === "fulfilled"
+            ? globalTblResult.value ?? null
+            : null;
+
+        const nextCompanyInfo = nextGlobalTbl?.company?.[0] ?? null;
+        const nextAllDropDown = nextGlobalTbl?.allDropdown ?? null;
+        const nextAllVATList = nextGlobalTbl?.vatList ?? null;
+        const nextAllATCList = nextGlobalTbl?.atcList ?? null;
+        const nextAllHSDoc = nextGlobalTbl?.hsDoc ?? null;
+
+        setCurrentUserRow(nextUserRow);
+        setCurrentMenu(nextCurrentMenu);
+        setGlobalTables(nextGlobalTbl);
+        setCompanyInfo(nextCompanyInfo);
+        setallDropDown(nextAllDropDown);
+        setAllVATList(nextAllVATList);
+        setAllATCList(nextAllATCList);
+        setAllHSDoc(nextAllHSDoc);
+        setRefsLoaded(true);
+
+        persistRefsToCache({
+          companyInfo: nextCompanyInfo,
+          allDropDown: nextAllDropDown,
+          currentUserRow: nextUserRow,
+          currentMenu: nextCurrentMenu,
+          globalTables: nextGlobalTbl,
+          allVATList: nextAllVATList,
+          allATCList: nextAllATCList,
+          allHSDoc:nextAllHSDoc,
+          refsLoaded: true,
+        });
+
+        if (userRowResult.status === "rejected") {
+          console.error("Failed to load user row:", userRowResult.reason);
+        }
+        if (currentMenuResult.status === "rejected") {
+          console.error("Failed to load menu items:", currentMenuResult.reason);
+        }
+        if (globalTblResult.status === "rejected") {
+          console.error("Failed to load global tables:", globalTblResult.reason);
+        }
+      } catch (err) {
+        console.error("Failed to load static refs:", err);
+      } finally {
+        if (!cancelled) setRefsLoading(false);
+      }
+    };
+
     loadStaticRefs();
-  }, [loadStaticRefs]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.USER_CODE, persistRefsToCache]);
+
+  useEffect(() => {
+    const bump = () => {
+      lastActivity.current = Date.now();
+    };
+
+    const events = [
+      "mousemove",
+      "keydown",
+      "click",
+      "scroll",
+      "touchstart",
+      "visibilitychange",
+    ];
+
+    events.forEach((ev) =>
+      window.addEventListener(ev, bump, { passive: true })
+    );
+
+    return () => {
+      events.forEach((ev) => window.removeEventListener(ev, bump));
+    };
+  }, []);
 
   useEffect(() => {
     let t = null;
@@ -369,6 +536,7 @@ export default function AuthProvider({ children }) {
         });
       } catch (err) {
         const status = err?.response?.status;
+
         if (
           (status === 401 || status === 403 || status === 419) &&
           !isBioAuthInProgress()
@@ -388,18 +556,7 @@ export default function AuthProvider({ children }) {
 
         if (pendingLogoutNoticeRef.current) {
           pendingLogoutNoticeRef.current = false;
-          useSwalSuccessAlert("Session ended","Your session has ended. ")
-          // Swal.fire({
-          //   icon: "warning",
-          //   title: "Session ended",
-          //   text: "Your session has ended. ",
-          //   confirmButtonText: undefined,
-          //   showConfirmButton: false,
-          //   timer: 3000,
-          //   timerProgressBar: true,
-          //   allowOutsideClick: false,
-          //   allowEscapeKey: false,
-          // });
+          useSwalSuccessAlert("Session ended", "Your session has ended.");
         }
 
         check();
@@ -415,29 +572,6 @@ export default function AuthProvider({ children }) {
       document.removeEventListener("visibilitychange", onFocus);
     };
   }, [serverLogout]);
-
-  useEffect(() => {
-    const bump = () => (lastActivity.current = Date.now());
-
-    [
-      "mousemove",
-      "keydown",
-      "click",
-      "scroll",
-      "touchstart",
-      "visibilitychange",
-    ].forEach((ev) => window.addEventListener(ev, bump, { passive: true }));
-
-    return () =>
-      [
-        "mousemove",
-        "keydown",
-        "click",
-        "scroll",
-        "touchstart",
-        "visibilitychange",
-      ].forEach((ev) => window.removeEventListener(ev, bump));
-  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -475,8 +609,8 @@ export default function AuthProvider({ children }) {
 
       const isHidden = document.visibilityState !== "visible";
       const interval = isHidden ? REMOTE_HEARTBEAT_MS * 4 : REMOTE_HEARTBEAT_MS;
-
       const sinceLast = Date.now() - getLastAuthApiTouch();
+
       if (sinceLast >= interval) {
         const leader = tryAcquireLeader();
         if (leader && !stopped) {
@@ -527,29 +661,33 @@ export default function AuthProvider({ children }) {
     };
   }, [user, serverLogout]);
 
-  const login = useCallback(async ({ companyCode, USER_CODE, PASSWORD }) => {
-    setTenant(companyCode);
+  const login = useCallback(
+    async ({ companyCode, USER_CODE, PASSWORD }) => {
+      setTenant(companyCode);
 
-    await ensureCsrf();
-    await apiClient.post(
-      "/login",
-      { USER_CODE, PASSWORD },
-      { headers: { "X-Skip-Logout-Broadcast": "1" } }
-    );
+      await ensureCsrf();
 
-    const { data } = await apiClient.get("/me", {
-      withCredentials: true,
-      headers: { "X-Skip-Logout-Broadcast": "1" },
-    });
+      await apiClient.post(
+        "/login",
+        { USER_CODE, PASSWORD },
+        { headers: { "X-Skip-Logout-Broadcast": "1" } }
+      );
 
-    lastActivity.current = Date.now();
-    setUser(data);
-    cacheUser(data);
-    logoutLatchRef.current = false;
-    markAuthReady(true);
+      const { data } = await apiClient.get("/me", {
+        withCredentials: true,
+        headers: { "X-Skip-Logout-Broadcast": "1" },
+      });
 
-    setRefsLoaded(false);
-  }, []);
+      lastActivity.current = Date.now();
+      safeSetUser(data);
+      cacheUser(data);
+      logoutLatchRef.current = false;
+      markAuthReady(true);
+
+      clearRefStates();
+    },
+    [safeSetUser, clearRefStates]
+  );
 
   const loginWithBiometric = useCallback(
     async ({ companyCode, payload }) => {
@@ -566,112 +704,135 @@ export default function AuthProvider({ children }) {
       });
 
       lastActivity.current = Date.now();
-      setUser(data);
+      safeSetUser(data);
       cacheUser(data);
       logoutLatchRef.current = false;
       markAuthReady(true);
-      setRefsLoaded(false);
+
+      clearRefStates();
     },
-    []
+    [safeSetUser, clearRefStates]
   );
 
+  const setUser = useCallback((value) => {
+    setUserState((prev) => {
+      const nextValue =
+        typeof value === "function" ? value(prev) : value ?? null;
+      cacheUser(nextValue);
+      return nextValue;
+    });
+  }, []);
 
   const getAllDropDown = useCallback(
     (columnName, docCode) => {
-      return (allDropDown || []).filter(
+      if (!Array.isArray(allDropDown)) return [];
+      return allDropDown.filter(
         (item) =>
-          item.DROPDOWN_COLUMN === columnName && item.DOC_CODE === docCode
+          item?.DROPDOWN_COLUMN === columnName && item?.DOC_CODE === docCode
       );
     },
     [allDropDown]
   );
 
 
+  const getAllTopHSDocRow = useCallback(
+    (docCode) => {
+      if (!Array.isArray(allHSDoc) || !docCode) return null;
+      return allHSDoc.find((item) => item?.docCode === docCode) || null;
+    },
+    [allHSDoc]
+  );
+
+
   const getAllTopVatRow = useCallback(
-  (vatCode) => {
-    return (allVATList || []).find(
-      (item) => item.vatCode === vatCode
-    ) || null;
-  },
-  [allVATList]
-);
+    (vatCode) => {
+      if (!Array.isArray(allVATList) || !vatCode) return null;
+      return allVATList.find((item) => item?.vatCode === vatCode) || null;
+    },
+    [allVATList]
+  );
 
+  const getAllTopATCRow = useCallback(
+    (atcCode) => {
+      if (!Array.isArray(allATCList) || !atcCode) return null;
+      return allATCList.find((item) => item?.atcCode === atcCode) || null;
+    },
+    [allATCList]
+  );
 
+  const getAllTopVatAmount = useCallback(
+    (vatCode, grossAmt) => {
+      if (!vatCode?.trim() || Number(grossAmt) === 0) return 0;
 
- const getAllTopATCRow = useCallback(
-  (atcCode) => {
-    return (allATCList || []).find(
-      (item) => item.atcCode === atcCode
-    ) || null;
-  },
-  [allATCList]
-);
+      const vatRow = getAllTopVatRow(vatCode);
+      if (!vatRow) return 0;
 
+      const vatRate = Number(vatRow.vatRate || 0);
 
+      return +(
+        (Number(grossAmt) * vatRate * 0.01) /
+        (1 + vatRate * 0.01)
+      ).toFixed(2);
+    },
+    [getAllTopVatRow]
+  );
 
-const getAllTopVatAmount = useCallback(
-  (vatCode, grossAmt) => {
-    if (!vatCode?.trim() || Number(grossAmt) === 0) return 0;
+  const getAllTopATCAmount = useCallback(
+    (atcCode, netAmount) => {
+      const amount = Number(netAmount) || 0;
+      if (!atcCode?.trim() || amount === 0) return 0;
 
-    const vatRow = getAllTopVatRow(vatCode);
-    if (!vatRow) return 0;
+      const atcRow = getAllTopATCRow(atcCode);
+      if (!atcRow) return 0;
 
-    const vatRate = Number(vatRow.vatRate || 0);
+      const atcRate = Number(atcRow.atcRate || 0);
 
-    return +(
-      (Number(grossAmt) * vatRate * 0.01) /
-      (1 + vatRate * 0.01)
-    ).toFixed(2);
-  },
-  [getAllTopVatRow]
-);
+      return +(amount * atcRate * 0.01).toFixed(2);
+    },
+    [getAllTopATCRow]
+  );
 
-
-
-
-const getAllTopATCAmount = useCallback(
-  (atcCode, netAmount) => {
-    const amount = Number(netAmount) || 0;
-    if (!atcCode?.trim() || amount === 0) return 0;
-
-    const atcRow = getAllTopATCRow(atcCode);
-    if (!atcRow) return 0;
-
-    const atcRate = Number(atcRow.atcRate || 0);
-
-    return +(amount * atcRate * 0.01).toFixed(2);
-  },
-  [getAllTopATCRow]
-);
-
-
-
-
-
-
-
-
+  const authContextValue = useMemo(
+    () => ({
+      user,
+      loading,
+      login,
+      loginWithBiometric,
+      logout,
+      setUser,
+      companyInfo,
+      getAllDropDown,
+      getAllTopATCRow,
+      getAllTopVatRow,
+      getAllTopVatAmount,
+      getAllTopATCAmount,
+      getAllTopHSDocRow,
+      currentUserRow,
+      refsLoading,
+      refsLoaded,
+    }),
+    [
+      user,
+      loading,
+      login,
+      loginWithBiometric,
+      logout,
+      setUser,
+      companyInfo,
+      getAllDropDown,
+      getAllTopATCRow,
+      getAllTopVatRow,
+      getAllTopVatAmount,
+      getAllTopATCAmount,
+      getAllTopHSDocRow,
+      currentUserRow,
+      refsLoading,
+      refsLoaded,
+    ]
+  );
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        login,
-        loginWithBiometric,
-        logout,
-        setUser,
-        companyInfo,
-        getAllDropDown,
-        getAllTopATCRow,
-        getAllTopVatRow,
-        getAllTopVatAmount,
-        getAllTopATCAmount,
-        currentUserRow,
-        refsLoading,
-        refsLoaded,
-      }}
-    >
+    <AuthContext.Provider value={authContextValue}>
       {children}
     </AuthContext.Provider>
   );

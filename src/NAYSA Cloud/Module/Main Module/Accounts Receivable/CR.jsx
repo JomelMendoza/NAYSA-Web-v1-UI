@@ -23,7 +23,7 @@ import GlobalLookupModalv1 from "../../../Lookup/SearchGlobalLookupv1.jsx";
 import PostCR from "../../../Module/Main Module/Accounts Receivable/PostCR.jsx";
 import AllTranHistory from "../../../Lookup/SearchGlobalTranHistory.jsx";
 import AllTranDocNo from "../../../Lookup/SearchDocNo.jsx";
-
+import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 
 // Configuration
 import {fetchData , postRequest,fetchDataJson} from '../../../Configuration/BaseURL.jsx'
@@ -108,8 +108,11 @@ const CR = () => {
   const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation(); 
-  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded ,getAllTopATCRow, getAllTopVatRow,getAllTopVatAmount,getAllTopATCAmount } = useAuth();
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded ,getAllTopATCRow, getAllTopVatRow,getAllTopVatAmount,getAllTopATCAmount,getAllTopHSDocRow } = useAuth();
   const [isViewDocument, setIsViewDocument] = useState(false);
+ 
+
+
   useEffect(() => {
     const p = new URLSearchParams(location.search);
     if (p.get("viewDocument") === "true") {
@@ -121,11 +124,16 @@ const CR = () => {
 
 
   const [topTab, setTopTab] = useState("details"); // "details" | "history"
-  const { user } = useAuth();
   const { resetFlag } = useReset();
+  const [focusedCell, setFocusedCell] = useState(null); // { index: number, field: string }
+  const docType = docTypes.CR; 
+  const hsDoc = getAllTopHSDocRow(docType);
+  const pdfLink = docTypePDFGuide[docType];
+  const videoLink = docTypeVideoGuide[docType];
+  const documentTitle = hsDoc.docName + ' Transaction';
+ 
+
   const [state, setState] = useState({
-
-
     // HS Option
     glCurrMode:companyInfo?.glCurrMode||"",
     glCurrDefault:companyInfo?.currCode||"",
@@ -136,11 +144,10 @@ const CR = () => {
     glCurrGlobal3:companyInfo?.glCurrGlobal3||"",
 
 
-    
     // Document information
-    documentName: "",
-    documentSeries: "Auto",
-    documentDocLen: 8,
+    documentName: hsDoc?.docName||"",
+    documentSeries: hsDoc?.docSeries||"Auto",
+    documentDocLen: hsDoc?.docLength||8,
     documentID: null,
     documentNo: "",
     documentStatus:"",
@@ -184,9 +191,9 @@ const CR = () => {
     crTypes :[],
     paymentTypes:[],
     checkTypes:[],
-    depBankCode:"",
-    depAcctName:"",
-    depAcctNo:"",
+    depBankCode:companyInfo?.depBankcode||"", 
+    depAcctName:companyInfo?.depositBankName||"", 
+    depAcctNo:companyInfo?.depositBankAcctNo||"", 
     currAmount:"0.00",
     checkAmount:"0.00",
     checkNo:"",
@@ -356,15 +363,6 @@ const CR = () => {
 
 } = state;
 
-
-  const [focusedCell, setFocusedCell] = useState(null); // { index: number, field: string }
-
-  //Document Global Setup
-  const docType = docTypes.CR; 
-  const pdfLink = docTypePDFGuide[docType];
-  const videoLink = docTypeVideoGuide[docType];
-  const documentTitle = docTypeNames[docType] || 'Transaction';
- 
 
 
   //Status Global Setup
@@ -563,7 +561,11 @@ useEffect(() => {
       remarks:"",
       checkNo:"",
       bank:"",
-
+   
+      depBankCode:companyInfo?.depBankcode||"", 
+      depAcctName:companyInfo?.depositBankName||"", 
+      depAcctNo:companyInfo?.depositBankAcctNo||"", 
+      
       custName:"",
       custCode:"",
       chainCode:"",
@@ -592,54 +594,24 @@ useEffect(() => {
 
 
   
-   const loadCompanyData = async () => {
-
-    updateState({isLoading:true})
-
-    try {
+      const loadCompanyData = async () => {
+                updateState({ isLoading: true });
+              
+                try {
+                  const hdtblcol_result = await useFieldLenghtCheck(
+                    "cr_hd,cr_dt1,cr_dt2"
+                  );
+              
+                  if (hdtblcol_result) {
+                    updateState({ tblFieldArray: hdtblcol_result });
+                  }
+                } catch (err) {
+                  console.error("Error fetching data:", err);
+                } finally {
+                  updateState({ isLoading: false });
+                }
+              };        
     
-
-      // 🔹 2. Document row (independent)
-      const docRow = await useTopDocControlRow(docType);
-      if (docRow) {
-        updateState({
-          documentName: docRow.docName,
-          documentSeries: docRow.docName,
-          tdocumentDocLen: docRow.docName,
-        });
-      }
-
-
-
-      // 🔹 4. Company + Bank row (dependent chain)
-      const company = await useTopCompanyRow();
-      if (company) {
-        updateState({ depBankCode: company.depBankcode });
-
-        const bank = await useTopBankMastRow(company.depBankcode);
-        if (bank) {
-          updateState({
-            depBankCode: bank.bankCode,
-            depAcctName: bank.acctName,
-            depAcctNo: bank.bankAcctNo,
-          });
-        }
-      }
-
-    const tbls = 'cr_hd,cr_dt1,cr_dt2'
-     const hdtblcol_result = await useFieldLenghtCheck(tbls);
-     if (hdtblcol_result){
-       updateState({tblFieldArray :hdtblcol_result })
-     }
-      
-
-
-    } catch (err) {
-      console.error("Error fetching data:", err);
-    }
-
-     updateState({isLoading:false})
-  };
 
 
 
@@ -805,79 +777,83 @@ const moveFocusBeforeSave = () => {
 
 
 
- const handleActivityOption = async (action) => {
-  if (action === "Upsert") {
-      moveFocusBeforeSave();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-  }
 
-  if (action === "Upsert" && detailRowsGL.length === 0) {
-    updateState({ triggerGLEntries: true });
+
+
+const handleActivityOption = async (action) => {
+    if ((detailRows?.length || 0) + (detailRowsGL?.length || 0) === 0) {
     return;
   }
 
-  if (documentStatus === '') {
-   
+
+  if (action === "Upsert") {
+    moveFocusBeforeSave();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  if (documentStatus !== "") return;
+
   updateState({ isLoading: true });
 
+  try {
     const {
-        branchCode,
-        documentNo,
-        documentID,
-        selectedCRType,
-        selectedPayType,
-        selectedCheckType,
-        chainCode,
-        chainName,
-        custCode,
-        custName,
-        depBankCode,
-        depAcctName,
-        depAcctNo,
-        currAmount,
-        checkAmount,
-        refDocNo1,
-        refDocNo2,
-        bank,
-        checkNo,
-        checkDate, 
-        prcNo,    
-        currCode,
-        currName,
-        currRate,
-        remarks,
-        userCode, // Assuming userCode is also part of your state
-        detailRows,
-        detailRowsGL
+      branchCode,
+      documentNo,
+      documentID,
+      selectedCRType,
+      selectedPayType,
+      selectedCheckType,
+      chainCode,
+      chainName,
+      custCode,
+      custName,
+      depBankCode,
+      depAcctName,
+      depAcctNo,
+      currAmount,
+      checkAmount,
+      refDocNo1,
+      refDocNo2,
+      bank,
+      checkNo,
+      checkDate,
+      prcNo,
+      currCode,
+      currName,
+      currRate,
+      remarks,
+      userCode,
+      detailRows,
+      detailRowsGL,
     } = state;
 
-    updateState({ isLoading: true });
+    let finalDetailRowsGL = [...detailRowsGL];
 
-    const glData = {
+    const buildGlData = (glRows) => ({
       branchCode: branchCode,
       crNo: documentNo || "",
       crId: documentID || "",
       crDate: documentDate,
       crtranType: selectedCRType,
-      paymentType:selectedPayType,
-      ckType:selectedCheckType,
-      chainCode :chainCode,
-      chainName:chainName,
-      custCode: custCode,
-      custName: custName,
-      refDocNo1: refDocNo1,
-      refDocNo2: refDocNo2,
-      depBankCode:depBankCode,
-      depAcctName:depAcctName,
-      depAcctNo:depAcctNo,
-      bank:bank,
-      checkNo:checkNo,
-      checkDate:checkDate,
-      currAmount:parseFormattedNumber(totals.currAmount),
-      amount:parseFormattedNumber(checkAmount),
+      paymentType: selectedPayType,
+      ckType: selectedCheckType,
+      chainCode: chainCode || "",
+      chainName: chainName || "",
+      custCode: custCode || "",
+      custName: custName || "",
+      refDocNo1: refDocNo1 || "",
+      refDocNo2: refDocNo2 || "",
+      depBankCode: depBankCode || "",
+      depAcctName: depAcctName || "",
+      depAcctNo: depAcctNo || "",
+      bank: bank || "",
+      checkNo: checkNo || "",
+      checkDate: checkDate || null,
+      currAmount: parseFormattedNumber(totals.currAmount || currAmount || 0),
+      amount: parseFormattedNumber(checkAmount || 0),
       currCode: currCode || "PHP",
       currRate: parseFormattedNumber(currRate),
-      remarks: remarks|| "",
+      remarks: remarks || "",
       userCode: userCode,
       dt1: detailRows.map((row, index) => ({
         lnNo: String(index + 1),
@@ -887,93 +863,105 @@ const moveFocusBeforeSave = () => {
         appliedAmount: parseFormattedNumber(row.appliedAmount || 0),
         balance: parseFormattedNumber(row.balance || 0),
         unappliedAmount: parseFormattedNumber(row.unappliedAmount || 0),
-        currCode: row.currCode,
+        currCode: row.currCode || "",
         currRate: parseFormattedNumber(row.currRate || 0),
-        bank: row.bank,
-        checkNo: row.checkNo,
-        checkDate: row.checkDate,
+        bank: row.bank || "",
+        checkNo: row.checkNo || "",
+        checkDate: row.checkDate || "",
         checkAmount: parseFormattedNumber(row.checkAmount || 0),
-        refBranchcode: row.refBranchcode,
-        refDocCode: row.refDocCode,
-        arAcct: row.arAcct,
-        w2307: row.w2307,
-        custCode:  row.custCode,
-        custName: row.custName,
-        groupId: row.groupId,
+        refBranchcode: row.refBranchcode || "",
+        refDocCode: row.refDocCode || "",
+        arAcct: row.arAcct || "",
+        w2307: row.w2307 || "",
+        custCode: row.custCode || "",
+        custName: row.custName || "",
+        groupId: row.groupId || "",
       })),
-       dt2: detailRowsGL.map((entry, index) => ({
-          recNo: String(index + 1),
-          acctCode: entry.acctCode || "",
-          rcCode: entry.rcCode || "",
-          sltypeCode: entry.sltypeCode || "",
-          slCode: entry.slCode || "",
-          particular: entry.particular || "",
-          vatCode: entry.vatCode || "",
-          vatName: entry.vatName || "",
-          atcCode: entry.atcCode || "",
-          atcName: entry.atcName || "",
-          debit: parseFormattedNumber(entry.debit || 0),
-          credit: parseFormattedNumber(entry.credit || 0),
-          debitFx1: parseFormattedNumber(entry.debitFx1 || 0),
-          creditFx1: parseFormattedNumber(entry.creditFx1 || 0),
-          debitFx2: parseFormattedNumber(entry.debitFx2 || 0),
-          creditFx2: parseFormattedNumber(entry.creditFx2 || 0),
-          slRefNo: entry.slRefNo || "",
-          slRefDate: entry.slRefDate ? new Date(entry.slRefDate).toISOString().split("T")[0] : null,
-          remarks: entry.remarks || "",
-          dt1Lineno: entry.dt1Lineno || ""
-        }))
-    };
+      dt2: glRows.map((entry, index) => ({
+        recNo: String(index + 1),
+        acctCode: entry.acctCode || "",
+        rcCode: entry.rcCode || "",
+        sltypeCode: entry.sltypeCode || "",
+        slCode: entry.slCode || "",
+        particular: entry.particular || "",
+        vatCode: entry.vatCode || "",
+        vatName: entry.vatName || "",
+        atcCode: entry.atcCode || "",
+        atcName: entry.atcName || "",
+        debit: parseFormattedNumber(entry.debit || 0),
+        credit: parseFormattedNumber(entry.credit || 0),
+        debitFx1: parseFormattedNumber(entry.debitFx1 || 0),
+        creditFx1: parseFormattedNumber(entry.creditFx1 || 0),
+        debitFx2: parseFormattedNumber(entry.debitFx2 || 0),
+        creditFx2: parseFormattedNumber(entry.creditFx2 || 0),
+        slRefNo: entry.slRefNo || "",
+        slRefDate: entry.slRefDate
+          ? new Date(entry.slRefDate).toISOString().split("T")[0]
+          : null,
+        remarks: entry.remarks || "",
+        dt1Lineno: entry.dt1Lineno || "",
+      })),
+    });
 
     if (action === "GenerateGL") {
-        try {
-          
-            const newGlEntries = await useGenerateGLEntries(docType, glData);
+      const newGlEntries = await useGenerateGLEntries(
+        docType,
+        buildGlData(finalDetailRowsGL)
+      );
 
-            if (newGlEntries) {
-                updateState({ detailRowsGL: newGlEntries });
-            } else {
-                console.warn("GL entries generation failed or returned no data.");
-            }
-        } catch (error) {
-            console.error("Error during GL generation:", error);
-        } finally {
-            updateState({ isLoading: false });
-        }
+      if (newGlEntries && newGlEntries.length > 0) {
+        updateState({ detailRowsGL: newGlEntries });
+      } else {
+        console.warn("GL entries generation failed or returned no data.");
+      }
+      return;
     }
-
-
-
 
     if (action === "Upsert") {
-        try {
+      if (finalDetailRowsGL.length === 0) {
+        const newGlEntries = await useGenerateGLEntries(
+          docType,
+          buildGlData([])
+        );
 
-          const response = await useTransactionUpsert(docType, glData, updateState, 'crId', 'crNo');
-          if (response) {
-
-                const isZero = Number(noReprints) === 0;
-                const onSaveAndPrint =
-                  isZero
-                    ? () => updateState({ showSignatoryModal: true })                  
-                    : () => handleSaveAndPrint(response.data[0].crId); 
-                useSwalshowSaveSuccessDialog(
-                  handleReset,          
-                  onSaveAndPrint       
-                );
-          }
-
-         
-           
-        } catch (error) {
-            console.error("Error during transaction upsert:", error);
-        } finally {
-            updateState({ isLoading: false});
+        if (!newGlEntries || newGlEntries.length === 0) {
+          console.warn("GL entries generation failed or returned no data.");
+          return;
         }
 
-        updateState({isDocNoDisabled: true,isFetchDisabled: true,});
-    }
-  }
+        finalDetailRowsGL = newGlEntries;
+        updateState({ detailRowsGL: newGlEntries });
+      }
 
+      const response = await useTransactionUpsert(
+        docType,
+        buildGlData(finalDetailRowsGL),
+        updateState,
+        "crId",
+        "crNo"
+      );
+
+      if (response) {
+
+
+        const isZero = Number(noReprints) === 0;
+        const onSaveAndPrint = isZero
+          ? () => updateState({ showSignatoryModal: true })
+          : () => handleSaveAndPrint(response.data[0].crId);
+
+        useSwalshowSaveSuccessDialog(handleReset, onSaveAndPrint);
+
+        updateState({
+          isDocNoDisabled: true,
+          isFetchDisabled: true,
+        });
+      }
+    }
+  } catch (error) {
+    console.error(`Error during ${action}:`, error);
+  } finally {
+    updateState({ isLoading: false });
+  }
 };
 
 
@@ -1984,9 +1972,15 @@ const handleCloseBranchModal = (selectedBranch) => {
               onDetails={() => setTopTab("details")}
               onHistory={() => setTopTab("history")}
               disableRouteNavigation={true}         
-              isSaveDisabled={isSaveDisabled} 
-              isResetDisabled={isResetDisabled} 
               detailsRoute="/page/CR"
+
+              isSaveDisabled={state.isSaveDisabled || isFormDisabled ||  ((detailRows?.length || 0) + (detailRowsGL?.length || 0) === 0)} 
+              isResetDisabled={state.isResetDisabled}
+              isAttachDisabled={!documentID}
+              isPrintDisabled={!documentID || displayStatus === "CANCELLED"}
+              isCopyDisabled={!documentID || displayStatus === "CANCELLED"}
+              isCancelDisabled={!documentID || displayStatus === "CANCELLED" || displayStatus === "FINALIZED"|| displayStatus === "CLOSED"}
+
         />
       </div>
 
@@ -2029,530 +2023,351 @@ const handleCloseBranchModal = (selectedBranch) => {
 
 
         {/* SVI Header Form Section - Main Grid Container */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 rounded-lg relative items-stretch" id="svi_hd">
+       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 rounded-lg relative items-stretch" id="cr_hd">
+                <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {/* Column 1 */}
+                  <div className="global-tran-textbox-group-div-ui">
+                    <FieldRenderer
+                      id="branchName"
+                      label="Branch"
+                      type="lookup"
+                      value={branchName || ""}
+                      disabled={state.isFetchDisabled || state.isDocNoDisabled || isFormDisabled}
+                      readOnly
+                      lookupDisabled={isFetchDisabled}
+                      onLookup={() => updateState({ branchModalOpen: true })}
+                    />
 
-            <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"> {/* Nested grid for 3 columns */}
+                    <FieldRenderer
+                      id="crNo"
+                      label="CR No."
+                      type="lookup"
+                      value={state.documentNo || ""}
+                      disabled={state.isDocNoDisabled}
+                      onChange={(val) => updateState({ documentNo: val })}
+                      onLookup={() => updateState({ showAllTranDocNo: true })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          handleCrNoBlur();
+                          e.preventDefault();
+                          document.getElementById("documentDate")?.focus();
+                        }
+                      }}
+                    />
 
-                {/* Column 1 */}
-                <div className="global-tran-textbox-group-div-ui">
-                    {/* Branch Name Input with lookup button */}
-                    <div className="relative">
-                        <input
-                            type="text"
-                            id="branchName"
-                            placeholder=" "
-                            value={branchName}
-                            readOnly
-                            onFocus={(e) => e.target.blur()}
-                            className="peer global-tran-textbox-ui cursor-pointer select-none"
+                    <div className="relative w-full">
+                      <div
+                        className={`flex items-stretch global-ref-textbox-ui ${
+                          !isFormDisabled
+                            ? "global-ref-textbox-enabled"
+                            : "global-ref-textbox-disabled"
+                        }`}
+                      >
+                        <DateFormatInput
+                          id="documentDate"
+                          className="peer flex-grow bg-transparent border-none px-3 focus:outline-none cursor-pointer"
+                          value={documentDate}
+                          disabled={isFormDisabled}
+                          updateState={updateState}
                         />
-                        <label htmlFor="branchName" className="global-tran-floating-label">
-                            Branch
-                        </label>
-                        <button
-                            type="button"
-                            className={`global-tran-textbox-button-search-padding-ui ${
-                                isFetchDisabled
-                                ? "global-tran-textbox-button-search-disabled-ui"
-                                : "global-tran-textbox-button-search-enabled-ui"
-                            } global-tran-textbox-button-search-ui`}
-                            disabled={state.isFetchDisabled || state.isDocNoDisabled || isFormDisabled}
-                            onClick={() => updateState({ branchModalOpen: true })}
-                        >
-                            <FontAwesomeIcon icon={faMagnifyingGlass} />
-                        </button>
+                      </div>
+                      <label
+                        htmlFor="documentDate"
+                        className={`global-ref-floating-label ${
+                          !isFormDisabled
+                            ? "global-ref-label-enabled"
+                            : "global-ref-label-disabled"
+                        }`}
+                      >
+                        CR Date
+                      </label>
                     </div>
 
-                    {/* SVI Number Field */}
-                    <div className="relative">
-                        <input
-                            type="text"
-                            id="crNo"
-                            value={state.documentNo}
-                            onChange={(e) => updateState({ documentNo: e.target.value })}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                handleCrNoBlur();
-                                e.preventDefault(); 
-                                document.getElementById("documentDate")?.focus();
-                              }}}
-                            placeholder=" "
-                            className={`peer global-tran-textbox-ui ${state.isDocNoDisabled ? 'bg-blue-100 cursor-not-allowed' : ''}`}
-                            disabled={state.isDocNoDisabled}
+                    <FieldRenderer
+                      id="selectedCRType"
+                      label="CR Type"
+                      type="select"
+                      value={selectedCRType || ""}
+                      disabled={handleFieldBehavior("disableOnSaved")}
+                      onChange={(val) => handleCRTypeChange({ target: { value: val } })}
+                      options={crTypes.map((t) => ({
+                        label: t.DROPDOWN_NAME,
+                        value: t.DROPDOWN_CODE,
+                      }))}
+                    />
+                  </div>
+
+                  {/* Column 2 */}
+                  <div className="global-tran-textbox-group-div-ui">
+                    <FieldRenderer
+                      id="chainCode"
+                      label="Chain Code"
+                      required
+                      type="lookup"
+                      value={chainCode || ""}
+                      disabled={handleFieldBehavior("disableOnSaved")}
+                      readOnly
+                      lookupDisabled={isFetchDisabled}
+                      onLookup={() => updateState({ custModalOpen: true })}
+                    />
+
+                    <FieldRenderer
+                      id="chainName"
+                      label="Chain Name"
+                      required
+                      type="text"
+                      value={chainName || ""}
+                      disabled
+                      readOnly
+                    />
+
+                    <FieldRenderer
+                      id="custCode"
+                      label="Customer Code"
+                      required
+                      type="lookup"
+                      value={custCode || ""}
+                      disabled={handleFieldBehavior("disableOnSaved")}
+                      readOnly
+                      lookupDisabled={isFetchDisabled}
+                      onLookup={() => updateState({ custModalOpen: true })}
+                    />
+
+                    <FieldRenderer
+                      id="custName"
+                      label="Customer Name"
+                      required
+                      type="text"
+                      value={custName || ""}
+                      disabled
+                      readOnly
+                    />
+                  </div>
+
+                  {/* Column 3 */}
+                  <div className="global-tran-textbox-group-div-ui">
+                    <FieldRenderer
+                      id="depAcctName"
+                      label="Bank Name"
+                      type="lookup"
+                      value={depAcctName || ""}
+                      disabled={isFormDisabled}
+                      readOnly
+                      lookupDisabled={isFetchDisabled}
+                      onLookup={() => updateState({ showBankMastModal: true })}
+                    />
+
+                    <FieldRenderer
+                      id="depAcctNo"
+                      label="Bank Account No."
+                      type="text"
+                      value={depAcctNo || ""}
+                      disabled={isFormDisabled}
+                      onChange={(val) => updateState({ depAcctNo: val })}
+                    />
+
+                    <FieldRenderer
+                      id="currAmount"
+                      label="Original Amount"
+                      type="amount"
+                      value={totals.currAmount || ""}
+                      disabled={isFormDisabled}
+                      readOnly
+                    />
+
+                    <div className="flex gap-4">
+                      <input type="hidden" id="currCode" value={currCode || ""} readOnly />
+
+                      <div className="flex-grow w-2/3">
+                        <FieldRenderer
+                          id="currName"
+                          label="Currency"
+                          type="lookup"
+                          value={
+                              currCode
+                                ? `${currCode}${currName ? ` - ${currName}` : ""}`
+                                : ""
+                            }
+                          disabled={isFormDisabled}
+                          onLookup={() => updateState({ currencyModalOpen: true })}
+                          readOnly
                         />
-                        <label htmlFor="crNo" className="global-tran-floating-label">
-                            CR No.
-                        </label>
-                        <button
-                            className={`global-tran-textbox-button-search-padding-ui ${
-                                (state.isFetchDisabled || state.isDocNoDisabled)
-                                ? "global-tran-textbox-button-search-disabled-ui"
-                                : "global-tran-textbox-button-search-enabled-ui"
-                            } global-tran-textbox-button-search-ui`}
-                            onClick={() => {updateState({showAllTranDocNo:true})}}
-                        >
-                            <FontAwesomeIcon icon={faMagnifyingGlass} />
-                        </button>
+                      </div>
+
+                      <div className="flex-grow">
+                        <FieldRenderer
+                          id="currRate"
+                          label="Currency Rate"
+                          type="amount"
+                          value={currRate || ""}
+                          disabled={isFormDisabled || glCurrDefault === currCode}
+                          onChange={(val) => {
+                            const sanitizedValue = String(val).replace(/[^0-9.]/g, "");
+                            if (
+                              /^\d*\.?\d{0,6}$/.test(sanitizedValue) ||
+                              sanitizedValue === ""
+                            ) {
+                              updateState({ currRate: sanitizedValue });
+                            }
+                          }}
+                          onBlur={handleCurrRateNoBlur}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              document.getElementById("refDocNo1")?.focus();
+                            }
+                          }}
+                          onFocus={(e) => {
+                            if (parseFormattedNumber(e.target.value) === 0) {
+                              e.target.value = "";
+                            }
+                          }}
+                        />
+                      </div>
                     </div>
 
-                    {/* SVI Date Picker */}
-                    <div className="relative">
-                       <DateFormatInput
-                        id="documentDate"
-                        value={documentDate}
-                        updateState={updateState}
+                    <FieldRenderer
+                      id="checkAmount"
+                      label="Check Amount"
+                      type="amount"
+                      value={checkAmount || ""}
+                      disabled
+                      readOnly
+                    />
+                  </div>
+
+                  {/* Remarks */}
+                  <div className="col-span-full">
+                    <div className="relative p-2">
+                      <textarea
+                        id="remarks"
+                        placeholder=""
+                        rows={6}
+                        className="peer global-tran-textbox-remarks-ui pt-2"
+                        value={remarks}
+                        onChange={(e) => updateState({ remarks: e.target.value })}
+                        maxLength={useGetFieldLength(tblFieldArray, "remarks")}
                         disabled={isFormDisabled}
                       />
-                        <label htmlFor="crDate" className="global-tran-floating-label">CR Date</label>
+                      <label
+                        htmlFor="remarks"
+                        className="global-tran-floating-label-remarks"
+                      >
+                        Remarks
+                      </label>
                     </div>
-
-                    
-                            
-                    {/* Transaction Type */}
-                    <div className="relative">
-                        <select id="crType"
-                            className="peer global-tran-textbox-ui"
-                            value={selectedCRType}
-                            disabled={handleFieldBehavior("disableOnSaved")} 
-                            onChange={(e) => handleCRTypeChange(e)}
-                        >
-                            {crTypes.length > 0 ?
-                            (
-                                <>  
-                                    {crTypes.map((type) =>
-                                    (
-                                        <option key={type.DROPDOWN_CODE} value={type.DROPDOWN_CODE}>
-                                            {type.DROPDOWN_NAME}
-                                        </option>
-                                    ))}
-                                </>
-                            ) : (<option value="">Loading Transaction Types...</option>)}
-                        </select>
-                        <label htmlFor="crType" className="global-tran-floating-label">CR Type</label>
-                        <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-                            <svg className="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                            </svg>
-                        </div>
-                    </div>
-
-
+                  </div>
                 </div>
 
+                {/* Column 4 */}
+                <div className="global-tran-textbox-group-div-ui flex flex-col">
+                  <FieldRenderer
+                    id="prcNo"
+                    label="Prov. Receipt No."
+                    type="lookup"
+                    value={prcNo || ""}
+                    disabled={state.isFetchDisabled || state.isDocNoDisabled || isFormDisabled}
+                    readOnly
+                    lookupDisabled={isFetchDisabled}
+                  />
 
+                  <FieldRenderer
+                    id="payType"
+                    label="Payment Type"
+                    type="select"
+                    value={selectedPayType || ""}
+                    disabled={isFormDisabled}
+                    onChange={(val) => handlePaymentTypeChange({ target: { value: val } })}
+                    options={paymentTypes.map((t) => ({
+                      label: t.DROPDOWN_NAME,
+                      value: t.DROPDOWN_CODE,
+                    }))}
+                  />
 
-                {/* Column 2 */}
-                <div className="global-tran-textbox-group-div-ui">
+                  <FieldRenderer
+                    id="checkType"
+                    label="Check Type"
+                    type="select"
+                    value={selectedCheckType || ""}
+                    disabled={isFormDisabled}
+                    onChange={(val) => handleCheckTypeChange({ target: { value: val } })}
+                    options={checkTypes.map((t) => ({
+                      label: t.DROPDOWN_NAME,
+                      value: t.DROPDOWN_CODE,
+                    }))}
+                  />
 
-                    
-                    {/* Chain Code */}
-                    <div className="relative">
-                        <input type="text"
-                            id="chainCode"
-                            value={chainCode}
-                            readOnly
-                            placeholder=" "
-                            className="peer global-tran-textbox-ui"
-                        />
-                        <label htmlFor="chainCode"className="global-tran-floating-label">
-                            <span className="global-tran-asterisk-ui"> * </span>Chain Code
-                        </label>
-                        <button
-                            type="button"
-                            onClick={() => updateState({ custModalOpen: true })}
-                            className={`global-tran-textbox-button-search-padding-ui ${
-                                isFetchDisabled
-                                ? "global-tran-textbox-button-search-disabled-ui"
-                                : "global-tran-textbox-button-search-enabled-ui"
-                            } global-tran-textbox-button-search-ui`}
-                            disabled={handleFieldBehavior("disableOnSaved")} 
-                        >
-                            <FontAwesomeIcon icon={faMagnifyingGlass} />
-                        </button>
-                    </div>
+                  <FieldRenderer
+                    id="checkNo"
+                    label="Check No"
+                    type="text"
+                    value={checkNo || ""}
+                    disabled={handleFieldBehavior("disableOnNonCheckPay")}
+                    onChange={(val) => updateState({ checkNo: val })}
+                    maxLength={useGetFieldLength(tblFieldArray, "check_no")}
+                  />
 
-                    {/* Customer Name Display - Make this wider */}
-                    <div className="relative w-full md:w-6/6 lg:w-4/4"> {/* Added width classes here */}
-                        <input type="text" id="chainName" placeholder=" " readOnly value={chainName} className="peer global-tran-textbox-ui"/>
-                        <label htmlFor="chainName"className="global-tran-floating-label">
-                            <span className="global-tran-asterisk-ui"> * </span>Chain Name
-                        </label>
-                    </div>            
-
-                    
-
-                    {/* Customer Code */}
-                    <div className="relative">
-                        <input type="text"
-                            id="custCode"
-                            value={custCode}
-                            readOnly
-                            placeholder=" "
-                            className="peer global-tran-textbox-ui"
-                        />
-                        <label htmlFor="CustCode"className="global-tran-floating-label">
-                            <span className="global-tran-asterisk-ui"> * </span>Customer Code
-                        </label>
-                        <button
-                            type="button"
-                            onClick={() => updateState({ custModalOpen: true })}
-                            className={`global-tran-textbox-button-search-padding-ui ${
-                                isFetchDisabled
-                                ? "global-tran-textbox-button-search-disabled-ui"
-                                : "global-tran-textbox-button-search-enabled-ui"
-                            } global-tran-textbox-button-search-ui`}
-                            disabled={handleFieldBehavior("disableOnSaved")} 
-                        >
-                            <FontAwesomeIcon icon={faMagnifyingGlass} />
-                        </button>
-                    </div>
-
-                    {/* Customer Name Display - Make this wider */}
-                    <div className="relative w-full md:w-6/6 lg:w-4/4"> {/* Added width classes here */}
-                        <input type="text" id="custName" placeholder=" " readOnly value={custName} className="peer global-tran-textbox-ui"/>
-                        <label htmlFor="custName"className="global-tran-floating-label">
-                            <span className="global-tran-asterisk-ui"> * </span>Customer Name
-                        </label>
-                    </div>
-
-                    
-
-                </div>
-
-                {/* Column 3 */}
-                <div className="global-tran-textbox-group-div-ui">
-
-                    
-                    <div className="relative">
-                        <input
-                            type="text"
-                            id="depAcctName"
-                            placeholder=" "
-                            value={depAcctName}
-                            readOnly
-                            onFocus={(e) => e.target.blur()}
-                            className="peer global-tran-textbox-ui cursor-pointer select-none"
-                        />
-                        <label htmlFor="depAcctName" className="global-tran-floating-label">
-                            Bank Name
-                        </label>
-                        <button
-                            type="button"
-                            className={`global-tran-textbox-button-search-padding-ui ${
-                                isFetchDisabled
-                                ? "global-tran-textbox-button-search-disabled-ui"
-                                : "global-tran-textbox-button-search-enabled-ui"
-                            } global-tran-textbox-button-search-ui`}
-                            onClick={() => updateState({ showBankMastModal: true })}
-                            disabled={isFormDisabled}
-                        >
-                            <FontAwesomeIcon icon={faMagnifyingGlass} />
-                        </button>
-                    </div>
-
-                    <div className="relative">
-                        <input type="text" id="depAcctNo" value={depAcctNo} placeholder=" " onChange={(e) => updateState({ refDocNo2: e.target.value })}  className="peer global-tran-textbox-ui" disabled={isFormDisabled} />
-                        <label htmlFor="depAcctNo" className="global-tran-floating-label">Bank Account No.</label>
-                    </div>
-                    
-
-                    <div className="relative">
-                    <input
-                        type="text"
-                        id="currAmount"
-                        value={totals.currAmount}
-                        placeholder=" "               
-                        className="peer global-tran-textbox-ui text-right" 
-                        disabled={isFormDisabled}
-                    />
-                    <label
-                        htmlFor="currAmount"
-                        className="global-tran-floating-label text-right"
+                  <div className="relative w-full">
+                    <div
+                      className={`flex items-stretch global-ref-textbox-ui ${
+                        !handleFieldBehavior("disableOnNonCheckPay")
+                          ? "global-ref-textbox-enabled"
+                          : "global-ref-textbox-disabled"
+                      }`}
                     >
-                        Original Amount
-                    </label>
+                      <DateFormatInput
+                        id="checkDate"
+                        className="peer flex-grow bg-transparent border-none px-3 focus:outline-none cursor-pointer"
+                        value={checkDate}
+                        disabled={handleFieldBehavior("disableOnNonCheckPay")}
+                        updateState={updateState}
+                      />
                     </div>
-
-
-                    
-                    {/* NEW FLEX CONTAINER FOR CURRENCY AND CURRENCY RATE */}
-                    <div className="flex space-x-4"> {/* Added flex container with spacing */}
-
-                        {/* Currency */}
-                        <div className="relative flex-grow w-2/3"> {/* Used flex-grow to make it longer */}
-                            <input type="text" 
-                                id="currCode" 
-                                value={currCode}  
-                                className="peer global-tran-textbox-ui hidden"/>
-                                
-                              <input type="text" 
-                                id="currName" 
-                                value={currName}  
-                                className="peer global-tran-textbox-ui"/>
-
-                            <label htmlFor="currCode" className="global-tran-floating-label">Currency</label>
-                            <button onClick={() => {updateState({ currencyModalOpen: true })}}                        
-                                className={`global-tran-textbox-button-search-padding-ui ${
-                                    isFetchDisabled
-                                    ? "global-tran-textbox-button-search-disabled-ui"
-                                    : "global-tran-textbox-button-search-enabled-ui"
-                                } global-tran-textbox-button-search-ui`}
-                                disabled={isFormDisabled || custCode} 
-                            >
-                                <FontAwesomeIcon icon={faMagnifyingGlass} />
-                            </button>
-                        </div>
-
-    
-
-                        {/* Currency Rate */}
-                        <div className="relative flex-grow"> {/* Used flex-grow to take remaining space (or you can use w-1/3) */}
-                            <input type="text" id="currRate" value={currRate} 
-                                onChange={(e) => {
-                                const inputValue = e.target.value;
-                                const sanitizedValue = inputValue.replace(/[^0-9.]/g, '');
-                                if (/^\d*\.?\d{0,6}$/.test(sanitizedValue) || sanitizedValue === "") {
-                                    updateState({ currRate: sanitizedValue })
-                                }}}
-                                onBlur={handleCurrRateNoBlur}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    e.preventDefault(); 
-                                    document.getElementById("refDocNo1")?.focus();
-                                  }}}
-                                onFocus={(e) => {
-                                  if (parseFormattedNumber(e.target.value) === 0) {
-                                    e.target.value = "";
-                                  }
-                                }} 
-
-                                placeholder=" "
-                                className="peer global-tran-textbox-ui text-right" disabled={isFormDisabled || glCurrDefault === currCode} />
-                                
-                            <label htmlFor="currName" className="global-tran-floating-label"> Currency Rate
-                            </label>
-                        </div>
-                    </div>
-
-
-                    <div className="relative text-right">
-                    <input
-                        type="text"
-                        id="checkAmount"
-                        value={checkAmount}
-                        placeholder=" "
-                        className="peer global-tran-textbox-ui text-right" 
-                        disabled={isFormDisabled}
-                    />
                     <label
-                        htmlFor="checkAmount"
-                        className="global-tran-floating-label text-right"
+                      htmlFor="checkDate"
+                      className={`global-ref-floating-label ${
+                        !handleFieldBehavior("disableOnNonCheckPay")
+                          ? "global-ref-label-enabled"
+                          : "global-ref-label-disabled"
+                      }`}
                     >
-                        Check Amount
+                      Check Date
                     </label>
-                    </div>
-            
+                  </div>
+
+                  <FieldRenderer
+                    id="bank"
+                    label="Bank"
+                    type="text"
+                    value={bank || ""}
+                    disabled={handleFieldBehavior("disableOnNonCheckPay")}
+                    onChange={(val) => updateState({ bank: val })}
+                    maxLength={useGetFieldLength(tblFieldArray, "bank")}
+                  />
+
+                  <FieldRenderer
+                    id="refDocNo1"
+                    label="Ref Doc No. 1"
+                    type="text"
+                    value={refDocNo1 || ""}
+                    disabled={isFormDisabled}
+                    onChange={(val) => updateState({ refDocNo1: val })}
+                    maxLength={useGetFieldLength(tblFieldArray, "refcr_no1")}
+                  />
+
+                  <FieldRenderer
+                    id="refDocNo2"
+                    label="Ref Doc No. 2"
+                    type="text"
+                    value={refDocNo2 || ""}
+                    disabled={isFormDisabled}
+                    onChange={(val) => updateState({ refDocNo2: val })}
+                    maxLength={useGetFieldLength(tblFieldArray, "refcr_no2")}
+                  />
                 </div>
+       </div>
 
 
-                {/* Remarks Section - Now inside the 3-column container, spanning all 3 */}
-                <div className="col-span-full">
-                    <div className="relative p-2"> 
-                        <textarea
-                            id="remarks"
-                            placeholder=""
-                            rows={6}
-                            className="peer global-tran-textbox-remarks-ui pt-2"
-                            value={remarks}
-                            onChange={(e) => updateState({ remarks: e.target.value })}
-                            maxLength={useGetFieldLength(tblFieldArray, "remarks")} 
-                            disabled={isFormDisabled} 
-                        />
-                        <label
-                            htmlFor="remarks"
-                            className="global-tran-floating-label-remarks"
-                        >
-                            Remarks
-                        </label>
-                    </div>
-                </div>
-
-                
-            </div> {/* End of the 3-column container */}
-
-
-
-            {/* Column 4 - Totals (remains unchanged, but its parent is now the main 4-column grid) */}
-            <div className="global-tran-textbox-group-div-ui flex flex-col">
-                    
-                    
-                    <div className="relative">
-                        <input
-                            type="text"
-                            id="prcNo"
-                            placeholder=" "
-                            value={prcNo}
-                            readOnly
-                            onFocus={(e) => e.target.blur()}
-                            className="peer global-tran-textbox-ui cursor-pointer select-none"
-                        />
-                        <label htmlFor="prcNo" className="global-tran-floating-label">
-                            Prov. Receipt No.
-                        </label>
-                        <button
-                            type="button"
-                            className={`global-tran-textbox-button-search-padding-ui ${
-                                isFetchDisabled
-                                ? "global-tran-textbox-button-search-disabled-ui"
-                                : "global-tran-textbox-button-search-enabled-ui"
-                            } global-tran-textbox-button-search-ui`}
-                            disabled={state.isFetchDisabled || state.isDocNoDisabled || isFormDisabled}
-                        >
-                            <FontAwesomeIcon icon={faMagnifyingGlass} />
-                        </button>
-                    </div>
-
-                  
-                    <div className="relative">
-                        <select id="payType"
-                            className="peer global-tran-textbox-ui"
-                            value={selectedPayType}
-                            disabled={isFormDisabled} 
-                            onChange={(e) => handlePaymentTypeChange(e)}
-                        >
-                            {paymentTypes.length > 0 ?
-                            (
-                                <>
-                                    {paymentTypes.map((type) =>
-                                    (
-                                        <option key={type.DROPDOWN_CODE} value={type.DROPDOWN_CODE}>
-                                            {type.DROPDOWN_NAME}
-                                        </option>
-                                    ))}
-                                </>
-                            ) : (<option value="">Loading Payment Types...</option>)}
-                        </select>
-                        <label htmlFor="payType" className="global-tran-floating-label">Payment Type</label>
-                        <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-                            <svg className="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                            </svg>
-                        </div>
-                    </div>
-
-
-
-                    <div className="relative">
-                        <select id="checkType"
-                            className="peer global-tran-textbox-ui"
-                            value={selectedCheckType}
-                            disabled={isFormDisabled} 
-                            onChange={(e) => handleCheckTypeChange(e)}
-                        >
-                            {checkTypes.length > 0 ?
-                            (
-                                <>
-                                    {checkTypes.map((type) =>
-                                    (
-                                        <option key={type.DROPDOWN_CODE} value={type.DROPDOWN_CODE}>
-                                            {type.DROPDOWN_NAME}
-                                        </option>
-                                    ))}
-                                </>
-                            ) : (<option value="">Loading Check Types...</option>)}
-                        </select>
-                        <label htmlFor="payType" className="global-tran-floating-label">Check Type</label>
-                        <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-                            <svg className="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                            </svg>
-                        </div>
-                    </div>
-                    
-                    <div className="relative">
-                        <input type="text" id="checkNo"  
-                              value={checkNo} placeholder=" " 
-                              onChange={(e) => updateState({ checkNo: e.target.value })} 
-                              className="peer global-tran-textbox-ui " 
-                              disabled={handleFieldBehavior("disableOnNonCheckPay")} 
-                              maxLength={useGetFieldLength(tblFieldArray, "check_no")} 
-                          />
-                        <label htmlFor="checkNo" className="global-tran-floating-label">Check No</label>
-                    </div>
-
-                    <div className="relative">
-                          <DateFormatInput
-                            id="checkDate"
-                            value={checkDate}
-                            updateState={updateState}
-                            disabled={handleFieldBehavior("disableOnNonCheckPay")} 
-                          />                                                                     
-                        <label htmlFor="checkDate" className="global-tran-floating-label">Check Date</label>
-                    </div>
-
-                    <div className="relative">
-                        <input type="text" 
-                              id="bank"  
-                              value={bank} 
-                              placeholder=" " 
-                              onChange={(e) => updateState({ bank: e.target.value })} 
-                              maxLength={useGetFieldLength(tblFieldArray, "bank")} 
-                              className="peer global-tran-textbox-ui " 
-                              disabled={handleFieldBehavior("disableOnNonCheckPay")}  
-                            />
-                        <label htmlFor="bank" className="global-tran-floating-label">Bank</label>
-                    </div>
-
-                    <div className="relative">
-                        <input type="text" id="refDocNo1"  
-                              value={refDocNo1} 
-                              placeholder=" " 
-                              onChange={(e) => updateState({ refDocNo1: e.target.value })} 
-                              className="peer global-tran-textbox-ui " 
-                              maxLength={useGetFieldLength(tblFieldArray, "refcr_no1")} 
-                              disabled={isFormDisabled} />
-                             
-                        <label htmlFor="refDocNo1" className="global-tran-floating-label">Ref Doc No. 1</label>
-                    </div>
-
-                    <div className="relative">
-                        <input type="text" 
-                              id="refDocNo2" 
-                              value={refDocNo2} 
-                              placeholder=" " 
-                              onChange={(e) => updateState({ refDocNo2: e.target.value })}  
-                              className="peer global-tran-textbox-ui" 
-                               maxLength={useGetFieldLength(tblFieldArray, "refcr_no2")} 
-                              disabled={isFormDisabled} />
-                        <label htmlFor="refDocNo2" className="global-tran-floating-label">Ref Doc No. 2</label>
-                    </div>
-
-                  
-        
-            {/* Remarks Section - Now inside the 3-column container, spanning all 3 */}
-                {/* <div className="col-span-full h-full"> */}
-                    {/* <div className="relative flex-1 p-2"> 
-                        <textarea
-                            id="remarks"
-                            placeholder=""
-                            rows={4}
-                            className="peer global-tran-textbox-remarks-ui pt-4 h-full resize"
-                            value={remarks}
-                            onChange={(e) => updateState({ remarks: e.target.value })}
-                            disabled={isFormDisabled} 
-                        />
-                        <label
-                            htmlFor="remarks"
-                            className="global-tran-floating-label-remarks"
-                        >
-                            Remarks
-                        </label>
-                    </div> */}
-                {/* </div> */}
-
-            </div>
-
-        </div>
     </div>
           
       {/* APV Detail Section */}
@@ -2603,17 +2418,13 @@ const handleCloseBranchModal = (selectedBranch) => {
               <th className="global-tran-th-ui hidden">Ref Doc Code</th>
               <th className="global-tran-th-ui hidden">Group ID</th>
                     
-            {!isFormDisabled && (
-              <th className="global-tran-th-ui sticky right-[43px] bg-blue-300 dark:bg-blue-900 z-30">
-                Add
-              </th>
-            )}
+              {!isFormDisabled && (
+                  <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
+                    Actions
+                  </th>
+                )}
 
-            {!isFormDisabled && (
-              <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
-                Delete
-              </th>
-            )}
+
             </tr>
           </thead>
 
@@ -2950,34 +2761,27 @@ const handleCloseBranchModal = (selectedBranch) => {
                 </td>
 
 
-
-
-
-
-
-
                 {!isFormDisabled && (
-                <td className="global-tran-td-ui text-center sticky right-12">
-                  <button
-                    className="global-tran-td-button-add-ui"
-                    onClick={() => handleAddRow(index)}
-                    
-                  >
-                    <FontAwesomeIcon icon={faPlus} />
-                  </button>
-                </td>
-              )}
+                    <td className="global-tran-td-ui text-center sticky right-0">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          className="global-tran-td-button-add-ui"
+                          onClick={() => handleAddRow(index)}
+                        >
+                          <FontAwesomeIcon icon={faPlus} />
+                        </button>
 
-              {!isFormDisabled && (
-                <td className="global-tran-td-ui text-center sticky right-0">
-                  <button
-                    className="global-tran-td-button-delete-ui"
-                    onClick={() => handleDeleteRow(index)}
-                  >
-                    <FontAwesomeIcon icon={faMinus} />
-                  </button>
-                </td>
-              )}
+                        <button
+                          type="button"
+                          className="global-tran-td-button-delete-ui"
+                          onClick={() => handleDeleteRow(index)}
+                        >
+                          <FontAwesomeIcon icon={faTrashAlt} />
+                        </button>
+                      </div>
+                    </td>
+                  )}
                         
               </tr>
             ))}
@@ -3130,14 +2934,9 @@ const handleCloseBranchModal = (selectedBranch) => {
                 <th className="global-tran-th-ui">Remarks</th>
                 
                 {!isFormDisabled && (
-                  <>
-                    <th className="global-tran-th-ui sticky right-[43px] bg-blue-300 dark:bg-blue-900 z-30">
-                      Add
-                    </th>
-                    <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
-                      Delete
-                    </th>
-                  </>
+                  <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
+                    Actions
+                  </th>
                 )}
 
               </tr>
@@ -3527,24 +3326,24 @@ const handleCloseBranchModal = (selectedBranch) => {
                 </td>
                   
                 {!isFormDisabled && (
-                  <td className="global-tran-td-ui text-center sticky right-10">
-                    <button
-                      className="global-tran-td-button-add-ui"
-                      onClick={() => handleAddRowGL(index)}
-                    >
-                      <FontAwesomeIcon icon={faPlus} />
-                    </button>
-                  </td>
-                )}
-
-                {!isFormDisabled && (
                   <td className="global-tran-td-ui text-center sticky right-0">
-                    <button
-                      className="global-tran-td-button-delete-ui"
-                      onClick={() => handleDeleteRowGL(index)}
-                    >
-                      <FontAwesomeIcon icon={faMinus} />
-                    </button>
+                    <div className="flex items-center justify-center gap-1">
+                      <button
+                        type="button"
+                        className="global-tran-td-button-add-ui"
+                        onClick={() => handleAddRowGL(index)}
+                      >
+                        <FontAwesomeIcon icon={faPlus} />
+                      </button>
+
+                      <button
+                        type="button"
+                        className="global-tran-td-button-delete-ui"
+                        onClick={() => handleDeleteRowGL(index)}
+                      >
+                        <FontAwesomeIcon icon={faTrashAlt} />
+                      </button>
+                    </div>
                   </td>
                 )}
 

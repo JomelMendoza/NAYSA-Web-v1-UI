@@ -96,7 +96,7 @@ const PayeeSetupTab = forwardRef(
 
     // Helper variable to determine if we are manually adding a new code
     const isManualNew = form.__isNew && generationMode === "M";
-
+    
     const sl = useMemo(
       () => normalizeUpper(form?.sltypeCode || "SU"),
       [form?.sltypeCode]
@@ -417,7 +417,7 @@ const PayeeSetupTab = forwardRef(
                 onLookup={isManualNew || isRetrievedRecord ? undefined : openPayeeLookup}
                 // This readOnly prop is what gives it the grey background in your system
                 readOnly={!isManualNew}
-                disabled={isLoading}
+                disabled={isLoading || isRetrievedRecord}
                 maxLength={getLen(col.code, 20)}
               />
 

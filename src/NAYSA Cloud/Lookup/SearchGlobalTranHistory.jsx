@@ -44,6 +44,7 @@ import {
   faTable,
   faThLarge,
 } from "@fortawesome/free-solid-svg-icons";
+import { useSwalErrorAlert } from "@/NAYSA Cloud/Global/behavior.jsx";
 
 import { useReturnToDate } from "@/NAYSA Cloud/Global/dates";
 import { useSelectedHSColConfig } from "@/NAYSA Cloud/Global/selectedData";
@@ -2089,7 +2090,7 @@ const AllTranHistory = (props) => {
                       <div className="flex items-center justify-between text-[11px] font-semibold mb-1 border-b pb-1">
                         <span>Show / Hide Columns</span>
                         <label className="flex items-center gap-1 text-[11px] cursor-pointer">
-                          <input type="checkbox" checked={allChecked} onChange={() => setUserHiddenColsByTab(p => ({ ...p, [activeTab]: allChecked ? allChooserKeys : [] }))} /> Select All
+                          <label className="flex items-center gap-1 text-[11px] cursor-pointer"><input type="checkbox" checked={allChecked} onChange={(e) => { if (!e.target.checked) { useSwalErrorAlert("Minimum columns required", "Please retain at least 2 columns."); return; } setUserHiddenColsByTab((p) => ({ ...p, [activeTab]: [] })); }} /> Select All</label>
                         </label>
                       </div>
                       {orderedCols.filter((col) => !col.hidden && !groupBy.includes(col.key)).map(col => (

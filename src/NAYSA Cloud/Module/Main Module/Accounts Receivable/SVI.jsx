@@ -23,7 +23,7 @@ import DocumentSignatories from "../../../Lookup/SearchSignatory.jsx";
 import PostSVI from "../../../Module/Main Module/Accounts Receivable/PostSVI.jsx";
 import AllTranHistory from "../../../Lookup/SearchGlobalTranHistory.jsx";
 import AllTranDocNo from "../../../Lookup/SearchDocNo.jsx";
-
+import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 
 // Configuration
 import { postRequest} from '../../../Configuration/BaseURL.jsx'
@@ -93,7 +93,7 @@ const SVI = () => {
   const loadedFromUrlRef = useRef(false);
   const navigate = useNavigate();
   const location = useLocation(); 
-  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded ,getAllTopATCRow, getAllTopVatRow,getAllTopVatAmount,getAllTopATCAmount } = useAuth();
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded ,getAllTopATCRow, getAllTopVatRow,getAllTopVatAmount,getAllTopATCAmount,getAllTopHSDocRow } = useAuth();
   const [isViewDocument, setIsViewDocument] = useState(false);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
@@ -104,11 +104,15 @@ const SVI = () => {
     
   const isViewDocumentUrl = isViewDocument;
 
-
-
   const [topTab, setTopTab] = useState("details"); // "details" | "history"
-  const { user } = useAuth();
   const { resetFlag } = useReset();
+  const [focusedCell, setFocusedCell] = useState(null); // { index: number, field: string }
+  const docType = docTypes.SVI; 
+  const hsDoc = getAllTopHSDocRow(docType);
+  const pdfLink = docTypePDFGuide[docType];
+  const videoLink = docTypeVideoGuide[docType];
+  const documentTitle = hsDoc.docName + ' Transaction';
+
   const [state, setState] = useState({
 
 
@@ -124,9 +128,9 @@ const SVI = () => {
 
 
     // Document information
-    documentName: "",
-    documentSeries: "Auto",
-    documentDocLen: 8,
+    documentName: hsDoc?.docName||"",
+    documentSeries: hsDoc?.docSeries||"Auto",
+    documentDocLen: hsDoc?.docLength||8,
     documentID: null,
     documentDate:useGetCurrentDayV2(),   
     documentNo: "",
@@ -316,13 +320,7 @@ const SVI = () => {
 } = state;
 
 
-  const [focusedCell, setFocusedCell] = useState(null); // { index: number, field: string }
-
-  //Document Global Setup
-  const docType = docTypes.SVI; 
-  const pdfLink = docTypePDFGuide[docType];
-  const videoLink = docTypeVideoGuide[docType];
-  const documentTitle = docTypeNames[docType] || 'Transaction';
+ 
  
 
 
@@ -535,44 +533,28 @@ useEffect(() => {
 
    
 
-   const loadCompanyData = async () => {
-
-    updateState({isLoading:true})
-
-    try {
-
-      
-
-      // 🔹 2. Document row (independent)
-      const docRow = await useTopDocControlRow(docType);
-      if (docRow) {
-        updateState({
-          documentName: docRow.docName,
-          documentSeries: docRow.docName,
-          documentDocLen: docRow.docName,
-        });
-      }
-
-
-
-     const tbls = 'svi_hd,svi_dt1,svi_dt2'
-     const hdtblcol_result = await useFieldLenghtCheck(tbls);
-     if (hdtblcol_result){
-       updateState({tblFieldArray :hdtblcol_result })
-     }
-      
-
-
-    } catch (err) {
-      console.error("Error fetching data:", err);
-    }
-
-     updateState({isLoading:false})
-  };
-
-
 
   
+      
+    const loadCompanyData = async () => {
+        updateState({ isLoading: true });
+      
+        try {
+          const hdtblcol_result = await useFieldLenghtCheck(
+            "svi_hd,svi_dt1,svi_dt2"
+          );
+      
+          if (hdtblcol_result) {
+            updateState({ tblFieldArray: hdtblcol_result });
+          }
+        } catch (err) {
+          console.error("Error fetching data:", err);
+        } finally {
+          updateState({ isLoading: false });
+        }
+      };
+      
+
 const loadCurrencyMode = (
 
       mode = glCurrMode,
@@ -636,8 +618,7 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
       slRefDate:useformatToDatev2(glRow.slRefDate),
     }));
 
-    console.log(data)
-    // Update state with fetched data
+  
     updateState({
       documentStatus: data.sviStatus,
       status: data.docStatus,
@@ -704,34 +685,45 @@ const handleCurrRateNoBlur = (e) => {
 
 
 
-const moveFocusBeforeSave = () => {
-  const remarksEl = document.getElementById("remarks");
-  if (remarksEl) {
-    remarksEl.focus();
-    return true;
+
+
+const moveFocusBeforeSave = async () => {
+  document.activeElement?.blur?.();
+
+  await Promise.resolve();
+
+  for (let i = 0; i < detailRows.length; i++) {
+    const row = detailRows[i];
+    await handleDetailChange(i, "quantity", row.quantity, true);
   }
-  return false;
+
+  await Promise.resolve();
+  return true;
 };
 
 
 
- const handleActivityOption = async (action) => {
-  if (action === "Upsert") {
-      moveFocusBeforeSave();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-  }
 
 
-  if (action === "Upsert" && detailRowsGL.length === 0) {
-    updateState({ triggerGLEntries: true });
+const handleActivityOption = async (action) => {
+   if ((detailRows?.length || 0) + (detailRowsGL?.length || 0) === 0) {
     return;
   }
 
-  if (documentStatus === '') {
-   
-  updateState({ isLoading: true });
 
-    const {
+
+  if (action === "Upsert") {
+   await moveFocusBeforeSave();
+  }
+
+
+  
+  if (documentStatus === "") {
+    updateState({ isLoading: true });
+
+
+    try {
+      const {
         branchCode,
         documentNo,
         documentID,
@@ -746,57 +738,57 @@ const moveFocusBeforeSave = () => {
         currCode,
         currRate,
         remarks,
-        userCode, 
+        userCode,
         detailRows,
-        detailRowsGL
-    } = state;
+        detailRowsGL,
+      } = state;
 
-    updateState({ isLoading: true });
+      let finalDetailRowsGL = [...detailRowsGL];
 
-    const glData = {
-      branchCode: branchCode,
-      sviNo: documentNo || "",
-      sviId: documentID || "",
-      sviDate: documentDate,
-      svitranType: selectedSVIType,
-      billtermCode:billtermCode,
-      custCode: custCode,
-      custName: custName,
-      attention:attention,
-      refDocNo1: refDocNo1,
-      refDocNo2: refDocNo2,
-      fromDate: fromDate,
-      toDate: toDate,
-      currCode: currCode || "PHP",
-      currRate: parseFormattedNumber(currRate),
-      remarks: remarks|| "",
-      userCode: userCode,
-      dt1: detailRows.map((row, index) => ({
-        lnNo: String(index + 1),
-        billCode: row.billCode || "",
-        billName: row.billName || "",
-        sviSpecs: row.sviSpecs || "",
-        quantity: parseFormattedNumber(row.quantity || 0),
-        uomCode: row.uomCode || "",
-        unitPrice: parseFormattedNumber(row.unitPrice || 0),
-        grossAmount: parseFormattedNumber(row.grossAmount || 0),
-        discRate: parseFormattedNumber(row.discRate || 0),
-        discAmount: parseFormattedNumber(row.discAmt || 0),
-        netDisc: parseFormattedNumber(row.netDisc || 0),
-        vatCode: row.vatCode,
-        vatName: row.vatName,
-        vatAmount: parseFormattedNumber(row.vatAmount || 0),
-        atcCode: row.atcCode || "",
-        atcName: row.atcName || "",
-        atcAmount: parseFormattedNumber(row.atcAmount),
-        sviAmount: parseFormattedNumber(row.sviAmount || 0),
-        salesAcct: row.salesAcct,
-        arAcct: row.arAcct,
-        vatAcct: row.vatAcct,
-        discAcct: row.discAcct,
-        rcCode:row.rcCode
-      })),
-       dt2: detailRowsGL.map((entry, index) => ({
+      const buildGlData = (glRows) => ({
+        branchCode: branchCode,
+        sviNo: documentNo || "",
+        sviId: documentID || "",
+        sviDate: documentDate,
+        svitranType: selectedSVIType,
+        billtermCode: billtermCode,
+        custCode: custCode,
+        custName: custName,
+        attention: attention,
+        refDocNo1: refDocNo1,
+        refDocNo2: refDocNo2,
+        fromDate: fromDate,
+        toDate: toDate,
+        currCode: currCode || "PHP",
+        currRate: parseFormattedNumber(currRate),
+        remarks: remarks || "",
+        userCode: userCode,
+        dt1: detailRows.map((row, index) => ({
+          lnNo: String(index + 1),
+          billCode: row.billCode || "",
+          billName: row.billName || "",
+          sviSpecs: row.sviSpecs || "",
+          quantity: parseFormattedNumber(row.quantity || 0),
+          uomCode: row.uomCode || "",
+          unitPrice: parseFormattedNumber(row.unitPrice || 0),
+          grossAmount: parseFormattedNumber(row.grossAmount || 0),
+          discRate: parseFormattedNumber(row.discRate || 0),
+          discAmount: parseFormattedNumber(row.discAmount || 0),
+          netDisc: parseFormattedNumber(row.netDisc || 0),
+          vatCode: row.vatCode || "",
+          vatName: row.vatName || "",
+          vatAmount: parseFormattedNumber(row.vatAmount || 0),
+          atcCode: row.atcCode || "",
+          atcName: row.atcName || "",
+          atcAmount: parseFormattedNumber(row.atcAmount || 0),
+          sviAmount: parseFormattedNumber(row.sviAmount || 0),
+          salesAcct: row.salesAcct || "",
+          arAcct: row.arAcct || "",
+          vatAcct: row.vatAcct || "",
+          discAcct: row.discAcct || "",
+          rcCode: row.rcCode || "",
+        })),
+        dt2: glRows.map((entry, index) => ({
           recNo: String(index + 1),
           acctCode: entry.acctCode || "",
           rcCode: entry.rcCode || "",
@@ -814,61 +806,77 @@ const moveFocusBeforeSave = () => {
           debitFx2: parseFormattedNumber(entry.debitFx2 || 0),
           creditFx2: parseFormattedNumber(entry.creditFx2 || 0),
           slRefNo: entry.slRefNo || "",
-          slRefDate: entry.slRefDate ? new Date(entry.slRefDate).toISOString().split("T")[0] : null,
+          slRefDate: entry.slRefDate
+            ? new Date(entry.slRefDate).toISOString().split("T")[0]
+            : null,
           remarks: entry.remarks || "",
-          dt1Lineno: entry.dt1Lineno || ""
-        }))
-    };
+          dt1Lineno: entry.dt1Lineno || "",
+        })),
+      });
 
-    if (action === "GenerateGL") {
-        try {
-            const newGlEntries = await useGenerateGLEntries(docType, glData);
+      if (action === "GenerateGL") {
+        const newGlEntries = await useGenerateGLEntries(
+          docType,
+          buildGlData(finalDetailRowsGL)
+        );
 
-            if (newGlEntries) {
-                updateState({ detailRowsGL: newGlEntries });
-            } else {
-                console.warn("GL entries generation failed or returned no data.");
-            }
-        } catch (error) {
-            console.error("Error during GL generation:", error);
-        } finally {
-            updateState({ isLoading: false });
+        if (newGlEntries) {
+          updateState({ detailRowsGL: newGlEntries });
+        } else {
+          console.warn("GL entries generation failed or returned no data.");
         }
-    }
+        return;
+      }
 
+      if (action === "Upsert" && finalDetailRowsGL.length === 0) {
+        const newGlEntries = await useGenerateGLEntries(
+          docType,
+          buildGlData([])
+        );
 
+        if (newGlEntries && newGlEntries.length > 0) {
+          finalDetailRowsGL = newGlEntries;
+          updateState({ detailRowsGL: newGlEntries });
+        } else {
+          console.warn("GL entries generation failed or returned no data.");
+          updateState({ isLoading: false });
+          return;
+        }
+      }
 
+      if (action === "Upsert") {
+        const response = await useTransactionUpsert(
+          docType,
+          buildGlData(finalDetailRowsGL),
+          updateState,
+          "sviId",
+          "sviNo"
+        );
 
-    if (action === "Upsert") {
-        try {
+        if (response) {
+        
 
-          const response = await useTransactionUpsert(docType, glData, updateState, 'sviId', 'sviNo');
-          if (response) {
+          const isZero = Number(noReprints) === 0;
+          const onSaveAndPrint = isZero
+            ? () => updateState({ showSignatoryModal: true })
+            : () => handleSaveAndPrint(response.data[0].sviId);
 
-                const isZero = Number(noReprints) === 0;
-                const onSaveAndPrint =
-                  isZero
-                    ? () => updateState({ showSignatoryModal: true })                  
-                    : () => handleSaveAndPrint(response.data[0].sviId); 
-                useSwalshowSaveSuccessDialog(
-                  handleReset,          
-                  onSaveAndPrint       
-                );
-          }
-
-         
-           
-        } catch (error) {
-            console.error("Error during transaction upsert:", error);
-        } finally {
-            updateState({ isLoading: false});
+          useSwalshowSaveSuccessDialog(handleReset, onSaveAndPrint);           
         }
 
-        updateState({isDocNoDisabled: true,isFetchDisabled: true,});
+        updateState({
+          isDocNoDisabled: true,
+          isFetchDisabled: true,
+        });
+      }
+    } catch (error) {
+      console.error(`Error during ${action}:`, error);
+    } finally {   
+      updateState({ isLoading: false });
     }
   }
-
 };
+
 
 
   const handleAddRow = async (insertIndex = null) => {
@@ -990,7 +998,7 @@ const handleAddRowGL = (index = null) => {
 
     updateState({
         detailRows: updatedRows,
-        triggerGLEntries:true });
+        detailRowsGL:[] });
     updateTotals(updatedRows);
 
   };
@@ -1772,14 +1780,12 @@ return (
  
         detailsRoute="/page/SVI"
 
-        isSaveDisabled={state.isSaveDisabled || isFormDisabled} 
+        isSaveDisabled={state.isSaveDisabled || isFormDisabled ||  ((detailRows?.length || 0) + (detailRowsGL?.length || 0) === 0)} 
         isResetDisabled={state.isResetDisabled}
         isAttachDisabled={!documentID}
-
-
         isPrintDisabled={!documentID || displayStatus === "CANCELLED"}
         isCopyDisabled={!documentID || displayStatus === "CANCELLED"}
-        isCancelDisabled={!documentID || displayStatus === "CANCELLED" || displayStatus === "FINALIZED"}
+        isCancelDisabled={!documentID || displayStatus === "CANCELLED" || displayStatus === "FINALIZED"|| displayStatus === "CLOSED"}
       />
       </div>
 
@@ -1827,261 +1833,274 @@ return (
 
                 {/* Column 1 */}
                 <div className="global-tran-textbox-group-div-ui">
-                    {/* Branch Name Input with lookup button */}
-                    <div className="relative">
-                        <input
-                            type="text"
-                            id="branchName"
-                            placeholder=" "
-                            value={branchName}
-                            readOnly
-                            onFocus={(e) => e.target.blur()}
-                            className="peer global-tran-textbox-ui cursor-pointer select-none"
-                        />
-                        <label htmlFor="branchName" className="global-tran-floating-label">
-                            Branch
-                        </label>
-                        <button
-                            type="button"
-                            className={`global-tran-textbox-button-search-padding-ui ${
-                                isFetchDisabled
-                                ? "global-tran-textbox-button-search-disabled-ui"
-                                : "global-tran-textbox-button-search-enabled-ui"
-                            } global-tran-textbox-button-search-ui`}
-                            disabled={state.isFetchDisabled || state.isDocNoDisabled || isFormDisabled}
-                            onClick={() => updateState({ branchModalOpen: true })}
-                        >
-                            <FontAwesomeIcon icon={faMagnifyingGlass} />
-                        </button>
-                    </div>
+                   
+
+                      {/* Branch Field */}
+                     <FieldRenderer
+                        id="branchName"
+                        label="Branch"
+                        type="lookup"
+                        value={branchName || ""}
+                        disabled={state.isFetchDisabled || state.isDocNoDisabled || isFormDisabled}
+                        onLookup={() => updateState({ branchModalOpen: true })}
+                      />
+
+
 
                     {/* SVI Number Field */}
-                    <div className="relative">
-                        <input
-                            type="text"
-                            id="sviNo"
-                            value={state.documentNo}
-                            onChange={(e) => updateState({ documentNo: e.target.value })}
-                            // onBlur={handleSviNoBlur}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                handleSviNoBlur();
-                                e.preventDefault(); 
-                                document.getElementById("documentDate")?.focus();
-                              }}}
-                            placeholder=" "
-                            className={`peer global-tran-textbox-ui ${state.isDocNoDisabled ? 'bg-blue-100 cursor-not-allowed' : ''}`}
-                            disabled={state.isDocNoDisabled}
-                        />
-                        <label htmlFor="sviNo" className="global-tran-floating-label">
-                            SVI No.
-                        </label>
-                        <button
-                            className={`global-tran-textbox-button-search-padding-ui ${
-                                (state.isFetchDisabled || state.isDocNoDisabled)
-                                ? "global-tran-textbox-button-search-disabled-ui"
-                                : "global-tran-textbox-button-search-enabled-ui"
-                            } global-tran-textbox-button-search-ui`}
-                            // disabled={state.isFetchDisabled || state.isDocNoDisabled}
-                            onClick={() => {updateState({showAllTranDocNo:true})}}
-                        >
-                            <FontAwesomeIcon icon={faMagnifyingGlass} />
-                        </button>
-                    </div>
+                   <FieldRenderer
+                        id="sviNo"
+                        label="SVI No."
+                        type="lookup"
+                        value={state.documentNo || ""}
+                        disabled={state.isDocNoDisabled}
+                        onChange={(val) => updateState({ documentNo: val })}
+                        onBlur={handleSviNoBlur}
+                        onLookup={() => updateState({ showAllTranDocNo: true })}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleSviNoBlur();
+                            document.getElementById("documentDate")?.focus();
+                          }
+                        }}
+                      />
+
 
                     {/* SVI Date Picker */}
-                    <div className="relative">
-                    <DateFormatInput
-                        id="documentDate"
-                        value={documentDate}
-                        updateState={updateState}
-                        disabled={isFormDisabled}
-                      />
-                        <label htmlFor="documentDate" className="global-tran-floating-label">SVI Date</label>
+                    <div className="relative w-full">
+                      <div
+                        className={`flex items-stretch global-ref-textbox-ui ${
+                          !isFormDisabled
+                            ? "global-ref-textbox-enabled"
+                            : "global-ref-textbox-disabled"
+                        }`}
+                      >
+                        <DateFormatInput
+                          id="documentDate"
+                          className="peer flex-grow bg-transparent border-none px-3 focus:outline-none cursor-pointer"
+                          value={documentDate}
+                          disabled={isFormDisabled}
+                          updateState={updateState}
+                        />
+                      </div>
+
+                      <label
+                        htmlFor="documentDate"
+                        className={`global-ref-floating-label ${
+                          !isFormDisabled
+                            ? "global-ref-label-enabled"
+                            : "global-ref-label-disabled"
+                        }`}
+                      >
+                        SVI Date
+                      </label>
                     </div>
+
+
 
                     {/* Customer Code */}
-                    <div className="relative">
-                        <input type="text"
-                            id="custCode"
-                            value={custCode}
-                            readOnly
-                            placeholder=" "
-                            className="peer global-tran-textbox-ui"
-                        />
-                        <label htmlFor="CustCode"className="global-tran-floating-label">
-                            <span className="global-tran-asterisk-ui"> * </span>Customer Code
-                        </label>
-                        <button
-                            type="button"
-                            onClick={() => updateState({ custModalOpen: true })}
-                            className={`global-tran-textbox-button-search-padding-ui ${
-                                isFetchDisabled
-                                ? "global-tran-textbox-button-search-disabled-ui"
-                                : "global-tran-textbox-button-search-enabled-ui"
-                            } global-tran-textbox-button-search-ui`}
-                            disabled={isFormDisabled} 
-                        >
-                            <FontAwesomeIcon icon={faMagnifyingGlass} />
-                        </button>
+                   <FieldRenderer
+                      id="custCode"
+                      label="Customer Code"
+                      required
+                      type="lookup"
+                      value={custCode || ""}
+                      disabled={isFormDisabled}
+                      readOnly
+                      lookupDisabled={isFetchDisabled}
+                      onLookup={() => updateState({ custModalOpen: true })}
+                    />
+
+
+
+                    {/* Customer Name */}
+                    <div className="relative w-full md:w-6/6 lg:w-4/4">
+                      <FieldRenderer
+                        id="custName"
+                        label="Customer Name"
+                        required
+                        type="text"
+                        value={custName || ""}
+                        disabled
+                        readOnly
+                      />
                     </div>
 
-                    {/* Customer Name Display - Make this wider */}
-                    <div className="relative w-full md:w-6/6 lg:w-4/4"> {/* Added width classes here */}
-                        <input type="text" id="custName" placeholder=" " value={custName} className="peer global-tran-textbox-ui" disabled />
-                        <label htmlFor="custName"className="global-tran-floating-label">
-                            <span className="global-tran-asterisk-ui"> * </span>Customer Name
-                        </label>
-                    </div>
+
                 </div>
+
+
+
+
 
                 {/* Column 2 */}
-                <div className="global-tran-textbox-group-div-ui">
-                    <div className="relative">
-                        <select id="sviType"
-                            className="peer global-tran-textbox-ui"
+                   <div className="global-tran-textbox-group-div-ui">
+
+                        {/* SVI Type */}
+                        {/* <div className="relative"> */}
+                        <FieldRenderer
+                            id="selectedSVIType"
+                            label="SVI Type"
+                            type="select"
                             value={selectedSVIType}
-                            onChange={(e) => setSelectedSVIType(e.target.value)}
-                            disabled={isFormDisabled} 
-                        >
-                            {sviTypes.length > 0 ?
-                            (
-                                <>
-                                    <option value="">Select Billing Type</option>
-                                    {sviTypes.map((type) =>
-                                    (
-                                        <option key={type.DROPDOWN_CODE} value={type.DROPDOWN_CODE}>
-                                            {type.DROPDOWN_NAME}
-                                        </option>
-                                    ))}
-                                </>
-                            ) : (<option value="">Loading Billing Types...</option>)}
-                        </select>
-                        <label htmlFor="sviType" className="global-tran-floating-label">SVI Type</label>
-                        <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-                            <svg className="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                            </svg>
-                        </div>
-                    </div>
-
-                    {/* Billing Term */}
-                    <div className="relative">
-                        <input type="hidden" id="billtermCode" placeholder="" readOnly value={billtermCode || ""}/>
-                        <input type="text" id="billtermName" value={billtermName || ""} placeholder="" readOnly className="peer global-tran-textbox-ui"/>
-                        <label htmlFor="billtermName" className="global-tran-floating-label">
-                            <span className="global-tran-asterisk-ui"> * </span>Billing Term
-                        </label>
-                        <button onClick={() => {updateState({ billtermModalOpen: true })}}   
-                            className={`global-tran-textbox-button-search-padding-ui ${
-                                isFetchDisabled
-                                ? "global-tran-textbox-button-search-disabled-ui"
-                                : "global-tran-textbox-button-search-enabled-ui"
-                            } global-tran-textbox-button-search-ui`}
-                            disabled={isFormDisabled} 
-                        >
-                            <FontAwesomeIcon icon={faMagnifyingGlass} />
-                        </button>
-                    </div>
-
-                    <div className="relative">
-                        <input type="text" id="attention" placeholder=" " value={attention} onChange={(e) => updateState({ attention: e.target.value })} className="peer global-tran-textbox-ui" disabled={isFormDisabled} maxLength={useGetFieldLength(tblFieldArray, "attention")} />
-                        <label htmlFor="attention" className="global-tran-floating-label">Attention</label>
-                    </div>
+                            disabled={isFormDisabled}
+                            // onChange={(val) => handleAPTypeChange({ target: { value: val } })}
+                            options={sviTypes.map((t) => ({
+                                label: t.DROPDOWN_NAME,
+                                value: t.DROPDOWN_CODE,
+                            }))}
+                        />
 
 
-                    {/* NEW FLEX CONTAINER FOR CURRENCY AND CURRENCY RATE */}
-                    <div className="flex space-x-4"> {/* Added flex container with spacing */}
+                         
 
-                        {/* Currency */}
-                        <div className="relative flex-grow w-2/3"> {/* Used flex-grow to make it longer */}
-                            <input type="text" 
-                                id="currCode" 
-                                value={currCode}  
-                                className="peer global-tran-textbox-ui hidden"/>
-                                
-                              <input type="text" 
-                                id="currName" 
-                                value={currName}  
-                                className="peer global-tran-textbox-ui"/>
+                        {/* Billing Term */}
+                        <>
+                          <input type="hidden" id="billtermCode" value={billtermCode || ""} readOnly />
+                          <FieldRenderer
+                            id="billtermName"
+                            label="Billing Term"
+                            required
+                            type="lookup"
+                            value={billtermName || ""}
+                            disabled={isFormDisabled}
+                            readOnly
+                            lookupDisabled={isFetchDisabled}
+                            onLookup={() => updateState({ billtermModalOpen: true })}
+                          />
+                        </>
 
-                            <label htmlFor="currCode" className="global-tran-floating-label">Currency</label>
-                            <button onClick={() => {updateState({ currencyModalOpen: true })}}                        
-                                className={`global-tran-textbox-button-search-padding-ui ${
-                                    isFetchDisabled
-                                    ? "global-tran-textbox-button-search-disabled-ui"
-                                    : "global-tran-textbox-button-search-enabled-ui"
-                                } global-tran-textbox-button-search-ui`}
-                                disabled={isFormDisabled || custCode} 
-                            >
-                                <FontAwesomeIcon icon={faMagnifyingGlass} />
-                            </button>
+
+
+                        {/* Attention */}             
+                      <FieldRenderer
+                            id="attention"
+                            label="Attention"
+                            type="text"
+                            value={attention || ""}
+                            disabled={isFormDisabled}
+                            onChange={(val) => updateState({ attention: val })}
+                            maxLength={useGetFieldLength(tblFieldArray, "attention")}
+                          />
+
+
+                       {/* Currency */}
+                      <div className="flex space gap-4">
+                        <input type="hidden" id="currCode" value={currCode || ""} readOnly />
+
+                        <div className="flex-grow w-2/3">
+                          <FieldRenderer
+                            id="currName"
+                            label="Currency"
+                            value={
+                                  currCode
+                                    ? `${currCode}${currName ? ` - ${currName}` : ""}`
+                                    : ""
+                                }
+                            disabled
+                          />
                         </div>
 
-    
-
-                        {/* Currency Rate */}
-                        <div className="relative flex-grow"> {/* Used flex-grow to take remaining space (or you can use w-1/3) */}
-                            <input type="text" id="currRate" value={currRate} 
-                                onChange={(e) => {
-                                const inputValue = e.target.value;
-                                const sanitizedValue = inputValue.replace(/[^0-9.]/g, '');
+                        <div className="flex-grow">
+                            <FieldRenderer
+                              id="currRate"
+                              label="Currency Rate"
+                              type="amount"
+                              value={currRate || ""}
+                              disabled={isFormDisabled || glCurrDefault === currCode}
+                              onChange={(val) => {
+                                const sanitizedValue = String(val).replace(/[^0-9.]/g, "");
                                 if (/^\d*\.?\d{0,6}$/.test(sanitizedValue) || sanitizedValue === "") {
-                                    updateState({ currRate: sanitizedValue })
-                                }}}
-                                onBlur={handleCurrRateNoBlur}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    e.preventDefault(); 
-                                    document.getElementById("refDocNo1")?.focus();
-                                  }}}
-                                onFocus={(e) => {
-                                  if (parseFormattedNumber(e.target.value) === 0) {
-                                    e.target.value = "";
-                                  }
-                                }} 
-
-                                placeholder=" "
-                                className="peer global-tran-textbox-ui text-right" disabled={isFormDisabled || glCurrDefault === currCode} />
-                                
-                            <label htmlFor="currName" className="global-tran-floating-label"> Currency Rate
-                            </label>
+                                  updateState({ currRate: sanitizedValue });
+                                }
+                              }}
+                              onBlur={handleCurrRateNoBlur}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  document.getElementById("refDocNo1")?.focus();
+                                }
+                              }}
+                              onFocus={(e) => {
+                                if (parseFormattedNumber(e.target.value) === 0) {
+                                  e.target.value = "";
+                                }
+                              }}
+                            />
                         </div>
-                    </div>
+                      </div>
+               
                 </div>
+
+
+
 
                 {/* Column 3 */}
                 <div className="global-tran-textbox-group-div-ui">
-                    <div className="relative">
-                        <input type="text" id="refDocNo1"  value={refDocNo1} placeholder=" " onChange={(e) => updateState({ refDocNo1: e.target.value })} className="peer global-tran-textbox-ui " disabled={isFormDisabled} maxLength={useGetFieldLength(tblFieldArray, "refsvi_no1")} />
-                        <label htmlFor="refDocNo1" className="global-tran-floating-label">Ref Doc No. 1</label>
-                    </div>
+                   
+                   <FieldRenderer
+                    id="refDocNo1"
+                    label="Ref Doc No. 1"
+                    type="text"
+                    value={refDocNo1 || ""}
+                    disabled={isFormDisabled}
+                    onChange={(val) => updateState({ refDocNo1: val })}
+                    maxLength={useGetFieldLength(tblFieldArray, "refsvi_no1")}
+                  />
 
-                    <div className="relative">
-                        <input type="text" id="refDocNo2" value={refDocNo2} placeholder=" " onChange={(e) => updateState({ refDocNo2: e.target.value })}  className="peer global-tran-textbox-ui" disabled={isFormDisabled} maxLength={useGetFieldLength(tblFieldArray, "refsvi_no2")} />
-                        <label htmlFor="refDocNo2" className="global-tran-floating-label">Ref Doc No. 2</label>
-                    </div>
+                  <FieldRenderer
+                    id="refDocNo2"
+                    label="Ref Doc No. 2"
+                    type="text"
+                    value={refDocNo2 || ""}
+                    disabled={isFormDisabled}
+                    onChange={(val) => updateState({ refDocNo2: val })}
+                    maxLength={useGetFieldLength(tblFieldArray, "refsvi_no2")}
+                  />
 
-                    <div className="relative">
-                      <DateFormatInput
-                        id="fromDate"
-                        value={fromDate}
-                        updateState={updateState}
-                        disabled={isFormDisabled}
-                        // onBlurCustom={}
-                      />
-                    <label htmlFor="fromDate" className="global-tran-floating-label">From Date</label>
-                    </div>
+                  <div className="relative w-full">
+  <div
+    className={`flex items-stretch global-ref-textbox-ui ${
+      !isFormDisabled
+        ? "global-ref-textbox-enabled"
+        : "global-ref-textbox-disabled"
+    }`}
+  >
+    <DateFormatInput
+      id="fromDate"
+      className="peer flex-grow bg-transparent border-none px-3 focus:outline-none cursor-pointer"
+      value={fromDate}
+      disabled={isFormDisabled}
+      updateState={updateState}
+    />
+  </div>
+  <label htmlFor="fromDate" className="global-ref-floating-label">
+    From Date
+  </label>
+                </div>
 
-                    <div className="relative">
-                      <DateFormatInput
-                        id="toDate"
-                        value={toDate}
-                        updateState={updateState}
-                        disabled={isFormDisabled}
-                      />
-                        <label htmlFor="toDate" className="global-tran-floating-label">To Date</label>
-                    </div>
+                <div className="relative w-full">
+                  <div
+                    className={`flex items-stretch global-ref-textbox-ui ${
+                      !isFormDisabled
+                        ? "global-ref-textbox-enabled"
+                        : "global-ref-textbox-disabled"
+                    }`}
+                  >
+                    <DateFormatInput
+                      id="toDate"
+                      className="peer flex-grow bg-transparent border-none px-3 focus:outline-none cursor-pointer"
+                      value={toDate}
+                      disabled={isFormDisabled}
+                      updateState={updateState}
+                    />
+                  </div>
+                  <label htmlFor="toDate" className="global-ref-floating-label">
+                    To Date
+                  </label>
+                </div>
+
                 </div>
 
 
@@ -2109,45 +2128,76 @@ return (
 
             </div> {/* End of the 3-column container */}
 
+           
+           
             {/* Column 4 - Totals (remains unchanged, but its parent is now the main 4-column grid) */}
             <div className="global-tran-textbox-group-div-ui">
-                <div className="relative">
-                    <input type="text" id="totalGrossAmount" value={totals.totalGrossAmount} placeholder=" " className="peer global-tran-textbox-ui text-right"/>
-                    <label htmlFor="totalGrossAmount" className="global-tran-floating-label">Gross Amount</label>
-                </div>
+                <FieldRenderer
+                    id="totalGrossAmount"
+                    label="Gross Amount"
+                    type="amount"
+                    value={totals.totalGrossAmount || ""}
+                    disabled
+                  />
 
-                <div className="relative">
-                    <input type="text" id="totalDiscountAmount" value={totals.totalDiscountAmount} placeholder=" " className="peer global-tran-textbox-ui text-right"/>
-                    <label htmlFor="totalDiscountAmount" className="global-tran-floating-label">Discount Amount</label>
-                </div>
+                  <FieldRenderer
+                    id="totalDiscountAmount"
+                    label="Discount Amount"
+                    type="amount"
+                    value={totals.totalDiscountAmount || ""}
+                    disabled
+                    readOnly
+                  />
 
-                <div className="relative">
-                    <input type="text" id="totalNetAmount" value={totals.totalNetAmount} placeholder=" " className="peer global-tran-textbox-ui text-right"/>
-                    <label htmlFor="totalNetAmount" className="global-tran-floating-label">Net Amount</label>
-                </div>
+                  <FieldRenderer
+                    id="totalNetAmount"
+                    label="Net Amount"
+                    type="amount"
+                    value={totals.totalNetAmount || ""}
+                    disabled
+                    readOnly
+                  />
 
-                <div className="relative">
-                    <input type="text" id="totalVatAmount" value={totals.totalVatAmount} placeholder=" " className="peer global-tran-textbox-ui text-right"/>
-                    <label htmlFor="totalVatAmount" className="global-tran-floating-label">VAT Amount</label>
-                </div>
+                  <FieldRenderer
+                    id="totalVatAmount"
+                    label="VAT Amount"
+                    type="amount"
+                    value={totals.totalVatAmount || ""}
+                    disabled
+                    readOnly
+                  />
 
-                <div className="relative">
-                    <input type="text" id="totalSalesAmount" value={totals.totalSalesAmount} placeholder=" " className="peer global-tran-textbox-ui text-right"/>
-                    <label htmlFor="totalSalesAmount" className="global-tran-floating-label">Sales Amount</label>
-                </div>
+                  <FieldRenderer
+                    id="totalSalesAmount"
+                    label="Sales Amount"
+                    type="amount"
+                    value={totals.totalSalesAmount || ""}
+                    disabled
+                    readOnly
+                  />
 
-                <div className="relative">
-                    <input type="text" id="totalAtcAmount" value={totals.totalAtcAmount} placeholder=" " className="peer global-tran-textbox-ui text-right"/>
-                    <label htmlFor="totalAtcAmount" className="global-tran-floating-label">ATC Amount</label>
-                </div>
+                  <FieldRenderer
+                    id="totalAtcAmount"
+                    label="ATC Amount"
+                    type="amount"
+                    value={totals.totalAtcAmount || ""}
+                    disabled
+                    readOnly
+                  />
 
-                <div className="relative">
-                    <input type="text" id="totalAmountDue" value={totals.totalAmountDue} placeholder=" " className="peer global-tran-textbox-ui text-right"/>
-                    <label htmlFor="totalAmountDue" className="global-tran-floating-label">Amount Due</label>
-                </div>
+                  <FieldRenderer
+                    id="totalAmountDue"
+                    label="Amount Due"
+                    type="amount"
+                    value={totals.totalAmountDue || ""}
+                    disabled
+                    readOnly
+                  />
             </div>
 
         </div>
+   
+   
     </div>
           
           {/* APV Detail Section */}
@@ -2202,17 +2252,12 @@ return (
               <th className="global-tran-th-ui">Discount Account</th>
               <th className="global-tran-th-ui">RC Code</th> 
                     
-            {!isFormDisabled && (
-              <th className="global-tran-th-ui sticky right-[43px] bg-blue-300 dark:bg-blue-900 z-30">
-                Add
-              </th>
-            )}
+                {!isFormDisabled && (
+                  <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
+                    Actions
+                  </th>
+                )}
 
-            {!isFormDisabled && (
-              <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
-                Delete
-              </th>
-            )}
             </tr>
           </thead>
 
@@ -2416,7 +2461,6 @@ return (
                     type="text"
                     className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0 cursor-pointer"
                     value={formatNumber(parseFormattedNumber(row.grossAmount)) || formatNumber(parseFormattedNumber(row.grossAmount)) || ""}
-                    readOnly
                   />
                 </td>
 
@@ -2713,27 +2757,28 @@ return (
                 </td>
                 
 
-                {!isFormDisabled && (
-                <td className="global-tran-td-ui text-center sticky right-12">
-                  <button
-                    className="global-tran-td-button-add-ui"
-                    onClick={() => handleAddRow(index)}
-                  >
-                    <FontAwesomeIcon icon={faPlus} />
-                  </button>
-                </td>
-              )}
+               {!isFormDisabled && (
+                    <td className="global-tran-td-ui text-center sticky right-0">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          className="global-tran-td-button-add-ui"
+                          onClick={() => handleAddRow(index)}
+                        >
+                          <FontAwesomeIcon icon={faPlus} />
+                        </button>
 
-              {!isFormDisabled && (
-                <td className="global-tran-td-ui text-center sticky right-0">
-                  <button
-                    className="global-tran-td-button-delete-ui"
-                    onClick={() => handleDeleteRow(index)}
-                  >
-                    <FontAwesomeIcon icon={faMinus} />
-                  </button>
-                </td>
-              )}
+                        <button
+                          type="button"
+                          className="global-tran-td-button-delete-ui"
+                          onClick={() => handleDeleteRow(index)}
+                        >
+                          <FontAwesomeIcon icon={faTrashAlt} />
+                        </button>
+                      </div>
+                    </td>
+                  )}
+
                         
               </tr>
             ))}
@@ -2920,14 +2965,9 @@ return (
                 <th className="global-tran-th-ui">Remarks</th>
                 
                 {!isFormDisabled && (
-                  <>
-                    <th className="global-tran-th-ui sticky right-[43px] bg-blue-300 dark:bg-blue-900 z-30">
-                      Add
-                    </th>
-                    <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
-                      Delete
-                    </th>
-                  </>
+                  <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
+                    Actions
+                  </th>
                 )}
 
               </tr>
@@ -3344,24 +3384,24 @@ return (
                 </td>
                   
                 {!isFormDisabled && (
-                  <td className="global-tran-td-ui text-center sticky right-10">
-                    <button
-                      className="global-tran-td-button-add-ui"
-                      onClick={() => handleAddRowGL(index)}
-                    >
-                      <FontAwesomeIcon icon={faPlus} />
-                    </button>
-                  </td>
-                )}
-
-                {!isFormDisabled && (
                   <td className="global-tran-td-ui text-center sticky right-0">
-                    <button
-                      className="global-tran-td-button-delete-ui"
-                      onClick={() => handleDeleteRowGL(index)}
-                    >
-                      <FontAwesomeIcon icon={faMinus} />
-                    </button>
+                    <div className="flex items-center justify-center gap-1">
+                      <button
+                        type="button"
+                        className="global-tran-td-button-add-ui"
+                        onClick={() => handleAddRowGL(index)}
+                      >
+                        <FontAwesomeIcon icon={faPlus} />
+                      </button>
+
+                      <button
+                        type="button"
+                        className="global-tran-td-button-delete-ui"
+                        onClick={() => handleDeleteRowGL(index)}
+                      >
+                        <FontAwesomeIcon icon={faTrashAlt} />
+                      </button>
+                    </div>
                   </td>
                 )}
 
