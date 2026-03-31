@@ -402,10 +402,9 @@ const PayeeSetupTab = forwardRef(
               <FieldRenderer
                 label="Payee Code"
                 required
-                // Switch to a normal text field if it's a new Manual record
-                type={isManualNew ? "text" : "lookup"}
+                // THE FIX: Switch to a plain text field once a record is retrieved
+                type={isManualNew || isRetrievedRecord ? "text" : "lookup"}
                 value={form[f.code] || ""}
-                // Only allow typing if it's a new Manual record
                 onChange={
                   isManualNew
                     ? (v) => {
@@ -414,9 +413,9 @@ const PayeeSetupTab = forwardRef(
                     }
                     : undefined
                 }
-                // Only trigger the lookup modal if NOT creating a new Manual record
-                onLookup={isManualNew ? undefined : openPayeeLookup}
-                // Unlock the field if it's a new Manual record
+                // Disable the lookup click if a record is already loaded
+                onLookup={isManualNew || isRetrievedRecord ? undefined : openPayeeLookup}
+                // This readOnly prop is what gives it the grey background in your system
                 readOnly={!isManualNew}
                 disabled={isLoading || isRetrievedRecord}
                 maxLength={getLen(col.code, 20)}

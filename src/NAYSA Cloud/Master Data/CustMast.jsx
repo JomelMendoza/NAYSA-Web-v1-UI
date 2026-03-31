@@ -21,7 +21,7 @@ import {
 
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import ButtonBar from "@/NAYSA Cloud/Global/ButtonBar";
-import AttachFileModal from "@/NAYSA Cloud/Lookup/AttachFileModal.jsx";
+import SearchAttachment from "@/NAYSA Cloud/Lookup/SearchAttachment.jsx";
 import AllTranDocNo from "@/NAYSA Cloud/Lookup/SearchDocNo.jsx";
 
 // Import Guides
@@ -205,7 +205,7 @@ const CustMast = () => {
     const [isAttachOpen, setIsAttachOpen] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-    const [attachmentRows, setAttachmentRows] = useState([]);
+    const contentPadding = "p-4 sm:p-6 lg:p-8";
 
     const [subsidiaryType, setSubsidiaryType] = useState("");
     const [masterFilters, setMasterFilters] = useState({});
@@ -690,7 +690,6 @@ const CustMast = () => {
             setForm({ ...emptyForm });
             setSelectedCustCode("");
             setIsEditing(false);
-            setAttachmentRows([]);
 
             await loadMasterList();
         } catch (e) {
@@ -755,7 +754,6 @@ const CustMast = () => {
 
         setIsEditing(true);
         setActiveTab("setup");
-        setAttachmentRows([]);
     };
 
     const handleEdit = async () => {
@@ -775,7 +773,6 @@ const CustMast = () => {
         setSelectedCustCode("");
         setForm({ ...emptyForm });
         setIsEditing(false);
-        setAttachmentRows([]);
     };
 
     const tabs = useMemo(
@@ -796,68 +793,63 @@ const CustMast = () => {
     };
 
     const headerButtons = useMemo(() => {
-        if (activeTab !== "setup") return [];
+        const baseBtn = "flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md transition-all shadow-sm";
 
-        const hasRecord = String(form?.custCode || "").trim() && !form.__isNew;
+        if (activeTab === "setup") {
+            const hasRecord = String(form?.custCode || "").trim() && !form.__isNew;
 
-        return [
-            {
-                key: "add",
-                label: <span className="sm:inline ml-1">Add</span>,
-                icon: faPlus,
-                onClick: handleAdd,
-                disabled: isLoading,
-                className: "flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm",
-            },
-            {
-                key: "save",
-                label: <span className="sm:inline ml-1">Save</span>,
-                icon: faSave,
-                onClick: upsertCustomer,
-                disabled: isLoading || !isEditing,
-                className: `flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md transition-all shadow-sm ${
-                    isLoading || !isEditing
-                        ? "bg-blue-500 opacity-50 cursor-not-allowed text-white"
-                        : "bg-blue-600 text-white hover:bg-blue-700"
-                }`,
-            },
-            {
-                key: "reset",
-                label: <span className="sm:inline ml-1">Reset</span>,
-                icon: faUndo,
-                onClick: handleResetSetup,
-                disabled: isLoading,
-                className: "flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm",
-            },
-            {
-                key: "edit",
-                label: <span className="sm:inline ml-1">Edit</span>,
-                icon: faPenToSquare,
-                onClick: handleEdit,
-                disabled: isLoading,
-                className: "flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm",
-            },
-            {
-                key: "attach",
-                label: <span className="sm:inline ml-1">Attach File</span>,
-                icon: faPaperclip,
-                onClick: handleOpenAttach,
-                disabled: isLoading,
-                className: "flex items-center justify-center h-7 w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm",
-            },
-            {
-                key: "delete",
-                label: <span className="sm:inline ml-1">Delete</span>,
-                icon: faTrash,
-                onClick: deleteCustomer,
-                disabled: isLoading || isEditing || !hasRecord,
-                className: `flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md transition-all shadow-sm ${
-                    isLoading || isEditing || !hasRecord
-                        ? "bg-red-400 opacity-50 cursor-not-allowed text-white"
-                        : "bg-red-500 text-white hover:bg-red-600"
-                }`,
-            },
-        ];
+            return [
+                {
+                    key: "add",
+                    label: <span className="hidden sm:inline ml-1">Add</span>,
+                    icon: faPlus,
+                    onClick: handleAdd,
+                    disabled: isLoading,
+                    className: `${baseBtn} bg-blue-600 text-white hover:bg-blue-700`,
+                },
+                {
+                    key: "save",
+                    label: <span className="hidden sm:inline ml-1">Save</span>,
+                    icon: faSave,
+                    onClick: upsertCustomer,
+                    disabled: isLoading || !isEditing,
+                    className: `${baseBtn} ${isLoading || !isEditing ? "bg-blue-500 opacity-50 cursor-not-allowed text-white" : "bg-blue-600 text-white hover:bg-blue-700"}`,
+                },
+                {
+                    key: "reset",
+                    label: <span className="hidden sm:inline ml-1">Reset</span>,
+                    icon: faUndo,
+                    onClick: handleResetSetup,
+                    disabled: isLoading,
+                    className: `${baseBtn} bg-blue-600 text-white hover:bg-blue-700`,
+                },
+                {
+                    key: "edit",
+                    label: <span className="hidden sm:inline ml-1">Edit</span>,
+                    icon: faPenToSquare,
+                    onClick: handleEdit,
+                    disabled: isLoading || isEditing || !hasRecord,
+                    className: `${baseBtn} ${isLoading || isEditing || !hasRecord ? "bg-blue-400 opacity-50 cursor-not-allowed text-white" : "bg-blue-600 text-white hover:bg-blue-700"}`,
+                },
+                {
+                    key: "attach",
+                    label: <span className="hidden sm:inline ml-1">Attach</span>,
+                    icon: faPaperclip,
+                    onClick: handleOpenAttach,
+                    disabled: isLoading || !hasRecord,
+                    className: `${baseBtn} ${isLoading || !hasRecord ? "bg-blue-400 opacity-50 cursor-not-allowed text-white" : "bg-blue-600 text-white hover:bg-blue-700"}`,
+                },
+                {
+                    key: "delete",
+                    label: <span className="hidden sm:inline ml-1">Delete</span>,
+                    icon: faTrash,
+                    onClick: deleteCustomer,
+                    disabled: isLoading || isEditing || !hasRecord,
+                    className: `${baseBtn} ${isLoading || isEditing || !hasRecord ? "bg-red-400 opacity-50 cursor-not-allowed text-white" : "bg-red-500 text-white hover:bg-red-600"}`,
+                },
+            ];
+        }
+        return [];
     }, [activeTab, isLoading, isEditing, form]);
 
     return (
@@ -907,10 +899,10 @@ const CustMast = () => {
                             <div ref={guideRef} className="relative z-[60]">
                                 <button
                                     onClick={() => setOpenGuide((v) => !v)}
-                                    className="flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm"
+                                    className="flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm"
                                 >
                                     <FontAwesomeIcon icon={faInfoCircle} className="text-[12px]" />
-                                    <span className="sm:inline ml-1">Info</span>
+                                    <span className="hidden sm:inline ml-1">Info</span>
                                     <FontAwesomeIcon icon={faChevronDown} className="hidden sm:inline ml-1 text-[10px] opacity-80" />
                                 </button>
 
@@ -939,8 +931,8 @@ const CustMast = () => {
             {/* ─────────────────────────────────────────────────────────────────── */}
 
             <div
-                className="global-tran-tab-div-ui mt-28 sm:mt-16"
-                style={{ minHeight: "calc(100vh - 170px)" }}
+                className={`global-tran-tab-div-ui mt-44 sm:mt-24 lg:mt-20 ${contentPadding} transition-all duration-300`}
+                style={{ minHeight: "calc(100vh - 120px)" }}
             >
                 {activeTab === "setup" && (
                     <CustSetupTab
@@ -980,13 +972,17 @@ const CustMast = () => {
                 {activeTab === "ref" && <ReferenceCodesTab variant="customer" />}
             </div>
 
-            <AttachFileModal
+            <SearchAttachment
                 isOpen={isAttachOpen}
                 onClose={() => setIsAttachOpen(false)}
-                transaction="Customer Master Data"
-                branch={form.branchCode || "HO"}
-                documentNo={documentNo}
-                rows={attachmentRows}
+                params={{
+                    DocumentID: documentNo,
+                    CodeLabel: "Customer Code",
+                    Code: documentNo,
+                    NameLabel: "Customer Name",
+                    // Use custName, or fallback to businessName, or "N/A"
+                    Name: form.custName || form.businessName || "N/A"
+                }}
             />
 
             <AllTranDocNo
@@ -1004,8 +1000,6 @@ const CustMast = () => {
                 onRetrieve={({ docNo, key }) => {
                     // Logic from original file to navigate records
                     if (key === "F" || key === "P" || key === "N" || key === "L") {
-                        // Note: To use goFirst, goPrev, goNext, goLast, they must be defined.
-                        // I left this logic intact from your original code block.
                         console.warn("Navigation actions require corresponding methods (goFirst, etc.)");
                     } else {
                         fetchCustomerByCode(docNo);
