@@ -1,6 +1,6 @@
 import { useState, useEffect,useRef,useCallback } from "react";
 import Swal from 'sweetalert2';
-import { useNavigate } from "react-router-dom";
+import { useNavigate,useLocation  } from "react-router-dom";
 
 // UI
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -21,13 +21,13 @@ import AttachDocumentModal from "../../../Lookup/SearchAttachment.jsx";
 import DocumentSignatories from "../../../Lookup/SearchSignatory.jsx";
 import GlobalLookupModalv1 from "../../../Lookup/SearchGlobalLookupv1.jsx";
 import AllTranHistory from "../../../Lookup/SearchGlobalTranHistory.jsx";
-
+import AllTranDocNo from "../../../Lookup/SearchDocNo.jsx";
+import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 
 // Configuration
 import {fetchData , postRequest, fetchDataJson} from '../../../Configuration/BaseURL.jsx'
 import { useReset } from "../../../Components/ResetContext";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
-
 
 import {
   docTypeNames,
@@ -37,35 +37,25 @@ import {
   docTypePDFGuide,
 } from '@/NAYSA Cloud/Global/doctype';
 
-
 import {
-  useTopVatRow,
-  useTopATCRow,
   useTopRCRow,
   useTopAccountRow,
   useTopForexRate,
   useTopCurrencyRow,
-  useTopHSOption,
-  useTopCompanyRow,
-  useTopDocControlRow,
-  useTopDocDropDown,
-  useTopVatAmount,
-  useTopATCAmount,
-  useTopBillCodeRow,
   useTopBankMastRow,
 } from '@/NAYSA Cloud/Global/top1RefTable';
-
 
 import {
   useSelectedOpenAPBalance,
   useSelectedHSColConfig,
 } from '@/NAYSA Cloud/Global/selectedData';
 
-
 import {
-  useGetCurrentDay,
-  useFormatToDate,
+  useGetCurrentDayV2,
+  useformatToDatev2
 } from '@/NAYSA Cloud/Global/dates';
+
+import DateFormatInput from '@/NAYSA Cloud/Global/DateFormatInput.jsx';
 
 import {
   useUpdateRowGLEntries,
@@ -74,56 +64,71 @@ import {
   useUpdateRowEditEntries,
   useFetchTranData,
   useHandleCancel,
+  useFieldLenghtCheck,
+  useGetFieldLength,
 } from '@/NAYSA Cloud/Global/procedure';
-
 
 import {
   useHandlePrint,
 } from '@/NAYSA Cloud/Global/report';
 
-
 import { 
   formatNumber,
   parseFormattedNumber,
   useSwalshowSaveSuccessDialog,
-} from '@/NAYSA Cloud/Global/behavior';
+} from '@/NAYSA Cloud/Global/behavior.jsx';
 
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
 // Header
 import Header from '@/NAYSA Cloud/Components/Header';
 import { faAdd } from "@fortawesome/free-solid-svg-icons/faAdd";
 
-
 const APDM = () => {
-   const loadedFromUrlRef = useRef(false);
-   const navigate = useNavigate();
-   const [topTab, setTopTab] = useState("details"); // "details" | "history"
-   const { user } = useAuth();
-   const { resetFlag } = useReset();
-   const [state, setState] = useState({
+  const loadedFromUrlRef = useRef(false);
+  const navigate = useNavigate();
+  const location = useLocation(); 
+  const { companyInfo, currentUserRow,getAllDropDown,refsLoaded ,getAllTopATCRow, getAllTopVatRow,getAllTopVatAmount,getAllTopATCAmount ,getAllTopHSDocRow} = useAuth();
+  const [isViewDocument, setIsViewDocument] = useState(false);
+  
+  useEffect(() => {
+    const p = new URLSearchParams(location.search);
+    if (p.get("viewDocument") === "true") {
+      setIsViewDocument(true);
+    }
+  }, []); 
+  const isViewDocumentUrl = isViewDocument;
 
+  const [topTab, setTopTab] = useState("details"); // "details" | "history"
+  const { resetFlag } = useReset();
+  
+  const [focusedCell, setFocusedCell] = useState(null); // { index: number, field: string }
+  const docType = docTypes.APDM; 
+  const hsDoc = getAllTopHSDocRow(docType);
+  const pdfLink = docTypePDFGuide[docType];
+  const videoLink = docTypeVideoGuide[docType];
+  const documentTitle = hsDoc?.docName + ' Transaction';
+ 
+  const [state, setState] = useState({
     // HS Option
-    glCurrMode:"M",
-    glCurrDefault:"PHP",
+    glCurrMode:companyInfo?.glCurrMode||"",
+    glCurrDefault:companyInfo?.currCode||"",
     withCurr2:false,
     withCurr3:false,
-    glCurrGlobal1:"",
-    glCurrGlobal2:"",
-    glCurrGlobal3:"",
+    glCurrGlobal1:companyInfo?.glCurrGlobal1||"",
+    glCurrGlobal2:companyInfo?.glCurrGlobal2||"",
+    glCurrGlobal3:companyInfo?.glCurrGlobal3||"",
 
-
-    
     // Document information
-    documentName: "",
-    documentSeries: "Auto",
-    documentDocLen: 8,
+    documentName: hsDoc?.docName||"",
+    documentSeries: hsDoc?.docSeries||"Auto",
+    documentDocLen: hsDoc?.docLength||8,
     documentID: null,
     documentNo: "",
-    documentDate:useGetCurrentDay(),    
+    documentDate:useGetCurrentDayV2(),    
     documentStatus:"",
     status: "OPEN",
     noReprints:"0",
-
 
     // UI state
     activeTab: "basic",
@@ -136,23 +141,20 @@ const APDM = () => {
     isResetDisabled: false,
     isFetchDisabled: false,
 
-
-    branchCode: "HO",
-    branchName: "Head Office",
+    branchCode: currentUserRow?.branchCode||"",
+    branchName: currentUserRow?.branchName||"",
     
     // Vendor information
     vendCode: "",
     vendName: "",
     chainCode:"",
     chainName:"",
-
     
     // Currency information
-    currCode: "",
-    currName: "",
-    currRate: "",
-    defaultCurrRate:"1.000000",
-
+    currCode: companyInfo?.currCode||"",
+    currName: companyInfo?.currName||"",
+    currRate: formatNumber(companyInfo?.currRate||1,6),
+    defaultCurrRate:formatNumber(companyInfo?.currRate||1,6),
 
     //Other Header Info
     prcNo:"",
@@ -170,7 +172,7 @@ const APDM = () => {
     remarks: "",
 
     selectedAPDMType : "APDM01",
-    userCode: user.USER_CODE, 
+    userCode: currentUserRow?.userCode||"", 
 
     //Detail 1-2
     detailRows  :[],
@@ -180,8 +182,9 @@ const APDM = () => {
 
     totalDebit:"0.00",
     totalCredit:"0.00",
+    totalDebitFX1:"0.00",
+    totalCreditFX1:"0.00",
 
- 
     // Modal states
     modalContext: '',
     selectionContext: '',
@@ -202,6 +205,7 @@ const APDM = () => {
     showSignatoryModal:false,
     showBankMastModal:false,
     showPostingModal:false,
+    showAllTranDocNo:false,
    });
 
   const updateState = (updates) => {
@@ -234,9 +238,6 @@ const APDM = () => {
   triggerGLEntries,
   userCode,
 
-
-
-
   // Currency
   glCurrMode,
   glCurrDefault,
@@ -246,7 +247,6 @@ const APDM = () => {
   glCurrGlobal2,
   glCurrGlobal3,
   defaultCurrRate,
-
 
   // Transaction Header
   branchCode,
@@ -265,21 +265,20 @@ const APDM = () => {
   refDocNo2,
   remarks,
 
-
-
   // Transaction details
+  tblFieldArray,
   detailRows,
   detailRowsGL,
   globalLookupRow,
   globalLookupHeader,
   totalDebit,
   totalCredit,
-
+  totalDebitFX1,
+  totalCreditFX1,
 
   // Contexts
   selectedRowIndex,
   accountModalSource,
-
 
   // Modals
   showAccountModal,
@@ -296,19 +295,9 @@ const APDM = () => {
   showSignatoryModal,
   showAPBalanceModal,
   showPostingModal,
+  showAllTranDocNo,
 
 } = state;
-
-
-  const [focusedCell, setFocusedCell] = useState(null); // { index: number, field: string }
-
-  //Document Global Setup
-  const docType = docTypes.APDM; 
-  const pdfLink = docTypePDFGuide[docType];
-  const videoLink = docTypeVideoGuide[docType];
-  const documentTitle = docTypeNames[docType] || 'Transaction';
- 
-
 
   //Status Global Setup
   const displayStatus = status || 'OPEN';
@@ -318,12 +307,9 @@ const APDM = () => {
     CLOSED: "global-tran-stat-text-closed-ui",
   };
   const statusColor = statusMap[displayStatus] || "";
-  const isFormDisabled = ["FINALIZED", "CANCELLED", "CLOSED"].includes(displayStatus);
+  const isFormDisabled = isViewDocumentUrl || ["FINALIZED", "CANCELLED", "CLOSED"].includes(displayStatus);
   
-
   //Variables
-
-
   const [totals, setTotals] = useState({
   totalSIAmount: '0.00',
   totalAppliedAmount: '0.00',
@@ -331,21 +317,18 @@ const APDM = () => {
   totalATCAmount: '0.00'
   });
 
-
-
-
   useEffect(() => {
     const debitSum = detailRowsGL.reduce((acc, row) => acc + (parseFormattedNumber(row.debit) || 0), 0);
     const creditSum = detailRowsGL.reduce((acc, row) => acc + (parseFormattedNumber(row.credit) || 0), 0);
+    const debitFx1Sum = detailRowsGL.reduce((acc, row) => acc + (parseFormattedNumber(row.debitFx1) || 0), 0);
+    const creditFx1Sum = detailRowsGL.reduce((acc, row) => acc + (parseFormattedNumber(row.creditFx1) || 0), 0);
   updateState({
     totalDebit: formatNumber(debitSum),
-    totalCredit: formatNumber(creditSum)
+    totalCredit: formatNumber(creditSum),
+    totalDebitFx1: formatNumber(debitFx1Sum),
+    totalCreditFx1: formatNumber(creditFx1Sum)
   })
   }, [detailRowsGL]);
-
-
-
-
 
  useEffect(() => {
   if (resetFlag) handleReset();
@@ -357,14 +340,8 @@ const APDM = () => {
   return () => timer && clearTimeout(timer);
 }, [resetFlag, isLoading]);
 
-
-
-
   useEffect(() => {
   }, [vendCode]);
-
-
-
 
 useEffect(() => {
   if (triggerGLEntries) {
@@ -374,19 +351,11 @@ useEffect(() => {
   }
 }, [triggerGLEntries]);
 
-
-
-
-
-
-
   useEffect(() => {
   if (glCurrMode && glCurrDefault && currCode) {
     loadCurrencyMode(glCurrMode, glCurrDefault, currCode);
   }
 }, [glCurrMode, glCurrDefault, currCode]);
-
-
 
   useEffect(() => {
     if (vendName?.currCode && detailRows.length > 0) {
@@ -398,36 +367,27 @@ useEffect(() => {
     }
   }, [vendName?.currCode]);
 
-
-
   useEffect(() => {
       updateState({isDocNoDisabled: !!state.documentID });
   }, [state.documentID]);
-  
 
+const isInitialMount = useRef(true);
 
+useEffect(() => {
+  if (isInitialMount.current) {
+    handleReset();
+    loadCompanyData();
+    isInitialMount.current = false;
+  }
+}, []);
 
   useEffect(() => {
-    handleReset();
-    loadCompanyData(); 
+    const onKey = (e) => {
+      if (e.key === "F1") { e.preventDefault(); updateState({showAllTranDocNo:true}); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
-
-
-  
-
-
-  const LoadingSpinner = () => (
-    <div className="global-tran-spinner-main-div-ui">
-      <div className="global-tran-spinner-sub-div-ui">
-        <FontAwesomeIcon icon={faSpinner} spin size="2x" className="text-blue-500 mb-2" />
-        <p>Please wait...</p>
-      </div>
-    </div>
-  );
-
-
-  
-
 
   const updateTotalsDisplay = (siAmt, applied, vat, atc) => {
     setTotals({
@@ -438,18 +398,29 @@ useEffect(() => {
       });
   };
 
-
+  useEffect(() => {
+  if (!refsLoaded) return;
+  const apdmType = getAllDropDown("APDMTRAN_TYPE", docType);
+  if (apdmType.length > 0) {
+    updateState({
+      apdmTypes: apdmType,
+      selectedAPDMType: "APDM01",
+    });
+  }
+}, [docType, refsLoaded]);
 
   const handleReset = () => { 
       updateState({
-
-      branchCode: "HO",
-      branchName: "Head Office",
-      userCode: user.USER_CODE, 
-      documentDate:useGetCurrentDay(),
+      branchCode: currentUserRow?.branchCode||"",
+      branchName: currentUserRow?.branchName||"",
+      userCode:currentUserRow?.userCode||"",
+      documentDate:useGetCurrentDayV2(),
+      currCode:companyInfo?.currCode||"",
+      glCurrDefault:companyInfo?.currCode||"",
+      currName:companyInfo?.currName||"",
+      currRate:formatNumber(companyInfo?.currRate||1,6) ,
       selectedAPDMType : "APDM01",
       noReprints:"0",
-
 
       refDocNo1: "",
       refDocNo2:"",
@@ -467,7 +438,6 @@ useEffect(() => {
       detailRowsGL:[],
       documentStatus:"",
       
-      
       // UI state
       activeTab: "basic",
       GLactiveTab: "invoice",
@@ -476,97 +446,31 @@ useEffect(() => {
       isResetDisabled: false,
       isFetchDisabled: false,
       status:"Open"
-
     });
       updateTotalsDisplay (0, 0, 0, 0)
-
   };
 
-
-  
-   const loadCompanyData = async () => {
-
-    updateState({isLoading:true})
-
+    const loadCompanyData = async () => {
+    updateState({ isLoading: true });
     try {
-      // 🔹 1. Run these in parallel since they don’t depend on each other
-      const [ apdmType] = await Promise.all([
-        useTopDocDropDown(docType, "APDMTRAN_TYPE"),
-      ]);
-      if (apdmType) {
-        updateState({ apdmTypes: apdmType, selectedARMType: "APDM01" });
-      }
-     
-
-
-
-      // 🔹 2. Document row (independent)
-      const docRow = await useTopDocControlRow(docType);
-      if (docRow) {
-        updateState({
-          documentName: docRow.docName,
-          documentSeries: docRow.docName,
-          tdocumentDocLen: docRow.docName,
-        });
-      }
-
-
-
-      // 🔹 3. HS Options + Currency row (dependent chain)
-      const hsOption = await useTopHSOption();
-      if (hsOption) {
-        updateState({
-          glCurrMode: hsOption.glCurrMode,
-          glCurrDefault: hsOption.glCurrDefault,
-          currCode: hsOption.glCurrDefault,
-          glCurrGlobal1: hsOption.glCurrGlobal1,
-          glCurrGlobal2: hsOption.glCurrGlobal2,
-          glCurrGlobal3: hsOption.glCurrGlobal3,
-        });
-
-        const curr = await useTopCurrencyRow(hsOption.glCurrDefault);
-        if (curr) {
-          updateState({
-            currName: curr.currName,
-            currRate: formatNumber(1, 6),
-          });
-        }
-      }
-
-
-
-      // 🔹 4. Company + Bank row (dependent chain)
-      const company = await useTopCompanyRow();
-      if (company) {
-        updateState({ depBankCode: company.depBankcode });
-
-        const bank = await useTopBankMastRow(company.depBankcode);
-        if (bank) {
-          updateState({
-            depBankCode: bank.bankCode,
-            depAcctName: bank.acctName,
-            depAcctNo: bank.bankAcctNo,
-          });
-        }
+      const hdtblcol_result = await useFieldLenghtCheck(
+        "apdm_hd,apdm_dt1,apdm_dt2"
+      );
+      if (hdtblcol_result) {
+        updateState({ tblFieldArray: hdtblcol_result });
       }
     } catch (err) {
       console.error("Error fetching data:", err);
+    } finally {
+      updateState({ isLoading: false });
     }
-
-     updateState({isLoading:false})
   };
-
-
-
-
-
+  
 const loadCurrencyMode = (
-
       mode = glCurrMode,
       defaultCurr = glCurrDefault,
       curr = currCode
     ) => {
-
     const calcWithCurr3 = mode === "T";
     const calcWithCurr2 = (mode === "M" && defaultCurr !== curr) || mode === "D" || calcWithCurr3;
 
@@ -575,13 +479,9 @@ const loadCurrencyMode = (
         withCurr2: calcWithCurr2,
         withCurr3: calcWithCurr3,
       });
-
 };
 
-
-
-
-const fetchTranData = async (documentNo, branchCode) => {
+const fetchTranData = async (documentNo, branchCode, direction='') => {
   const resetState = () => {
     updateState({documentNo:'', documentID: '', isDocNoDisabled: false, isFetchDisabled: false });
     updateTotals([]);
@@ -590,7 +490,7 @@ const fetchTranData = async (documentNo, branchCode) => {
   updateState({ isLoading: true });
 
   try {
-    const data = await useFetchTranData(documentNo, branchCode,docType,"apdmNo");
+    const data = await useFetchTranData(documentNo, branchCode,docType,"apdmNo",direction);
 
 
     if (!data?.apdmId) {
@@ -617,19 +517,18 @@ const fetchTranData = async (documentNo, branchCode) => {
       creditFx1: formatNumber(glRow.creditFx1),
       debitFx2: formatNumber(glRow.debitFx2),
       creditFx2: formatNumber(glRow.creditFx2),
+      slRefDate:useformatToDatev2(glRow.slRefDate),
     }));
-
   
     // Update state with fetched data
-
-   
     updateState({
       documentStatus: data.apdmStatus,
       status: data.docStatus,
       documentID: data.apdmId,
       documentNo: data.apdmNo,
       branchCode: data.branchCode,
-      documentDate: useFormatToDate(data.apdmDate),
+      branchName: data.branchName,
+      documentDate: useformatToDatev2(data.apdmDate),
       selectedAPDMType: data.apdmtranType,
       vendCode: data.vendCode,
       vendName: data.vendName,
@@ -644,7 +543,6 @@ const fetchTranData = async (documentNo, branchCode) => {
       isDocNoDisabled: true,
       isFetchDisabled: true,
     });
-
    
     updateTotals(retrievedDetailRows);
 
@@ -657,19 +555,13 @@ const fetchTranData = async (documentNo, branchCode) => {
   }
 };
 
-
 const handleCrNoBlur = () => {
-
     if (!state.documentID && state.documentNo && state.branchCode) { 
         fetchTranData(state.documentNo,state.branchCode);
     }
 };
 
-
-
-
 const handleCurrRateNoBlur = (e) => {
-  
   const num = formatNumber(e.target.value, 6);
   updateState({ 
         currRate: isNaN(num) ? "0.000000" : num,  
@@ -681,23 +573,32 @@ const handleCurrRateNoBlur = (e) => {
       parseFormattedNumber(totals.currAmount) * parseFormattedNumber(currRate)
       );
   updateState({ checkAmount });
-
 };
 
-
-
-
+const moveFocusBeforeSave = () => {
+  const remarksEl = document.getElementById("remarks");
+  if (remarksEl) {
+    remarksEl.focus();
+    return true;
+  }
+  return false;
+};
 
  const handleActivityOption = async (action) => {
-  if (action === "Upsert" && detailRowsGL.length === 0) {
-    updateState({ triggerGLEntries: true });
+  if ((detailRows?.length || 0) + (detailRowsGL?.length || 0) === 0) {
     return;
   }
 
-  if (documentStatus === '') {
+  if (action === "Upsert") {
+    moveFocusBeforeSave();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  if (documentStatus !== '') return;
    
   updateState({ isLoading: true });
 
+  try {
     const {
         branchCode,
         documentNo,
@@ -713,16 +614,16 @@ const handleCurrRateNoBlur = (e) => {
         detailRowsGL
     } = state;
 
-    updateState({ isLoading: true });
+    let finalDetailRowsGL = [...detailRowsGL];
 
-    const glData = {
+    const buildGlData = (glRows) => ({
       branchCode: branchCode,
       apdmNo: documentNo || "",
       apdmId: documentID || "",
       apdmDate: documentDate,
       apdmtranType: selectedAPDMType,   
-      vendCode: vendCode,
-      vendName: vendName,
+      vendCode: vendCode || "",
+      vendName: vendName || "",
       refDocNo1: refDocNo1 || "",
       refDocNo2: refDocNo2 || "",
       currCode: currCode || "PHP",
@@ -731,29 +632,29 @@ const handleCurrRateNoBlur = (e) => {
       userCode: userCode,
       dt1: detailRows.map((row, index) => ({
           lnNo: String(index + 1),
-          apvNo: row.apvNo,
-          siNo: row.siNo,
-          siDate: row.siDate,
-          siAmount: parseFormattedNumber(row.siAmount), 
-          appliedAmount: parseFormattedNumber(row.appliedAmount), 
-          vatCode: row.vatCode,
-          vatName: row.vatName,
-          vatRate: row.vatRate,
-          vatAmount: parseFormattedNumber(row.vatAmount, 2),
-          atcCode: row.atcCode,
-          atcName: row.atcName,
-          atcRate: row.atcRate,
-          atcAmount: parseFormattedNumber(row.atcAmount, 2),
-          apAcct: row.apAcct,
-          crAcct:row.crAcct,
-          rcCode: row.rcCode,
-          currCode: row.currCode,
-          currRate: parseFormattedNumber(row.currRate, 6),
-          refBranchcode: row.refBranchcode,
-          refDocCode: row.refDocCode,
-          groupId: row.groupId,
+          apvNo: row.apvNo || "",
+          siNo: row.siNo || "",
+          siDate: row.siDate || null,
+          siAmount: parseFormattedNumber(row.siAmount || 0), 
+          appliedAmount: parseFormattedNumber(row.appliedAmount || 0), 
+          vatCode: row.vatCode || "",
+          vatName: row.vatName || "",
+          vatRate: row.vatRate || 0,
+          vatAmount: parseFormattedNumber(row.vatAmount || 0, 2),
+          atcCode: row.atcCode || "",
+          atcName: row.atcName || "",
+          atcRate: row.atcRate || 0,
+          atcAmount: parseFormattedNumber(row.atcAmount || 0, 2),
+          apAcct: row.apAcct || "",
+          crAcct:row.crAcct || "",
+          rcCode: row.rcCode || "",
+          currCode: row.currCode || "",
+          currRate: parseFormattedNumber(row.currRate || 0, 6),
+          refBranchcode: row.refBranchcode || "",
+          refDocCode: row.refDocCode || "",
+          groupId: row.groupId || "",
       })),
-       dt2: detailRowsGL.map((entry, index) => ({
+       dt2: glRows.map((entry, index) => ({
           recNo: String(index + 1),
           acctCode: entry.acctCode || "",
           rcCode: entry.rcCode || "",
@@ -775,69 +676,61 @@ const handleCurrRateNoBlur = (e) => {
           remarks: entry.remarks || "",
           dt1Lineno: entry.dt1Lineno || ""
         }))
-    };
+    });
 
     if (action === "GenerateGL") {
-        try {
-          
-            const newGlEntries = await useGenerateGLEntries(docType, glData);
-
-            if (newGlEntries) {
-                updateState({ detailRowsGL: newGlEntries });
-            } else {
-                console.warn("GL entries generation failed or returned no data.");
-            }
-        } catch (error) {
-            console.error("Error during GL generation:", error);
-        } finally {
-            updateState({ isLoading: false });
+        const newGlEntries = await useGenerateGLEntries(docType, buildGlData(finalDetailRowsGL));
+        if (newGlEntries && newGlEntries.length > 0) {
+            updateState({ detailRowsGL: newGlEntries });
+        } else {
+            console.warn("GL entries generation failed or returned no data.");
         }
+        return;
     }
-
-
-
 
     if (action === "Upsert") {
-        try {
-
-          const response = await useTransactionUpsert(docType, glData, updateState, 'apdmId', 'apdmNo');
-          if (response) {
-
-            useSwalshowSaveSuccessDialog(
-              handleReset,
-              () => handleSaveAndPrint(response.data[0].crId)
-            );
-          }
-
-         
-           
-        } catch (error) {
-            console.error("Error during transaction upsert:", error);
-        } finally {
-            updateState({ isLoading: false});
+        if (finalDetailRowsGL.length === 0) {
+            const newGlEntries = await useGenerateGLEntries(docType, buildGlData([]));
+            if (!newGlEntries || newGlEntries.length === 0) {
+                console.warn("GL entries generation failed or returned no data.");
+                return;
+            }
+            finalDetailRowsGL = newGlEntries;
+            updateState({ detailRowsGL: newGlEntries });
         }
 
-        updateState({isDocNoDisabled: true,isFetchDisabled: true,});
-    }
-  }
+        const response = await useTransactionUpsert(docType, buildGlData(finalDetailRowsGL), updateState, 'apdmId', 'apdmNo');
+        if (response) {
+            const isZero = Number(noReprints) === 0;
+            const onSaveAndPrint = isZero
+              ? () => updateState({ showSignatoryModal: true })
+              : () => handleSaveAndPrint(response.data[0].apdmId);
 
+            useSwalshowSaveSuccessDialog(handleReset, onSaveAndPrint);
+
+            updateState({
+              isDocNoDisabled: true,
+              isFetchDisabled: true,
+            });
+        }
+    }
+  } catch (error) {
+      console.error(`Error during ${action}:`, error);
+  } finally {
+      updateState({ isLoading: false});
+  }
 };
 
-
   const handleAddRow = async () => {
-   
     if (!vendCode) {
       return;
     }
-
 
     if (['APDM01'].includes(selectedAPDMType)) {
       await handleOpenAPBalance();
       return;
     }
    
-
-
   try {
     const items = await handleFetchDetail(vendCode);
     const itemList = Array.isArray(items) ? items : [items];
@@ -875,7 +768,6 @@ const handleCurrRateNoBlur = (e) => {
        });
       updateTotals(updatedRows);
 
-
     setTimeout(() => {
       const tableContainer = document.querySelector('.max-h-\\[430px\\]');
       if (tableContainer) {
@@ -889,15 +781,10 @@ const handleCurrRateNoBlur = (e) => {
   }
 };
 
-
-
-
-
 const handleAddRowGL = () => {
     if(handleFieldBehavior("CWTReversal")){
       return;
     }
-
 
   updateState({
       detailRowsGL: [
@@ -905,7 +792,7 @@ const handleAddRowGL = () => {
         {
       acctCode: "",
       rcCode: "",
-      sltypeCode:"CU",
+      sltypeCode:"",
       slCode: "",
       particulars: "",
       vatCode: "",
@@ -920,11 +807,11 @@ const handleAddRowGL = () => {
       creditFx2: "0.00",
       slRefNo: "",
       remarks: "",
+      slRefDate: documentDate,
     }
       ]
     });
   };
-
 
   
 
@@ -936,12 +823,8 @@ const handleAddRowGL = () => {
         detailRows: updatedRows,
         triggerGLEntries:true });
     updateTotals(updatedRows);
-
   };
 
-
-
-  
   const handleDeleteRowGL =  (index) => {
     if(handleFieldBehavior("CWTReversal")){
       return;
@@ -951,9 +834,6 @@ const handleAddRowGL = () => {
     updatedRows.splice(index, 1);
     updateState({ detailRowsGL: updatedRows }); 
   };
-
-
-
 
   const handleFetchDetail = async (vendCode) => {
     if (!vendCode) return [];
@@ -975,18 +855,12 @@ const handleAddRowGL = () => {
     }
   };
 
-
-
 const handlePrint = async () => {
  if (!detailRows || detailRows.length === 0) {
       return;
       }
   updateState({ showSignatoryModal: true });
-
 };
-
-
-
 
 const handlePost = async () => {
  if (!detailRows || detailRows.length === 0) {
@@ -998,23 +872,15 @@ const handlePost = async () => {
   }
 };
 
-
-
-
-
 const handleCancel = async () => {
  if (!detailRows || detailRows.length === 0) {
       return;
       }
 
-
   if (documentID && (documentStatus === '')) {
     updateState({ showCancelModal: true });
   }
 };
-
-
-
 
 const handleAttach = async () => {
   if(documentID){
@@ -1022,62 +888,60 @@ const handleAttach = async () => {
   }
 };
 
-
-
-
 const handleCopy = async () => {
-if (selectedAPDMType !== "APDM02" || !detailRows?.length) {
-  return;
-  }
+// if (selectedAPDMType !== "APDM01" || !detailRowsGL?.length) {
+//   return;
+//   }
+
+  if (!detailRowsGL || detailRowsGL.length === 0) {
+      return;
+      }
 
   if (documentID ) {
     updateState({ documentNo:"",
                   documentID:"",
                   documentStatus:"",
                   status:"OPEN",
-                  documentDate:useGetCurrentDay(),    
+                  documentDate:useGetCurrentDayV2(),
+                  noReprints:"0",    
      });
   }
 };
 
+//  ** View Document and Transaction History Retrieval ***
+const cleanUrl = useCallback(() => {
+  window.history.replaceState({}, "", window.location.origin);
+}, []);
 
+const handleHistoryRowPick = useCallback(
+  async (row) => {
+    const docNo = row?.docNo;
+    const branchCode = row?.branchCode;
+    if (!docNo || !branchCode) return;
+
+    await fetchTranData(docNo, branchCode); 
+    setTopTab("details");
+    cleanUrl(); 
+  },
+  [fetchTranData, cleanUrl]
+);
+
+useEffect(() => {
+  const params = new URLSearchParams(location.search);
+  const docNo = params.get("apdmNo");         
+  const branchCode = params.get("branchCode");    
   
-  
-    //  ** View Document and Transaction History Retrieval ***
-     const cleanUrl = useCallback(() => {
-        navigate(location.pathname, { replace: true });
-      }, [navigate, location.pathname]);
-    
-    
-      const handleHistoryRowPick = useCallback((row) => {
-        const docNo = row?.docNo;
-        const branchCode = row?.branchCode;
-        if (!docNo || !branchCode) return;
-        fetchTranData(docNo, branchCode);
-        setTopTab("details");
-      });
-    
-    
-      useEffect(() => {
-        const params = new URLSearchParams(location.search);
-        const docNo = params.get("apdmNo");         
-        const branchCode = params.get("branchCode");    
-        
-        if (!loadedFromUrlRef.current && docNo && branchCode) {
-          loadedFromUrlRef.current = true;
-          handleHistoryRowPick({ docNo, branchCode });
-          cleanUrl();
-        }
-      }, [location.search, handleHistoryRowPick, cleanUrl]);
-    
-  
+  if (!loadedFromUrlRef.current && docNo && branchCode) {
+    loadedFromUrlRef.current = true;
+    handleHistoryRowPick({ docNo, branchCode });
+  }
+}, [location.search, handleHistoryRowPick]);
 
   const printData = {
     apv_no: documentNo,
     branch: branchCode,
     doc_id: docType
   };
-
 
   const handleClosePayeeModal = async (selectedData) => {
     if (!selectedData) {
@@ -1112,12 +976,11 @@ if (selectedAPDMType !== "APDM02" || !detailRows?.length) {
             }
         }
  
-
      updateState({
           detailRowsGL: [],
           ...(selectedAPDMType !== "APDM02" && { detailRows: [] }),
-          ...updateTotalsDisplay (0, 0, 0, 0),
         });
+     updateTotalsDisplay (0, 0, 0, 0);
 
     } catch (error) {
         console.error("Error fetching customer details:", error);
@@ -1126,24 +989,17 @@ if (selectedAPDMType !== "APDM02" || !detailRows?.length) {
     }
 };
 
-
-
   const updateTotals = (rows) => {
-  //console.log("updateTotals received rows:", rows); // STEP 5: Check rows passed to updateTotals
-
   let totalSIAmt = 0;
   let totalApplied = 0;
   let totalVAT = 0;
   let totalATC = 0;
 
-
   rows.forEach(row => {
-
     const perSIAmt = parseFormattedNumber(row.siAmount || 0) || 0;
     const perApplied = parseFormattedNumber(row.appliedAmount || 0) || 0;
     const perVAT = parseFormattedNumber(row.vatAmount || 0) || 0;
     const perATC = parseFormattedNumber(row.atcAmount  || 0) || 0;
-
 
     totalSIAmt+= perSIAmt;
     totalApplied+= perApplied;
@@ -1151,13 +1007,8 @@ if (selectedAPDMType !== "APDM02" || !detailRows?.length) {
     totalATC += perATC;
   });
 
-
     updateTotalsDisplay (totalSIAmt,totalApplied, totalVAT,totalATC);
-
 };
-
-
-
 
 const handleDetailChange = async (index, field, value, runCalculations = true) => {
     const updatedRows = [...detailRows];
@@ -1169,31 +1020,23 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
    
      const row = updatedRows[index];
 
-     
     if (['apAcct','crAcct'].includes(field)) {
       row[field] = value.acctCode;
     }
-
 
     if (field === 'vatCode') {
           row.vatCode = value.vatCode,
           row.vatName = value.vatName;     
       };
-
     
     if (field === 'atcCode' ){
           row.atcCode = value.atcCode,
           row.atcName = value.atcName;     
         };
 
-
     if (field === 'rcCode' ){
           row.rcCode = value.rcCode;
         };
-
-
-
-
 
 if (runCalculations) {
 let vatRate      = parseFormattedNumber(row.vatRate)      || 0;
@@ -1203,7 +1046,6 @@ let siAmount     = parseFormattedNumber(row.siAmount)     || 0;
 
 const isAPDM02 = selectedAPDMType === "APDM02";
 const isAllTypes = isAPDM02 || selectedAPDMType === "APDM01";
-
 
 if (field === "appliedAmount") {
   if (isAPDM02) {
@@ -1218,104 +1060,68 @@ if (field === "appliedAmount") {
   }
 }
 
-
-
 if ((field === "vatCode" || field === "atcCode") || field === "appliedAmount") {
   const appliedAmt = parseFormattedNumber(row.appliedAmount);
 
   const vatAmt = row.vatCode
-    ? await useTopVatAmount(row.vatCode, appliedAmt)
+    ? getAllTopVatAmount(row.vatCode, appliedAmt)
     : 0;
   row.vatAmount = formatNumber(vatAmt);
 
   const netOfVat = +(appliedAmt - vatAmt).toFixed(2);
   const atcAmt = row.atcCode
-    ? await useTopATCAmount(row.atcCode, netOfVat)
+    ? getAllTopATCAmount(row.atcCode, netOfVat)
     : 0;
   row.atcAmount = formatNumber(atcAmt);
 }
-
-
-
 }
-
 
     updatedRows[index] = row;
     updateState({ detailRows: updatedRows});
     updateTotals(updatedRows);
 };
 
-
-
-
-
 const handleFieldBehavior = (option) => {
   switch (option) {
-
  case "withoutInvoice":
       return (
         !isFormDisabled ||
         selectedAPDMType === "APDM02" 
       );
-
-
  case "wInvoice":
       return (
         !isFormDisabled ||
         selectedAPDMType !== "APDM02" 
       );
-
-
  case "disableOnSaved" :
    return (
         isFormDisabled ||
-        (selectedAPDMType !== "APDM02" && state.documentNo !== "" )
+        (selectedAPDMType !== "APDM02" && state.documentID !== "" )
       );
-
-
-
   case "CWTReversal" :
     return (
       isFormDisabled ||
       ["APDM03"].includes(selectedAPDMType)
       );
-
-
-
     default:
       return false; 
   }
 };
 
-
-
-
-  
   const handleAPDMTypeChange = (e) => {
    const selectedType = e.target.value;
 
    updateState({
       detailRowsGL: [],
       selectedAPDMType:selectedType,
-      ...(selectedAPDMType !== "APDM02" && { detailRows: [] }),
-      ...updateTotalsDisplay (0, 0, 0, 0),
+      detailRows: [],
     });
+   updateTotalsDisplay(0, 0, 0, 0);
   };
-
-  
-
-
-
-
-
-
-
-
 
 const handleDetailChangeGL = async (index, field, value) => {
     const updatedRowsGL = [...state.detailRowsGL];
     let row = { ...updatedRowsGL[index] };
-
 
     if (['acctCode', 'slCode', 'rcCode', 'sltypeCode', 'vatCode', 'atcCode'].includes(field)) {
         const data = await useUpdateRowGLEntries(row,field,value,vendCode,docType);
@@ -1357,11 +1163,7 @@ const handleDetailChangeGL = async (index, field, value) => {
     updateState({ detailRowsGL: updatedRowsGL });
 };
 
-
-
-
 const handleBlurGL = async (index, field, value, autoCompute = false) => {
-  
   const updatedRowsGL = [...state.detailRowsGL];
   const row = { ...updatedRowsGL[index] };
 
@@ -1401,21 +1203,8 @@ const handleBlurGL = async (index, field, value, autoCompute = false) => {
   updateState({ detailRowsGL: updatedRowsGL });
 };
 
-
-
-
-
-
-
-
-
-
-
-
 const handleCloseAccountModal = (selectedAccount) => {
-
     if (selectedAccount && selectedRowIndex !== null) {
-
         const specialAccounts = ['apAcct','crAcct'];
         if (specialAccounts.includes(accountModalSource)) {
           handleDetailChange(selectedRowIndex, accountModalSource, selectedAccount,false);
@@ -1431,35 +1220,29 @@ const handleCloseAccountModal = (selectedAccount) => {
     });
 };
 
-
-
-
-
   const handleCloseRcModalGL = async (selectedRc) => {
-    if (selectedRc && selectedRowIndex !== null) {
-      if (accountModalSource !== null) {
-        handleDetailChange(selectedRowIndex, 'rcCode', selectedRc, false);
-     
-     
+    const rowIndex = selectedRowIndex;
+    const modalSource = accountModalSource;
+
+    if (selectedRc && rowIndex !== null) {
+      if (modalSource !== null) {
+        handleDetailChange(rowIndex, 'rcCode', selectedRc, false);
       } else {
            const result = await useTopRCRow(selectedRc.rcCode);
             if (result) {
-              handleDetailChangeGL(selectedRowIndex, 'rcCode', result);
+              handleDetailChangeGL(rowIndex, 'rcCode', result);
             }
+      }
     }
     updateState({
         showRcModal: false,
         selectedRowIndex: null,
         accountModalSource: null
-    })};
-};
-
-
-
+    });
+  };
 
   const handleCloseSlModalGL = async (selectedSl) => {
     if (selectedSl && selectedRowIndex !== null) {
-
         if (selectedSl) {
           handleDetailChangeGL(selectedRowIndex, 'slCode', selectedSl);
         }
@@ -1470,12 +1253,18 @@ const handleCloseAccountModal = (selectedAccount) => {
     });
 };
 
+const handleTranDocNoRetrieval = async (data) => {
+    await fetchTranData(data.docNo, branchCode, data.key);
+    updateState({showAllTranDocNo: data.modalClose});
+};
 
-
+const handleTranDocNoSelection = async (data) => {
+    handleReset();
+    updateState({showAllTranDocNo: false, documentNo:data.docNo });
+};
 
 const handleCloseCancel = async (confirmation) => {
     if(confirmation && documentStatus !== "OPEN" && documentID !== null ) {
-
       const result = await useHandleCancel(docType,documentID,userCode,confirmation.password,confirmation.reason,updateState);
       if (result.success) 
       {
@@ -1493,23 +1282,17 @@ const handleCloseCancel = async (confirmation) => {
     updateState({showCancelModal: false});
 };
 
-
-
-const handleCloseSignatory = async () => {
-
+const handleCloseSignatory = async (mode) => {
     updateState({ showSpinner: true,
       showSignatoryModal: false,
+      noReprints: mode === "Final" ? 1 : 0,
      });
-    await useHandlePrint(documentID, docType);
+    await useHandlePrint(documentID, docType, mode, userCode);
 
     updateState({
       showSpinner: false
     });
 };
-
-
-
-
 
 const handleCloseBankMast = async (selectedBankCode) => {
     if (selectedBankCode && selectedBankCode !== null) {
@@ -1525,9 +1308,6 @@ const handleCloseBankMast = async (selectedBankCode) => {
   updateState({ showBankMastModal: false});  
 };
 
-
-
-
 const handleOpenAPBalance = async () => {
   try {
     updateState({ isLoading: true });
@@ -1537,7 +1317,6 @@ const handleOpenAPBalance = async () => {
           groupId:row.groupId
          }))
     }
-
 
     const endpoint ="getOpenAPBalance"
     const response = await fetchDataJson(endpoint, { vendCode, branchCode, tranType:selectedAPDMType, groupIdSelected });
@@ -1575,12 +1354,7 @@ const handleOpenAPBalance = async () => {
    updateState({ isLoading: false });
 };
 
-
-
-
 const handleCloseAPBalance = async (payload) => {
-
-
   if (payload && payload !== null) {
     updateState({ isLoading: true });
 
@@ -1594,16 +1368,15 @@ const handleCloseAPBalance = async (payload) => {
         const vatAmount = parseFormattedNumber(entry.vatAmount);
         const atcAmount = parseFormattedNumber(entry.atcAmount);
 
-        // const vatAmount = netDisc * vatRate;   
-        // const atcAmount = netDisc * atcRate;   
+        const applied = netDisc+atcAmount;
 
         return {
           lnNo: idx + 1,
           apvNo: entry.apvNo,
           siNo: entry.siNo,
           siDate: entry.siDate,
-          siAmount: formatNumber(netDisc), 
-          appliedAmount: formatNumber(netDisc), 
+          siAmount: formatNumber(applied), 
+          appliedAmount: formatNumber(applied), 
           vatCode: entry.vatCode,
           vatName: entry.vatName,
           vatRate: entry.vatCalcRate,
@@ -1626,7 +1399,6 @@ const handleCloseAPBalance = async (payload) => {
         const updatedRows = [...detailRows, ...newRows];
         updateState({ detailRows: updatedRows });
         updateTotals(updatedRows);
-        
       }  
   }
 
@@ -1636,32 +1408,15 @@ const handleCloseAPBalance = async (payload) => {
   });
 };
 
-
-
-
 const handleSaveAndPrint = async (documentID) => {
-
     updateState({ showSpinner: true });
     await useHandlePrint(documentID, docType);
-
     updateState({showSpinner: false});
 };
 
-
-
-
-
-
-
-
-
-
-
-
 const handleCloseVatModal = async (selectedVat) => { 
   if (selectedVat && selectedRowIndex !== null) {
-    
-     const result = await useTopVatRow(selectedVat.vatCode);
+     const result = getAllTopVatRow(selectedVat.vatCode);
       if (!result) return;
 
       accountModalSource !== null
@@ -1673,15 +1428,9 @@ const handleCloseVatModal = async (selectedVat) => {
                 accountModalSource: null });
 };
 
-
-
-
-
-
 const handleCloseAtcModal = async (selectedAtc) => {
   if (selectedAtc && selectedRowIndex !== null) {  
-
-    const result = await useTopATCRow(selectedAtc.atcCode);
+    const result = getAllTopATCRow(selectedAtc.atcCode);
       if (!result) return;
 
       accountModalSource !== null
@@ -1693,11 +1442,6 @@ const handleCloseAtcModal = async (selectedAtc) => {
                 accountModalSource: null });
 };
 
-
-
-  
-
-
 const handleCloseBranchModal = (selectedBranch) => {
     if (selectedBranch) {
       updateState({
@@ -1708,10 +1452,6 @@ const handleCloseBranchModal = (selectedBranch) => {
     updateState({ branchModalOpen: false });
   };
 
-
-
-
-
   const handleCloseCurrencyModal = async (selectedCurrency) => {
     if (selectedCurrency) {
     handleSelectCurrency(selectedCurrency.currCode);
@@ -1719,11 +1459,8 @@ const handleCloseBranchModal = (selectedBranch) => {
     updateState({ currencyModalOpen: false });
   }
 
-
-
   const handleSelectCurrency = async (currCode) => {
     if (currCode) {
-
      const result = await useTopCurrencyRow(currCode);
       if (result) {
         const rate = currCode === glCurrDefault
@@ -1736,26 +1473,17 @@ const handleCloseBranchModal = (selectedBranch) => {
           currRate: formatNumber(parseFormattedNumber(rate),6)
         });
         
-
         // Recompute Check Amount on Change of Currency
         const checkAmount = formatNumber(
           parseFormattedNumber(totals.currAmount) * parseFormattedNumber(rate)
           );
         updateState({ checkAmount });  
 
-
-        
-      
-
         return formatNumber(parseFormattedNumber(rate),6)
       }  
     }
    return formatNumber(1,6)
   };
-
-
-
-
 
   return (
 
@@ -1778,41 +1506,41 @@ const handleCloseBranchModal = (selectedBranch) => {
               onAttach={handleAttach}
               activeTopTab={topTab} 
               showActions={topTab === "details"} 
-              showBIRForm={false}      
+              showBIRForm={false}  
+              isViewDocument={isViewDocument}      
               onDetails={() => setTopTab("details")}
               onHistory={() => setTopTab("history")}
               disableRouteNavigation={true}         
-              isSaveDisabled={isSaveDisabled} 
-              isResetDisabled={isResetDisabled} 
               detailsRoute="/page/APDM"
+              isSaveDisabled={state.isSaveDisabled || isFormDisabled ||  ((detailRows?.length || 0) + (detailRowsGL?.length || 0) === 0)} 
+              isResetDisabled={state.isResetDisabled}
+              isAttachDisabled={!documentID}
+              isPrintDisabled={!documentID || displayStatus === "CANCELLED"}
+              isCopyDisabled={!documentID || displayStatus === "CANCELLED"}
+              isCancelDisabled={!documentID || displayStatus === "CANCELLED" || displayStatus === "FINALIZED"|| displayStatus === "CLOSED"}
         />
       </div>
 
   <div className={topTab === "details" ? "" : "hidden"}>
-          {/* Page title and subheading */} 
 
-      {/* Header Section */}
-      <div className="global-tran-header-ui">
-
-        <div className="global-tran-headertext-div-ui">
+      {/* Page title and subheading */} 
+      <div className={`global-tran-header-ui ${isViewDocument ? "max-md:!mt-12 max-md:!pt-2 max-md:!pb-2" : ""}`}>
+        <div className={`global-tran-headertext-div-ui ${isViewDocument ? "max-md:!mb-1" : ""}`}>
           <h1 className="global-tran-headertext-ui">{documentTitle}</h1>
         </div>
-
-        <div className="global-tran-headerstat-div-ui">
+        <div className={`global-tran-headerstat-div-ui ${isViewDocument ? "max-md:!mt-0" : ""}`}>
           <div>
             <p className="global-tran-headerstat-text-ui">Transaction Status</p>
             <h1 className={`global-tran-stat-text-ui ${statusColor}`}>{displayStatus}</h1>
           </div>
         </div>
-
       </div>
 
-
 {/* Form Layout with Tabs */}
-<div className="global-tran-header-div-ui">
+<div className={`global-tran-header-div-ui ${isViewDocument ? "max-md:!mt-10 max-md:!pt-0 max-md:!pb-0" : ""}`}>
 
     {/* Tab Navigation */}
-    <div className="global-tran-header-tab-div-ui">
+    <div className={`global-tran-header-tab-div-ui ${isViewDocument ? "max-md:!mt-0 max-md:!pt-0 max-md:!pb-4 max-md:!mb-4 max-md:!justify-start max-md:!text-left" : ""}`}>
         <button
             className={`global-tran-tab-padding-ui ${
                 activeTab === 'basic'
@@ -1827,228 +1555,155 @@ const handleCloseBranchModal = (selectedBranch) => {
     </div>
 
     {/* SVI Header Form Section - Main Grid Container */}
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 rounded-lg relative items-stretch" id="svi_hd">
-
-        <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"> {/* Nested grid for 3 columns */}
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 rounded-lg relative items-stretch" id="apdm_hd">
+        <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 
             {/* Column 1 */}
             <div className="global-tran-textbox-group-div-ui">
-                {/* Branch Name Input with lookup button */}
-                <div className="relative">
-                    <input
-                        type="text"
-                        id="branchName"
-                        placeholder=" "
-                        value={branchName}
-                        readOnly
-                        onFocus={(e) => e.target.blur()}
-                        className="peer global-tran-textbox-ui cursor-pointer select-none"
+                <FieldRenderer
+                  id="branchName"
+                  label="Branch"
+                  type="lookup"
+                  value={branchName || ""}
+                  disabled={state.isFetchDisabled || state.isDocNoDisabled || isFormDisabled}
+                  readOnly
+                  lookupDisabled={isFetchDisabled}
+                />
+
+                <FieldRenderer
+                  id="apdmNo"
+                  label="APDM No."
+                  type="lookup"
+                  value={state.documentNo || ""}
+                  disabled={state.isDocNoDisabled}
+                  onChange={(val) => updateState({ documentNo: val })}
+                  onLookup={() => updateState({ showAllTranDocNo: true })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleCrNoBlur();
+                      e.preventDefault();
+                      document.getElementById("apdmDate")?.focus();
+                    }
+                  }}
+                />
+
+                <div className="relative w-full">
+                  <div
+                    className={`flex items-stretch global-ref-textbox-ui ${
+                      !isFormDisabled
+                        ? "global-ref-textbox-enabled"
+                        : "global-ref-textbox-disabled"
+                    }`}
+                  >
+                    <DateFormatInput
+                      id="documentDate"
+                      className="peer flex-grow bg-transparent border-none px-3 focus:outline-none cursor-pointer"
+                      value={documentDate}
+                      disabled={isFormDisabled}
+                      updateState={updateState}
                     />
-                    <label htmlFor="branchName" className="global-tran-floating-label">
-                        Branch
-                    </label>
-                    <button
-                        type="button"
-                        className={`global-tran-textbox-button-search-padding-ui ${
-                            isFetchDisabled
-                            ? "global-tran-textbox-button-search-disabled-ui"
-                            : "global-tran-textbox-button-search-enabled-ui"
-                        } global-tran-textbox-button-search-ui`}
-                        disabled={state.isFetchDisabled || state.isDocNoDisabled || isFormDisabled}
-                    >
-                        <FontAwesomeIcon icon={faMagnifyingGlass} />
-                    </button>
+                  </div>
+                  <label
+                    htmlFor="documentDate"
+                    className={`global-ref-floating-label ${
+                      !isFormDisabled
+                        ? "global-ref-label-enabled"
+                        : "global-ref-label-disabled"
+                    }`}
+                  >
+                    APDM Date
+                  </label>
                 </div>
-
-                {/* SVI Number Field */}
-                <div className="relative">
-                    <input
-                        type="text"
-                        id="apdmNo"
-                        value={state.documentNo}
-                        onChange={(e) => updateState({ documentNo: e.target.value })}
-                        onBlur={handleCrNoBlur}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault(); 
-                            document.getElementById("apdmDate")?.focus();
-                          }}}
-                        placeholder=" "
-                        className={`peer global-tran-textbox-ui ${state.isDocNoDisabled ? 'bg-blue-100 cursor-not-allowed' : ''}`}
-                        disabled={state.isDocNoDisabled}
-                    />
-                    <label htmlFor="apdmNo" className="global-tran-floating-label">
-                        APDM No.
-                    </label>
-                    <button
-                        className={`global-tran-textbox-button-search-padding-ui ${
-                            (state.isFetchDisabled || state.isDocNoDisabled)
-                            ? "global-tran-textbox-button-search-disabled-ui"
-                            : "global-tran-textbox-button-search-enabled-ui"
-                        } global-tran-textbox-button-search-ui`}
-                        disabled={state.isFetchDisabled || state.isDocNoDisabled}
-                        onClick={() => {
-                            if (!state.isDocNoDisabled) {
-                                fetchTranData(state.documentNo,state.branchCode);
-                            }
-                        }}
-                    >
-                        <FontAwesomeIcon icon={faMagnifyingGlass} />
-                    </button>
-                </div>
-
-                {/* APDM Date Picker */}
-                <div className="relative">
-                    <input type="date"
-                        id="apdmDate"
-                        className="peer global-tran-textbox-ui"
-                        value={documentDate}
-                        onChange={(e) => updateState({ documentDate: e.target.value })} 
-                        disabled={isFormDisabled} 
-                    />
-                    <label htmlFor="apdmDate" className="global-tran-floating-label">APDM Date</label>
-                </div>
-
-                
-                         
-              
-
-
             </div>
-
-
 
             {/* Column 2 */}
             <div className="global-tran-textbox-group-div-ui">
+                <FieldRenderer
+                  id="selectedAPDMType"
+                  label="Tran Type"
+                  type="select"
+                  value={selectedAPDMType || ""}
+                  disabled={handleFieldBehavior("disableOnSaved")}
+                  onChange={(val) => handleAPDMTypeChange({ target: { value: val } })}
+                  options={apdmTypes.map((t) => ({
+                    label: t.DROPDOWN_NAME,
+                    value: t.DROPDOWN_CODE,
+                  }))}
+                />
 
-                  {/* Transaction Type */}
-                <div className="relative">
-                    <select id="apdmType"
-                        className="peer global-tran-textbox-ui"
-                        value={selectedAPDMType}
-                        disabled={handleFieldBehavior("disableOnSaved")} 
-                        onChange={(e) => handleAPDMTypeChange(e)}
-                    >
-                        {apdmTypes.length > 0 ?
-                        (
-                            <>  
-                                {apdmTypes.map((type) =>
-                                (
-                                    <option key={type.DROPDOWN_CODE} value={type.DROPDOWN_CODE}>
-                                        {type.DROPDOWN_NAME}
-                                    </option>
-                                ))}
-                            </>
-                        ) : (<option value="">Loading Transaction Types...</option>)}
-                    </select>
-                    <label htmlFor="apdmType" className="global-tran-floating-label">Tran Type</label>
-                    <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
-                        <svg className="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </div>
-                </div>
+                <FieldRenderer
+                  id="vendCode"
+                  label="Payee Code"
+                  required
+                  type="lookup"
+                  value={vendCode || ""}
+                  disabled={handleFieldBehavior("disableOnSaved")}
+                  readOnly
+                  lookupDisabled={isFetchDisabled}
+                  onLookup={() => updateState({ payeeModalOpen: true })}
+                />
 
-                {/* Payee Code */}
-                <div className="relative">
-                    <input type="text"
-                        id="vendCode"
-                        value={vendCode}
-                        readOnly
-                        placeholder=" "
-                        className="peer global-tran-textbox-ui"
-                    />
-                    <label htmlFor="CustCode"className="global-tran-floating-label">
-                        <span className="global-tran-asterisk-ui"> * </span>Payee Code
-                    </label>
-                    <button
-                        type="button"
-                        onClick={() => updateState({ payeeModalOpen: true })}
-                        className={`global-tran-textbox-button-search-padding-ui ${
-                            isFetchDisabled
-                            ? "global-tran-textbox-button-search-disabled-ui"
-                            : "global-tran-textbox-button-search-enabled-ui"
-                        } global-tran-textbox-button-search-ui`}
-                        disabled={handleFieldBehavior("disableOnSaved")} 
-                    >
-                        <FontAwesomeIcon icon={faMagnifyingGlass} />
-                    </button>
-                </div>
-
-                {/* Payee Name Display - Make this wider */}
-                <div className="relative w-full md:w-6/6 lg:w-4/4"> {/* Added width classes here */}
-                    <input type="text" id="vendName" placeholder=" " value={vendName} className="peer global-tran-textbox-ui"/>
-                    <label htmlFor="vendName"className="global-tran-floating-label">
-                        <span className="global-tran-asterisk-ui"> * </span>Payee Name
-                    </label>
-                </div>
-
-                 
-
+                <FieldRenderer
+                  id="vendName"
+                  label="Payee Name"
+                  required
+                  type="text"
+                  value={vendName || ""}
+                  disabled
+                  readOnly
+                />
             </div>
 
             {/* Column 3 */}
             <div className="global-tran-textbox-group-div-ui">
-
-                
-                    {/* Currency */}
-                    <div className="relative"> {/* Used flex-grow to make it longer */}
-                        <input type="text" 
-                            id="currCode" 
-                            value={currCode}  
-                            className="peer global-tran-textbox-ui hidden"/>
-                            
-                          <input type="text" 
-                            id="currName" 
-                            value={currName}  
-                            className="peer global-tran-textbox-ui"/>
-
-                        <label htmlFor="currCode" className="global-tran-floating-label">Currency</label>
-                        <button onClick={() => {updateState({ currencyModalOpen: true })}}                        
-                            className={`global-tran-textbox-button-search-padding-ui ${
-                                isFetchDisabled
-                                ? "global-tran-textbox-button-search-disabled-ui"
-                                : "global-tran-textbox-button-search-enabled-ui"
-                            } global-tran-textbox-button-search-ui`}
-                            disabled={isFormDisabled} 
-                        >
-                            <FontAwesomeIcon icon={faMagnifyingGlass} />
-                        </button>
-                    </div>
-
  
+                    <FieldRenderer
+                      id="currName"
+                      label="Currency"
+                      type="text"
+                      value={
+                            currCode
+                              ? `${currCode}${currName ? ` - ${currName}` : ""}`
+                              : ""
+                          }
+                      disabled
+                      readOnly
+                    />
 
-                    {/* Currency Rate */}
-                    <div className="relative"> {/* Used flex-grow to take remaining space (or you can use w-1/3) */}
-                        <input type="text" id="currRate" value={currRate} 
-                            onChange={(e) => {
-                            const inputValue = e.target.value;
-                            const sanitizedValue = inputValue.replace(/[^0-9.]/g, '');
-                            if (/^\d*\.?\d{0,6}$/.test(sanitizedValue) || sanitizedValue === "") {
-                                updateState({ currRate: sanitizedValue })
-                            }}}
-                            onBlur={handleCurrRateNoBlur}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault(); 
-                                document.getElementById("refDocNo1")?.focus();
-                              }}}
-                            onFocus={(e) => {
-                              if (parseFormattedNumber(e.target.value) === 0) {
-                                e.target.value = "";
-                              }
-                            }} 
+                    <FieldRenderer
+                      id="currRate"
+                      label="Currency Rate"
+                      type="amount"
+                      value={currRate || ""}
+                      disabled={isFormDisabled || glCurrDefault === currCode}
+                      onChange={(val) => {
+                        const sanitizedValue = String(val).replace(/[^0-9.]/g, "");
+                        if (
+                          /^\d*\.?\d{0,6}$/.test(sanitizedValue) ||
+                          sanitizedValue === ""
+                        ) {
+                          updateState({ currRate: sanitizedValue });
+                        }
+                      }}
+                      onBlur={handleCurrRateNoBlur}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          document.getElementById("refDocNo1")?.focus();
+                        }
+                      }}
+                      onFocus={(e) => {
+                        if (parseFormattedNumber(e.target.value) === 0) {
+                          e.target.value = "";
+                        }
+                      }}
+                    />
 
-                            placeholder=" "
-                            className="peer global-tran-textbox-ui text-right" disabled={isFormDisabled || glCurrDefault === currCode} />
-                            
-                        <label htmlFor="currName" className="global-tran-floating-label"> Currency Rate
-                        </label>
-                    </div>
+                    <input type="hidden" id="currCode" value={currCode || ""} readOnly />
+                    
             </div>
 
-
-             {/* Remarks Section - Now inside the 3-column container, spanning all 3 */}
+             {/* Remarks Section */}
             <div className="col-span-full">
                 <div className="relative p-2"> 
                     <textarea
@@ -2057,6 +1712,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                         rows={6}
                         className="peer global-tran-textbox-remarks-ui pt-2"
                         value={remarks}
+                        maxLength={useGetFieldLength(tblFieldArray, "remarks")}
                         onChange={(e) => updateState({ remarks: e.target.value })}
                         disabled={isFormDisabled} 
                     />
@@ -2068,42 +1724,36 @@ const handleCloseBranchModal = (selectedBranch) => {
                     </label>
                 </div>
             </div>
+        </div>
 
-            
-        </div> {/* End of the 3-column container */}
-
-
-
-        {/* Column 4 - Totals (remains unchanged, but its parent is now the main 4-column grid) */}
+        {/* Column 4 */}
         <div className="global-tran-textbox-group-div-ui flex flex-col">
-                
-                        
-                <div className="relative">
-                    <input type="text" id="refDocNo1"  
-                           value={refDocNo1 || ""} 
-                           placeholder=" " 
-                           onChange={(e) => updateState({ refDocNo1: e.target.value })} 
-                           className="peer global-tran-textbox-ui " 
-                           disabled={isFormDisabled} />
-                    <label htmlFor="refDocNo1" className="global-tran-floating-label">Ref Doc No. 1</label>
-                </div>
+              <FieldRenderer
+                id="refDocNo1"
+                label="Ref Doc No. 1"
+                type="text"
+                value={refDocNo1 || ""}
+                disabled={isFormDisabled}
+                onChange={(val) => updateState({ refDocNo1: val })}
+                maxLength={useGetFieldLength(tblFieldArray, "refapdm_no1")}
+              />
 
-                <div className="relative">
-                    <input type="text" 
-                          id="refDocNo2" 
-                          value={refDocNo2 || ""} 
-                          placeholder=" " 
-                          onChange={(e) => updateState({ refDocNo2: e.target.value })}  
-                          className="peer global-tran-textbox-ui" 
-                          disabled={isFormDisabled} />
-                    <label htmlFor="refDocNo2" className="global-tran-floating-label">Ref Doc No. 2</label>
-                </div>     
+              <FieldRenderer
+                id="refDocNo2"
+                label="Ref Doc No. 2"
+                type="text"
+                value={refDocNo2 || ""}
+                disabled={isFormDisabled}
+                onChange={(val) => updateState({ refDocNo2: val })}
+                maxLength={useGetFieldLength(tblFieldArray, "refapdm_no2")}
+              />
         </div>
 
     </div>
 </div>
       
-      {/* APV Detail Section */}
+{/* Conditionally render the APV/Invoice Detail Section based on selectedAPDMType */}
+{selectedAPDMType !== "APDM02" && (
       <div id="apdm_dtl" className="global-tran-tab-div-ui" >
 
       {/* Tab Navigation */}
@@ -2117,14 +1767,13 @@ const handleCloseBranchModal = (selectedBranch) => {
               ? 'global-tran-tab-text_active-ui'
               : 'global-tran-tab-text_inactive-ui'
           }`}
-          // onClick={() => setGLActiveTab('invoice')}
         >
           Invoice Details
         </button>
       </div>
     </div>
 
-  {/* Invoice Details Button */}
+  {/* Invoice Details Table */}
   <div className="global-tran-table-main-div-ui">
   <div className="global-tran-table-main-sub-div-ui"> 
     <table className="min-w-full border-collapse">
@@ -2154,20 +1803,12 @@ const handleCloseBranchModal = (selectedBranch) => {
           <th className="global-tran-th-ui hidden">ATC Rate</th>
                  
          {!isFormDisabled && (
-          <th className="global-tran-th-ui sticky right-[43px] bg-blue-200 dark:bg-blue-900 z-30">
-            Add
-          </th>
-        )}
-
-        {!isFormDisabled && (
           <th className="global-tran-th-ui sticky right-0 bg-blue-200 dark:bg-blue-900 z-30">
-            Delete
+            Actions
           </th>
         )}
         </tr>
       </thead>
-
-
 
       <tbody className="relative">{detailRows.map((row, index) => (
         <tr key={index} className="global-tran-tr-ui">
@@ -2197,7 +1838,6 @@ const handleCloseBranchModal = (selectedBranch) => {
               />
             </td>
             
-
             {/* SI Date */}
            <td className="global-tran-td-ui">
                 <input
@@ -2209,7 +1849,6 @@ const handleCloseBranchModal = (selectedBranch) => {
                 />
             </td>
 
-
             {/* SI Amount */}
             <td className="global-tran-td-ui">
               <input
@@ -2219,9 +1858,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                 readOnly
               />
             </td>
-
             
-
             {/* Applied */}
             <td className="global-tran-td-ui">
                 <input
@@ -2246,7 +1883,6 @@ const handleCloseBranchModal = (selectedBranch) => {
                          if (handleFieldBehavior("CWTReversal")) {
                                   return;
                                 }
-
                         const value = e.target.value;
                         const num = parseFormattedNumber(value);
                         if (!isNaN(num)) {
@@ -2347,8 +1983,9 @@ const handleCloseBranchModal = (selectedBranch) => {
                 <input
                    type="text"
                    className="w-[100px] h-7 text-xs bg-transparent text-right focus:outline-none focus:ring-0"
+                   readOnly
                     value={formatNumber(parseFormattedNumber(row.atcAmount)) || formatNumber(parseFormattedNumber(row.atcAmount)) || ""}
-                   onChange={(e) => handleDetailChange(index, 'ewtAmount', e.target.value)}
+                   onChange={(e) => handleDetailChange(index, 'atcAmount', e.target.value)}
                 />
             </td>
     
@@ -2374,7 +2011,7 @@ const handleCloseBranchModal = (selectedBranch) => {
             </td>
 
             
-            {/* AR Account */}          
+            {/* AP Account */}          
             <td className="global-tran-td-ui relative">
             <div className="flex items-center">
               <input
@@ -2397,9 +2034,7 @@ const handleCloseBranchModal = (selectedBranch) => {
             </div>        
             </td>
 
-
-
-             {/* Sales Account */}          
+             {/* CR Account */}          
             <td className="global-tran-td-ui relative">
             <div className="flex items-center">
               <input
@@ -2421,7 +2056,6 @@ const handleCloseBranchModal = (selectedBranch) => {
               )}
             </div>        
             </td>
-
 
             {/* RC Code */}
             <td className="global-tran-td-ui relative">
@@ -2445,7 +2079,6 @@ const handleCloseBranchModal = (selectedBranch) => {
               </div>
             </td>   
             
-
              {/* Ref Branch */}
            <td className="global-tran-td-ui hidden">
               <input
@@ -2456,7 +2089,6 @@ const handleCloseBranchModal = (selectedBranch) => {
               />
             </td>
 
-
              {/* Ref Doc Code */}
            <td className="global-tran-td-ui hidden">
               <input
@@ -2466,7 +2098,6 @@ const handleCloseBranchModal = (selectedBranch) => {
                 readOnly
               />
             </td>
-
 
               {/* Group ID */}
            <td className="global-tran-td-ui hidden">
@@ -2498,36 +2129,31 @@ const handleCloseBranchModal = (selectedBranch) => {
               />
             </td>
 
-
-
             {!isFormDisabled && (
-            <td className="global-tran-td-ui text-center sticky right-12">
-              <button
-                className="global-tran-td-button-add-ui"
-                onClick={() => handleAddRow(index)}
-                
-              >
-                <FontAwesomeIcon icon={faPlus} />
-              </button>
-            </td>
-          )}
+              <td className="global-tran-td-ui text-center sticky right-0">
+                <div className="flex items-center justify-center gap-1">
+                  <button
+                    type="button"
+                    className="global-tran-td-button-add-ui"
+                    onClick={() => handleAddRow(index)}
+                  >
+                    <FontAwesomeIcon icon={faPlus} />
+                  </button>
 
-          {!isFormDisabled && (
-            <td className="global-tran-td-ui text-center sticky right-0">
-              <button
-                className="global-tran-td-button-delete-ui"
-                onClick={() => handleDeleteRow(index)}
-              >
-                <FontAwesomeIcon icon={faMinus} />
-              </button>
-            </td>
-          )}
+                  <button
+                    type="button"
+                    className="global-tran-td-button-delete-ui"
+                    onClick={() => handleDeleteRow(index)}
+                  >
+                    <FontAwesomeIcon icon={faTrashAlt} />
+                  </button>
+                </div>
+              </td>
+            )}
                     
           </tr>
         ))}
       </tbody>
-
-
     </table>
   </div>
   </div>
@@ -2535,11 +2161,9 @@ const handleCloseBranchModal = (selectedBranch) => {
  {/* Invoice Details Footer */}
  <div className="global-tran-tab-footer-main-div-ui">
 
-
 {/* Add Button */}
 <div className="global-tran-tab-footer-button-div-ui">
   <button
-    //  onClick={() =>handleAddRow()}
      onClick={() => handleAddRow()}
      className="global-tran-tab-footer-button-add-ui"
      style={{ visibility: isFormDisabled ? "hidden" : "visible" }}
@@ -2548,11 +2172,8 @@ const handleCloseBranchModal = (selectedBranch) => {
   </button>
 </div>
 
-
-
 {/* Totals Section */}
 <div className="global-tran-tab-footer-total-main-div-ui">
-
  
   <div className="global-tran-tab-footer-total-div-ui">
     <label className="global-tran-tab-footer-total-label-ui">
@@ -2584,7 +2205,6 @@ const handleCloseBranchModal = (selectedBranch) => {
   </div>
 
   {/* Total Payable Amount (Invoice + VAT - ATC) */}
-
   <div className="global-tran-tab-footer-total-div-ui">
     <label className="global-tran-tab-footer-total-label-ui">
       Total ATC Amount:
@@ -2598,8 +2218,7 @@ const handleCloseBranchModal = (selectedBranch) => {
 </div>
 
 </div>
-
-
+)}
  
     {/* General Ledger Button */}
     <div className="global-tran-tab-div-ui">
@@ -2622,17 +2241,19 @@ const handleCloseBranchModal = (selectedBranch) => {
       </div>
 
       {/* Action Button */}
-      <div className="flex justify-end">
-        <button
-          onClick={() => handleActivityOption("GenerateGL")}
-          className="global-tran-button-generateGL"
-          disabled={isLoading} // Optionally disable button while loading
-          style={{ visibility: isFormDisabled ? "hidden" : "visible" }}
-        >
-          {isLoading ? 'Generating...' : 'Generate GL Entries'}
-        </button>
-        
-      </div>
+      {selectedAPDMType !== 'APDM02' && (
+        <div className="flex justify-end">
+          <button
+            onClick={() => handleActivityOption("GenerateGL")}
+            className="global-tran-button-generateGL"
+            disabled={isLoading}
+            style={{ visibility: isFormDisabled ? "hidden" : "visible" }}
+          >
+            {isLoading ? 'Generating...' : 'Generate GL Entries'}
+          </button>
+        </div>
+      )}
+
     </div>
 
     {/* GL Details Table */}
@@ -2674,14 +2295,9 @@ const handleCloseBranchModal = (selectedBranch) => {
             <th className="global-tran-th-ui">Remarks</th>
             
             {!isFormDisabled && (
-              <>
-                <th className="global-tran-th-ui sticky right-[43px] bg-blue-200 dark:bg-blue-900 z-30">
-                  Add
-                </th>
-                <th className="global-tran-th-ui sticky right-0 bg-blue-200 dark:bg-blue-900 z-30">
-                  Delete
-                </th>
-              </>
+              <th className="global-tran-th-ui sticky right-0 bg-blue-200 dark:bg-blue-900 z-30">
+                Actions
+              </th>
             )}
 
           </tr>
@@ -2716,8 +2332,6 @@ const handleCloseBranchModal = (selectedBranch) => {
                 </div>
               </td>
 
-
-
               <td className="global-tran-td-ui">
                 <div className="relative w-fit">
                     <input
@@ -2743,8 +2357,6 @@ const handleCloseBranchModal = (selectedBranch) => {
                 </div>
             </td>
 
-
-
               <td className="global-tran-td-ui">
                 <input
                   type="text"
@@ -2753,8 +2365,6 @@ const handleCloseBranchModal = (selectedBranch) => {
                   onChange={(e) => handleDetailChangeGL(index, 'sltypeCode', e.target.value)}
                 />
               </td>
-
-            
 
               <td className="global-tran-td-ui">
                   <div className="relative w-fit">
@@ -2782,19 +2392,17 @@ const handleCloseBranchModal = (selectedBranch) => {
                       )}
                   </div>
               </td>
-            
-              
              
               <td className="global-tran-td-ui">
                       <input
                         type="text"
                         className="w-[300px] global-tran-td-inputclass-ui"
                         value={row.particular || ""}
+                        readOnly
                         onChange={(e) => handleDetailChange(index, 'particular', e.target.value)}
                       />
                 </td>
              
-
                <td className="global-tran-td-ui">
                   <div className="relative w-fit">
                       <input
@@ -2820,9 +2428,6 @@ const handleCloseBranchModal = (selectedBranch) => {
                     </div>
                </td>
 
-
-
-
               <td className="global-tran-td-ui">
                 <input
                   type="text"
@@ -2832,8 +2437,6 @@ const handleCloseBranchModal = (selectedBranch) => {
                 />
               </td>
              
-
-
                <td className="global-tran-td-ui">
                   <div className="relative w-fit">
                       <input
@@ -2861,18 +2464,15 @@ const handleCloseBranchModal = (selectedBranch) => {
                   </div>
                </td>
 
-
               <td className="global-tran-td-ui">
                 <input
                   type="text"
                   className="w-[200px] global-tran-td-inputclass-ui"
                   value={row.atcName || ""}
+                  readOnly
                   onChange={(e) => handleDetailChange(index, 'atcName', e.target.value)}
                 />
               </td>
-
-
-
 
               <td className="global-tran-td-ui text-right">             
               <input
@@ -3082,19 +2682,19 @@ const handleCloseBranchModal = (selectedBranch) => {
                   className="w-[100px] global-tran-td-inputclass-ui"
                   value={row.slRefNo || ""}
                   readOnly={handleFieldBehavior("CWTReversal")}
-                  maxLength={25}
+                  maxLength={useGetFieldLength(tblFieldArray, "slRefNo")}
                   onChange={(e) => handleDetailChangeGL(index, 'slRefNo', e.target.value)}
                 />
               </td>
               <td className="global-tran-td-ui">
-                <input
-                  type="date"
-                  className="w-[100px] global-tran-td-inputclass-ui"
-                  value={row.slRefDate || ""}
-                  readOnly={handleFieldBehavior("CWTReversal")}
-                  onChange={(e) => handleDetailChangeGL(index, 'slRefDate', e.target.value)}
-                />
-
+                 <DateFormatInput
+                   id={`slRefDate${index}`}
+                   value={row.slRefDate || ""}
+                   disabled={isFormDisabled}
+                   className="w-[100px] global-tran-td-inputclass-ui text-center pr-7"
+                   updateState={(updates) => {
+                   if (updates[`slRefDate${index}`] !== undefined) { handleDetailChangeGL(index,"slRefDate", updates[`slRefDate${index}`], false,); }}}
+                 /> 
               </td>
                 <td className="global-tran-td-ui">
                 <input
@@ -3102,32 +2702,32 @@ const handleCloseBranchModal = (selectedBranch) => {
                   className="w-[100px] global-tran-td-inputclass-ui"
                   value={row.remarks ||  ""}
                   readOnly={handleFieldBehavior("CWTReversal")}
+                  maxLength={useGetFieldLength(tblFieldArray, "remarks")}
                   onChange={(e) => handleDetailChangeGL(index, 'remarks', e.target.value)}
                 />
              </td>
               
              {!isFormDisabled && (
-              <td className="global-tran-td-ui text-center sticky right-10">
-                <button
-                  className="global-tran-td-button-add-ui"
-                  onClick={() => handleAddRowGL(index)}
-                >
-                  <FontAwesomeIcon icon={faPlus} />
-                </button>
-              </td>
-            )}
-
-            {!isFormDisabled && (
               <td className="global-tran-td-ui text-center sticky right-0">
-                <button
-                  className="global-tran-td-button-delete-ui"
-                  onClick={() => handleDeleteRowGL(index)}
-                >
-                  <FontAwesomeIcon icon={faMinus} />
-                </button>
+                <div className="flex items-center justify-center gap-1">
+                  <button
+                    type="button"
+                    className="global-tran-td-button-add-ui"
+                    onClick={() => handleAddRowGL(index)}
+                  >
+                    <FontAwesomeIcon icon={faPlus} />
+                  </button>
+
+                  <button
+                    type="button"
+                    className="global-tran-td-button-delete-ui"
+                    onClick={() => handleDeleteRowGL(index)}
+                  >
+                    <FontAwesomeIcon icon={faTrashAlt} />
+                  </button>
+                </div>
               </td>
             )}
-
 
             </tr>
           ))}
@@ -3135,9 +2735,6 @@ const handleCloseBranchModal = (selectedBranch) => {
       </table>
     </div>
     </div>
-
-
-
 
     <div className="global-tran-tab-footer-main-div-ui">
 
@@ -3151,8 +2748,6 @@ const handleCloseBranchModal = (selectedBranch) => {
         <FontAwesomeIcon icon={faPlus} className="mr-2" />Add
         </button>
       </div>
-
-      
 
       {/* Totals Section */}
       <div className="global-tran-tab-footer-total-main-div-ui">
@@ -3178,16 +2773,9 @@ const handleCloseBranchModal = (selectedBranch) => {
       </div>
     </div>
 
-    
-
   </div>
 
-
-
 </div>
-
-
-
 
 {branchModalOpen && (
         <BranchLookupModal 
@@ -3196,16 +2784,12 @@ const handleCloseBranchModal = (selectedBranch) => {
         />
       )}
 
-
 {currencyModalOpen && (
         <CurrLookupModal 
           isOpen={currencyModalOpen}
           onClose={handleCloseCurrencyModal}
         />
       )}
-
-
-
 
 {payeeModalOpen && (
   <PayeeMastLookupModal
@@ -3214,16 +2798,12 @@ const handleCloseBranchModal = (selectedBranch) => {
   />
 )}
 
-
-
 {showBankMastModal && (
   <BankMastLookupModal
     isOpen={showBankMastModal}
     onClose={handleCloseBankMast}
   />
 )}
-
-
 
 {showAPBalanceModal && (
   <GlobalLookupModalv1
@@ -3237,11 +2817,6 @@ const handleCloseBranchModal = (selectedBranch) => {
   />
 )}
 
-
-
-
-
-
 {/* COA Account Modal */}
 {showAccountModal && (
   <COAMastLookupModal
@@ -3250,8 +2825,6 @@ const handleCloseBranchModal = (selectedBranch) => {
     source={accountModalSource}
   />
  )}
-
-
 
 {/* RC Code Modal */}
 {showRcModal && (
@@ -3262,8 +2835,6 @@ const handleCloseBranchModal = (selectedBranch) => {
   />
 )}
 
-
-
 {/* VAT Code Modal */}
 {showVatModal && (
   <VATLookupModal  
@@ -3273,8 +2844,6 @@ const handleCloseBranchModal = (selectedBranch) => {
   />
 )}
 
-
-
 {/* ATC Code Modal */}
 {showAtcModal && (
   <ATCLookupModal  
@@ -3282,7 +2851,6 @@ const handleCloseBranchModal = (selectedBranch) => {
     onClose={handleCloseAtcModal}
   />
 )}
-
 
 {/* SL Code Lookup Modal */}
 {showSlModal && (
@@ -3292,7 +2860,6 @@ const handleCloseBranchModal = (selectedBranch) => {
   />
 )}
 
-
     {/* Cancellation Modal */}
     {showCancelModal && (
       <CancelTranModal
@@ -3300,17 +2867,6 @@ const handleCloseBranchModal = (selectedBranch) => {
         onClose={handleCloseCancel}
       />
     )}
-
-
-
-
- {/* {showPostingModal && (
-  <PostAPDM
-    isOpen={showPostingModal}
-    onClose={() => updateState({ showPostingModal: false })}
-  />
-)}  */}
-
 
 {showAttachModal && (
   <AttachDocumentModal
@@ -3325,31 +2881,35 @@ const handleCloseBranchModal = (selectedBranch) => {
   />
 )}
 
-
-
-
-
 {showSignatoryModal && (
   <DocumentSignatories
     isOpen={showSignatoryModal}
-    params={documentID}
+    params={{noReprints,documentID,docType}}
     onClose={handleCloseSignatory}
     onCancel={() => updateState({ showSignatoryModal: false })}
   />
 )}
 
-
-
+      {showAllTranDocNo && (
+        <AllTranDocNo
+          isOpen={showAllTranDocNo}
+          params={{branchCode,branchName,docType,documentTitle,fieldNo : "apdmNo"}}
+          onRetrieve={handleTranDocNoRetrieval}
+          onResponse={{documentNo}}
+          onSelected={handleTranDocNoSelection}
+          onClose={() => updateState({ showAllTranDocNo: false })}
+        />
+      )} 
 
     {showSpinner && <LoadingSpinner />}
   </div>
 
-
   <div className={topTab === "history" ? "" : "hidden"}>
       <AllTranHistory
         showHeader={false}
+        isActive={topTab === "history"}
         endpoint="/getAPDMHistory"
-        cacheKey={`APDM:${state.branchCode || ""}:${state.docNo || ""}`}  // ✅ per-transaction
+        cacheKey={`APDM:${state.branchCode || ""}:${state.docNo || ""}`} 
         activeTabKey="APDM_Summary"
         branchCode={state.branchCode}
         startDate={state.fromDate}
@@ -3367,12 +2927,9 @@ const handleCloseBranchModal = (selectedBranch) => {
     />
   </div>
 
-
 </div>
 );
 // End of Return
-
-
 
 };
 

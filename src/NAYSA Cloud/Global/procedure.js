@@ -1,6 +1,6 @@
 import { fetchData, postRequest } from '@/NAYSA Cloud/Configuration/BaseURL';
 import { formatNumber } from '@/NAYSA Cloud/Global/behavior';
-import { useSwalValidationAlert,} from '@/NAYSA Cloud/Global/behavior';
+import { useSwalValidationAlert, useSwalErrorAlert} from '@/NAYSA Cloud/Global/behavior.jsx';
 import Swal from 'sweetalert2';
 import { parseFormattedNumber } from './behavior';
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
@@ -499,7 +499,10 @@ export const useHandlePostTran = async (
 
     if (status === 422) {
       if (code === "INVALID_CREDENTIALS") {
-        Swal.fire("Invalid password", msg || "Please try again.", "warning");
+        useSwalErrorAlert(
+                  "Incorrect Password", 
+                  "The password you entered is incorrect. Please try again."
+                );
         return { success: false, code, message: msg };
       }
       if (code === "MISSING_CREDENTIALS" || code === "VALIDATION_ERROR" || !data?.error) {
