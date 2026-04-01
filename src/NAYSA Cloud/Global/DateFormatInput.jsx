@@ -2,6 +2,14 @@ import React, { useRef } from "react";
 import { PatternFormat } from "react-number-format";
 import { useSwalErrorAlert } from "@/NAYSA Cloud/Global/behavior.jsx";
 
+const getAllowedYearRange = () => {
+  const currentYear = new Date().getFullYear();
+  return {
+    minYear: currentYear - 1,
+    maxYear: currentYear + 1,
+  };
+};
+
 export const isStrictDateAllowed = ({ value }) => {
   const cleaned = String(value || "").replace(/\D/g, "").slice(0, 8);
 
@@ -22,9 +30,14 @@ export const isStrictDateAllowed = ({ value }) => {
   }
 
   if (year.length === 1 && !["1", "2"].includes(year)) return false;
+
   if (year.length === 4) {
     const y = Number(year);
-    if (y < 1900 || y > 2099) return false;
+    const { minYear, maxYear } = getAllowedYearRange();
+
+    if (y < minYear || y > maxYear || y === new Date().getFullYear()) {
+      return false;
+    }
   }
 
   return true;
@@ -52,8 +65,14 @@ export const usehandleDateBlur = (value, field, updateState) => {
     return false;
   }
 
+  const { minYear, maxYear } = getAllowedYearRange();
+  const currentYear = new Date().getFullYear();
+
   const showInvalidDateAlert = () => {
-    useSwalErrorAlert("Invalid Date", "Please enter a valid date in MM/DD/YYYY format.");
+    useSwalErrorAlert(
+      "Invalid Date",
+      `Please enter a valid date in MM/DD/YYYY format. Allowed years are ${minYear} and ${maxYear} only.`
+    );
   };
 
   const regex = /^(0[1-9]|1[0-2])\/(0[1-9]|[12][0-9]|3[01])\/\d{4}$/;
@@ -66,7 +85,7 @@ export const usehandleDateBlur = (value, field, updateState) => {
 
   const [month, day, year] = dateStr.split("/").map(Number);
 
-  if (year < 1900 || year > 2099) {
+  if (year < minYear || year > maxYear || year === currentYear) {
     updateState({ [field]: "" });
     showInvalidDateAlert();
     return false;
@@ -137,6 +156,8 @@ const DateFormatInput = ({
   const fieldName = name || id;
   const nativeDateRef = useRef(null);
 
+  const { minYear, maxYear } = getAllowedYearRange();
+
   const handleBlur = (e) => {
     const isValid = usehandleDateBlur(value || "", fieldName, updateState);
 
@@ -163,6 +184,21 @@ const DateFormatInput = ({
   const handleNativeDateChange = (e) => {
     const selectedValue = e.target.value;
     const formattedValue = formatDateToMMDDYYYY(selectedValue);
+
+    const selectedYear = Number((selectedValue || "").slice(0, 4));
+    if (
+      selectedYear &&
+      (selectedYear < minYear ||
+        selectedYear > maxYear ||
+        selectedYear === new Date().getFullYear())
+    ) {
+      useSwalErrorAlert(
+        "Invalid Date",
+        `Allowed years are ${minYear} and ${maxYear} only.`
+      );
+      updateState({ [fieldName]: "" });
+      return;
+    }
 
     updateState({ [fieldName]: formattedValue });
 
@@ -222,6 +258,8 @@ const DateFormatInput = ({
             ref={nativeDateRef}
             type="date"
             value={formatDateToYYYYMMDD(value || "")}
+            min={`${minYear}-01-01`}
+            max={`${maxYear}-12-31`}
             onChange={handleNativeDateChange}
             tabIndex={-1}
             style={{
@@ -239,4 +277,3 @@ const DateFormatInput = ({
 };
 
 export default DateFormatInput;
-

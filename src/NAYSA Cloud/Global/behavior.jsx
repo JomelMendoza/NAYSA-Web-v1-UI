@@ -296,9 +296,9 @@ export const useSwalErrorAlert = (
     html: `
       <div class="swal-sonner-error-toast-wrap">
         <div class="swal-sonner-error-toast-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="9"></circle>
-            <path d="M12 8v5"></path>
+            <path d="M12 8v4"></path>
             <path d="M12 16h.01"></path>
           </svg>
         </div>
@@ -315,57 +315,40 @@ export const useSwalErrorAlert = (
     `,
     showConfirmButton: false,
     showCloseButton: true,
-    timer: 3000,
+    timer: 4000,
     timerProgressBar: true,
-    width: 400,
+    width: 320, // Reduced width (from 400)
     padding: "0",
     background: "#ffffff",
-
-    showClass: {
-      popup: "swal2-show toast-smooth-in",
-    },
-    hideClass: {
-      popup: "swal2-hide toast-smooth-out",
-    },
-
     customClass: {
       popup: "swal-sonner-error-toast-popup",
       htmlContainer: "swal-sonner-error-toast-html",
       closeButton: "swal-sonner-error-toast-close",
       timerProgressBar: "swal-sonner-error-toast-progress",
     },
-
     didOpen: (toast) => {
       const popup = Swal.getPopup();
-      const closeBtn = popup?.querySelector(".swal2-close");
-
       if (popup) {
-        popup.style.borderRadius = "14px";
-        popup.style.border = "1px solid rgba(254, 226, 226, 0.9)";
-        popup.style.boxShadow = "0 10px 24px rgba(15, 23, 42, 0.12)";
+        popup.style.borderRadius = "10px"; // Sharper corners for a smaller look
+        
+        // Target specific text elements to shrink them
+        const titleEl = popup.querySelector(".swal-sonner-error-toast-title");
+        const messageEl = popup.querySelector(".swal-sonner-error-toast-message");
+        
+        if (titleEl) {
+           titleEl.style.fontSize = "13px"; // Smaller Title
+           titleEl.style.fontWeight = "700";
+        }
+        if (messageEl) {
+           messageEl.style.fontSize = "11px"; // Much smaller body text
+           messageEl.style.lineHeight = "1.4";
+           messageEl.style.marginTop = "2px";
+        }
       }
-
-      if (closeBtn) {
-        closeBtn.style.width = "28px";
-        closeBtn.style.height = "28px";
-        closeBtn.style.top = "10px";
-        closeBtn.style.right = "10px";
-        closeBtn.style.borderRadius = "9999px";
-        closeBtn.style.color = "#94a3b8";
-        closeBtn.style.fontSize = "18px";
-        closeBtn.style.transition = "all 0.2s ease";
-      }
-
-      closeBtn?.addEventListener("mouseenter", () => {
-        closeBtn.style.background = "#f1f5f9";
-        closeBtn.style.color = "#334155";
-      });
-
-      closeBtn?.addEventListener("mouseleave", () => {
-        closeBtn.style.background = "transparent";
-        closeBtn.style.color = "#94a3b8";
-      });
-
+       if (fixedMsg === "endingCutoff") {
+    title = "Invalid cut-off range";
+    message = "Ending Cut-off must not be earlier than Starting Cut-off.";
+  }
       toast.onmouseenter = Swal.stopTimer;
       toast.onmouseleave = Swal.resumeTimer;
     },

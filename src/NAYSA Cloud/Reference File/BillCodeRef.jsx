@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Save, Undo2, Edit, Trash2, Info } from "lucide-react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -117,7 +123,8 @@ const BillCodeRef = React.forwardRef((props, ref) => {
 
   // --- MOBILE ACTION SHEET STATES ---
   const [isMobile, setIsMobile] = useState(false);
-  const [isMobileActionSheetMounted, setIsMobileActionSheetMounted] = useState(false);
+  const [isMobileActionSheetMounted, setIsMobileActionSheetMounted] =
+    useState(false);
   const [isMobileActionSheetOpen, setIsMobileActionSheetOpen] = useState(false);
   const [selectedMobileRow, setSelectedMobileRow] = useState(null);
 
@@ -473,21 +480,21 @@ const BillCodeRef = React.forwardRef((props, ref) => {
         key: "billCode",
         label: "Bill Code",
         sortable: true,
-        className: "sticky left-0 z-10 bg-white shadow-[1px_0_0_0_#e2e8f0]",
+        className: "sticky left-0 z-10 shadow-[1px_0_0_0_#e2e8f0]",
       },
       {
         key: "billName",
         label: "Description",
         sortable: true,
         className:
-          "sticky left-[120px] z-10 bg-white shadow-[1px_0_0_0_#e2e8f0]",
+          "sticky left-[120px] z-10 shadow-[1px_0_0_0_#e2e8f0]",
       },
       {
         key: "uomCode",
         label: "UOM",
         sortable: true,
         className:
-          "sticky left-[300px] z-10 bg-white shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]",
+          "sticky left-[300px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]",
       },
       { key: "billingClass", label: "Billing Class", sortable: true },
       {
@@ -614,9 +621,10 @@ const BillCodeRef = React.forwardRef((props, ref) => {
                   label="Bill Code"
                   value={form.billCode}
                   inputRef={billCodeInputRef}
-                  onChange={(e) =>
-                    setField("billCode", e.target.value.toUpperCase())
+                  onChange={(val) =>
+                    setField("billCode", String(val || "").toUpperCase())
                   }
+                  maxLength={10}
                   onBlur={async () => {
                     if (!isEditing || form.__existing) return;
                     const isDup = await checkDuplicate(form.billCode);
@@ -636,7 +644,8 @@ const BillCodeRef = React.forwardRef((props, ref) => {
                 <FieldRenderer
                   label="Description"
                   value={form.billName}
-                  onChange={(e) => setField("billName", e.target.value)}
+                  maxLength={100}
+                  onChange={(val) => setField("billName", val)}
                   disabled={!isEditing}
                   required
                 />
@@ -644,7 +653,8 @@ const BillCodeRef = React.forwardRef((props, ref) => {
                 <FieldRenderer
                   label="UOM"
                   value={form.uomCode}
-                  onChange={(e) => setField("uomCode", e.target.value)}
+                  maxLength={10}
+                  onChange={(val) => setField("uomCode", val)}
                   disabled={!isEditing}
                   required
                 />
@@ -652,7 +662,8 @@ const BillCodeRef = React.forwardRef((props, ref) => {
                 <FieldRenderer
                   label="Billing Class"
                   value={form.billingClass}
-                  onChange={(e) => setField("billingClass", e.target.value)}
+                  maxLength={20}
+                  onChange={(val) => setField("billingClass", val)}
                   disabled={!isEditing}
                 />
               </div>
@@ -662,6 +673,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
                   label="Unit Price Required?"
                   type="select"
                   value={form.unitPriceRequired}
+                  maxLength
                   onChange={(val) => setField("unitPriceRequired", val)}
                   options={[
                     { value: "Y", label: "Yes" },
@@ -678,10 +690,8 @@ const BillCodeRef = React.forwardRef((props, ref) => {
                       ? `${form.rcCode}${form.rcName ? ` - ${form.rcName}` : ""}`
                       : ""
                   }
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setField("rcCode", val);
-                  }}
+                  maxLength={25}
+                  onChange={(val) => setField("rcCode", val)}
                   onLookup={() => setRCModalOpen(true)}
                   disabled={!isEditing}
                   required
@@ -695,7 +705,8 @@ const BillCodeRef = React.forwardRef((props, ref) => {
                       ? `${form.arAcct}${form.arName ? ` - ${form.arName}` : ""}`
                       : ""
                   }
-                  onChange={(e) => setField("arAcct", e.target.value)}
+                  maxLength={25}
+                  onChange={(val) => setField("arAcct", val)}
                   onLookup={() => handleOpenAccountLookup("arAcct")}
                   disabled={!isEditing}
                   required
@@ -709,7 +720,8 @@ const BillCodeRef = React.forwardRef((props, ref) => {
                       ? `${form.salesAcct}${form.salesName ? ` - ${form.salesName}` : ""}`
                       : ""
                   }
-                  onChange={(e) => setField("salesAcct", e.target.value)}
+                  maxLength={25}
+                  onChange={(val) => setField("salesAcct", val)}
                   onLookup={() => handleOpenAccountLookup("salesAcct")}
                   disabled={!isEditing}
                   required
@@ -725,7 +737,8 @@ const BillCodeRef = React.forwardRef((props, ref) => {
                       ? `${form.vatAcct}${form.vatName ? ` - ${form.vatName}` : ""}`
                       : ""
                   }
-                  onChange={(e) => setField("vatAcct", e.target.value)}
+                  maxLength={25}
+                  onChange={(val) => setField("vatAcct", val)}
                   onLookup={() => handleOpenAccountLookup("vatAcct")}
                   disabled={!isEditing}
                   required
@@ -739,7 +752,8 @@ const BillCodeRef = React.forwardRef((props, ref) => {
                       ? `${form.advancesAcct}${form.advancesName ? ` - ${form.advancesName}` : ""}`
                       : ""
                   }
-                  onChange={(e) => setField("advancesAcct", e.target.value)}
+                  maxLength={25}
+                  onChange={(val) => setField("advancesAcct", val)}
                   onLookup={() => handleOpenAccountLookup("advancesAcct")}
                   disabled={!isEditing}
                 />
@@ -752,7 +766,8 @@ const BillCodeRef = React.forwardRef((props, ref) => {
                       ? `${form.sDiscAcct}${form.sDiscName ? ` - ${form.sDiscName}` : ""}`
                       : ""
                   }
-                  onChange={(e) => setField("sDiscAcct", e.target.value)}
+                  maxLength={25}
+                  onChange={(val) => setField("sDiscAcct", val)}
                   onLookup={() => handleOpenAccountLookup("sDiscAcct")}
                   disabled={!isEditing}
                 />
@@ -802,9 +817,14 @@ const BillCodeRef = React.forwardRef((props, ref) => {
             <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-4" />
 
             <div className="mb-3">
-              <h2 className="text-sm font-bold text-gray-800">Bill Code Actions</h2>
+              <h2 className="text-sm font-bold text-gray-800">
+                Bill Code Actions
+              </h2>
               <p className="text-xs text-gray-500">
-                {selectedMobileRow?.billCode} {selectedMobileRow?.billName ? `- ${selectedMobileRow.billName}` : ""}
+                {selectedMobileRow?.billCode}{" "}
+                {selectedMobileRow?.billName
+                  ? `- ${selectedMobileRow.billName}`
+                  : ""}
               </p>
             </div>
 
@@ -816,7 +836,7 @@ const BillCodeRef = React.forwardRef((props, ref) => {
                 <FontAwesomeIcon icon={faEdit} />
                 Edit
               </button>
-              
+
               <button
                 onClick={(e) => {
                   e.stopPropagation();

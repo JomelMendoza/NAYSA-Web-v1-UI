@@ -87,7 +87,7 @@ const PostAPV = ({ isOpen, onClose, userCode }) => {
       useSwalValidationAlert({
         icon: "warning",
         title: "Missing keys",
-        message: "Cannot determine Document No or Branch Code.",
+        message: "Cannot determine Document No Column Index",
       });
       return;
     }

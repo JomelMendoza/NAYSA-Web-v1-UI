@@ -68,24 +68,30 @@ const formatDate = (value) => {
 };
 
 const extractRows = (payload) => {
-  const res =
+  const raw =
     payload?.data?.data?.[0]?.result ??
     payload?.data?.result ??
-    payload?.data?.data;
+    payload?.data?.data ??
+    payload?.data;
 
-  if (!res) return [];
-  if (Array.isArray(res)) return res;
+  if (!raw) return [];
 
-  if (typeof res === "string") {
+  if (Array.isArray(raw)) {
+    return raw;
+  }
+
+  if (typeof raw === "string") {
     try {
-      return JSON.parse(res) || [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
     }
   }
 
-  if (typeof res === "object") {
-    return Array.isArray(res?.result) ? res.result : [];
+  if (typeof raw === "object") {
+    if (Array.isArray(raw.result)) return raw.result;
+    return [raw];
   }
 
   return [];
@@ -104,19 +110,49 @@ const parseResultFlag = (res) => {
 };
 
 const mapAtcRow = (row) => ({
-  atcCode: row?.atccode ?? "",          
-  atcName: row?.atcname ?? "",           
-  atcRate: String(row?.atcrate ?? ""),   
-  ewtAcct: row?.ewtacct ?? "",          
-  ewtAcctName: row?.ewtacctname ?? "",   
-  cwtAcct: row?.cwtacct ?? "",         
-  cwtAcctName: row?.cwtacctname ?? "",   
-  clAcct: row?.clacct ?? "",          
-  clAcctName: row?.clacctname ?? "",     
-  registeredBy: row?.registeredby ?? "",
-  registeredDate: formatDate(row?.registereddate),
-  lastUpdatedBy: row?.lastupdatedby ?? "",
-  lastUpdatedDate: formatDate(row?.lastupdateddate),
+  atcCode: row?.atccode ?? row?.ATCCODE ?? row?.atcCode ?? "",
+  atcName: row?.atcname ?? row?.ATCNAME ?? row?.atcName ?? "",
+  atcRate: String(row?.atcrate ?? row?.ATCRATE ?? row?.atcRate ?? ""),
+
+  ewtAcct: row?.ewtacct ?? row?.EWTACCT ?? row?.ewtAcct ?? "",
+  ewtAcctName:
+    row?.ewtacctname ??
+    row?.EWTACCTNAME ??
+    row?.ewtAcctName ??
+    row?.ewtAcctname ??
+    "",
+
+  cwtAcct: row?.cwtacct ?? row?.CWTACCT ?? row?.cwtAcct ?? "",
+  cwtAcctName:
+    row?.cwtacctname ??
+    row?.CWTACCTNAME ??
+    row?.cwtAcctName ??
+    row?.cwtAcctname ??
+    "",
+
+  clAcct: row?.clacct ?? row?.CLACCT ?? row?.clAcct ?? "",
+  clAcctName:
+    row?.clacctname ??
+    row?.CLACCTNAME ??
+    row?.clAcctName ??
+    row?.clAcctname ??
+    "",
+
+  registeredBy: row?.registeredby ?? row?.REGISTEREDBY ?? row?.registeredBy ?? "",
+  registeredDate: formatDate(
+    row?.registereddate ?? row?.REGISTEREDDATE ?? row?.registeredDate
+  ),
+  lastUpdatedBy:
+    row?.lastupdatedby ??
+    row?.LASTUPDATEDBY ??
+    row?.lastupdatedBy ??
+    "",
+  lastUpdatedDate: formatDate(
+    row?.lastupdateddate ??
+    row?.LASTUPDATEDDATE ??
+    row?.lastupdateDate ??
+    ""
+  ),
   __existing: true,
 });
 
@@ -124,6 +160,9 @@ const mapAtcRow = (row) => ({
 
 const fetchAtcList = async () => {
   const res = await apiClient.post("/atc");
+
+  console.log("ATC raw response:", res?.data);
+  console.log("ATC extracted rows:", extractRows(res));
 
   if (res?.data?.success === false) {
     throw new Error(res?.data?.message || "Failed to load ATC data.");

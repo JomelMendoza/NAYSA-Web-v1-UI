@@ -1033,68 +1033,68 @@ const APV = () => {
     }
   };
 
-//   const syncGLReferenceFromInvoiceDetails = useCallback(
-//     (invoiceRows, glRows) => {
-//       if (!Array.isArray(invoiceRows) || !Array.isArray(glRows))
-//         return glRows || [];
+  //   const syncGLReferenceFromInvoiceDetails = useCallback(
+  //     (invoiceRows, glRows) => {
+  //       if (!Array.isArray(invoiceRows) || !Array.isArray(glRows))
+  //         return glRows || [];
 
-//       return glRows.map((glRow, glIndex) => {
-//         let sourceRow = null;
+  //       return glRows.map((glRow, glIndex) => {
+  //         let sourceRow = null;
 
-//         // Primary link: dt1Lineno from generated GL entry
-//         if (
-//           glRow?.dt1Lineno !== undefined &&
-//           glRow?.dt1Lineno !== null &&
-//           glRow?.dt1Lineno !== ""
-//         ) {
-//           const targetLn = String(glRow.dt1Lineno);
-//           sourceRow =
-//             invoiceRows.find((invRow, invIndex) => {
-//               const invLn = String(invRow?.lnNo || invIndex + 1);
-//               return invLn === targetLn;
-//             }) || null;
-//         }
+  //         // Primary link: dt1Lineno from generated GL entry
+  //         if (
+  //           glRow?.dt1Lineno !== undefined &&
+  //           glRow?.dt1Lineno !== null &&
+  //           glRow?.dt1Lineno !== ""
+  //         ) {
+  //           const targetLn = String(glRow.dt1Lineno);
+  //           sourceRow =
+  //             invoiceRows.find((invRow, invIndex) => {
+  //               const invLn = String(invRow?.lnNo || invIndex + 1);
+  //               return invLn === targetLn;
+  //             }) || null;
+  //         }
 
-//         // Fallback: same index
-//         if (!sourceRow && invoiceRows[glIndex]) {
-//           sourceRow = invoiceRows[glIndex];
-//         }
+  //         // Fallback: same index
+  //         if (!sourceRow && invoiceRows[glIndex]) {
+  //           sourceRow = invoiceRows[glIndex];
+  //         }
 
-//         return {
-//           ...glRow,
-//           slRefNo: sourceRow?.siNo || "",
-//           slrefDate: sourceRow?.siDate || "",
-//           // FIX: explicitly map the SL fields from the Invoice row to the GL row
-//           slCode: sourceRow?.slCode || glRow.slCode || "",
-//           slName: sourceRow?.slName || glRow.slName || "",
-//           sltypeCode: sourceRow?.sltypeCode || glRow.sltypeCode || "",
-//         };
-//       });
-//     },
-//     [],
-//   );
+  //         return {
+  //           ...glRow,
+  //           slRefNo: sourceRow?.siNo || "",
+  //           slrefDate: sourceRow?.siDate || "",
+  //           // FIX: explicitly map the SL fields from the Invoice row to the GL row
+  //           slCode: sourceRow?.slCode || glRow.slCode || "",
+  //           slName: sourceRow?.slName || glRow.slName || "",
+  //           sltypeCode: sourceRow?.sltypeCode || glRow.sltypeCode || "",
+  //         };
+  //       });
+  //     },
+  //     [],
+  //   );
 
-//  useEffect(() => {
-//     if (!detailRowsGL.length) return;
+  //  useEffect(() => {
+  //     if (!detailRowsGL.length) return;
 
-//     const syncedRows = syncGLReferenceFromInvoiceDetails(
-//       detailRows,
-//       detailRowsGL,
-//     );
+  //     const syncedRows = syncGLReferenceFromInvoiceDetails(
+  //       detailRows,
+  //       detailRowsGL,
+  //     );
 
-//     const hasChanges = syncedRows.some((row, index) => {
-//       return (
-//         (row.slRefNo || "") !== (detailRowsGL[index]?.slRefNo || "") ||
-//         (row.slrefDate || "") !== (detailRowsGL[index]?.slrefDate || "") ||
-//         // FIX: Tell the effect to trigger a state update if the SL Code changes
-//         (row.slCode || "") !== (detailRowsGL[index]?.slCode || "")
-//       );
-//     });
+  //     const hasChanges = syncedRows.some((row, index) => {
+  //       return (
+  //         (row.slRefNo || "") !== (detailRowsGL[index]?.slRefNo || "") ||
+  //         (row.slrefDate || "") !== (detailRowsGL[index]?.slrefDate || "") ||
+  //         // FIX: Tell the effect to trigger a state update if the SL Code changes
+  //         (row.slCode || "") !== (detailRowsGL[index]?.slCode || "")
+  //       );
+  //     });
 
-//     if (hasChanges) {
-//       updateState({ detailRowsGL: syncedRows });
-//     }
-//   }, [detailRows, syncGLReferenceFromInvoiceDetails]);
+  //     if (hasChanges) {
+  //       updateState({ detailRowsGL: syncedRows });
+  //     }
+  //   }, [detailRows, syncGLReferenceFromInvoiceDetails]);
 
   const handleAddRow = async (insertIndex = null) => {
     try {
@@ -1108,7 +1108,7 @@ const APV = () => {
 
           return {
             lnNo: "",
-            invType: "FG",
+            invType: "",
             rrNo: "",
             poNo: "",
             siNo: "",
@@ -2511,27 +2511,27 @@ const APV = () => {
 
               {/* APV Number Field */}
               <FieldRenderer
-  id="apvNo"
-  label="APV No."
-  type="lookup"
-  value={documentNo || ""}
-  disabled={isDocNoDisabled}
-  onChange={(val) => updateState({ documentNo: val })}
-  onBlur={handleDocumentNoBlur}
-  onLookup={() => updateState({ showAllTranDocNo: true })}
-  onKeyDown={(e) => {
-    if (e.key === "F1") {
-      e.preventDefault();
-      if (!isDocNoDisabled) {
-        updateState({ showAllTranDocNo: true });
-      }
-    }
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleDocumentNoBlur();
-    }
-  }}
-/>
+                id="apvNo"
+                label="APV No."
+                type="lookup"
+                value={documentNo || ""}
+                disabled={isDocNoDisabled}
+                onChange={(val) => updateState({ documentNo: val })}
+                onBlur={handleDocumentNoBlur}
+                onLookup={() => updateState({ showAllTranDocNo: true })}
+                onKeyDown={(e) => {
+                  if (e.key === "F1") {
+                    e.preventDefault();
+                    if (!isDocNoDisabled) {
+                      updateState({ showAllTranDocNo: true });
+                    }
+                  }
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleDocumentNoBlur();
+                  }
+                }}
+              />
 
               {/* APV Date Picker */}
               <div className="relative w-full">
@@ -2632,9 +2632,7 @@ const APV = () => {
                 label="Currency Rate"
                 type="amount"
                 value={currencyRate || ""}
-                disabled={
-                  isFormDisabled || glCurrDefault === currencyCode || !!vendCode
-                }
+                disabled={isFormDisabled || currencyCode === glCurrDefault}
                 onChange={(val) => updateState({ currencyRate: val })}
               />
 
@@ -2786,13 +2784,8 @@ const APV = () => {
                         <th className="global-tran-th-ui">Payment Terms</th>
                         <th className="global-tran-th-ui">Due Date</th>
                         {!isFormDisabled && (
-                          <th className="global-tran-th-ui sticky right-[43px] bg-blue-300 dark:bg-blue-900 z-30">
-                            Add
-                          </th>
-                        )}
-                        {!isFormDisabled && (
                           <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
-                            Delete
+                            Actions
                           </th>
                         )}
                       </tr>
@@ -2910,8 +2903,9 @@ const APV = () => {
                               value={row.amount}
                               onChange={(e) => {
                                 const value = e.target.value;
+                                // Changed the regex here to include ^-?
                                 if (
-                                  /^\d{0,12}(\.\d{0,2})?$/.test(value) ||
+                                  /^-?\d{0,12}(\.\d{0,2})?$/.test(value) ||
                                   value === ""
                                 ) {
                                   handleDetailChange(
@@ -3258,23 +3252,24 @@ const APV = () => {
                             </div>
                           </td>
                           {!isFormDisabled && (
-                            <td className="global-tran-td-ui text-center sticky right-12">
-                              <button
-                                className="global-tran-td-button-add-ui"
-                                onClick={() => handleAddRow(index)} // Pass index here
-                              >
-                                <FontAwesomeIcon icon={faPlus} />{" "}
-                              </button>
-                            </td>
-                          )}
-                          {!isFormDisabled && (
                             <td className="global-tran-td-ui text-center sticky right-0">
-                              <button
-                                className="global-tran-td-button-delete-ui"
-                                onClick={() => handleDeleteRow(index)}
-                              >
-                                <FontAwesomeIcon icon={faTrashAlt} />{" "}
-                              </button>
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  type="button"
+                                  className="global-tran-td-button-add-ui"
+                                  onClick={() => handleAddRow(index)}
+                                >
+                                  <FontAwesomeIcon icon={faPlus} />
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className="global-tran-td-button-delete-ui"
+                                  onClick={() => handleDeleteRow(index)}
+                                >
+                                  <FontAwesomeIcon icon={faTrashAlt} />
+                                </button>
+                              </div>
                             </td>
                           )}
                         </tr>
@@ -3437,14 +3432,9 @@ const APV = () => {
                     <th className="global-tran-th-ui">Remarks</th>
 
                     {!isFormDisabled && (
-                      <>
-                        <th className="global-tran-th-ui sticky right-[43px] bg-blue-300 dark:bg-blue-900 z-30">
-                          Add
-                        </th>
-                        <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
-                          Delete
-                        </th>
-                      </>
+                      <th className="global-tran-th-ui sticky right-0 bg-blue-300 dark:bg-blue-900 z-30">
+                        Actions
+                      </th>
                     )}
                   </tr>
                 </thead>
@@ -4061,24 +4051,24 @@ const APV = () => {
                       </td>
 
                       {!isFormDisabled && (
-                        <td className="global-tran-td-ui text-center sticky right-10">
-                          <button
-                            className="global-tran-td-button-add-ui"
-                            onClick={() => handleAddRowGL(index)}
-                          >
-                            <FontAwesomeIcon icon={faPlus} />
-                          </button>
-                        </td>
-                      )}
-
-                      {!isFormDisabled && (
                         <td className="global-tran-td-ui text-center sticky right-0">
-                          <button
-                            className="global-tran-td-button-delete-ui"
-                            onClick={() => handleDeleteRowGL(index)}
-                          >
-                            <FontAwesomeIcon icon={faTrashAlt} />
-                          </button>
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              className="global-tran-td-button-add-ui"
+                              onClick={() => handleAddRow(index)}
+                            >
+                              <FontAwesomeIcon icon={faPlus} />
+                            </button>
+
+                            <button
+                              type="button"
+                              className="global-tran-td-button-delete-ui"
+                              onClick={() => handleDeleteRow(index)}
+                            >
+                              <FontAwesomeIcon icon={faTrashAlt} />
+                            </button>
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -4237,9 +4227,9 @@ const APV = () => {
           <DocumentSignatories
             isOpen={showSignatoryModal}
             params={{
-              documentID: documentID, 
-              noReprints: 0, 
-              docType: docType, 
+              documentID: documentID,
+              noReprints: 0,
+              docType: docType,
               docNo: documentNo,
             }}
             onClose={handleCloseSignatory}

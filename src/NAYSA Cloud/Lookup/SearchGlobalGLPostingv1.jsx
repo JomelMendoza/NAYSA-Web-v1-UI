@@ -386,7 +386,7 @@ const GlobalGLPostingModalv1 = ({
               <div className="flex items-center gap-2">
                 <span className="font-medium">Password</span>
                 <div className="relative min-w-[200px]">
-                  <input type={showPassword ? "text" : "password"} value={userPassword} onChange={(e) => setUserPassword(e.target.value)} autoComplete="new-password" className="border rounded px-2 py-1.5 text-xs w-full pr-8" />
+                  <input type={showPassword ? "text" : "password"} value={userPassword} onChange={(e) => setUserPassword(e.target.value)}  onPaste={(e) => e.preventDefault()} onCopy={(e) => e.preventDefault()} onCut={(e) => e.preventDefault()} onContextMenu={(e) => e.preventDefault()} autoComplete="new-password" spellCheck={false} className="border rounded px-2 py-1.5 text-xs w-full pr-8" />
                   <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-2 top-1.5 text-gray-400"><FontAwesomeIcon icon={showPassword ? faEyeSlash : faEye} /></button>
                 </div>
                 <button disabled={selected.length === 0} onClick={handleGetSelected} className="px-4 py-1.5 bg-blue-600 text-white rounded-md disabled:opacity-50 hover:bg-blue-700 transition">{btnCaption} {selected.length ? `(${selected.length})` : ""}</button>

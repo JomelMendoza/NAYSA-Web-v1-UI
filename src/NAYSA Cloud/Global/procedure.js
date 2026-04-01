@@ -10,166 +10,106 @@ import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 
 
 export const useGenerateGLEntries = async (docCode, glData) => {
-  const payload = { json_data: glData };
+    const payload = { json_data: glData };
 
-    //console.log("Payload for GL generation:", JSON.stringify(payload, null, 2));
+    try {
+        const response = await postRequest("generateGL" + docCode, JSON.stringify(payload));
 
-  try {
-    const response = await postRequest("generateGL" + docCode, JSON.stringify(payload));
-   
-    //console.log("Raw response from generateGL API:", response);
+        if (response?.status === 'success' && Array.isArray(response.data) && response.data.length > 0) {
+            const resultData = response.data[0];
+            const returnedErrorCount = resultData['errorCount'];
+            const returnedErrorMsg = resultData['errorMsg'];
 
-       const returnedErrorCount = response.data[0]['errorCount'];
-       const returnedErrorMsg = response.data[0]['errorMsg'];
-        if (returnedErrorMsg && returnedErrorCount >0) {
-            useSwalValidationAlert({
-                icon: "error",
-                title: "Generate GL Failed",
-                message: returnedErrorMsg || "An error occurred while saving the Transaction"
-                        });    
+            if (returnedErrorMsg && returnedErrorCount > 0) {
+                if (returnedErrorMsg.includes("Unbalanced")) {
+                    const tDebit = glData.dt2.reduce((sum, row) => sum + (parseFloat(row.debit) || 0), 0);
+                    const tCredit = glData.dt2.reduce((sum, row) => sum + (parseFloat(row.credit) || 0), 0);
+                    
+                    useSwalErrorAlert(
+                        "Unbalanced Debit/Credit",
+                        `Total Debit: ${formatNumber(tDebit)}\nTotal Credit: ${formatNumber(tCredit)}`
+                    );
+                } else {
+                    useSwalErrorAlert("Generation Failed", returnedErrorMsg);
+                }
                 return null;
-          }
+            }
 
-    if (response?.status === 'success' && Array.isArray(response.data) && response.data.length > 0) {
-      let glEntries;
+            let glEntries;
+            try {
+                glEntries = resultData.result ? JSON.parse(resultData.result) : [];
+                if (!Array.isArray(glEntries)) glEntries = [glEntries];
+            } catch (parseError) {
+                throw new Error("Failed to parse GL entries.");
+            }
 
-      try {
-        if (response.data[0] && response.data[0].result) {
-          glEntries = JSON.parse(response.data[0].result);
-          if (!Array.isArray(glEntries)) {
-            glEntries = [glEntries];
-          }
-        } else {
-          glEntries = [];
-          console.warn("API response data[0].result was null or undefined for GL entries.");
+            return glEntries.map((entry, idx) => ({
+                id: idx + 1,
+                ...entry,
+                debit: formatNumber(entry.debit),
+                credit: formatNumber(entry.credit),
+                debitFx1: formatNumber(entry.debitFx1),
+                creditFx1: formatNumber(entry.creditFx1),
+                debitFx2: formatNumber(entry.debitFx2),
+                creditFx2: formatNumber(entry.creditFx2),
+                slRefNo: entry.slrefNo || entry.slRefNo || "",
+                slrefDate: entry.slrefDate || entry.slRefDate || "",
+            }));
         }
-      } catch (parseError) {
-        console.error("Error parsing GL entries:", parseError);
-        throw new Error("Failed to parse GL entries due to malformed JSON.");
-      }
-
-      const transformedEntries = glEntries
-        .filter(entry => entry !== null && typeof entry === 'object')
-        .map((entry, idx) => ({
-          id: idx + 1,
-          acctCode: entry.acctCode || "",
-          rcCode: entry.rcCode || "",
-          sltypeCode: entry.sltypeCode || "",
-          slCode: entry.slCode || "",
-          particular: entry.particular || "",
-          vatCode: entry.vatCode || "",
-          vatName: entry.vatName || "",
-          atcCode: entry.atcCode || "",
-          atcName: entry.atcName || "",
-          debit: entry.debit ? formatNumber(entry.debit) : "0.00",
-          credit: entry.credit ? formatNumber(entry.credit) : "0.00",
-          debitFx1: entry.debit ? formatNumber(entry.debitFx1) : "0.00",
-          creditFx1: entry.credit ? formatNumber(entry.creditFx1) : "0.00",
-          debitFx2: entry.debit ? formatNumber(entry.debitFx2) : "0.00",
-          creditFx2: entry.credit ? formatNumber(entry.creditFx2) : "0.00",
-          slRefNo: entry.slRefNo || "",
-          slRefDate: entry.slRefDate || "",
-          remarks: entry.remarks || "",
-          dt1Lineno: entry.dt1Lineno || ""
-        }));
-
-      return transformedEntries;
-    } else {
-      let errorMessage = response?.message || "Failed to generate GL entries. Unexpected API response format.";
-      if (response?.status === 'success' && (!Array.isArray(response.data) || response.data.length === 0)) {
-         errorMessage = "API returned success but no data for GL entries.";
-      }
-      throw new Error(errorMessage);
+        return null;
+    } catch (error) {
+        useSwalErrorAlert("System Error", error.message);
+        return null;
     }
-  } catch (error) {
-    console.error("Error in generateGLEntries:", error);
-    Swal.fire({
-      icon: 'error',
-      title: 'Generation Failed',
-      text: error.message || 'Unknown error occurred',
-      confirmButtonColor: '#3085d6',
-    });
-    return null;
-  }
 };
 
 
 
 
-
-// Add idKey and noKey as parameters
 export const useTransactionUpsert = async (docCode, glData, updateState, idKey, noKey) => {
     try {
         updateState({ isLoading: true });
-
         const payload = { json_data: glData };
-
-        console.log("Sending data to API for Upsert:", JSON.stringify(payload, null, 2));
-
         const response = await postRequest("upsert" + docCode, JSON.stringify(payload));
 
-        if (response?.status === 'success') {
-           
-             if (response.data && response.data.length > 0) {
-                const returnedId = response.data[0][idKey];
-                const returnedNo = response.data[0][noKey];
-                const returnedErrorCount = response.data[0]['errorCount'];
-                const returnedErrorMsg = response.data[0]['errorMsg'];
+        if (response?.status === 'success' && response.data && response.data.length > 0) {
+            const resultData = response.data[0];
+            const returnedErrorCount = resultData['errorCount'];
+            const returnedErrorMsg = resultData['errorMsg'];
 
-                const wasNewDocCreated = !glData[idKey] && !!returnedId;
-                if (returnedErrorMsg && returnedErrorCount >0) {
-                  useSwalValidationAlert({
-                        icon: "info",
-                        title: "Save Failed",
-                        message: returnedErrorMsg || "An error occurred while saving the Transaction"
-                      });    
-                  return null;
-                }
+            if (returnedErrorMsg && returnedErrorCount > 0) {
+                if (returnedErrorMsg.includes("Unbalanced")) {
+                    const tDebit = glData.dt2.reduce((sum, row) => sum + (parseFloat(row.debit) || 0), 0);
+                    const tCredit = glData.dt2.reduce((sum, row) => sum + (parseFloat(row.credit) || 0), 0);
 
-                if (returnedNo && returnedId) {
-                    const updates = {
-                        documentID: returnedId,
-                        documentNo: returnedNo,
-                        isDocNoDisabled: wasNewDocCreated
-                    };
-
-                    updateState(updates);
-                    console.log(`Updated ${idKey}: ${returnedId}, ${noKey}: ${returnedNo} in state.`);
+                    useSwalErrorAlert(
+                        "Unbalanced Debit/Credit",
+                        `Total Debit: ${formatNumber(tDebit)}\nTotal Credit: ${formatNumber(tCredit)}`
+                    );
                 } else {
-                    console.warn(`Upsert successful, but returned ${idKey} or ${noKey} was null/undefined.`);
+                    useSwalErrorAlert("Validation Failed", returnedErrorMsg);
                 }
-            } else {
-                console.warn("Upsert successful, but no document ID/No returned from SPROC data.");
+                return null;
             }
 
-            
-            return response;
-        } else {
-              Swal.fire({
-                  icon: 'error',
-                  title: 'Save Failed',
-                  text: response.details || response.message || 'An error occurred while saving the Transaction',
+            if (resultData[noKey] && resultData[idKey]) {
+                updateState({
+                    documentID: resultData[idKey],
+                    documentNo: resultData[noKey],
+                    isDocNoDisabled: true,
+                    isFetchDisabled: true
                 });
-            // console.error("❌ SQL Error:", response?.error || response?.message);
-            // throw new Error(response?.error || response?.message || 'Failed to save Transaction');
-        }
+            }
+            return response;
+        } 
+        return null;
     } catch (error) {
-        console.error("Error saving Transaction:", error);
-        Swal.fire({
-            icon: 'error',
-            title: 'Save Failed',
-            text: error.message || 'An error occurred while saving the Transaction',
-        });
+        useSwalErrorAlert("Connection Error", error.message);
         return null;
     } finally {
-        updateState({
-            isSaveDisabled: false,
-            isResetDisabled: false,
-            isLoading: false
-        });
+        updateState({ isSaveDisabled: false, isResetDisabled: false, isLoading: false });
     }
 };
-
 
 
 
