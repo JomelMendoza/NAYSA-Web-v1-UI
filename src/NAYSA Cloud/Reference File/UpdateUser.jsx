@@ -2173,7 +2173,7 @@ const UpdateUser = () => {
                   }
                 }}
                 disabled={!isEditing || !!selectedUser}
-                maxLength={50}
+                maxLength={10}
               />
 
               <FieldRenderer
