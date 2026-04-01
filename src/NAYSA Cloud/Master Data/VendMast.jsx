@@ -22,9 +22,9 @@ import {
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import ButtonBar from "@/NAYSA Cloud/Global/ButtonBar";
 import SearchAttachment from "@/NAYSA Cloud/Lookup/SearchAttachment.jsx";
+import SearchVendMast from "@/NAYSA Cloud/Lookup/SearchVendMast.jsx";
 
-// Import Guides
-import { reftables, reftablesPDFGuide, reftablesVideoGuide } from "@/NAYSA Cloud/Global/reftable";
+import { reftablesPDFGuide, reftablesVideoGuide } from "@/NAYSA Cloud/Global/reftable";
 
 import {
   useSwalErrorAlert,
@@ -37,9 +37,6 @@ import {
 import PayeeSetupTab from "@/NAYSA Cloud/Master Data/CustMastTabs/PayeeSetupTab";
 import PayeeMasterDataTab from "@/NAYSA Cloud/Master Data/CustMastTabs/PayeeMasterDataTab";
 import ReferenceCodesTab from "@/NAYSA Cloud/Master Data/CustMastTabs/ReferenceCodesTab";
-
-/* -------------------- CODE SERIES -------------------- */
-const SL_CHAR = { AG: "A", CU: "C", EM: "E", OT: "O", SU: "S", TN: "T" };
 
 const normalizeSlType = (v) => {
   const s = String(v ?? "").toUpperCase().trim();
@@ -54,34 +51,8 @@ const normalizeSlType = (v) => {
   return s;
 };
 
-const getPayeePrefix = (sltypeCode, mode) => {
-  const sl = normalizeSlType(sltypeCode) || "SU";
-  const slChar = SL_CHAR[sl] || sl.charAt(0);
-  return `${slChar}${mode}`;
-};
-
-const generateNextPayeeCode = (rows = [], sltypeCode = "SU", mode = "S") => {
-  const prefix = getPayeePrefix(sltypeCode, mode);
-
-  const candidates = (Array.isArray(rows) ? rows : [])
-    .map((r) => String(r?.vendCode ?? "").trim())
-    .filter(Boolean)
-    .filter((code) => code.toUpperCase().startsWith(prefix.toUpperCase()));
-
-  if (!candidates.length) return `${prefix}000001`;
-
-  const nums = candidates
-    .map((code) => parseInt(code.slice(prefix.length), 10))
-    .filter((n) => !Number.isNaN(n));
-
-  const max = nums.length ? Math.max(...nums) : 0;
-  return `${prefix}${String(max + 1).padStart(6, "0")}`;
-};
-/* ----------------------------------------------------- */
-
 const emptyForm = {
   sltypeCode: "SU",
-
   vendCode: "",
   vendName: "",
   vendContact: "",
@@ -94,24 +65,20 @@ const emptyForm = {
   vendAddr3: "",
   vendZip: "",
   vendTin: "",
-
   custCode: "",
   custName: "",
   custTin: "",
   custFaxNo: "",
-
   businessName: "",
   firstName: "",
   middleName: "",
   lastName: "",
   taxClass: "",
-
   atcCode: "",
   vatCode: "",
   paytermCode: "",
   source: "L",
   currCode: "PHP",
-
   branchCode: "",
   acctCode: "",
   active: "Y",
@@ -120,23 +87,19 @@ const emptyForm = {
   registeredDate: "",
   updatedBy: "",
   updatedDate: "",
-
   __isNew: false,
 };
 
 const VendMast = () => {
-  const [generationMode, setGenerationMode] = useState("S");
   const [activeTab, setActiveTab] = useState("setup");
   const [isLoading, setIsLoading] = useState(false);
 
-  // Document Info Guide State
   const docType = "VendMast";
   const guideRef = useRef(null);
   const pdfLink = reftablesPDFGuide?.[docType] || "#";
   const videoLink = reftablesVideoGuide?.[docType] || "#";
   const [isOpenGuide, setOpenGuide] = useState(false);
 
-  // Close Info Dropdown when clicking outside
   useEffect(() => {
     const handleClick = (e) => {
       if (guideRef.current && !guideRef.current.contains(e.target)) {
@@ -161,9 +124,7 @@ const VendMast = () => {
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isAttachOpen, setIsAttachOpen] = useState(false);
-  // CLEANUP: Removed attachmentRows state because it is now fully handled inside AttachFileModal
 
-  // Tab Content Spacing Logic
   const contentPadding = "p-4 sm:p-6 lg:p-8";
 
   const [subsidiaryType, setSubsidiaryType] = useState("");
@@ -172,19 +133,7 @@ const VendMast = () => {
   const [masterRows, setMasterRows] = useState([]);
 
   const updateForm = (patch) => {
-    setForm((prev) => {
-      const updated = { ...prev, ...patch };
-
-      if (patch.sltypeCode !== undefined && patch.sltypeCode !== prev.sltypeCode) {
-        if (prev.__isNew && generationMode === "U") {
-          const newSl = normalizeSlType(patch.sltypeCode) || "SU";
-          const nextCode = generateNextPayeeCode(masterAllRows, newSl, "U");
-          updated.vendCode = nextCode;
-          updated.custCode = nextCode;
-        }
-      }
-      return updated;
-    });
+    setForm((prev) => ({ ...prev, ...patch }));
   };
 
   const showValidation = async (title, lines) => {
@@ -226,9 +175,11 @@ const VendMast = () => {
         data[0].errorcount !== undefined ||
         data[0].errormsg !== undefined)
     ) {
-      const errorCount = Number(data[0].errorCount ?? data[0].errorcount ?? 0);
-      const errorMsg = String(data[0].errorMsg ?? data[0].errormsg ?? "");
-      return { errorCount, errorMsg };
+      return {
+        errorCount: Number(data[0].errorCount ?? data[0].errorcount ?? 0),
+        errorMsg: String(data[0].errorMsg ?? data[0].errormsg ?? ""),
+        generatedCode: String(data[0].generatedCode ?? data[0].generatedcode ?? "")
+      };
     }
 
     if (Array.isArray(data) && data[0]?.result) {
@@ -245,6 +196,7 @@ const VendMast = () => {
           return {
             errorCount: Number(row.errorCount ?? row.errorcount ?? 0),
             errorMsg: String(row.errorMsg ?? row.errormsg ?? ""),
+            generatedCode: String(row.generatedCode ?? row.generatedcode ?? "")
           };
         }
       } catch { }
@@ -259,19 +211,6 @@ const VendMast = () => {
   const documentNo = useMemo(() => {
     return String(form?.vendCode || form?.custCode || "").trim();
   }, [form]);
-
-  const [recentCodes, setRecentCodes] = useState([]);
-
-  const currentCode = useMemo(
-    () => String(form?.vendCode || form?.custCode || "").trim(),
-    [form]
-  );
-
-  const pushRecent = (code) => {
-    const c = String(code || "").trim();
-    if (!c) return;
-    setRecentCodes((prev) => [c, ...prev.filter((x) => x !== c)].slice(0, 20));
-  };
 
   const parseSprocJsonResult = (rows) => {
     if (!rows) return [];
@@ -354,33 +293,26 @@ const VendMast = () => {
         ...emptyForm,
         __isNew: false,
         sltypeCode: sl,
-
         vendCode: code,
         custCode: code,
-
         vendName: row?.vendName ?? "",
         custName: row?.vendName ?? "",
-
         vendContact: row?.vendContact ?? "",
         vendPosition: row?.vendPosition ?? "",
         vendTelno: row?.vendTelno ?? "",
         vendMobileno: row?.vendMobileno ?? "",
         vendEmail: row?.vendEmail ?? "",
-
         vendAddr1: row?.vendAddr1 ?? "",
         vendAddr2: row?.vendAddr2 ?? "",
         vendAddr3: row?.vendAddr3 ?? "",
         vendZip: row?.vendZip ?? "",
         vendTin: row?.vendTin ?? "",
-
         custTin: row?.vendTin ?? "",
-
         businessName: row?.businessName ?? "",
         firstName: row?.firstName ?? "",
         middleName: row?.middleName ?? "",
         lastName: row?.lastName ?? "",
         taxClass: row?.taxClass ?? "",
-
         branchCode: row?.branchCode ?? "",
         source: row?.source ?? "L",
         currCode: row?.currCode ?? "PHP",
@@ -397,7 +329,6 @@ const VendMast = () => {
       });
 
       setSelectedVendCode(code);
-      pushRecent(code);
     } catch (e) {
       console.error(e);
       await useSwalErrorAlertAPI("Fetch Error", e?.message || "Failed to fetch payee.");
@@ -442,30 +373,19 @@ const VendMast = () => {
       const errorMsg = String(r0.errormsg ?? r0.errorMsg ?? "");
 
       if (errorCount > 0) {
-        await useSwalErrorAlert(
-          "Delete Not Allowed",
-          errorMsg || "Unable to delete payee."
-        );
+        await useSwalErrorAlert("Delete Not Allowed", errorMsg || "Unable to delete payee.");
         return;
       }
 
-      await useSwalDeleteRecord(
-        "Deleted",
-        `Payee Code ${code} has been successfully removed.`
-      );
+      await useSwalDeleteRecord("Deleted", `Payee Code ${code} has been successfully removed.`);
 
       setForm({ ...emptyForm });
       setSelectedVendCode("");
       setIsEditing(false);
-      // Removed setAttachmentRows
-      
       await loadMasterList();
     } catch (e) {
       console.error(e);
-      await useSwalErrorAlert(
-        "Error",
-        e?.response?.data?.message || e?.message || "Failed to delete payee."
-      );
+      await useSwalErrorAlert("Error", e?.response?.data?.message || e?.message || "Failed to delete payee.");
     } finally {
       setIsLoading(false);
     }
@@ -475,15 +395,12 @@ const VendMast = () => {
     let code = String(form?.vendCode || form?.custCode || "").trim();
     const isAddMode = !selectedVendCode;
 
-    if (isAddMode) {
-      if (generationMode === "M" && !code) {
-        await showValidation("Required", ["• Please enter a User Defined Payee Code."]);
+    // Only run duplicate check if the user actually typed a code!
+    if (isAddMode && code) {
+      const isDuplicate = await checkDuplicateVendor(code);
+      if (isDuplicate) {
+        await useSwalErrorAlert("Duplicate Record", `Payee Code ${code} already exists.`);
         return;
-      }
-
-      if (generationMode === "S" && !code) {
-        const sl = normalizeSlType(form.sltypeCode || "SU");
-        code = generateNextPayeeCode(masterAllRows, sl, "S");
       }
     }
 
@@ -492,7 +409,7 @@ const VendMast = () => {
       const jsonData = {
         json_data: {
           action: selectedVendCode ? "edit" : "add",
-          vendCode: code,
+          vendCode: code, 
           vendName: form.vendName || form.custName || "",
           businessName: form.businessName || "",
           firstName: form.firstName || "",
@@ -527,57 +444,32 @@ const VendMast = () => {
         json_data: JSON.stringify(jsonData),
       };
 
-      if (isAddMode) {
-        const isDuplicate = await checkDuplicateVendor(code);
-        if (isDuplicate) {
-          await useSwalErrorAlert(
-            "Duplicate Record",
-            `Payee Code ${code} already exists.`
-          );
-          return;
-        }
-      }
-
       const res = await apiClient.post("/upsertPayee", payload);
+      const sprocErr = extractSprocError(res);
 
-      const rows = res?.data?.data || [];
-      const r0 = rows[0] || {};
-
-      const errorCount = Number(r0.errorcount ?? r0.errorCount ?? 0);
-      const errorMsg = String(r0.errormsg ?? r0.errorMsg ?? "");
-
-      if (errorCount > 0) {
+      if (sprocErr?.errorCount > 0) {
         await useSwalErrorAlert(
-          "Missing Required Field(s)",
-          errorMsg || "Please complete the required fields."
+          "Validation Failed",
+          sprocErr.errorMsg || "Please complete the required fields."
         );
         return;
       }
 
+      const finalCode = sprocErr?.generatedCode || code;
+
       await useSwalSuccessAlert("Success!", "Payee saved successfully.");
-      setSelectedVendCode(code);
-      pushRecent(code);
+      setSelectedVendCode(finalCode);
       setIsEditing(false);
       await loadMasterList();
-      await fetchVendorByCode(code);
+      await fetchVendorByCode(finalCode);
     } catch (e) {
       console.error(e);
       const sprocErr = extractSprocError(e?.response);
       if (sprocErr?.errorMsg) {
-        await useSwalErrorAlert(
-          "Missing Required Field(s)",
-          String(sprocErr.errorMsg)
-        );
+        await useSwalErrorAlert("Save Failed", String(sprocErr.errorMsg));
         return;
       }
-
-      const msg =
-        e?.response?.data?.message ||
-        e?.response?.data?.error ||
-        e?.response?.data?.msg ||
-        e?.message ||
-        "Failed to save payee.";
-
+      const msg = e?.response?.data?.message || e?.message || "Failed to save payee.";
       await useSwalErrorAlert("Save Failed", msg);
     } finally {
       setIsLoading(false);
@@ -613,20 +505,14 @@ const VendMast = () => {
 
   const handleAdd = () => {
     const sl = normalizeSlType(form?.sltypeCode || "SU") || "SU";
-    let nextCode = "";
-    if (generationMode === "U") {
-      nextCode = generateNextPayeeCode(masterAllRows, sl, "U");
-    }
-
     setSelectedVendCode("");
     setForm({
       ...emptyForm,
       sltypeCode: sl,
-      vendCode: nextCode,
-      custCode: nextCode,
+      vendCode: "",
+      custCode: "",
       __isNew: true,
     });
-
     setIsEditing(true);
     setActiveTab("setup");
   };
@@ -671,7 +557,6 @@ const VendMast = () => {
   const headerButtons = useMemo(() => {
     const baseBtn = "flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md transition-all shadow-sm";
 
-    // 1) Buttons for the "Payee Set-Up" Tab
     if (activeTab === "setup") {
       const hasRecord = String(form?.vendCode || form?.custCode || "").trim() && !form.__isNew;
 
@@ -690,10 +575,7 @@ const VendMast = () => {
           icon: faSave,
           onClick: upsertVendor,
           disabled: isLoading || !isEditing,
-          className: `${baseBtn} ${isLoading || !isEditing
-            ? "bg-blue-500 opacity-50 cursor-not-allowed text-white"
-            : "bg-blue-600 text-white hover:bg-blue-700"
-            }`,
+          className: `${baseBtn} ${isLoading || !isEditing ? "bg-blue-500 opacity-50 cursor-not-allowed text-white" : "bg-blue-600 text-white hover:bg-blue-700"}`,
         },
         {
           key: "reset",
@@ -709,17 +591,14 @@ const VendMast = () => {
           icon: faPenToSquare,
           onClick: handleEdit,
           disabled: isLoading || isEditing || !hasRecord,
-          className: `${baseBtn} ${isLoading || isEditing || !hasRecord
-              ? "bg-blue-400 opacity-50 cursor-not-allowed text-white"
-              : "bg-blue-600 text-white hover:bg-blue-700"
-            }`,
+          className: `${baseBtn} ${isLoading || isEditing || !hasRecord ? "bg-blue-400 opacity-50 cursor-not-allowed text-white" : "bg-blue-600 text-white hover:bg-blue-700"}`,
         },
         {
           key: "attach",
           label: <span className="hidden sm:inline ml-1">Attach</span>,
           icon: faPaperclip,
           onClick: handleOpenAttach,
-          disabled: isLoading || !hasRecord, // Should not attach to empty record
+          disabled: isLoading || !hasRecord,
           className: `${baseBtn} ${isLoading || !hasRecord ? "bg-blue-400 opacity-50 cursor-not-allowed text-white" : "bg-blue-600 text-white hover:bg-blue-700"}`,
         },
         {
@@ -728,10 +607,7 @@ const VendMast = () => {
           icon: faTrash,
           onClick: deleteVendor,
           disabled: isLoading || isEditing || !hasRecord,
-          className: `${baseBtn} ${isLoading || isEditing || !hasRecord
-            ? "bg-red-400 opacity-50 cursor-not-allowed text-white"
-            : "bg-red-500 text-white hover:bg-red-600"
-            }`,
+          className: `${baseBtn} ${isLoading || isEditing || !hasRecord ? "bg-red-400 opacity-50 cursor-not-allowed text-white" : "bg-red-500 text-white hover:bg-red-600"}`,
         },
       ];
     }
@@ -751,10 +627,7 @@ const VendMast = () => {
           icon: faSave,
           onClick: () => refTabRef.current?.save?.(),
           disabled: !refState.canSave,
-          className: `${baseBtn} ${!refState.canSave
-            ? "bg-blue-500 opacity-50 cursor-not-allowed text-white"
-            : "bg-blue-600 text-white hover:bg-blue-700"
-            }`,
+          className: `${baseBtn} ${!refState.canSave ? "bg-blue-500 opacity-50 cursor-not-allowed text-white" : "bg-blue-600 text-white hover:bg-blue-700"}`,
         },
         {
           key: "reset",
@@ -771,11 +644,8 @@ const VendMast = () => {
 
   return (
     <div className="global-ref-main-div-ui">
-      {/* ── HEADER — Flexbox Fix to prevent wrapping ─────────────────────── */}
       <div className="global-ref-header-ui">
         <div className="w-full flex flex-col lg:flex-row items-center justify-between gap-3">
-
-          {/* 1) Title */}
           <div className="flex-shrink-0 w-full lg:w-auto text-center lg:text-left">
             <h1 className="global-ref-headertext-ui truncate">
               {activeTab === "setup" && "Payee Master Data"}
@@ -784,7 +654,6 @@ const VendMast = () => {
             </h1>
           </div>
 
-          {/* 2) Tabs */}
           <div className="flex-1 flex justify-center w-full overflow-x-auto no-scrollbar">
             <div className="flex flex-nowrap border-b border-blue-300 dark:border-gray-700">
               {tabs.map((tab) => (
@@ -805,13 +674,8 @@ const VendMast = () => {
             </div>
           </div>
 
-          {/* 3) Buttons with Info Dropdown included */}
           <div className="flex-shrink-0 w-full lg:w-auto flex flex-wrap items-center justify-center lg:justify-end gap-1.5">
-            {!!headerButtons.length && (
-              <ButtonBar buttons={headerButtons} />
-            )}
-
-            {/* Only render the Info button when on the "setup" tab */}
+            {!!headerButtons.length && <ButtonBar buttons={headerButtons} />}
             {activeTab === "setup" && (
               <div ref={guideRef} className="relative z-[60]">
                 <button
@@ -822,19 +686,12 @@ const VendMast = () => {
                   <span className="hidden sm:inline ml-1">Info</span>
                   <FontAwesomeIcon icon={faChevronDown} className="hidden sm:inline ml-1 text-[10px] opacity-80" />
                 </button>
-
                 {isOpenGuide && (
                   <div className="absolute right-0 mt-2 w-52 rounded-md shadow-xl bg-white ring-1 ring-black/10 z-[60] overflow-hidden">
-                    <button
-                      onClick={() => { window.open(pdfLink, "_blank"); setOpenGuide(false); }}
-                      className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 border-b border-gray-100 transition-colors"
-                    >
+                    <button onClick={() => { window.open(pdfLink, "_blank"); setOpenGuide(false); }} className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 border-b border-gray-100 transition-colors">
                       <FontAwesomeIcon icon={faFilePdf} className="mr-2 text-red-500" /> PDF Guide
                     </button>
-                    <button
-                      onClick={() => { window.open(videoLink, "_blank"); setOpenGuide(false); }}
-                      className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 transition-colors"
-                    >
+                    <button onClick={() => { window.open(videoLink, "_blank"); setOpenGuide(false); }} className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 transition-colors">
                       <FontAwesomeIcon icon={faVideo} className="mr-2 text-blue-500" /> Video Guide
                     </button>
                   </div>
@@ -842,10 +699,8 @@ const VendMast = () => {
               </div>
             )}
           </div>
-
         </div>
       </div>
-      {/* ─────────────────────────────────────────────────────────────────── */}
 
       <div
         className={`global-tran-tab-div-ui mt-44 sm:mt-24 lg:mt-20 ${contentPadding} transition-all duration-300`}
@@ -856,7 +711,6 @@ const VendMast = () => {
             isLoading={isLoading}
             isEditing={isEditing}
             form={form}
-            generationMode={generationMode}
             sltypeOptions={[
               { value: "AG", label: "AGENCY" },
               { value: "EM", label: "EMPLOYEE" },
@@ -873,7 +727,6 @@ const VendMast = () => {
             ]}
             onChangeForm={updateForm}
             onSelectCustomerCode={fetchVendorByCode}
-            onSearchCode={() => setIsSearchOpen(true)}
           />
         )}
 
@@ -894,11 +747,7 @@ const VendMast = () => {
         )}
 
         {activeTab === "ref" && (
-          <ReferenceCodesTab
-            ref={refTabRef}
-            onStateChange={setRefState}
-            variant="vendor"
-          />
+          <ReferenceCodesTab ref={refTabRef} onStateChange={setRefState} variant="vendor" />
         )}
       </div>
 
@@ -912,6 +761,20 @@ const VendMast = () => {
           Code: documentNo,
           NameLabel: "Payee Name",
           Name: form.vendName || "N/A"
+        }}
+      />
+
+      <SearchVendMast
+        isOpen={isSearchOpen}
+        customParam="ActiveAll"
+        endpoint="/lookupVendMast"
+        onClose={async (selected) => {
+          setIsSearchOpen(false);
+          if (!selected) return;
+          const code = getValue(selected?.vendCode) || getValue(selected?.vend_code);
+          if (code) {
+              await fetchVendorByCode(code);
+          }
         }}
       />
     </div>
