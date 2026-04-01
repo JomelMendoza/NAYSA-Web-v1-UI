@@ -4020,6 +4020,7 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
 
 
 
+{/* Branch Modal */}
 {branchModalOpen && (
         <BranchLookupModal 
           isOpen={branchModalOpen}
@@ -4028,6 +4029,7 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
       )}
 
 
+{/* Currency Modal */}
 {currencyModalOpen && (
         <CurrLookupModal 
           isOpen={currencyModalOpen}
@@ -4035,6 +4037,8 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
         />
       )}
 
+
+{/* Payee Masterdata Modal */}
 {payeeModalOpen && (
   <PayeeMastLookupModal
     isOpen={payeeModalOpen}
@@ -4042,6 +4046,8 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
   />
 )}
 
+
+{/* Bank Masterdata Modal */}
 {bankModalOpen && (
   <BankMastLookupModal
     isOpen={bankModalOpen}
@@ -4130,7 +4136,7 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
 )}
 
 
-
+{/* Attachment Modal */}
 {showAttachModal && (
   <AttachDocumentModal
     isOpen={showAttachModal}
@@ -4145,20 +4151,23 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
 )}
 
 
-
-
-
-
-
+{/* Signatory Modal */}
 {showSignatoryModal && (
   <DocumentSignatories
     isOpen={showSignatoryModal}
-    params={{noReprints,documentID,docType}}
+    params={{
+      documentID: documentID,
+      noReprints: 0,
+      docType: docType,
+      docNo: documentNo,
+    }}
     onClose={handleCloseSignatory}
     onCancel={() => updateState({ showSignatoryModal: false })}
   />
 )}
 
+
+{/* AP Balance Modal */}
 {showAPBalanceModal && (
   <GlobalLookupModalv1
     isOpen={showAPBalanceModal}
@@ -4173,21 +4182,27 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
 
 
 
-    {showAllTranDocNo && (
-      <AllTranDocNo
-        isOpen={showAllTranDocNo}
-        params={{branchCode,branchName,docType,documentTitle,fieldNo : "cvNo"}}
-        onRetrieve={handleTranDocNoRetrieval}
-        onResponse={{documentNo}}
-        onSelected={handleTranDocNoSelection}
-        onClose={() => updateState({ showAllTranDocNo: false })}
-      />
-    )} 
+{/* Search Doc No Modal */}
+{showAllTranDocNo && (
+  <AllTranDocNo
+    isOpen={showAllTranDocNo}
+    params={{branchCode,branchName,docType,documentTitle,fieldNo : "cvNo"}}
+    onRetrieve={handleTranDocNoRetrieval}
+    onResponse={{documentNo}}
+    onSelected={handleTranDocNoSelection}
+    onClose={() => updateState({ showAllTranDocNo: false })}
+  />
+)} 
 
+
+{/* Global Spinner */}
 {showSpinner && <LoadingSpinner />}
+
+
     </div>
     
 
+  {/* Transaction History */}
   <div className={topTab === "history" ? "" : "hidden"}>
       <AllTranHistory
         showHeader={false}
