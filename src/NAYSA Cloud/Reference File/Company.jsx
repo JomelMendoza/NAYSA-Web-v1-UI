@@ -11,6 +11,13 @@ import SearchBankMast from "@/NAYSA Cloud/Lookup/SearchBankMast";
 import SearchRCMast from "@/NAYSA Cloud/Lookup/SearchRCMast";
 import SearchEmailNotification from "@/NAYSA Cloud/Lookup/SearchEmailNotification";
 
+import {
+  useGetCurrentDayV2,
+  useformatToDatev2
+} from '@/NAYSA Cloud/Global/dates';
+
+import DateFormatInput from '@/NAYSA Cloud/Global/DateFormatInput.jsx';
+
 // Icons & Globals
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faChevronDown, faFilePdf, faSave, faUndo, faInfoCircle, faVideo } from "@fortawesome/free-solid-svg-icons";
@@ -32,6 +39,7 @@ const INITIAL_FORM = {
   birAcNo: "", birReleaseNo: "", birAcDateIssued: "",
   userCode: "",
   tblFieldArray :[],
+  tblFieldArrayBir :[],
 };
 
 const Company = () => {
@@ -62,6 +70,14 @@ const Company = () => {
   // Update form when data changes
   useEffect(() => {
     if (fetchedData) {
+      
+      const formatRetrievedDate = (dateString) => {
+        if (!dateString || dateString.startsWith("1900-01-01") || dateString.startsWith("0001-01-01")) {
+          return "";
+        }
+        return useformatToDatev2(dateString);
+      };
+
       setFormData({
         compCode: fetchedData.compCode || "",
         compName: fetchedData.compName || "",
@@ -85,8 +101,10 @@ const Company = () => {
         salesRespCenterName: fetchedData.salesRespCenterName || "",
         birAcNo: fetchedData.birAcNo || "",
         birReleaseNo: fetchedData.birReleaseNo || "",
-        birAcDateIssued: (fetchedData.birAcDateIssued || "").split("T")[0],
-      });
+        // birAcDateIssued: (fetchedData.birAcDateIssued || "").split("T")[0],
+        // birAcDateIssued: useformatToDatev2(fetchedData.birAcDateIssued),
+        birAcDateIssued: formatRetrievedDate(fetchedData.birAcDateIssued),
+   });
     }
 
   }, [fetchedData]);
@@ -97,8 +115,10 @@ const Company = () => {
       let mounted = true;
 
       (async () => {
-        const res = await useFieldLenghtCheck("company");
-        if (mounted) setTblFieldArray(res || []);
+        const companyres = await useFieldLenghtCheck("company");
+        if (mounted) {
+          setTblFieldArray(companyres || []);
+        }
       })();
 
       return () => { mounted = false; };
@@ -155,15 +175,18 @@ const Company = () => {
   const handleSave = () => {
     if (!formData.compCode) return useSwalErrorAlert("Error", "Company Code is required.");
 
-    const payload = {
+  const cleanData = {
+      ...formData,
+      birAcDateIssued: formData.birAcDateIssued === "" ? null : formData.birAcDateIssued,
+      depBankcode: formData.depositBankCode,
+      disbBankcode: formData.disbursementBankCode,
+      staleCheckDueDays: Number(formData.staleCheckDueDays) || 0,
+      userCode: user?.USER_CODE || "ADMIN",
+    };
+
+  const payload = {
       json_data: JSON.stringify({
-            json_data: {
-        ...formData,
-        depBankcode: formData.depositBankCode,
-        disbBankcode: formData.disbursementBankCode,
-        staleCheckDueDays: Number(formData.staleCheckDueDays) || 0,
-        userCode: user?.USER_CODE || "ADMIN",
-            },
+        json_data: cleanData,
       })
     };
 
@@ -283,17 +306,27 @@ const Company = () => {
 
       <div className="global-ref-tab-div-ui mt-4">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <FieldRenderer label="BIR AC No." labelWidth="w-56" type="text" classname="global-ref-textbox-ui" value={formData.birAcNo} onChange={(v) => updateForm({ birAcNo: v })} />
-          <FieldRenderer label="BIR Release No." labelWidth="w-56" type="text" classname="global-ref-textbox-ui" value={formData.birReleaseNo} onChange={(v) => updateForm({ birReleaseNo: v })} />
-          <FieldRenderer label="Date Issued" labelWidth="w-56" type="date" classname="global-ref-textbox-ui" value={formData.birAcDateIssued} onChange={(v) => updateForm({ birAcDateIssued: v })} />
-        {/* <FieldRenderer
-  label="Date Issued"
-  labelWidth="w-56"
-  type="date"
-  className="global-ref-textbox-ui date-input-right"
-  value={formData.birAcDateIssued}
-  onChange={(v) => updateForm({ birAcDateIssued: v })}
-/> */}
+          <FieldRenderer label="BIR AC No." labelWidth="w-56" type="text" classname="global-ref-textbox-ui" value={formData.birAcNo} onChange={(v) => updateForm({ birAcNo: v })} maxLength={getMax("BIR_ACNO")} />
+          <FieldRenderer label="BIR Release No." labelWidth="w-56" type="text" classname="global-ref-textbox-ui" value={formData.birReleaseNo} onChange={(v) => updateForm({ birReleaseNo: v })} maxLength={getMax("BIR_RELEASENO")} />
+          {/* <FieldRenderer label="Date Issued" labelWidth="w-56" type="date" classname="global-ref-textbox-ui" value={formData.birAcDateIssued} onChange={(v) => updateForm({ birAcDateIssued: v })} /> */}
+
+          <div className="relative w-full">
+            <div className={`flex items-stretch global-ref-textbox-ui global-ref-textbox-enabled`}>
+              <DateFormatInput
+                id="birAcDateIssued"
+                className="peer flex-grow bg-transparent border-none px-3 focus:outline-none cursor-pointer"
+                value={formData.birAcDateIssued || ""}
+                updateState={updateForm}
+              />
+            </div>             
+            <label 
+              htmlFor="birAcDateIssued"
+              className="global-ref-floating-label global-ref-label-enabled"
+            >
+              Date Issued
+            </label>
+          </div>
+        
         </div>
       </div>
     </div>
