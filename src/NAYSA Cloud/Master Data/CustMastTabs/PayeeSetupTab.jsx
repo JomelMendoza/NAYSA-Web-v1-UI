@@ -59,7 +59,7 @@ const PayeeSetupTab = forwardRef(
       isLoading,
       isEditing,
       form = {},
-      generationMode = "S", // <-- Added generationMode prop
+      generationMode,
       sltypeOptions = [],
       sourceOptions = [],
       activeOptions = [],
@@ -71,6 +71,11 @@ const PayeeSetupTab = forwardRef(
     ref
   ) => {
     useImperativeHandle(ref, () => ({}));
+
+    // --- 1. DEFINE CONSTANTS ---
+    const isNewRecord = form.__isNew;
+    const isReadOnly = !isEditing;
+    const isDisabled = isReadOnly || isLoading;
 
     const [tblFieldArray, setTblFieldArray] = useState([]);
 
@@ -91,11 +96,35 @@ const PayeeSetupTab = forwardRef(
       return n || fallback;
     };
 
-    const isReadOnly = !isEditing;
-    const isDisabled = isReadOnly || isLoading;
+    // --- 2. UNLOCKING LOGIC ---
+    const isManualMode = useMemo(() => {
+      const mode = normalizeUpper(generationMode || "Manual");
+      return mode === "MANUAL" || mode === "M";
+    }, [generationMode]);
 
-    // Helper variable to determine if we are manually adding a new code
-    const isManualNew = form.__isNew && generationMode === "M";
+    const canType = isNewRecord && isManualMode;
+    const overrideRef = useRef(null);
+
+    useEffect(() => {
+      if (overrideRef.current) {
+        const input = overrideRef.current.querySelector("input");
+        if (input) {
+          if (canType) {
+            // UNLOCK for Manual + New Record
+            input.removeAttribute("readonly");
+            input.onclick = (e) => e.stopPropagation(); // Prevents click from opening lookup
+            input.oninput = (e) => {
+              onChangeForm({ vendCode: e.target.value, custCode: e.target.value });
+            };
+          } else {
+            // LOCK for Auto or Retrieved Records
+            input.setAttribute("readonly", "true");
+            input.onclick = null;
+            input.oninput = null;
+          }
+        }
+      }
+    }, [canType, isNewRecord, onChangeForm]);
 
     const sl = useMemo(
       () => normalizeUpper(form?.sltypeCode || "SU"),
@@ -133,7 +162,6 @@ const PayeeSetupTab = forwardRef(
       }),
       []
     );
-    const isRetrievedRecord = !form.__isNew && !!form[f.code];
 
     const col = useMemo(
       () => ({
@@ -370,6 +398,7 @@ const PayeeSetupTab = forwardRef(
       setIsVendLookupOpen(true);
     };
 
+
     return (
       <>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start rounded-lg relative">
@@ -399,27 +428,25 @@ const PayeeSetupTab = forwardRef(
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <FieldRenderer
-                label="Payee Code"
-                required
-                // THE FIX: Switch to a plain text field once a record is retrieved
-                type={isManualNew || isRetrievedRecord ? "text" : "lookup"}
-                value={form[f.code] || ""}
-                onChange={
-                  isManualNew
-                    ? (v) => {
-                      const val = getValue(v);
-                      onChangeForm({ [f.code]: val, custCode: val });
-                    }
-                    : undefined
-                }
-                // Disable the lookup click if a record is already loaded
-                onLookup={isManualNew || isRetrievedRecord ? undefined : openPayeeLookup}
-                // This readOnly prop is what gives it the grey background in your system
-                readOnly={!isManualNew}
-                disabled={isLoading}
-                maxLength={getLen(col.code, 20)}
-              />
+              <div 
+                  ref={overrideRef}
+                  className={`w-full ${!canType ? "[&>div]:!bg-[#F1F5F9] [&_input]:!bg-transparent [&_input]:!pointer-events-none [&_input]:!text-slate-600 [&_button]:!text-slate-400 [&_label]:!bg-[#F1F5F9]" : ""}`}
+              >
+                  <FieldRenderer
+                      label="Payee Code"
+                      required
+                      type="lookup" 
+                      value={form[f.code] || ""}
+                      onChange={canType ? (v) => {
+                          const val = getValue(v);
+                          onChangeForm({ [f.code]: val, custCode: val });
+                      } : undefined}
+                      onLookup={canType ? undefined : openPayeeLookup}
+                      readOnly={!canType}
+                      disabled={isLoading}
+                      maxLength={getLen(col.code, 20)}
+                  />
+              </div>
 
               <FieldRenderer
                 label="Tax Rate Class"

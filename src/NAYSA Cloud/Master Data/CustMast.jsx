@@ -22,9 +22,8 @@ import {
 import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import ButtonBar from "@/NAYSA Cloud/Global/ButtonBar";
 import SearchAttachment from "@/NAYSA Cloud/Lookup/SearchAttachment.jsx";
-import AllTranDocNo from "@/NAYSA Cloud/Lookup/SearchDocNo.jsx";
+import SearchCusMast from "@/NAYSA Cloud/Lookup/SearchCustMast.jsx";
 
-// Import Guides
 import { reftablesPDFGuide, reftablesVideoGuide } from "@/NAYSA Cloud/Global/reftable";
 
 import {
@@ -39,11 +38,6 @@ import {
 import CustSetupTab from "./CustSetupTab";
 import CustMasterDataTab from "@/NAYSA Cloud/Master Data/CustMasterDataTab.jsx";
 import ReferenceCodesTab from "@/NAYSA Cloud/Master Data/CustMastTabs/ReferenceCodesTab";
-
-/* ----------------------------------------------------- */
-/* CONSTANT OPTIONS & CODE SERIES
-/* ----------------------------------------------------- */
-const SL_CHAR = { CU: "C", AG: "A", OT: "O" };
 
 const normalizeSlType = (v) => {
     const s = String(v ?? "").toUpperCase().trim();
@@ -78,34 +72,6 @@ const mappedTaxClassOptions = [
 
 const payeeTypeOptions = [];
 
-// Construct the 2-letter prefix (e.g., "C" + "S" = "CS", "C" + "U" = "CU")
-const getCustomerPrefix = (sltypeCode, mode) => {
-    const sl = normalizeSlType(sltypeCode) || "CU";
-    const slChar = SL_CHAR[sl] || sl.charAt(0);
-    return `${slChar}${mode}`; 
-};
-
-const generateNextCustomerCode = (rows = [], sltypeCode = "CU", mode = "S") => {
-    const sl = normalizeSlType(sltypeCode) || "CU";
-    const prefix = getCustomerPrefix(sltypeCode, mode);
-
-    const candidates = (Array.isArray(rows) ? rows : [])
-        .filter((r) => normalizeSlType(r?.sltypeCode || "CU") === sl)
-        .map((r) => String(r?.custCode ?? "").trim())
-        .filter(Boolean)
-        .filter((code) => code.toUpperCase().startsWith(prefix.toUpperCase()));
-
-    if (!candidates.length) return `${prefix}000001`;
-
-    const nums = candidates
-        .map((code) => parseInt(code.slice(prefix.length), 10))
-        .filter((n) => !Number.isNaN(n));
-
-    const max = nums.length ? Math.max(...nums) : 0;
-    return `${prefix}${String(max + 1).padStart(6, "0")}`;
-};
-/* ----------------------------------------------------- */
-
 const emptyForm = {
     sltypeCode: "CU",
     custCode: "",
@@ -118,7 +84,6 @@ const emptyForm = {
     oldCode: "",
     branchCode: "",
     active: "Y",
-
     custContact: "",
     custPosition: "",
     custTelno: "",
@@ -128,14 +93,12 @@ const emptyForm = {
     custAddr2: "",
     custAddr3: "",
     custZip: "",
-
     custTin: "",
     atcCode: "",
     vatCode: "",
     billtermCode: "",
     source: "L",
     currCode: "PHP",
-
     registeredBy: "",
     registeredDate: "",
     updatedBy: "",
@@ -144,44 +107,36 @@ const emptyForm = {
     creditLimit: "0",
     totalAR: "",
     creditBalance: "0",
-
     customerRemarks: "",
     customizedDrForm: "",
     customizedSiForm: "",
     customizedDrcForm: "",
     customizedBsForm: "",
     customizedSviForm: "",
-
     taxSignatoryName: "",
     taxSignatoryTin: "",
     taxSignatoryPosition: "",
     taxSignatoryEmail: "",
     taxSignatoryZip: "",
-
     shipmentCode1: "",
     shipmentCode2: "",
     shipmentCode3: "",
     shipmentCode4: "",
     destination2: "",
-
     __isNew: false,
 };
 
 const CustMast = () => {
-    // 'M' = User Defined, 'U' = Auto Assigned, 'S' = System Generated
-    const [generationMode, setGenerationMode] = useState("M");
-
     const [activeTab, setActiveTab] = useState("setup");
     const [isLoading, setIsLoading] = useState(false);
 
-    // Document Info Guide State
-    const docType = "CustMast"; 
+    const docType = "CustMast";
     const guideRef = useRef(null);
     const pdfLink = reftablesPDFGuide?.[docType] || "#";
     const videoLink = reftablesVideoGuide?.[docType] || "#";
     const [isOpenGuide, setOpenGuide] = useState(false);
 
-    // Close Info Dropdown when clicking outside
+
     useEffect(() => {
         const handleClick = (e) => {
             if (guideRef.current && !guideRef.current.contains(e.target)) {
@@ -195,8 +150,7 @@ const CustMast = () => {
     }, []);
 
     const { user } = useAuth();
-    const userCode =
-        user?.userCode || user?.USER_CODE || user?.user_code || user?.code || "";
+    const userCode = user?.userCode || user?.USER_CODE || user?.code || "";
 
     const [form, setForm] = useState({ ...emptyForm });
     const [selectedCustCode, setSelectedCustCode] = useState("");
@@ -205,29 +159,13 @@ const CustMast = () => {
     const [isAttachOpen, setIsAttachOpen] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-    const contentPadding = "p-4 sm:p-6 lg:p-8";
-
     const [subsidiaryType, setSubsidiaryType] = useState("");
     const [masterFilters, setMasterFilters] = useState({});
     const [masterAllRows, setMasterAllRows] = useState([]);
     const [masterRows, setMasterRows] = useState([]);
 
-    const [, setRecentCodes] = useState([]);
-
     const updateForm = (patch) => {
-        setForm((prev) => {
-            const updated = { ...prev, ...patch };
-
-            if (patch.sltypeCode !== undefined && patch.sltypeCode !== prev.sltypeCode) {
-                if (prev.__isNew && generationMode === "U") {
-                    const newSl = normalizeSlType(patch.sltypeCode) || "CU";
-                    const nextCode = generateNextCustomerCode(masterAllRows, newSl, "U");
-                    updated.custCode = nextCode;
-                }
-            }
-
-            return updated;
-        });
+        setForm((prev) => ({ ...prev, ...patch }));
     };
 
     const showValidation = async (title, lines) => {
@@ -241,7 +179,6 @@ const CustMast = () => {
                 json_data: { custCode: String(custCode || "").trim() },
             }),
         };
-
         const res = await apiClient.post("/checkDuplicateCustomer", payload);
         const rows = res?.data?.data || [];
         return Number(rows?.[0]?.result ?? 0) === 1;
@@ -253,14 +190,13 @@ const CustMast = () => {
                 json_data: { custCode: String(custCode || "").trim() },
             }),
         };
-
         const res = await apiClient.post("/checkInUsedCustomer", payload);
         const rows = res?.data?.data || [];
         return Number(rows?.[0]?.result ?? 0) === 1;
     };
 
-    const extractSprocValidation = (responseLike) => {
-        const payload = responseLike?.data ?? responseLike;
+    const extractSprocValidation = (axiosResponse) => {
+        const payload = axiosResponse?.data ?? axiosResponse;
         const data = payload?.data;
 
         if (
@@ -274,6 +210,7 @@ const CustMast = () => {
             return {
                 errorCount: Number(data[0].errorCount ?? data[0].errorcount ?? 0),
                 errorMsg: String(data[0].errorMsg ?? data[0].errormsg ?? ""),
+                generatedCode: String(data[0].generatedCode ?? data[0].generatedcode ?? "")
             };
         }
 
@@ -281,7 +218,6 @@ const CustMast = () => {
             try {
                 const parsed = JSON.parse(data[0].result);
                 const row = Array.isArray(parsed) ? parsed[0] : parsed;
-
                 if (
                     row &&
                     (row.errorCount !== undefined ||
@@ -292,10 +228,14 @@ const CustMast = () => {
                     return {
                         errorCount: Number(row.errorCount ?? row.errorcount ?? 0),
                         errorMsg: String(row.errorMsg ?? row.errormsg ?? ""),
+                        generatedCode: String(row.generatedCode ?? row.generatedcode ?? "")
                     };
                 }
             } catch { }
         }
+
+        const fallbackMsg = payload?.message || payload?.error || payload?.msg;
+        if (fallbackMsg) return { errorCount: 1, errorMsg: String(fallbackMsg) };
 
         return null;
     };
@@ -303,12 +243,6 @@ const CustMast = () => {
     const documentNo = useMemo(() => {
         return String(form?.custCode || "").trim();
     }, [form]);
-
-    const pushRecent = (code) => {
-        const c = String(code || "").trim();
-        if (!c) return;
-        setRecentCodes((prev) => [c, ...prev.filter((x) => x !== c)].slice(0, 20));
-    };
 
     const parseSprocJsonResult = (rows) => {
         if (!rows) return [];
@@ -408,7 +342,6 @@ const CustMast = () => {
                 ...emptyForm,
                 __isNew: false,
                 sltypeCode: sl,
-
                 custCode: code,
                 custName: row?.custName ?? "",
                 businessName: row?.businessName ?? "",
@@ -416,53 +349,44 @@ const CustMast = () => {
                 middleName: row?.middleName ?? "",
                 lastName: row?.lastName ?? "",
                 taxClass: row?.taxClass ?? "",
-
                 custAddr1: row?.custAddr1 ?? "",
                 custAddr2: row?.custAddr2 ?? "",
                 custAddr3: row?.custAddr3 ?? "",
                 custZip: row?.custZip ?? "",
                 custTin: row?.custTin ?? "",
-
                 branchCode: row?.branchCode ?? "",
                 custContact: row?.custContact ?? "",
                 custPosition: row?.custPosition ?? "",
                 custTelno: row?.custTelno ?? "",
                 custMobileno: row?.custMobileno ?? "",
                 custEmail: row?.custEmail ?? "",
-
                 source: row?.source ?? "L",
                 currCode: row?.currCode ?? "PHP",
                 vatCode: row?.vatCode ?? "",
                 atcCode: row?.atcCode ?? "",
                 billtermCode: row?.billtermCode ?? row?.paytermCode ?? "",
-
                 active: row?.active ?? "Y",
                 oldCode: row?.oldcode ?? row?.oldCode ?? "",
-
                 creditInvestigator: row?.creditInvestigator ?? "",
                 creditLimit: row?.creditLimit ?? "0",
                 totalAR: row?.totalAR ?? "",
                 creditBalance: row?.creditBalance ?? "0",
-
                 customerRemarks: row?.customerRemarks ?? "",
                 customizedDrForm: row?.customizedDrForm ?? "",
                 customizedSiForm: row?.customizedSiForm ?? "",
                 customizedDrcForm: row?.customizedDrcForm ?? "",
                 customizedBsForm: row?.customizedBsForm ?? "",
                 customizedSviForm: row?.customizedSviForm ?? "",
-
                 taxSignatoryName: row?.taxSignatoryName ?? "",
                 taxSignatoryTin: row?.taxSignatoryTin ?? "",
                 taxSignatoryPosition: row?.taxSignatoryPosition ?? "",
                 taxSignatoryEmail: row?.taxSignatoryEmail ?? "",
                 taxSignatoryZip: row?.taxSignatoryZip ?? "",
-
                 shipmentCode1: row?.shipmentCode1 ?? "",
                 shipmentCode2: row?.shipmentCode2 ?? "",
                 shipmentCode3: row?.shipmentCode3 ?? "",
                 shipmentCode4: row?.shipmentCode4 ?? "",
                 destination2: row?.destination2 ?? "",
-
                 registeredBy: row?.registeredBy ?? row?.registered_by ?? "",
                 registeredDate: row?.registeredDate ?? row?.registered_date ?? "",
                 updatedBy: row?.updatedBy ?? row?.updated_by ?? "",
@@ -470,172 +394,9 @@ const CustMast = () => {
             });
 
             setSelectedCustCode(code);
-            pushRecent(code);
         } catch (e) {
             console.error(e);
-            await useSwalErrorAlertAPI(
-                "Fetch Error",
-                e?.message || "Failed to fetch customer."
-            );
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const navOpen = async (targetCode) => {
-        const code = String(targetCode || "").trim();
-        if (!code) return;
-        setActiveTab("setup");
-        setIsEditing(false);
-        await fetchCustomerByCode(code);
-    };
-
-    const upsertCustomer = async () => {
-        let code = String(form?.custCode || "").trim();
-        const isAddMode = !selectedCustCode;
-
-        if (isAddMode) {
-            if (generationMode === "M" && !code) {
-                await showValidation("Required", ["• Please enter a User Defined Customer Code."]);
-                return;
-            }
-            
-            if (generationMode === "S" && !code) {
-                const sl = normalizeSlType(form.sltypeCode || "CU");
-                code = generateNextCustomerCode(masterAllRows, sl, "S");
-            }
-        }
-
-        setIsLoading(true);
-        try {
-            const jsonData = {
-                json_data: {
-                    action: selectedCustCode ? "edit" : "add",
-
-                    custCode: code,
-                    custName: form.custName || "",
-                    businessName: form.businessName || "",
-
-                    firstName: form.firstName || "",
-                    middleName: form.middleName || "",
-                    lastName: form.lastName || "",
-
-                    taxClass: form.taxClass || "",
-
-                    custAddr1: form.custAddr1 || "",
-                    custAddr2: form.custAddr2 || "",
-                    custAddr3: form.custAddr3 || "",
-                    custZip: form.custZip || "",
-                    custTin: form.custTin || "",
-
-                    branchCode: form.branchCode || "",
-                    custContact: form.custContact || "",
-                    custPosition: form.custPosition || "",
-                    custTelno: form.custTelno || "",
-                    custMobileno: form.custMobileno || "",
-                    custEmail: form.custEmail || "",
-
-                    source: form.source || "",
-                    currCode: form.currCode || "",
-                    vatCode: form.vatCode || "",
-                    atcCode: form.atcCode || "",
-                    billtermCode: form.billtermCode || "",
-
-                    sltypeCode: normalizeSlType(form.sltypeCode || "CU"),
-                    active: form.active || "Y",
-                    oldCode: form.oldCode || "",
-
-                    creditInvestigator: form.creditInvestigator || "",
-                    creditLimit: form.creditLimit || 0,
-                    customerRemarks: form.customerRemarks || "",
-                    customizedDrForm: form.customizedDrForm || "",
-                    customizedSiForm: form.customizedSiForm || "",
-                    customizedDrcForm: form.customizedDrcForm || "",
-                    customizedBsForm: form.customizedBsForm || "",
-                    customizedSviForm: form.customizedSviForm || "",
-
-                    taxSignatoryName: form.taxSignatoryName || "",
-                    taxSignatoryTin: form.taxSignatoryTin || "",
-                    taxSignatoryPosition: form.taxSignatoryPosition || "",
-                    taxSignatoryEmail: form.taxSignatoryEmail || "",
-                    taxSignatoryZip: form.taxSignatoryZip || "",
-
-                    shipmentCode1: form.shipmentCode1 || "",
-                    shipmentCode2: form.shipmentCode2 || "",
-                    shipmentCode3: form.shipmentCode3 || "",
-                    shipmentCode4: form.shipmentCode4 || "",
-                    destination2: form.destination2 || "",
-
-                    userCode,
-                },
-            };
-
-            const payload = {
-                json_data: JSON.stringify(jsonData),
-            };
-
-            if (isAddMode) {
-                const isDuplicate = await checkDuplicateCustomer(code);
-                if (isDuplicate) {
-                    await useSwalErrorAlert(
-                        "Duplicate Record",
-                        `Customer Code ${code} already exists.`
-                    );
-                    return;
-                }
-            }
-
-            const res = await apiClient.post("/upsertCustomer", payload);
-            const sprocValidation = extractSprocValidation(res?.data);
-
-            if (Number(sprocValidation?.errorCount ?? 0) > 0) {
-                await useSwalErrorAlert(
-                    "Missing Required Field(s)",
-                    String(
-                        sprocValidation?.errorMsg ||
-                        "Please complete the required fields."
-                    )
-                );
-                return;
-            }
-
-            if (res?.data?.success === false || res?.data?.status === "error") {
-                await useSwalErrorAlert(
-                    "Save Failed",
-                    res?.data?.message || "Failed to save customer."
-                );
-                return;
-            }
-
-            await useSwalSuccessAlert("Success!", "Customer saved successfully.");
-            setSelectedCustCode(code);
-            pushRecent(code);
-            setIsEditing(false);
-            await loadMasterList();
-            await fetchCustomerByCode(code);
-        } catch (e) {
-            console.error(e);
-            const sprocValidation = extractSprocValidation(e?.response?.data);
-
-            if (Number(sprocValidation?.errorCount ?? 0) > 0) {
-                await useSwalErrorAlert(
-                    "Missing Required Field(s)",
-                    String(
-                        sprocValidation?.errorMsg ||
-                        "Please complete the required fields."
-                    )
-                );
-                return;
-            }
-
-            const msg =
-                e?.response?.data?.message ||
-                e?.response?.data?.error ||
-                e?.response?.data?.msg ||
-                e?.message ||
-                "Failed to save customer.";
-
-            await useSwalErrorAlert("Save Failed", msg);
+            await useSwalErrorAlertAPI("Fetch Error", e?.message || "Failed to fetch customer.");
         } finally {
             setIsLoading(false);
         }
@@ -675,17 +436,11 @@ const CustMast = () => {
             const errorMsg = String(row?.errormsg ?? row?.errorMsg ?? "");
 
             if (res?.data?.success === false || errorCount > 0) {
-                await useSwalErrorAlert(
-                    "Delete Not Allowed",
-                    errorMsg || res?.data?.message || "Failed to delete customer."
-                );
+                await useSwalErrorAlert("Delete Not Allowed", errorMsg || res?.data?.message || "Failed to delete customer.");
                 return;
             }
 
-            await useSwalDeleteRecord(
-                    "Deleted", 
-                    `Customer Code ${code} has been successfully removed.`
-                  );
+            await useSwalDeleteRecord("Deleted", `Customer Code ${code} has been successfully removed.`);
 
             setForm({ ...emptyForm });
             setSelectedCustCode("");
@@ -695,13 +450,109 @@ const CustMast = () => {
         } catch (e) {
             console.error(e);
             const row = e?.response?.data?.data?.[0] || {};
-            const errorMsg =
-                row?.errormsg ||
-                row?.errorMsg ||
-                e?.response?.data?.message ||
-                "Failed to delete customer.";
-
+            const errorMsg = row?.errormsg || row?.errorMsg || e?.response?.data?.message || "Failed to delete customer.";
             await useSwalErrorAlert("Delete Not Allowed", String(errorMsg));
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const upsertCustomer = async () => {
+        let code = String(form?.custCode || "").trim();
+        const isAddMode = !selectedCustCode;
+
+        if (isAddMode && code) {
+            const isDuplicate = await checkDuplicateCustomer(code);
+            if (isDuplicate) {
+                await useSwalErrorAlert("Duplicate Record", `Customer Code ${code} already exists.`);
+                return;
+            }
+        }
+
+        setIsLoading(true);
+        try {
+            const jsonData = {
+                json_data: {
+                    action: selectedCustCode ? "edit" : "add",
+                    custCode: code,
+                    custName: form.custName || "",
+                    businessName: form.businessName || "",
+                    firstName: form.firstName || "",
+                    middleName: form.middleName || "",
+                    lastName: form.lastName || "",
+                    taxClass: form.taxClass || "",
+                    custAddr1: form.custAddr1 || "",
+                    custAddr2: form.custAddr2 || "",
+                    custAddr3: form.custAddr3 || "",
+                    custZip: form.custZip || "",
+                    custTin: form.custTin || "",
+                    branchCode: form.branchCode || "",
+                    custContact: form.custContact || "",
+                    custPosition: form.custPosition || "",
+                    custTelno: form.custTelno || "",
+                    custMobileno: form.custMobileno || "",
+                    custEmail: form.custEmail || "",
+                    source: form.source || "",
+                    currCode: form.currCode || "",
+                    vatCode: form.vatCode || "",
+                    atcCode: form.atcCode || "",
+                    billtermCode: form.billtermCode || "",
+                    sltypeCode: normalizeSlType(form.sltypeCode || "CU"),
+                    active: form.active || "Y",
+                    oldCode: form.oldCode || "",
+                    creditInvestigator: form.creditInvestigator || "",
+                    creditLimit: form.creditLimit || 0,
+                    customerRemarks: form.customerRemarks || "",
+                    customizedDrForm: form.customizedDrForm || "",
+                    customizedSiForm: form.customizedSiForm || "",
+                    customizedDrcForm: form.customizedDrcForm || "",
+                    customizedBsForm: form.customizedBsForm || "",
+                    customizedSviForm: form.customizedSviForm || "",
+                    taxSignatoryName: form.taxSignatoryName || "",
+                    taxSignatoryTin: form.taxSignatoryTin || "",
+                    taxSignatoryPosition: form.taxSignatoryPosition || "",
+                    taxSignatoryEmail: form.taxSignatoryEmail || "",
+                    taxSignatoryZip: form.taxSignatoryZip || "",
+                    shipmentCode1: form.shipmentCode1 || "",
+                    shipmentCode2: form.shipmentCode2 || "",
+                    shipmentCode3: form.shipmentCode3 || "",
+                    shipmentCode4: form.shipmentCode4 || "",
+                    destination2: form.destination2 || "",
+                    userCode,
+                },
+            };
+
+            const payload = {
+                json_data: JSON.stringify(jsonData),
+            };
+
+            const res = await apiClient.post("/upsertCustomer", payload);
+            const sprocValidation = extractSprocValidation(res);
+
+            if (Number(sprocValidation?.errorCount ?? 0) > 0) {
+                await useSwalErrorAlert(
+                    "Validation Failed",
+                    String(sprocValidation?.errorMsg || "Please complete the required fields.")
+                );
+                return;
+            }
+
+            const finalCode = sprocValidation?.generatedCode || code;
+
+            await useSwalSuccessAlert("Success!", "Customer saved successfully.");
+            setSelectedCustCode(finalCode);
+            setIsEditing(false);
+            await loadMasterList();
+            await fetchCustomerByCode(finalCode);
+        } catch (e) {
+            console.error(e);
+            const sprocValidation = extractSprocValidation(e?.response);
+            if (Number(sprocValidation?.errorCount ?? 0) > 0) {
+                await useSwalErrorAlert("Save Failed", String(sprocValidation?.errorMsg));
+                return;
+            }
+            const msg = e?.response?.data?.message || e?.message || "Failed to save customer.";
+            await useSwalErrorAlert("Save Failed", msg);
         } finally {
             setIsLoading(false);
         }
@@ -738,20 +589,13 @@ const CustMast = () => {
 
     const handleAdd = () => {
         const sl = normalizeSlType(form?.sltypeCode || "CU") || "CU";
-
-        let nextCode = "";
-        if (generationMode === "U") {
-            nextCode = generateNextCustomerCode(masterAllRows, sl, "U");
-        }
-
         setSelectedCustCode("");
         setForm({
             ...emptyForm,
             sltypeCode: sl,
-            custCode: nextCode,
+            custCode: "",
             __isNew: true,
         });
-
         setIsEditing(true);
         setActiveTab("setup");
     };
@@ -759,10 +603,7 @@ const CustMast = () => {
     const handleEdit = async () => {
         const code = String(form?.custCode || "").trim();
         if (!code) {
-            await useSwalErrorAlert(
-                "Required",
-                "Please select a Customer record first."
-            );
+            await useSwalErrorAlert("Required", "Please select a Customer record first.");
             return;
         }
         setIsEditing(true);
@@ -793,72 +634,72 @@ const CustMast = () => {
     };
 
     const headerButtons = useMemo(() => {
-        const baseBtn = "flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md transition-all shadow-sm";
+        if (activeTab !== "setup") return [];
 
-        if (activeTab === "setup") {
-            const hasRecord = String(form?.custCode || "").trim() && !form.__isNew;
+        const hasRecord = String(form?.custCode || "").trim() && !form.__isNew;
 
-            return [
-                {
-                    key: "add",
-                    label: <span className="hidden sm:inline ml-1">Add</span>,
-                    icon: faPlus,
-                    onClick: handleAdd,
-                    disabled: isLoading,
-                    className: `${baseBtn} bg-blue-600 text-white hover:bg-blue-700`,
-                },
-                {
-                    key: "save",
-                    label: <span className="hidden sm:inline ml-1">Save</span>,
-                    icon: faSave,
-                    onClick: upsertCustomer,
-                    disabled: isLoading || !isEditing,
-                    className: `${baseBtn} ${isLoading || !isEditing ? "bg-blue-500 opacity-50 cursor-not-allowed text-white" : "bg-blue-600 text-white hover:bg-blue-700"}`,
-                },
-                {
-                    key: "reset",
-                    label: <span className="hidden sm:inline ml-1">Reset</span>,
-                    icon: faUndo,
-                    onClick: handleResetSetup,
-                    disabled: isLoading,
-                    className: `${baseBtn} bg-blue-600 text-white hover:bg-blue-700`,
-                },
-                {
-                    key: "edit",
-                    label: <span className="hidden sm:inline ml-1">Edit</span>,
-                    icon: faPenToSquare,
-                    onClick: handleEdit,
-                    disabled: isLoading || isEditing || !hasRecord,
-                    className: `${baseBtn} ${isLoading || isEditing || !hasRecord ? "bg-blue-400 opacity-50 cursor-not-allowed text-white" : "bg-blue-600 text-white hover:bg-blue-700"}`,
-                },
-                {
-                    key: "attach",
-                    label: <span className="hidden sm:inline ml-1">Attach</span>,
-                    icon: faPaperclip,
-                    onClick: handleOpenAttach,
-                    disabled: isLoading || !hasRecord,
-                    className: `${baseBtn} ${isLoading || !hasRecord ? "bg-blue-400 opacity-50 cursor-not-allowed text-white" : "bg-blue-600 text-white hover:bg-blue-700"}`,
-                },
-                {
-                    key: "delete",
-                    label: <span className="hidden sm:inline ml-1">Delete</span>,
-                    icon: faTrash,
-                    onClick: deleteCustomer,
-                    disabled: isLoading || isEditing || !hasRecord,
-                    className: `${baseBtn} ${isLoading || isEditing || !hasRecord ? "bg-red-400 opacity-50 cursor-not-allowed text-white" : "bg-red-500 text-white hover:bg-red-600"}`,
-                },
-            ];
-        }
-        return [];
+        return [
+            {
+                key: "add",
+                label: <span className="hidden sm:inline ml-1">Add</span>,
+                icon: faPlus,
+                onClick: handleAdd,
+                disabled: isLoading,
+                className: "flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[12px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm",
+            },
+            {
+                key: "save",
+                label: <span className="hidden sm:inline ml-1">Save</span>,
+                icon: faSave,
+                onClick: upsertCustomer,
+                disabled: isLoading || !isEditing,
+                className: `flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[12px] font-medium rounded-md transition-all shadow-sm ${isLoading || !isEditing
+                    ? "bg-blue-500 opacity-50 cursor-not-allowed text-white"
+                    : "bg-blue-600 text-white hover:bg-blue-700"
+                    }`,
+            },
+            {
+                key: "reset",
+                label: <span className="hidden sm:inline ml-1">Reset</span>,
+                icon: faUndo,
+                onClick: handleResetSetup,
+                disabled: isLoading,
+                className: "flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[12px] font-medium rounded-md bg-blue-500 text-white hover:bg-blue-600 transition-all shadow-sm",
+            },
+            {
+                key: "edit",
+                label: <span className="hidden sm:inline ml-1">Edit</span>,
+                icon: faPenToSquare,
+                onClick: handleEdit,
+                disabled: isLoading,
+                className: "flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[12px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm",
+            },
+            {
+                key: "attach",
+                label: <span className="hidden sm:inline ml-1">Attach File</span>,
+                icon: faPaperclip,
+                onClick: handleOpenAttach,
+                disabled: isLoading || !hasRecord,
+                className: "flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[12px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm",
+            },
+            {
+                key: "delete",
+                label: <span className="hidden sm:inline ml-1">Delete</span>,
+                icon: faTrash,
+                onClick: deleteCustomer,
+                disabled: isLoading || isEditing || !hasRecord,
+                className: `flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[12px] font-medium rounded-md transition-all shadow-sm ${isLoading || isEditing || !hasRecord
+                    ? "bg-red-400 opacity-50 cursor-not-allowed text-white"
+                    : "bg-red-500 text-white hover:bg-red-600"
+                    }`,
+            },
+        ];
     }, [activeTab, isLoading, isEditing, form]);
 
     return (
         <div className="global-ref-main-div-ui">
-            {/* ── HEADER — Flexbox Fix to prevent wrapping ─────────────────────── */}
             <div className="global-ref-header-ui">
                 <div className="w-full flex flex-col lg:flex-row items-center justify-between gap-3">
-
-                    {/* 1) Title */}
                     <div className="flex-shrink-0 w-full lg:w-auto text-center lg:text-left">
                         <h1 className="global-ref-headertext-ui truncate">
                             {activeTab === "setup" && "Customer Master Data"}
@@ -867,7 +708,6 @@ const CustMast = () => {
                         </h1>
                     </div>
 
-                    {/* 2) Tabs */}
                     <div className="flex-1 flex justify-center w-full overflow-x-auto no-scrollbar">
                         <div className="flex flex-nowrap border-b border-blue-300 dark:border-gray-700">
                             {tabs.map((tab) => (
@@ -888,36 +728,28 @@ const CustMast = () => {
                         </div>
                     </div>
 
-                    {/* 3) Buttons with Info Dropdown included */}
                     <div className="flex-shrink-0 w-full lg:w-auto flex flex-wrap items-center justify-center lg:justify-end gap-1.5">
                         {!!headerButtons.length && (
                             <ButtonBar buttons={headerButtons} />
                         )}
 
-                        {/* Only render the Info button when on the "setup" tab */}
                         {activeTab === "setup" && (
                             <div ref={guideRef} className="relative z-[60]">
                                 <button
                                     onClick={() => setOpenGuide((v) => !v)}
-                                    className="flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm"
+                                    className="flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[12px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm"
                                 >
-                                    <FontAwesomeIcon icon={faInfoCircle} className="text-[12px]" />
+                                    <FontAwesomeIcon icon={faInfoCircle} className="text-[14px] sm:text-[12px]" />
                                     <span className="hidden sm:inline ml-1">Info</span>
                                     <FontAwesomeIcon icon={faChevronDown} className="hidden sm:inline ml-1 text-[10px] opacity-80" />
                                 </button>
 
                                 {isOpenGuide && (
                                     <div className="absolute right-0 mt-2 w-52 rounded-md shadow-xl bg-white ring-1 ring-black/10 z-[60] overflow-hidden">
-                                        <button
-                                            onClick={() => { window.open(pdfLink, "_blank"); setOpenGuide(false); }}
-                                            className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 border-b border-gray-100 transition-colors"
-                                        >
+                                        <button onClick={() => { window.open(pdfLink, "_blank"); setOpenGuide(false); }} className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 border-b border-gray-100 transition-colors">
                                             <FontAwesomeIcon icon={faFilePdf} className="mr-2 text-red-500" /> PDF Guide
                                         </button>
-                                        <button
-                                            onClick={() => { window.open(videoLink, "_blank"); setOpenGuide(false); }}
-                                            className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 transition-colors"
-                                        >
+                                        <button onClick={() => { window.open(videoLink, "_blank"); setOpenGuide(false); }} className="block w-full text-left px-4 py-2 text-xs hover:bg-blue-50 transition-colors">
                                             <FontAwesomeIcon icon={faVideo} className="mr-2 text-blue-500" /> Video Guide
                                         </button>
                                     </div>
@@ -925,21 +757,18 @@ const CustMast = () => {
                             </div>
                         )}
                     </div>
-
                 </div>
             </div>
-            {/* ─────────────────────────────────────────────────────────────────── */}
 
             <div
-                className={`global-tran-tab-div-ui mt-44 sm:mt-24 lg:mt-20 ${contentPadding} transition-all duration-300`}
-                style={{ minHeight: "calc(100vh - 120px)" }}
+                className="global-tran-tab-div-ui mt-36 sm:mt-32 md:mt-28 lg:mt-24"
+                style={{ minHeight: "calc(100vh - 170px)" }}
             >
                 {activeTab === "setup" && (
                     <CustSetupTab
                         form={form}
                         isEditing={isEditing}
                         isLoading={isLoading}
-                        generationMode={generationMode} 
                         onChangeForm={updateForm}
                         onLookupCode={() => setIsSearchOpen(true)}
                         onSelectCustomerCode={fetchCustomerByCode}
@@ -980,35 +809,20 @@ const CustMast = () => {
                     CodeLabel: "Customer Code",
                     Code: documentNo,
                     NameLabel: "Customer Name",
-                    // Use custName, or fallback to businessName, or "N/A"
                     Name: form.custName || form.businessName || "N/A"
                 }}
             />
 
-            <AllTranDocNo
+            <SearchCusMast
                 isOpen={isSearchOpen}
-                onClose={() => setIsSearchOpen(false)}
-                source="customer"
-                params={{
-                    branchCode: form.branchCode || "HO",
-                    branchName: form.branchCode || "HO",
-                    documentTitle: "Customer Lookup",
-                    docType: "CUSTOMER",
-                    fieldNo: "custCode",
-                }}
-                docNo={form.custCode}
-                onRetrieve={({ docNo, key }) => {
-                    // Logic from original file to navigate records
-                    if (key === "F" || key === "P" || key === "N" || key === "L") {
-                        console.warn("Navigation actions require corresponding methods (goFirst, etc.)");
-                    } else {
-                        fetchCustomerByCode(docNo);
+                customParam="ActiveAll"
+                onClose={async (selected) => {
+                    setIsSearchOpen(false);
+                    if (!selected) return;
+                    const code = getValue(selected?.custCode) || getValue(selected?.cust_code);
+                    if (code) {
+                        await fetchCustomerByCode(code);
                     }
-                    setIsSearchOpen(false);
-                }}
-                onSelected={({ docNo }) => {
-                    fetchCustomerByCode(docNo);
-                    setIsSearchOpen(false);
                 }}
             />
         </div>

@@ -1605,7 +1605,7 @@ const UpdateUser = () => {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(trimmedEmail)) {
         await useSwalErrorAlert(
-          "", 
+          "",
           "<b>Invalid Input</b><br/>Please enter a valid email address."
         );
         return; // Stop saving
@@ -2122,16 +2122,18 @@ const UpdateUser = () => {
             )}
           </div>
 
-          {selectedUser && selectedUser.active === "Y" && (
+          
             <button
               onClick={handleResetPassword}
               title="Reset Password"
-              className="bg-blue-600 text-white h-8 w-8 sm:w-auto sm:px-3 sm:py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700 transition-all"
+              className={`bg-blue-600 text-white h-8 w-8 sm:w-auto sm:px-3 sm:py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-blue-700 transition-all ${!selectedUser || selectedUser.active !== "Y" ? "opacity-50 cursor-not-allowed" : ""
+                }`}
+              disabled={!selectedUser || selectedUser.active !== "Y"}
             >
               <FontAwesomeIcon icon={faKey} />
               <span className="hidden sm:inline">Reset Password</span>
             </button>
-          )}
+          
 
           {selectedUser && selectedUser.active === "P" && (
             <button
@@ -2171,7 +2173,7 @@ const UpdateUser = () => {
                   }
                 }}
                 disabled={!isEditing || !!selectedUser}
-                maxLength={50}
+                maxLength={10}
               />
 
               <FieldRenderer

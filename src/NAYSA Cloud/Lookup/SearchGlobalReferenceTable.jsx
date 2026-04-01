@@ -36,6 +36,7 @@ import { useReturnToDate } from "@/NAYSA Cloud/Global/dates";
 import Swal from "sweetalert2";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import ExportFileNameModal from "../Lookup/SearchExport.jsx";
 
 const TableLoader = () => (
   <div className="global-ref-norecords-ui">Loading...</div>
@@ -88,6 +89,9 @@ const SearchGlobalReferenceTable = forwardRef(
     const [autoFillGrid, setAutoFillGrid] = useState(() =>
       parseAutoFillGrid(autoFillGridProp ?? initialState?.autoFillGrid),
     );
+    const [exportModalOpen, setExportModalOpen] = useState(false);
+    const [exportType, setExportType] = useState(null);
+    const [exportFileName, setExportFileName] = useState("");
 
     useEffect(() => {
       if (autoFillGridProp !== undefined) {
@@ -159,7 +163,8 @@ const SearchGlobalReferenceTable = forwardRef(
         const kept = prevArr.filter((k) => keys.includes(k));
         const added = keys.filter((k) => !prevSet.has(k));
 
-        if (kept.length === prevArr.length && added.length === 0) return prevArr;
+        if (kept.length === prevArr.length && added.length === 0)
+          return prevArr;
         return [...kept, ...added];
       });
     }, [columns]);
@@ -230,9 +235,9 @@ const SearchGlobalReferenceTable = forwardRef(
           return typeof formatNumber === "function"
             ? formatNumber(value, digits)
             : Number(parseNumber(value)).toLocaleString("en-US", {
-              minimumFractionDigits: digits,
-              maximumFractionDigits: digits,
-            });
+                minimumFractionDigits: digits,
+                maximumFractionDigits: digits,
+              });
         }
         case "date": {
           try {
@@ -282,7 +287,9 @@ const SearchGlobalReferenceTable = forwardRef(
 
     const orderedCols = useMemo(() => {
       if (columnOrder.length === 0) return columns;
-      return columnOrder.map((key) => columns.find((c) => c.key === key)).filter(Boolean);
+      return columnOrder
+        .map((key) => columns.find((c) => c.key === key))
+        .filter(Boolean);
     }, [columns, columnOrder]);
 
     const baseVisibleColumns = useMemo(
@@ -350,7 +357,9 @@ const SearchGlobalReferenceTable = forwardRef(
           return;
         }
 
-        setGroupBy((prev) => (prev.includes(draggedCol) ? prev : [...prev, draggedCol]));
+        setGroupBy((prev) =>
+          prev.includes(draggedCol) ? prev : [...prev, draggedCol],
+        );
       } else {
         if (groupBy.includes(draggedCol)) return;
         if (draggedCol === targetKey) return;
@@ -390,17 +399,25 @@ const SearchGlobalReferenceTable = forwardRef(
       if (active.length) {
         rows = rows.filter((r) =>
           active.every(([k, v]) =>
-            String(r?.[k] ?? "").toLowerCase().includes(String(v).toLowerCase()),
+            String(r?.[k] ?? "")
+              .toLowerCase()
+              .includes(String(v).toLowerCase()),
           ),
         );
       }
 
-      const q = String(globalSearch || "").trim().toLowerCase();
+      const q = String(globalSearch || "")
+        .trim()
+        .toLowerCase();
       if (q) {
         const keys = (visibleCols || []).map((c) => c.key).filter(Boolean);
 
         rows = rows.filter((r) =>
-          keys.some((k) => String(r?.[k] ?? "").toLowerCase().includes(q)),
+          keys.some((k) =>
+            String(r?.[k] ?? "")
+              .toLowerCase()
+              .includes(q),
+          ),
         );
       }
 
@@ -435,7 +452,9 @@ const SearchGlobalReferenceTable = forwardRef(
       const MAX = 400;
       const SAMPLE = 80;
 
-      const sampleRows = (Array.isArray(filteredData) ? filteredData : []).slice(0, SAMPLE);
+      const sampleRows = (
+        Array.isArray(filteredData) ? filteredData : []
+      ).slice(0, SAMPLE);
       const out = {};
 
       visibleCols.forEach((col) => {
@@ -493,9 +512,12 @@ const SearchGlobalReferenceTable = forwardRef(
       const label = String(col.label ?? "").toLowerCase();
 
       if (noTotalKeys.includes(key)) return false;
-      if (col.renderType !== "number" && col.renderType !== "currency") return false;
+      if (col.renderType !== "number" && col.renderType !== "currency")
+        return false;
 
-      if (totalExemptions.some((ex) => label.includes(ex) || key.includes(ex))) {
+      if (
+        totalExemptions.some((ex) => label.includes(ex) || key.includes(ex))
+      ) {
         return false;
       }
 
@@ -524,7 +546,9 @@ const SearchGlobalReferenceTable = forwardRef(
           groupedCol.groupDisplayKey,
           groupedCol.displayKey,
           groupedCol.nameKey,
-          groupKey.endsWith("_code") ? groupKey.replace(/_code$/i, "_name") : null,
+          groupKey.endsWith("_code")
+            ? groupKey.replace(/_code$/i, "_name")
+            : null,
           groupKey.endsWith("Code") ? groupKey.replace(/Code$/i, "Name") : null,
           groupKey.endsWith("code") ? groupKey.replace(/code$/i, "name") : null,
         ].filter(Boolean);
@@ -560,10 +584,17 @@ const SearchGlobalReferenceTable = forwardRef(
     );
 
     function getGroupNodeId(node) {
-      return node?.path || `${node.key}-${node.rawValue ?? node.value}-${node.level}`;
+      return (
+        node?.path || `${node.key}-${node.rawValue ?? node.value}-${node.level}`
+      );
     }
 
-    const groupData = (rows, level = 0, activeGroupBy = [], parentPath = "") => {
+    const groupData = (
+      rows,
+      level = 0,
+      activeGroupBy = [],
+      parentPath = "",
+    ) => {
       if (level >= activeGroupBy.length) return rows.map((r) => ({ ...r }));
 
       const groupKey = activeGroupBy[level];
@@ -571,7 +602,8 @@ const SearchGlobalReferenceTable = forwardRef(
 
       rows.forEach((row) => {
         const rawValue = String(row?.[groupKey] ?? "(Blank)");
-        const displayValue = resolveGroupDisplayValue(row, groupKey) || "(Blank)";
+        const displayValue =
+          resolveGroupDisplayValue(row, groupKey) || "(Blank)";
         const bucketKey = `${rawValue}|||${displayValue}`;
 
         if (!groups[bucketKey]) {
@@ -587,9 +619,13 @@ const SearchGlobalReferenceTable = forwardRef(
 
       return Object.values(groups)
         .sort((a, b) =>
-          String(a.displayValue).localeCompare(String(b.displayValue), undefined, {
-            numeric: true,
-          }),
+          String(a.displayValue).localeCompare(
+            String(b.displayValue),
+            undefined,
+            {
+              numeric: true,
+            },
+          ),
         )
         .map((group) => {
           const nodePath = parentPath
@@ -620,7 +656,8 @@ const SearchGlobalReferenceTable = forwardRef(
             const headerRow = {};
             exportColumns.forEach((c) => (headerRow[c.key] = ""));
             if (firstKey) {
-              const label = columns.find((c) => c.key === node.key)?.label || node.key;
+              const label =
+                columns.find((c) => c.key === node.key)?.label || node.key;
               headerRow[firstKey] = `${label}: ${node.value} (${node.count})`;
             }
             out.push(headerRow);
@@ -649,8 +686,12 @@ const SearchGlobalReferenceTable = forwardRef(
           list.push(node);
           const uniqueId = getGroupNodeId(node);
           if (expandedGroups[uniqueId]) {
-            if (node.level === activeGroupBy.length - 1) list = list.concat(node.children);
-            else list = list.concat(processRenderList(node.children, activeGroupBy));
+            if (node.level === activeGroupBy.length - 1)
+              list = list.concat(node.children);
+            else
+              list = list.concat(
+                processRenderList(node.children, activeGroupBy),
+              );
           }
         } else {
           list.push(node);
@@ -672,7 +713,8 @@ const SearchGlobalReferenceTable = forwardRef(
         nodes.forEach((node) => {
           if (node.isGroup) {
             list.push(node);
-            if (node.level === effectiveGroupBy.length - 1) list = list.concat(node.children);
+            if (node.level === effectiveGroupBy.length - 1)
+              list = list.concat(node.children);
             else list = list.concat(expandAll(node.children));
           } else {
             list.push(node);
@@ -687,7 +729,9 @@ const SearchGlobalReferenceTable = forwardRef(
     const effectiveRowsPerPage = isMobileView ? 0 : rowsPerPage;
 
     const totalItems =
-      effectiveGroupBy.length > 0 ? groupedStructure.length : filteredData.length;
+      effectiveGroupBy.length > 0
+        ? groupedStructure.length
+        : filteredData.length;
 
     const totalPages =
       effectiveRowsPerPage > 0
@@ -704,7 +748,8 @@ const SearchGlobalReferenceTable = forwardRef(
         return;
       }
 
-      if (currentPage > totalPages && totalPages > 0) setCurrentPage(totalPages);
+      if (currentPage > totalPages && totalPages > 0)
+        setCurrentPage(totalPages);
       else if (currentPage < 1 && totalPages > 0) setCurrentPage(1);
     }, [currentPage, totalPages, isMobileView]);
 
@@ -734,7 +779,8 @@ const SearchGlobalReferenceTable = forwardRef(
     ]);
 
     const grandTotals = useMemo(() => ({}), []);
-    const hasDataFiltered = Array.isArray(filteredData) && filteredData.length > 0;
+    const hasDataFiltered =
+      Array.isArray(filteredData) && filteredData.length > 0;
     const hasOriginalData = Array.isArray(data) && data.length > 0;
 
     const collectGroupKeys = (nodes) => {
@@ -763,7 +809,8 @@ const SearchGlobalReferenceTable = forwardRef(
     const prevGroupKeysRef = useRef([]);
 
     const allExpanded =
-      allGroupKeys.length > 0 && allGroupKeys.every((key) => expandedGroups[key]);
+      allGroupKeys.length > 0 &&
+      allGroupKeys.every((key) => expandedGroups[key]);
 
     useEffect(() => {
       if (isMobile || effectiveGroupBy.length === 0) {
@@ -781,7 +828,9 @@ const SearchGlobalReferenceTable = forwardRef(
         let nextState = {};
 
         if (wasAllExpanded) {
-          nextState = Object.fromEntries(allGroupKeys.map((key) => [key, true]));
+          nextState = Object.fromEntries(
+            allGroupKeys.map((key) => [key, true]),
+          );
         } else {
           nextState = Object.fromEntries(
             allGroupKeys.filter((key) => prev[key]).map((key) => [key, true]),
@@ -809,7 +858,9 @@ const SearchGlobalReferenceTable = forwardRef(
         return;
       }
 
-      setExpandedGroups(Object.fromEntries(allGroupKeys.map((key) => [key, true])));
+      setExpandedGroups(
+        Object.fromEntries(allGroupKeys.map((key) => [key, true])),
+      );
     };
 
     const handleToggleExpandCollapse = () => {
@@ -867,7 +918,11 @@ const SearchGlobalReferenceTable = forwardRef(
         Number(columns.find((c) => c.key === key)?.width) ||
         140;
 
-      resizingRef.current = { startX: e.clientX, startWidth: currentWidth, key };
+      resizingRef.current = {
+        startX: e.clientX,
+        startWidth: currentWidth,
+        key,
+      };
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
     };
@@ -892,7 +947,8 @@ const SearchGlobalReferenceTable = forwardRef(
 
     const getDefaultExportFileName = () => {
       const effectiveDocType = String(docType ?? "").trim();
-      const title = reftables?.[effectiveDocType] || effectiveDocType || "Reference";
+      const title =
+        reftables?.[effectiveDocType] || effectiveDocType || "Reference";
       return sanitizeFileName(`${title}_${getDateTimeStamp()}`);
     };
 
@@ -913,12 +969,16 @@ const SearchGlobalReferenceTable = forwardRef(
       if (!fileName) return;
 
       const exportData =
-        effectiveGroupBy.length > 0 ? buildExpandedExportRows(groupedStructure) : filteredData;
+        effectiveGroupBy.length > 0
+          ? buildExpandedExportRows(groupedStructure)
+          : filteredData;
 
       const normalizedExportData = exportData.map((row) => {
         const out = {};
         exportVisibleCols.forEach((col) => {
-          out[col.key] = row?.isGroup ? row[col.key] ?? "" : getCellDisplayText(row, col);
+          out[col.key] = row?.isGroup
+            ? (row[col.key] ?? "")
+            : getCellDisplayText(row, col);
         });
         return out;
       });
@@ -966,7 +1026,8 @@ const SearchGlobalReferenceTable = forwardRef(
         .join(",");
 
       const csvLines = [headerRow];
-      const csvRows = effectiveGroupBy.length === 0 ? filteredData : fullRenderRows;
+      const csvRows =
+        effectiveGroupBy.length === 0 ? filteredData : fullRenderRows;
 
       csvRows.forEach((row) => {
         const line = exportVisibleCols
@@ -990,7 +1051,9 @@ const SearchGlobalReferenceTable = forwardRef(
         csvLines.push(line);
       });
 
-      const blob = new Blob([csvLines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+      const blob = new Blob([csvLines.join("\r\n")], {
+        type: "text/csv;charset=utf-8;",
+      });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -1027,7 +1090,10 @@ const SearchGlobalReferenceTable = forwardRef(
 
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
-      const ratio = Math.min(pdfWidth / canvas.width, pdfHeight / canvas.height);
+      const ratio = Math.min(
+        pdfWidth / canvas.width,
+        pdfHeight / canvas.height,
+      );
 
       const imgWidth = canvas.width * ratio;
       const imgHeight = canvas.height * ratio;
@@ -1089,7 +1155,9 @@ const SearchGlobalReferenceTable = forwardRef(
         setUserHiddenCols([]);
         setRowsPerPage(Number(itemsPerPage) || 50);
         setGlobalSearch("");
-        setAutoFillGrid(parseAutoFillGrid(autoFillGridProp ?? initialState?.autoFillGrid));
+        setAutoFillGrid(
+          parseAutoFillGrid(autoFillGridProp ?? initialState?.autoFillGrid),
+        );
       },
       resetFilters: () => setFilters({}),
       clearSort: () => setSortConfig({ key: null, direction: null }),
@@ -1097,11 +1165,155 @@ const SearchGlobalReferenceTable = forwardRef(
       setCardView: (on) => setForceTableView(!on),
     }));
 
+    const openExportModal = (type) => {
+  if (!hasDataFiltered) return;
+
+  setExportType(type);
+  setExportFileName(getDefaultExportFileName());
+  setExportModalOpen(true);
+};
+
+const handleConfirmExport = async (fileName) => {
+  setExportModalOpen(false);
+
+  if (exportType === "excel") {
+    const exportData =
+      effectiveGroupBy.length > 0
+        ? buildExpandedExportRows(groupedStructure)
+        : filteredData;
+
+    const normalizedExportData = exportData.map((row) => {
+      const out = {};
+      exportVisibleCols.forEach((col) => {
+        out[col.key] = row?.isGroup
+          ? (row[col.key] ?? "")
+          : getCellDisplayText(row, col);
+      });
+      return out;
+    });
+
+    await exportGenericQueryExcel(
+      normalizedExportData,
+      grandTotals,
+      exportVisibleCols,
+      [],
+      exportColumns,
+      {},
+      7,
+      fileName,
+      currentUserRow?.userName,
+      companyInfo?.compName,
+      companyInfo?.compAddr,
+      companyInfo?.telNo,
+    );
+    return;
+  }
+
+  if (exportType === "csv") {
+    const headerRow = exportVisibleCols
+      .map((col) => {
+        let header = String(col.label ?? "");
+        header = header.replace(/,/g, "");
+        header = header.toUpperCase().replace(/\s+/g, "_");
+        const escaped = header.replace(/"/g, '""');
+        return `"${escaped}"`;
+      })
+      .join(",");
+
+    const csvLines = [headerRow];
+    const csvRows =
+      effectiveGroupBy.length === 0 ? filteredData : fullRenderRows;
+
+    csvRows.forEach((row) => {
+      const line = exportVisibleCols
+        .map((col, idx) => {
+          let formatted = "";
+
+          if (row?.isGroup) {
+            formatted =
+              idx === 0
+                ? `${columns.find((c) => c.key === row.key)?.label}: ${row.value} (${row.count})`
+                : "";
+          } else {
+            formatted = getCellDisplayText(row, col);
+          }
+
+          const noCommas = String(formatted ?? "").replace(/,/g, "");
+          const escaped = noCommas.replace(/"/g, '""');
+          return `"${escaped}"`;
+        })
+        .join(",");
+
+      csvLines.push(line);
+    });
+
+    const blob = new Blob([csvLines.join("\r\n")], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${fileName}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    return;
+  }
+
+  if (exportType === "pdf") {
+    if (!exportContainerRef.current) return;
+
+    const canvas = await html2canvas(exportContainerRef.current, {
+      scale: 2,
+      useCORS: true,
+    });
+
+    const imgData = canvas.toDataURL("image/png");
+    const pdf = new jsPDF("l", "mm", "a4");
+
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const ratio = Math.min(
+      pdfWidth / canvas.width,
+      pdfHeight / canvas.height,
+    );
+
+    const imgWidth = canvas.width * ratio;
+    const imgHeight = canvas.height * ratio;
+    const x = (pdfWidth - imgWidth) / 2;
+    const y = (pdfHeight - imgHeight) / 2;
+
+    pdf.addImage(imgData, "PNG", x, y, imgWidth, imgHeight);
+    pdf.save(`${fileName}.pdf`);
+    return;
+  }
+
+  if (exportType === "image") {
+    if (!exportContainerRef.current) return;
+
+    const canvas = await html2canvas(exportContainerRef.current, {
+      scale: 2,
+      useCORS: true,
+    });
+
+    const imgData = canvas.toDataURL("image/png");
+    const link = document.createElement("a");
+    link.href = imgData;
+    link.download = `${fileName}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+};
+
     const allChooserKeys = baseVisibleColumns.map((c) => c.key);
     const allChecked = userHiddenCols.length === 0;
     const toggleSelectAll = () => {
-      if (allChecked) setUserHiddenCols(allChooserKeys);
-      else setUserHiddenCols([]);
+      if (allChecked) {
+        return;
+      }
+      setUserHiddenCols([]);
     };
 
     const handleRowOpen = (row) => {
@@ -1145,13 +1357,17 @@ const SearchGlobalReferenceTable = forwardRef(
 
       const firstCols = visibleCols.slice(0, 4);
       const otherCols = visibleCols.slice(4);
-      const isSelected = selectedRow && row && (selectedRow.id === row.id || selectedRow.key === row.key);
+      const isSelected =
+        selectedRow &&
+        row &&
+        (selectedRow.id === row.id || selectedRow.key === row.key);
 
       return (
         <div
           key={row.__idx ?? idx}
-          className={`rounded-lg border shadow-sm p-3 cursor-pointer active:scale-[0.99] transition ${isSelected ? "bg-blue-50 border-blue-200" : "bg-white"
-            }`}
+          className={`rounded-lg border shadow-sm p-3 cursor-pointer active:scale-[0.99] transition ${
+            isSelected ? "bg-blue-50 border-blue-200" : "bg-white"
+          }`}
           onClick={() => {
             if (onRowClick) onRowClick(row);
             handleRowOpen(row);
@@ -1161,12 +1377,14 @@ const SearchGlobalReferenceTable = forwardRef(
             {firstCols.map((col) => (
               <div
                 key={col.key}
-                className={`flex items-start justify-between gap-1 ${col.key === "__actions" ? "flex-col items-stretch mb-2" : ""
-                  }`}
+                className={`flex items-start justify-between gap-1 ${
+                  col.key === "__actions" ? "flex-col items-stretch mb-2" : ""
+                }`}
               >
                 <span
-                  className={`text-[10px] font-semibold text-gray-600 ${col.key === "__actions" ? "min-w-0 mb-1" : "min-w-[110px]"
-                    }`}
+                  className={`text-[10px] font-semibold text-gray-600 ${
+                    col.key === "__actions" ? "min-w-0 mb-1" : "min-w-[110px]"
+                  }`}
                 >
                   {col.label}
                 </span>
@@ -1181,13 +1399,17 @@ const SearchGlobalReferenceTable = forwardRef(
             {otherCols.length > 0 && (
               <div className="pt-2 border-t border-gray-100 space-y-1">
                 {otherCols.map((col) => (
-                  <div key={col.key} className="flex items-start justify-between gap-1">
+                  <div
+                    key={col.key}
+                    className="flex items-start justify-between gap-1"
+                  >
                     <span className="text-[10px] font-semibold text-gray-600 min-w-[110px]">
                       {col.label}
                     </span>
                     <div
-                      className={`text-[10px] text-gray-800 text-left break-words ${col.key === "__actions" ? "w-full" : "flex-1"
-                        }`}
+                      className={`text-[10px] text-gray-800 text-left break-words ${
+                        col.key === "__actions" ? "w-full" : "flex-1"
+                      }`}
                     >
                       {typeof col.render === "function"
                         ? col.render(row)
@@ -1227,10 +1449,11 @@ const SearchGlobalReferenceTable = forwardRef(
               <div className="flex-1 flex flex-wrap gap-2 items-center min-w-0">
                 {groupBy.length === 0 && (
                   <div
-                    className={`text-gray-400 italic border border-dashed border-gray-300 rounded ${tableSize === "Half"
+                    className={`text-gray-400 italic border border-dashed border-gray-300 rounded ${
+                      tableSize === "Half"
                         ? "text-[8px] sm:text-[9px] w-18 px-2 py-1.5"
                         : "text-[10px] sm:text-xs px-8 py-2"
-                      }`}
+                    }`}
                   >
                     <FontAwesomeIcon icon={faLayerGroup} className="mr-1" />
                     Drag column here to Group by
@@ -1240,10 +1463,11 @@ const SearchGlobalReferenceTable = forwardRef(
                 {groupBy.map((gKey) => (
                   <div
                     key={gKey}
-                    className={`flex items-center bg-blue-100 text-blue-800 rounded border border-blue-200 max-w-full ${tableSize === "Half"
+                    className={`flex items-center bg-blue-100 text-blue-800 rounded border border-blue-200 max-w-full ${
+                      tableSize === "Half"
                         ? "text-[10px] px-1.5 py-0.5"
                         : "text-xs px-2 py-1"
-                      }`}
+                    }`}
                   >
                     <span className="truncate">
                       {columns.find((c) => c.key === gKey)?.label}
@@ -1263,42 +1487,46 @@ const SearchGlobalReferenceTable = forwardRef(
             )}
 
             {/* CONTROLS SECTION (Right Side) */}
-            <div className={`flex items-center gap-2 flex-wrap justify-end w-full md:w-auto ${!isMobile && showGroupBy ? "" : "ml-auto"}`}>
-
+            <div
+              className={`flex items-center gap-2 flex-wrap justify-end w-full md:w-auto ${!isMobile && showGroupBy ? "" : "ml-auto"}`}
+            >
               {/* EXPAND/COLLAPSE ALL GROUPS */}
               {!isMobile && showGroupBy && groupBy.length > 0 && (
                 <div className="flex items-center gap-2">
                   <label
-                    className={`inline-flex items-center cursor-pointer select-none ${tableSize === "Half" ? "h-7" : "h-9"
-                      }`}
+                    className={`inline-flex items-center cursor-pointer select-none ${
+                      tableSize === "Half" ? "h-7" : "h-9"
+                    }`}
                     title={allExpanded ? "Collapse All" : "Expand All"}
+                    onClick={handleToggleExpandCollapse}
                   >
-                    <input
-                      type="checkbox"
-                      checked={allExpanded}
-                      onChange={handleToggleExpandCollapse}
-                      className="sr-only"
-                    />
+               
 
                     <div
-                      className={`relative rounded-full transition-colors duration-200 ${allExpanded ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-600"
-                        } ${tableSize === "Half" ? "w-[78px] h-7" : "w-24 h-8"}`}
+                      className={`relative rounded-full transition-colors duration-200 ${
+                        allExpanded
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-300 text-gray-600"
+                      } ${tableSize === "Half" ? "w-[78px] h-7" : "w-24 h-8"}`}
                     >
                       <span
-                        className={`absolute rounded-full bg-white shadow-md transition-all duration-200 ${allExpanded
+                        className={`absolute rounded-full bg-white shadow-md transition-all duration-200 ${
+                          allExpanded
                             ? tableSize === "Half"
                               ? "left-[48px]"
                               : "left-[66px]"
                             : "left-[2px]"
-                          } ${tableSize === "Half" ? "top-[2px] w-6 h-6" : "top-[2px] w-7 h-7"}`}
+                        } ${tableSize === "Half" ? "top-[2px] w-6 h-6" : "top-[2px] w-7 h-7"}`}
                       />
 
                       <span
-                        className={`absolute inset-0 flex items-center font-medium pointer-events-none transition-all duration-200 ${tableSize === "Half" ? "text-[10px]" : "text-[11px]"
-                          } ${allExpanded
+                        className={`absolute inset-0 flex items-center font-medium pointer-events-none transition-all duration-200 ${
+                          tableSize === "Half" ? "text-[10px]" : "text-[11px]"
+                        } ${
+                          allExpanded
                             ? "justify-start pl-4 text-white"
                             : "justify-end pr-4 text-gray-700"
-                          }`}
+                        }`}
                       >
                         {allExpanded ? "Collapse" : "Expand"}
                       </span>
@@ -1308,16 +1536,18 @@ const SearchGlobalReferenceTable = forwardRef(
                   <button
                     type="button"
                     onClick={handleRemoveAllGroups}
-                    className={`font-medium text-white bg-red-600 border rounded-md hover:bg-red-700 active:scale-[0.98] transition ${tableSize === "Half"
+                    className={`font-medium text-white bg-red-600 border rounded-md hover:bg-red-700 active:scale-[0.98] transition ${
+                      tableSize === "Half"
                         ? "h-7 text-[10px] px-2 py-1"
                         : "h-8 text-xs px-3 py-1"
-                      }`}
+                    }`}
                     title="Remove All Groups"
                   >
                     <FontAwesomeIcon
                       icon={faTimes}
-                      className={`mr-1 text-white ${tableSize === "Half" ? "text-[10px]" : "text-sm"
-                        }`}
+                      className={`mr-1 text-white ${
+                        tableSize === "Half" ? "text-[10px]" : "text-sm"
+                      }`}
                     />
                     Remove
                   </button>
@@ -1335,17 +1565,21 @@ const SearchGlobalReferenceTable = forwardRef(
                       setCurrentPage(1);
                     }}
                     placeholder="Quick Search..."
-                    className={`w-full rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-300 ${tableSize === "Half"
+                    className={`w-full rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-300 ${
+                      tableSize === "Half"
                         ? "h-7 md:w-24 px-2 text-[11px]"
                         : "h-8 md:w-64 px-3 text-xs"
-                      }`}
+                    }`}
                   />
 
                   {globalSearch?.trim() && (
                     <button
                       type="button"
-                      className={`rounded-md bg-gray-200 hover:bg-gray-300 shrink-0 ${tableSize === "Half" ? "h-7 px-2 text-[10px]" : "h-8 px-3 text-xs"
-                        }`}
+                      className={`rounded-md bg-gray-200 hover:bg-gray-300 shrink-0 ${
+                        tableSize === "Half"
+                          ? "h-7 px-2 text-[10px]"
+                          : "h-8 px-3 text-xs"
+                      }`}
                       onClick={() => {
                         setGlobalSearch("");
                         setCurrentPage(1);
@@ -1361,8 +1595,9 @@ const SearchGlobalReferenceTable = forwardRef(
               {/* AUTO FIT SWITCH */}
               {!isMobile && (
                 <label
-                  className={`inline-flex items-center cursor-pointer select-none shrink-0 ${tableSize === "Half" ? "h-7" : "h-8"
-                    }`}
+                  className={`inline-flex items-center cursor-pointer select-none shrink-0 ${
+                    tableSize === "Half" ? "h-7" : "h-8"
+                  }`}
                   title={autoFillGrid ? "Disable auto fit" : "Enable auto fit"}
                 >
                   <input
@@ -1373,23 +1608,28 @@ const SearchGlobalReferenceTable = forwardRef(
                   />
 
                   <div
-                    className={`relative rounded-full transition-colors duration-200 ${autoFillGrid ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-600"
-                      } ${tableSize === "Half" ? "w-20 h-7" : "w-20 h-8"}`}
+                    className={`relative rounded-full transition-colors duration-200 ${
+                      autoFillGrid
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-300 text-gray-600"
+                    } ${tableSize === "Half" ? "w-20 h-7" : "w-20 h-8"}`}
                   >
                     <span
-                      className={`absolute top-[2px] rounded-full bg-white shadow-md transition-all duration-200 ${autoFillGrid
+                      className={`absolute top-[2px] rounded-full bg-white shadow-md transition-all duration-200 ${
+                        autoFillGrid
                           ? tableSize === "Half"
                             ? "left-[55px]"
                             : "left-[50px]"
                           : "left-[2px]"
-                        } ${tableSize === "Half" ? "w-6 h-6" : "w-7 h-7"}`}
+                      } ${tableSize === "Half" ? "w-6 h-6" : "w-7 h-7"}`}
                     />
 
                     <span
-                      className={`absolute inset-0 flex items-center text-[11px] font-medium pointer-events-none transition-all duration-200 ${autoFillGrid
+                      className={`absolute inset-0 flex items-center text-[11px] font-medium pointer-events-none transition-all duration-200 ${
+                        autoFillGrid
                           ? "justify-start pl-2 text-white"
                           : "justify-end pr-2 text-gray-700"
-                        }`}
+                      }`}
                     >
                       Auto Fit
                     </span>
@@ -1403,8 +1643,9 @@ const SearchGlobalReferenceTable = forwardRef(
                   <button
                     type="button"
                     onClick={onRefresh}
-                    className={`w-full text-xs font-medium text-white bg-blue-600 border border-slate-300 rounded-md hover:bg-slate-50 hover:text-blue-600 active:scale-[0.98] transition flex items-center justify-center ${tableSize === "Half" ? "h-7 px-2 py-1" : "h-8 px-3 py-2"
-                      }`}
+                    className={`w-full text-xs font-medium text-white bg-blue-600 border border-slate-300 rounded-md hover:bg-slate-50 hover:text-blue-600 active:scale-[0.98] transition flex items-center justify-center ${
+                      tableSize === "Half" ? "h-7 px-2 py-1" : "h-8 px-3 py-2"
+                    }`}
                     title="Refresh Data"
                   >
                     <FontAwesomeIcon
@@ -1412,21 +1653,31 @@ const SearchGlobalReferenceTable = forwardRef(
                       spin={isFetching}
                       className="mr-1 md:mr-0 lg:mr-1"
                     />
-                    <span className={` ${tableSize === "Half" ? "inline lg:hidden" : "hidden lg:inline"}`}>Refresh</span>
+                    <span
+                      className={` ${tableSize === "Half" ? "inline lg:hidden" : "hidden lg:inline"}`}
+                    >
+                      Refresh
+                    </span>
                   </button>
                 </div>
               )}
 
               {/* EXPORT */}
-              <div className="relative flex-1 md:flex-none min-w-[80px]" data-sgrt-export>
+              <div
+                className="relative flex-1 md:flex-none min-w-[80px]"
+                data-sgrt-export
+              >
                 <button
                   type="button"
-                  onClick={() => hasDataFiltered && setShowExportMenu((p) => !p)}
+                  onClick={() =>
+                    hasDataFiltered && setShowExportMenu((p) => !p)
+                  }
                   disabled={!hasDataFiltered}
-                  className={`w-full text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 active:scale-[0.98] transition flex items-center justify-center ${tableSize === "Half"
+                  className={`w-full text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 active:scale-[0.98] transition flex items-center justify-center ${
+                    tableSize === "Half"
                       ? "h-7 md:w-38 px-3 py-1"
                       : "h-8 md:w-[80px] px-3 py-2"
-                    }`}
+                  }`}
                 >
                   <FontAwesomeIcon icon={faFileExport} className="mr-1" />
                   Export
@@ -1436,68 +1687,84 @@ const SearchGlobalReferenceTable = forwardRef(
                   <div className="absolute right-0 mt-1 min-w-[80px] rounded-lg shadow-lg bg-white ring-1 ring-black/10 z-[60] overflow-hidden">
                     <button
                       type="button"
-                      onClick={async () => {
-                        setShowExportMenu(false);
-                        await handleExportExcel();
-                      }}
-                      className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors ${tableSize === "Half" ? "h-7 text-xs px-2" : "h-8 text-sm px-4"
-                        }`}
+                      onClick={() => {
+  setShowExportMenu(false);
+  openExportModal("excel");
+}}
+                      className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors ${
+                        tableSize === "Half"
+                          ? "h-7 text-xs px-2"
+                          : "h-8 text-sm px-4"
+                      }`}
                     >
                       <FontAwesomeIcon
                         icon={faFileExcel}
-                        className={`mr-2 text-green-600 ${tableSize === "Half" ? "text-xs" : "text-sm"
-                          }`}
+                        className={`mr-2 text-green-600 ${
+                          tableSize === "Half" ? "text-xs" : "text-sm"
+                        }`}
                       />
                       Excel
                     </button>
 
                     <button
                       type="button"
-                      onClick={async () => {
-                        setShowExportMenu(false);
-                        await handleExportCsv();
-                      }}
-                      className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors ${tableSize === "Half" ? "h-7 text-xs px-2" : "h-8 text-sm px-4"
-                        }`}
+                      onClick={() => {
+  setShowExportMenu(false);
+  openExportModal("csv");
+}}
+                      className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors ${
+                        tableSize === "Half"
+                          ? "h-7 text-xs px-2"
+                          : "h-8 text-sm px-4"
+                      }`}
                     >
                       <FontAwesomeIcon
                         icon={faFileCsv}
-                        className={`mr-2 text-emerald-600 ${tableSize === "Half" ? "text-xs" : "text-sm"
-                          }`}
+                        className={`mr-2 text-emerald-600 ${
+                          tableSize === "Half" ? "text-xs" : "text-sm"
+                        }`}
                       />
                       CSV
                     </button>
 
                     <button
                       type="button"
-                      onClick={async () => {
-                        setShowExportMenu(false);
-                        await handleExportPdf();
-                      }}
-                      className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors ${tableSize === "Half" ? "h-7 text-xs px-2" : "h-8 text-sm px-4"
-                        }`}
+                      onClick={() => {
+  setShowExportMenu(false);
+  openExportModal("pdf");
+}}
+                      className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors ${
+                        tableSize === "Half"
+                          ? "h-7 text-xs px-2"
+                          : "h-8 text-sm px-4"
+                      }`}
                     >
                       <FontAwesomeIcon
                         icon={faFilePdf}
-                        className={`mr-2 text-red-600 ${tableSize === "Half" ? "text-xs" : "text-sm"
-                          }`}
+                        className={`mr-2 text-red-600 ${
+                          tableSize === "Half" ? "text-xs" : "text-sm"
+                        }`}
                       />
                       PDF
                     </button>
 
                     <button
                       type="button"
-                      onClick={async () => {
-                        setShowExportMenu(false);
-                        await handleExportImage();
-                      }}
-                      className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors ${tableSize === "Half" ? "h-7 text-xs px-2" : "h-8 text-sm px-4"
-                        }`}
+                     onClick={() => {
+  setShowExportMenu(false);
+  openExportModal("image");
+}}
+                      className={`flex items-center w-full text-left hover:bg-blue-50 transition-colors ${
+                        tableSize === "Half"
+                          ? "h-7 text-xs px-2"
+                          : "h-8 text-sm px-4"
+                      }`}
                     >
                       <FontAwesomeIcon
                         icon={faFileImage}
-                        className={`mr-2 text-blue-600 ${tableSize === "Half" ? "text-xs" : "text-sm"
-                          }`}
+                        className={`mr-2 text-blue-600 ${
+                          tableSize === "Half" ? "text-xs" : "text-sm"
+                        }`}
                       />
                       Image
                     </button>
@@ -1506,14 +1773,18 @@ const SearchGlobalReferenceTable = forwardRef(
               </div>
 
               {/* COLUMNS */}
-              <div className="relative flex-1 md:flex-none min-w-[80px]" data-sgrt-cols>
+              <div
+                className="relative flex-1 md:flex-none min-w-[80px]"
+                data-sgrt-cols
+              >
                 <button
                   type="button"
                   onClick={() => setShowColumnChooser((p) => !p)}
-                  className={`w-full text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-[0.98] transition flex items-center justify-center ${tableSize === "Half"
+                  className={`w-full text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-[0.98] transition flex items-center justify-center ${
+                    tableSize === "Half"
                       ? "h-7 text-xs px-2 py-1"
                       : "h-8 text-sm px-3 py-2"
-                    }`}
+                  }`}
                 >
                   <FontAwesomeIcon icon={faColumns} className="mr-1" />
                   Columns
@@ -1545,11 +1816,23 @@ const SearchGlobalReferenceTable = forwardRef(
                           checked={!userHiddenCols.includes(col.key)}
                           onChange={(e) => {
                             const checked = e.target.checked;
-                            setUserHiddenCols((prev) =>
-                              checked
-                                ? prev.filter((k) => k !== col.key)
-                                : [...prev, col.key],
-                            );
+
+                            setUserHiddenCols((prev) => {
+                              if (checked) {
+                                return prev.filter((k) => k !== col.key);
+                              }
+
+                              const currentlyVisibleCount =
+                                baseVisibleColumns.filter(
+                                  (c) => !prev.includes(c.key),
+                                ).length;
+
+                              if (currentlyVisibleCount <= 1) {
+                                return prev;
+                              }
+
+                              return [...prev, col.key];
+                            });
                           }}
                         />
                         <span className="truncate">{col.label}</span>
@@ -1572,16 +1855,22 @@ const SearchGlobalReferenceTable = forwardRef(
           ) : (
             <div
               ref={scrollRef}
-              className={`flex-1 border border-gray-200 rounded-sm relative custom-scrollbar ${autoFillGrid ? "overflow-y-auto overflow-x-hidden" : "overflow-auto"
-                }`}
+              className={`flex-1 border border-gray-200 rounded-sm relative custom-scrollbar ${
+                autoFillGrid
+                  ? "overflow-y-auto overflow-x-hidden"
+                  : "overflow-auto"
+              }`}
             >
               <div className="text-[10px] text-gray-400 px-2 py-1 md:hidden">
                 Tip: swipe left/right to see more columns
               </div>
 
               <table
-                className={`global-tran-table-div-ui border-collapse ${autoFillGrid ? "table-fixed w-full min-w-full" : "table-auto min-w-max w-max"
-                  }`}
+                className={`global-tran-table-div-ui border-collapse ${
+                  autoFillGrid
+                    ? "table-fixed w-full min-w-full"
+                    : "table-auto min-w-max w-max"
+                }`}
               >
                 <thead className="global-tran-thead-div-ui text-[11px] sticky top-0 z-30 bg-white">
                   <tr>
@@ -1595,17 +1884,25 @@ const SearchGlobalReferenceTable = forwardRef(
                       return (
                         <th
                           key={col.key}
-                          className={`global-tran-th-ui bg-blue-100 select-none relative ${isStickyLeft ? "sticky z-40" : ""
-                            } ${actionCol ? "cursor-default" : "cursor-pointer"} ${col.className || ""}`}
-                          draggable={!isMobile && showGroupBy && !groupBy.includes(col.key) && !actionCol}
+                          className={`global-tran-th-ui bg-blue-100 select-none relative ${
+                            isStickyLeft ? "sticky z-40" : ""
+                          } ${actionCol ? "cursor-default" : "cursor-pointer"} ${col.className || ""}`}
+                          draggable={
+                            !isMobile &&
+                            showGroupBy &&
+                            !groupBy.includes(col.key) &&
+                            !actionCol
+                          }
                           onDragStart={(e) => {
-                            if (!isMobile && showGroupBy && !actionCol) handleColDragStart(e, col.key);
+                            if (!isMobile && showGroupBy && !actionCol)
+                              handleColDragStart(e, col.key);
                           }}
                           onDragOver={(e) => {
                             if (!isMobile && showGroupBy) e.preventDefault();
                           }}
                           onDrop={(e) => {
-                            if (!isMobile && showGroupBy) handleColDrop(e, col.key);
+                            if (!isMobile && showGroupBy)
+                              handleColDrop(e, col.key);
                           }}
                           onClick={() => handleSort(col.key, col.sortable)}
                           title={
@@ -1619,10 +1916,10 @@ const SearchGlobalReferenceTable = forwardRef(
                             ...(autoFillGrid && !isManual && !col.width
                               ? {}
                               : {
-                                width: `${colWidth}px`,
-                                minWidth: `${colWidth}px`,
-                                maxWidth: `${colWidth}px`,
-                              }),
+                                  width: `${colWidth}px`,
+                                  minWidth: `${colWidth}px`,
+                                  maxWidth: `${colWidth}px`,
+                                }),
                             left: isStickyLeft ? `${leftOffset}px` : undefined,
                           }}
                         >
@@ -1630,10 +1927,17 @@ const SearchGlobalReferenceTable = forwardRef(
                             <span className={headerCellWrap}>{col.label}</span>
                             {sortConfig.key === col.key ? (
                               <FontAwesomeIcon
-                                icon={sortConfig.direction === "asc" ? faSortUp : faSortDown}
+                                icon={
+                                  sortConfig.direction === "asc"
+                                    ? faSortUp
+                                    : faSortDown
+                                }
                               />
                             ) : (
-                              <FontAwesomeIcon icon={faSort} className="opacity-30" />
+                              <FontAwesomeIcon
+                                icon={faSort}
+                                className="opacity-30"
+                              />
                             )}
                           </div>
 
@@ -1656,31 +1960,45 @@ const SearchGlobalReferenceTable = forwardRef(
                         const leftOffset = getStickyLeftOffset(index);
                         const colWidth = getColWidth(col);
                         const isManual = manualResizedCols[col.key];
+                        const actionCol = isActionColumn(col);
 
                         return (
                           <th
                             key={`f-${col.key}`}
-                            className={`global-tran-th-ui px-1 py-1 bg-white ${isStickyLeft ? "sticky z-30" : ""
-                              }`}
+                            className={`global-tran-th-ui px-1 py-1 bg-white ${
+                              isStickyLeft ? "sticky z-30" : ""
+                            }`}
                             style={{
                               ...(autoFillGrid && !isManual
                                 ? {}
                                 : {
-                                  width: `${colWidth}px`,
-                                  minWidth: `${colWidth}px`,
-                                  maxWidth: `${colWidth}px`,
-                                }),
-                              left: isStickyLeft ? `${leftOffset}px` : undefined,
+                                    width: `${colWidth}px`,
+                                    minWidth: `${colWidth}px`,
+                                    maxWidth: `${colWidth}px`,
+                                  }),
+                              left: isStickyLeft
+                                ? `${leftOffset}px`
+                                : undefined,
                             }}
                           >
-                            {/* Only show the filter input if the column allows it and isn't an action column */}
-                            {col.filterable !== false && !isActionColumn(col) ? (
+                            {actionCol ? (
+                              <input
+                                className={`${filterInputClass} bg-gray-100 text-gray-400 cursor-not-allowed`}
+                                value=""
+                                disabled
+                                readOnly
+                                tabIndex={-1}
+                              />
+                            ) : col.filterable !== false ? (
                               <input
                                 className={filterInputClass}
                                 placeholder="Filter..."
                                 value={filters[col.key] || ""}
                                 onChange={(e) => {
-                                  setFilters((p) => ({ ...p, [col.key]: e.target.value }));
+                                  setFilters((p) => ({
+                                    ...p,
+                                    [col.key]: e.target.value,
+                                  }));
                                   setCurrentPage(1);
                                 }}
                               />
@@ -1695,8 +2013,13 @@ const SearchGlobalReferenceTable = forwardRef(
                 <tbody>
                   {!hasDataFiltered ? (
                     <tr>
-                      <td colSpan={visibleCols.length} className="global-ref-norecords-ui">
-                        {Array.isArray(data) && data.length > 0 ? "No records found" : "No data"}
+                      <td
+                        colSpan={visibleCols.length}
+                        className="global-ref-norecords-ui"
+                      >
+                        {Array.isArray(data) && data.length > 0
+                          ? "No records found"
+                          : "No data"}
                       </td>
                     </tr>
                   ) : (
@@ -1719,13 +2042,21 @@ const SearchGlobalReferenceTable = forwardRef(
                                 style={{ paddingLeft: row.level * 20 }}
                               >
                                 <FontAwesomeIcon
-                                  icon={isExpanded ? faChevronDown : faChevronRight}
+                                  icon={
+                                    isExpanded ? faChevronDown : faChevronRight
+                                  }
                                   className="mr-2 text-gray-500"
                                 />
                                 <span className="mr-2 text-gray-600">
-                                  {columns.find((c) => c.key === row.key)?.label}:
+                                  {
+                                    columns.find((c) => c.key === row.key)
+                                      ?.label
+                                  }
+                                  :
                                 </span>
-                                <span className="mr-2 font-bold">{row.value}</span>
+                                <span className="mr-2 font-bold">
+                                  {row.value}
+                                </span>
                                 <span className="bg-blue-200 text-blue-800 text-[10px] px-2 rounded-full">
                                   {row.count}
                                 </span>
@@ -1754,13 +2085,18 @@ const SearchGlobalReferenceTable = forwardRef(
                             return (
                               <td
                                 key={col.key}
-                                className={`global-tran-td-ui align-center bg-white ${isStickyLeft
+                                className={`global-tran-td-ui align-center bg-white ${
+                                  isStickyLeft
                                     ? "sticky z-10 shadow-[-1px_0_0_0_rgba(229,231,235,1)]"
                                     : ""
-                                  } ${col.className || ""}`}
+                                } ${col.className || ""}`}
                                 style={{
                                   width: getColWidth(col),
-                                  minWidth: col.width ? col.width : autoFillGrid ? 120 : 90,
+                                  minWidth: col.width
+                                    ? col.width
+                                    : autoFillGrid
+                                      ? 120
+                                      : 90,
                                   left: isStickyLeft ? leftOffset : undefined,
                                 }}
                               >
@@ -1795,7 +2131,9 @@ const SearchGlobalReferenceTable = forwardRef(
               <div>
                 Showing{" "}
                 <span className="font-semibold text-gray-900">
-                  {effectiveRowsPerPage > 0 ? (safePage - 1) * effectiveRowsPerPage + 1 : 1}
+                  {effectiveRowsPerPage > 0
+                    ? (safePage - 1) * effectiveRowsPerPage + 1
+                    : 1}
                 </span>
                 –
                 <span className="font-semibold text-gray-900">
@@ -1803,7 +2141,10 @@ const SearchGlobalReferenceTable = forwardRef(
                     ? Math.min(safePage * effectiveRowsPerPage, totalItems)
                     : totalItems}
                 </span>{" "}
-                of <span className="font-semibold text-gray-900">{totalItems}</span>
+                of{" "}
+                <span className="font-semibold text-gray-900">
+                  {totalItems}
+                </span>
               </div>
 
               {isFetching && (
@@ -1889,7 +2230,9 @@ const SearchGlobalReferenceTable = forwardRef(
                     disabled:opacity-50 disabled:cursor-not-allowed
                   "
                   disabled={safePage >= totalPages}
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  onClick={() =>
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                  }
                 >
                   Next
                 </button>
@@ -1919,7 +2262,11 @@ const SearchGlobalReferenceTable = forwardRef(
                     <th
                       key={col.key}
                       className="border px-2 py-1 text-left bg-gray-200 align-bottom"
-                      style={{ maxWidth: 150, whiteSpace: "normal", wordBreak: "break-word" }}
+                      style={{
+                        maxWidth: 150,
+                        whiteSpace: "normal",
+                        wordBreak: "break-word",
+                      }}
                     >
                       {col.label}
                     </th>
@@ -1928,15 +2275,21 @@ const SearchGlobalReferenceTable = forwardRef(
               </thead>
 
               <tbody>
-                {(effectiveGroupBy.length === 0 ? filteredData : fullRenderRows).map((row, idx) => {
+                {(effectiveGroupBy.length === 0
+                  ? filteredData
+                  : fullRenderRows
+                ).map((row, idx) => {
                   if (effectiveGroupBy.length > 0 && row.isGroup) {
                     return (
-                      <tr key={`exp-g-${row.key}-${row.value}-${row.level}-${idx}`}>
+                      <tr
+                        key={`exp-g-${row.key}-${row.value}-${row.level}-${idx}`}
+                      >
                         <td
                           colSpan={exportVisibleCols.length}
                           className="border px-2 py-1 font-semibold bg-gray-100"
                         >
-                          {columns.find((c) => c.key === row.key)?.label}: {row.value} ({row.count})
+                          {columns.find((c) => c.key === row.key)?.label}:{" "}
+                          {row.value} ({row.count})
                         </td>
                       </tr>
                     );
@@ -1948,7 +2301,11 @@ const SearchGlobalReferenceTable = forwardRef(
                         <td
                           key={col.key}
                           className="border px-2 py-1 align-bottom"
-                          style={{ maxWidth: 150, whiteSpace: "normal", wordBreak: "break-word" }}
+                          style={{
+                            maxWidth: 150,
+                            whiteSpace: "normal",
+                            wordBreak: "break-word",
+                          }}
                         >
                           {getCellDisplayText(row, col)}
                         </td>
@@ -1960,6 +2317,15 @@ const SearchGlobalReferenceTable = forwardRef(
             </table>
           </div>
         )}
+
+        <ExportFileNameModal
+  isOpen={exportModalOpen}
+  title={`Export ${String(exportType || "").toUpperCase()} File Name`}
+  defaultFileName={exportFileName}
+  confirmText="Export"
+  onClose={() => setExportModalOpen(false)}
+  onConfirm={handleConfirmExport}
+/>
       </div>
     );
   },

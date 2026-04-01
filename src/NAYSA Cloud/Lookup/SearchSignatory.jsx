@@ -18,9 +18,11 @@ const InputField = ({ label, name, value, onChange, disabled, isSaving }) => (
         disabled={disabled || isSaving}
         autoComplete="off"
         className={`w-full px-3 py-1.5 text-sm border rounded-md outline-none transition-all duration-200
-          ${disabled 
-            ? "bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed dark:bg-gray-800/50 dark:border-gray-700" 
-            : "bg-white border-gray-300 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-200"}
+          ${
+            disabled
+              ? "bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed dark:bg-gray-800/50 dark:border-gray-700"
+              : "bg-white border-gray-300 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-200"
+          }
         `}
       />
     </div>
@@ -30,7 +32,7 @@ const InputField = ({ label, name, value, onChange, disabled, isSaving }) => (
 const DocumentSignatories = ({ isOpen, onClose, onCancel, params }) => {
   const { documentID, noReprints, docType, docNo } = params;
   const queryClient = useQueryClient();
-  
+
   const hasLoadedInitialData = useRef(false);
   const cancelRef = useRef(null);
 
@@ -55,7 +57,7 @@ const DocumentSignatories = ({ isOpen, onClose, onCancel, params }) => {
 
   useEffect(() => {
     if (serverData && !hasLoadedInitialData.current) {
-      setForm(prev => ({
+      setForm((prev) => ({
         ...prev,
         checkedBy: serverData.checkedBy || "",
         notedBy: serverData.notedBy || "",
@@ -77,7 +79,10 @@ const DocumentSignatories = ({ isOpen, onClose, onCancel, params }) => {
   const { mutate: saveSignatories, isLoading: isSaving } = useMutation({
     mutationFn: async (mode) => {
       const payload = { ...form, printMode: mode, docType };
-      const response = await postRequest("upsertDocSign", JSON.stringify(payload));
+      const response = await postRequest(
+        "upsertDocSign",
+        JSON.stringify(payload),
+      );
       if (!response.success) throw new Error("Save failed");
       return mode;
     },
@@ -89,7 +94,7 @@ const DocumentSignatories = ({ isOpen, onClose, onCancel, params }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   if (!isOpen) return null;
@@ -97,7 +102,6 @@ const DocumentSignatories = ({ isOpen, onClose, onCancel, params }) => {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-slate-900/40 z-50 p-4">
       <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-xl shadow-2xl border border-white/20 overflow-hidden animate-in fade-in zoom-in duration-150">
-        
         {/* Header */}
         <div className="px-5 py-3 border-b dark:border-gray-800 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/30">
           <div>
@@ -108,8 +112,8 @@ const DocumentSignatories = ({ isOpen, onClose, onCancel, params }) => {
               {docType} - {docNo}
             </p>
           </div>
-          <button 
-            onClick={onCancel} 
+          <button
+            onClick={onCancel}
             className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-md text-gray-400 transition-colors"
           >
             <X size={16} />
@@ -118,10 +122,33 @@ const DocumentSignatories = ({ isOpen, onClose, onCancel, params }) => {
 
         {/* Vertical Body */}
         <div className="p-5 space-y-4">
-          <InputField label="Prepared By" name="preparedBy" value={form.preparedBy} disabled />
-          <InputField label="Checked By" name="checkedBy" value={form.checkedBy} onChange={handleChange} isSaving={isSaving} />
-          <InputField label="Noted By" name="notedBy" value={form.notedBy} onChange={handleChange} isSaving={isSaving} />
-          <InputField label="Approved By" name="approvedBy" value={form.approvedBy} onChange={handleChange} isSaving={isSaving} />
+          <InputField
+            label="Prepared By"
+            name="preparedBy"
+            value={form.preparedBy}
+            disabled
+          />
+          <InputField
+            label="Checked By"
+            name="checkedBy"
+            value={form.checkedBy}
+            onChange={handleChange}
+            isSaving={isSaving}
+          />
+          <InputField
+            label="Noted By"
+            name="notedBy"
+            value={form.notedBy}
+            onChange={handleChange}
+            isSaving={isSaving}
+          />
+          <InputField
+            label="Approved By"
+            name="approvedBy"
+            value={form.approvedBy}
+            onChange={handleChange}
+            isSaving={isSaving}
+          />
         </div>
 
         {/* Footer */}
@@ -137,34 +164,39 @@ const DocumentSignatories = ({ isOpen, onClose, onCancel, params }) => {
 
           <div className="relative">
             {canPickMode ? (
-              <div className="flex shadow-sm rounded-md overflow-hidden ring-1 ring-blue-600">
+              <div className="relative">
                 <button
                   disabled={isSaving}
-                  onClick={() => saveSignatories("Final")}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-colors border-r border-blue-500"
+                  onClick={() => setDropdownOpen((prev) => !prev)}
+                  className="flex items-center justify-between gap-2 min-w-[120px] px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-colors rounded-md shadow-sm ring-1 ring-blue-600"
                 >
-                  <Printer size={14} />
-                  <span>{isSaving ? "Saving..." : "Preview"}</span>
-                </button>
-                <button
-                  disabled={isSaving}
-                  onClick={() => setDropdownOpen(!dropdownOpen)}
-                  className="px-1.5 py-1.5 text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                >
-                  <ChevronDown size={14} className={`transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
+                  <span className="flex items-center gap-1.5">
+                    <Printer size={14} />
+                    <span>{isSaving ? "Saving..." : "Preview"}</span>
+                  </span>
+                  <ChevronDown
+                    size={14}
+                    className={`transition-transform ${dropdownOpen ? "rotate-180" : ""}`}
+                  />
                 </button>
 
                 {dropdownOpen && (
                   <div className="absolute right-0 bottom-full mb-2 w-32 bg-white dark:bg-gray-900 rounded-lg shadow-xl border dark:border-gray-700 p-1 z-50 animate-in slide-in-from-bottom-1">
                     <button
-                      onClick={() => { setDropdownOpen(false); saveSignatories("Draft"); }}
+                      onClick={() => {
+                        setDropdownOpen(false);
+                        saveSignatories("Draft");
+                      }}
                       className="flex items-center gap-2 w-full px-2 py-1.5 text-[11px] font-semibold text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md transition-all"
                     >
                       <FileText size={12} className="text-blue-500" />
                       Draft
                     </button>
                     <button
-                      onClick={() => { setDropdownOpen(false); saveSignatories("Final"); }}
+                      onClick={() => {
+                        setDropdownOpen(false);
+                        saveSignatories("Final");
+                      }}
                       className="flex items-center gap-2 w-full px-2 py-1.5 text-[11px] font-semibold text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md transition-all"
                     >
                       <CheckCircle size={12} className="text-blue-500" />

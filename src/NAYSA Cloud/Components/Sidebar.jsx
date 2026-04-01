@@ -312,11 +312,17 @@ const Sidebar = ({ menuItems = null, onNavigate, onOpenModal }) => {
       <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-800 bg-gradient-to-r from-blue-50 via-white to-sky-50 dark:from-slate-900 dark:via-gray-900 dark:to-slate-900">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <img
-              src="/naysa_logo.png"
-              className="w-[54px] h-[40px] object-contain transition-transform duration-300 hover:scale-105"
-              alt="Naysa Logo"
-            />
+            <NavLink 
+              to="/" 
+              className="flex items-center space-x-2 transition-opacity hover:opacity-80"
+            >
+              <img
+                src="/naysa_logo.png"
+                className="h-[35px] w-[70px] object-contain"
+                alt="Logo"
+              />
+              {/* <span className="hidden md:inline">Financials</span> */}
+            </NavLink>
 
             <div className="min-w-0">
               <div className="mt-1 font-bold text-blue-800 dark:text-blue-300 truncate">

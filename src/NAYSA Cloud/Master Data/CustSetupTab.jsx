@@ -15,7 +15,7 @@ import {
 } from "@/NAYSA Cloud/Global/procedure";
 
 const SectionHeader = ({ title }) => (
-  <div className="mb-3">
+  <div className="mb-4">
     <div className="text-[9px] sm:text-[12px] font-bold text-slate-500 tracking-widest border-b pb-2">
       {title}
     </div>
@@ -34,15 +34,15 @@ const CustSetupTab = forwardRef(
       isLoading,
       isEditing,
       form = {},
-      generationMode = "S",
+      generationMode,
       sltypeOptions = [],
       sourceOptions = [],
       activeOptions = [],
       onChangeForm,
       onSelectCustomerCode,
-      // Removed onLookupCode from here since we are handling it internally now
+      onLookupCode,
       payeeTypeOptions = [],
-      mappedTaxClassOptions = [],
+      taxClassOptions = [],
       handleTaxClassChange,
       handleBusinessNameChange,
       handleCheckNameChange,
@@ -51,6 +51,7 @@ const CustSetupTab = forwardRef(
     ref
   ) => {
     const [salesTab, setSalesTab] = useState("sales");
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     const { data: tblFieldArray = [] } = useQuery({
       queryKey: ["fieldLengths", "cust_mast"],
@@ -89,23 +90,21 @@ const CustSetupTab = forwardRef(
     const isReadOnly = !isEditing;
     const isDisabled = isReadOnly || isLoading;
 
-    // Helper variable to determine if we are manually adding a new code
-    const isManualNew = form.__isNew && generationMode === "M";
+    const isNewRecord = form.__isNew;
     const isRetrievedRecord = !form.__isNew && !!form.custCode;
 
-    // THIS triggers the SearchCusMast modal!
     const openCustomerLookup = () => {
       if (isLoading) return;
       toggleLookup("cust", true);
     };
 
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start rounded-lg relative">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-start rounded-lg relative">
         <div className="flex flex-col gap-6">
-          <Card className="border border-blue-500/30 p-6 rounded-lg space-y-4">
+          <Card className="border border-blue-500/30 p-5 md:p-7 rounded-lg space-y-5 md:space-y-6">
             <SectionHeader title="BASIC INFORMATION" />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
               <FieldRenderer
                 label="SL Type"
                 type="select"
@@ -127,24 +126,24 @@ const CustSetupTab = forwardRef(
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
               <FieldRenderer
                 label="Customer Code"
                 required
-                type={isManualNew || isRetrievedRecord ? "text" : "lookup"}
+                type="lookup" 
                 value={form.custCode || ""}
                 onChange={
-                  isManualNew
+                  isNewRecord
                     ? (v) => {
-                      const val = getValue(v);
-                      onChangeForm({ custCode: val });
-                    }
+                        const val = getValue(v);
+                        onChangeForm({ custCode: val });
+                      }
                     : undefined
                 }
-                // FIX IS HERE: Points to openCustomerLookup instead of onLookupCode
-                onLookup={isManualNew || isRetrievedRecord ? undefined : openCustomerLookup}
-                readOnly={!isManualNew}
-                disabled={isLoading || isRetrievedRecord}
+                onLookup={openCustomerLookup} 
+                readOnly={!isNewRecord} 
+                disabled={isLoading}
+                maxLength={getLen("cust_code", 20)}
               />
 
               <FieldRenderer
@@ -152,7 +151,7 @@ const CustSetupTab = forwardRef(
                 required
                 type="select"
                 value={normalizeUpper(form?.taxClass || "")}
-                options={mappedTaxClassOptions}
+                options={taxClassOptions}
                 onChange={(v) =>
                   (handleTaxClassChange ||
                     ((x) => onChangeForm({ taxClass: x })))(getValue(v))
@@ -187,7 +186,7 @@ const CustSetupTab = forwardRef(
               maxLength={getLen("business_name", 150)}
             />
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5">
               <FieldRenderer
                 label="First Name"
                 type="text"
@@ -219,7 +218,7 @@ const CustSetupTab = forwardRef(
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
               <FieldRenderer
                 label="Old Code"
                 type="text"
@@ -243,10 +242,10 @@ const CustSetupTab = forwardRef(
             </div>
           </Card>
 
-          <Card className="border border-blue-500/30 p-6 rounded-lg space-y-4">
+          <Card className="border border-blue-500/30 p-5 md:p-7 rounded-lg space-y-5 md:space-y-6">
             <SectionHeader title="CONTACT INFORMATION" />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
               <FieldRenderer
                 label="Contact Person"
                 type="text"
@@ -268,7 +267,7 @@ const CustSetupTab = forwardRef(
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
               <FieldRenderer
                 label="Telephone No."
                 type="text"
@@ -331,7 +330,7 @@ const CustSetupTab = forwardRef(
               maxLength={getLen("cust_addr3", 255)}
             />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
               <FieldRenderer
                 label="ZIP Code"
                 type="text"
@@ -357,32 +356,91 @@ const CustSetupTab = forwardRef(
         </div>
 
         <div className="flex flex-col gap-6">
-          <Card className="border border-blue-500/30 p-6 rounded-lg space-y-4">
-            <div className="flex border-b border-gray-300 mb-6 overflow-x-auto">
-              {[
-                { id: "sales", label: "Sales & A/R Information" },
-                { id: "other1", label: "Other Information 1" },
-                { id: "other2", label: "Other Information 2" },
-              ].map((tab) => (
+          <Card className="border border-blue-500/30 rounded-lg overflow-hidden">
+            <div className="flex flex-col md:flex-row">
+
+              {/* Collapsible Sidebar (Responsive: Tabs on Mobile) */}
+              <div
+                className={`flex md:flex-col border-b md:border-b-0 md:border-r border-blue-500/30 bg-slate-50 transition-all duration-200 ${sidebarCollapsed ? "md:w-12 md:min-w-[48px]" : "md:w-48 md:min-w-[192px]"}`}
+              >
+                {/* Toggle button - Hidden on mobile */}
                 <button
-                  key={tab.id}
                   type="button"
-                  onClick={() => setSalesTab(tab.id)}
-                  className={`px-4 py-2 text-sm font-semibold transition-all duration-200 whitespace-nowrap ${salesTab === tab.id
-                    ? "border-b-2 border-blue-600 text-blue-600"
-                    : "text-gray-500 hover:text-blue-600"
-                    }`}
+                  onClick={() => setSidebarCollapsed((v) => !v)}
+                  className="hidden md:flex items-center justify-end px-3 py-3 border-b border-blue-500/30 hover:bg-white transition-colors"
                 >
-                  {tab.label}
+                  <svg
+                    width="18" height="18" viewBox="0 0 16 16" fill="none"
+                    stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
+                    className={`text-slate-400 transition-transform duration-200 ${sidebarCollapsed ? "rotate-180" : ""}`}
+                  >
+                    <path d="M10 3L5 8L10 13" />
+                  </svg>
                 </button>
-              ))}
-            </div>
+
+                {/* Tab items (Responsive: Horizontally scrollable on mobile) */}
+                <div className="flex flex-row md:flex-col gap-2 md:gap-1 p-2 md:p-2 flex-1 overflow-x-auto">
+                  {[
+                    {
+                      id: "sales", label: "Sales & A/R",
+                      icon: (
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="2" y="3" width="12" height="10" rx="1.5" /><path d="M5 7h6M5 10h4" />
+                        </svg>
+                      )
+                    },
+                    {
+                      id: "other1", label: "Other Info 1",
+                      icon: (
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="8" cy="8" r="5.5" /><path d="M8 5.5v3l1.5 1.5" />
+                        </svg>
+                      )
+                    },
+                    {
+                      id: "other2", label: "Other Info 2",
+                      icon: (
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 4h10M3 8h7M3 12h5" />
+                        </svg>
+                      )
+                    },
+                  ].map((tab) => (
+                    <div key={tab.id} className="relative group flex-shrink-0 md:flex-shrink">
+                      <button
+                        type="button"
+                        onClick={() => setSalesTab(tab.id)}
+                        className={`flex items-center gap-3 w-full text-left rounded transition-colors duration-150 overflow-hidden whitespace-nowrap
+                          ${sidebarCollapsed ? "md:justify-center md:px-0 md:py-2 px-4 py-2" : "px-4 py-2 md:px-3 md:py-2.5"}
+                          ${salesTab === tab.id
+                            ? "bg-blue-50 text-blue-700 md:border-b-0 border-b-2 md:border-l-2 border-blue-600 rounded-none"
+                            : "text-slate-500 hover:bg-white hover:text-slate-700"
+                          }`}
+                      >
+                        <span className="flex-shrink-0">{tab.icon}</span>
+                        <span className={`text-[12px] font-medium truncate ${sidebarCollapsed ? "md:hidden" : "block"}`}>
+                          {tab.label}
+                        </span>
+                      </button>
+                      {/* Tooltip when collapsed */}
+                      {sidebarCollapsed && (
+                        <div className="absolute left-12 top-1/2 -translate-y-1/2 z-10 hidden md:group-hover:block bg-white border border-slate-200 rounded-md px-3 py-1.5 text-[12px] font-medium text-slate-700 whitespace-nowrap shadow-sm pointer-events-none">
+                          {tab.label}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Content area */}
+              <div className="flex-1 p-5 md:p-7 space-y-5 md:space-y-6 min-w-0">
 
             {salesTab === "sales" && (
               <>
                 <SectionHeader title="SALES INFORMATION" />
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
                   <FieldRenderer
                     label="Sales Rep."
                     required
@@ -539,7 +597,7 @@ const CustSetupTab = forwardRef(
 
                 <SectionHeader title="ACCOUNTING INFORMATION" />
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
                   <FieldRenderer
                     label="TIN"
                     required
@@ -563,7 +621,7 @@ const CustSetupTab = forwardRef(
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
                   <FieldRenderer
                     label="VAT Code"
                     required
@@ -592,7 +650,7 @@ const CustSetupTab = forwardRef(
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
                   <FieldRenderer
                     label="Business Style"
                     type="select"
@@ -612,7 +670,7 @@ const CustSetupTab = forwardRef(
               <>
                 <SectionHeader title="C&C INFORMATION" />
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
                   <FieldRenderer
                     label="Credit Investigator"
                     type="text"
@@ -662,7 +720,7 @@ const CustSetupTab = forwardRef(
               <>
                 <SectionHeader title="TAX CERTIFICATE SIGNATORY" />
 
-                <div className="space-y-3">
+                <div className="space-y-4 md:space-y-5">
                   <FieldRenderer
                     label="Name"
                     type="text"
@@ -720,6 +778,8 @@ const CustSetupTab = forwardRef(
                 </div>
               </>
             )}
+            </div>{/* end content area */}
+            </div>{/* end flex row */}
           </Card>
 
           <div className="mt-2">
