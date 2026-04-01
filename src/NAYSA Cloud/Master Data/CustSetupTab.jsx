@@ -34,15 +34,15 @@ const CustSetupTab = forwardRef(
       isLoading,
       isEditing,
       form = {},
-      generationMode = "S",
+      generationMode,
       sltypeOptions = [],
       sourceOptions = [],
       activeOptions = [],
       onChangeForm,
       onSelectCustomerCode,
-      // Removed onLookupCode from here since we are handling it internally now
+      onLookupCode,
       payeeTypeOptions = [],
-      mappedTaxClassOptions = [],
+      taxClassOptions = [],
       handleTaxClassChange,
       handleBusinessNameChange,
       handleCheckNameChange,
@@ -89,11 +89,9 @@ const CustSetupTab = forwardRef(
     const isReadOnly = !isEditing;
     const isDisabled = isReadOnly || isLoading;
 
-    // Helper variable to determine if we are manually adding a new code
-    const isManualNew = form.__isNew && generationMode === "M";
+    const isNewRecord = form.__isNew;
     const isRetrievedRecord = !form.__isNew && !!form.custCode;
 
-    // THIS triggers the SearchCusMast modal!
     const openCustomerLookup = () => {
       if (isLoading) return;
       toggleLookup("cust", true);
@@ -131,20 +129,20 @@ const CustSetupTab = forwardRef(
               <FieldRenderer
                 label="Customer Code"
                 required
-                type={isManualNew || isRetrievedRecord ? "text" : "lookup"}
+                type="lookup" 
                 value={form.custCode || ""}
                 onChange={
-                  isManualNew
+                  isNewRecord
                     ? (v) => {
-                      const val = getValue(v);
-                      onChangeForm({ custCode: val });
-                    }
+                        const val = getValue(v);
+                        onChangeForm({ custCode: val });
+                      }
                     : undefined
                 }
-                // FIX IS HERE: Points to openCustomerLookup instead of onLookupCode
-                onLookup={isManualNew || isRetrievedRecord ? undefined : openCustomerLookup}
-                readOnly={!isManualNew}
-                disabled={isLoading || isRetrievedRecord}
+                onLookup={openCustomerLookup} 
+                readOnly={!isNewRecord} 
+                disabled={isLoading}
+                maxLength={getLen("cust_code", 20)}
               />
 
               <FieldRenderer
@@ -152,7 +150,7 @@ const CustSetupTab = forwardRef(
                 required
                 type="select"
                 value={normalizeUpper(form?.taxClass || "")}
-                options={mappedTaxClassOptions}
+                options={taxClassOptions}
                 onChange={(v) =>
                   (handleTaxClassChange ||
                     ((x) => onChangeForm({ taxClass: x })))(getValue(v))

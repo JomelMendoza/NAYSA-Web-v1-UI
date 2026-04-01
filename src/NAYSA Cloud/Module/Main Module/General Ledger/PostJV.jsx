@@ -1,21 +1,19 @@
-import { useState, useEffect,useRef } from 'react';
-import { fetchDataJson, postRequest } from '../../../Configuration/BaseURL.jsx';
+import { useState, useEffect, useRef } from 'react';
+import { fetchDataJson } from '../../../Configuration/BaseURL.jsx';
 import { useSelectedHSColConfig } from '@/NAYSA Cloud/Global/selectedData';
-import  GlobalGLPostingModalv1 from "../../../Lookup/SearchGlobalGLPostingv1.jsx";
+import GlobalGLPostingModalv1 from "../../../Lookup/SearchGlobalGLPostingv1.jsx";
 import { useSwalValidationAlert } from '@/NAYSA Cloud/Global/behavior';
 import { useHandlePostTran } from '@/NAYSA Cloud/Global/procedure';
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
-
-
-const PostJV = ({ isOpen, onClose, userCode }) => {
+const PostJV = ({ isOpen, onClose, userCode, branchCode }) => {
+// const PostJV = ({ isOpen, onClose, userCode }) => {
   const [data, setData] = useState([]);
   const [colConfigData, setcolConfigData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [modalReady, setModalReady] = useState(false); // controls modal display
+  const [modalReady, setModalReady] = useState(false);
   const alertFired = useRef(false);
   const [userPassword, setUserPassword] = useState(null);
-
-
 
   useEffect(() => {
     let isMounted = true;
@@ -23,7 +21,7 @@ const PostJV = ({ isOpen, onClose, userCode }) => {
     const fetchData = async () => {
       if (!isOpen) return;
       setLoading(true);
-      alertFired.current = false; 
+      alertFired.current = false;
 
       try {
         const endpoint = "postingJV";
@@ -38,8 +36,8 @@ const PostJV = ({ isOpen, onClose, userCode }) => {
             title: "No Records Found",
             message: "There are no records to display.",
           });
-          alertFired.current = true; 
-          onClose();
+          alertFired.current = true;
+          onClose?.();
         }
 
         const colConfig = await useSelectedHSColConfig(endpoint);
@@ -62,28 +60,59 @@ const PostJV = ({ isOpen, onClose, userCode }) => {
       isMounted = false;
       setModalReady(false);
     };
-  }, [isOpen]);
+  }, [isOpen, onClose]);
 
+  const handlePost = async (selectedData, userPw) => {
+    await useHandlePostTran(selectedData, userPw, "JV", userCode, setLoading, onClose);
+  };
 
-const handlePost = async (selectedData, userPw) => {
-  console.log("JV POsting Data",JSON.stringify(selectedData))
-  await useHandlePostTran(selectedData,userPw,"JV",userCode,setLoading,onClose)
-}
+  const pickDocAndBranch = (row) => {
+    if (!row) return { docNo: null, branchCode: null };
+    const docNo = row.jvNo;
+    const branchCode = row.branchCode;
+    return { docNo, branchCode };
+  };
 
+  const handleViewDocument = (row) => {
+    const { docNo, branchCode } = pickDocAndBranch(row);
+    if (!docNo || !branchCode) {
+      useSwalValidationAlert({
+        icon: "warning",
+        title: "Missing keys",
+        message: "Cannot determine Document No Column Index"
+      });
+      return;
+    }
 
+    const JV_VIEW_URL = "/page/JV";
+    const url =
+      `${window.location.origin}${JV_VIEW_URL}` +
+      `?jvNo=${encodeURIComponent(docNo)}` +
+      `&branchCode=${encodeURIComponent(branchCode)}` +
+      `&viewDocument=true`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
 
-  return modalReady ? (
-    <GlobalGLPostingModalv1 
-      data={data} 
-      colConfigData={colConfigData} 
-      title="Post Journal Voucher" 
-      userPassword ={userPassword}
-      btnCaption="Ok"
-      onClose={onClose}
-      onPost={handlePost} 
-    />
-  ) : null;
+  return (
+    <>
+      {/* Mount the modal only when ready */}
+      {modalReady && (
+        <GlobalGLPostingModalv1
+          data={data}
+          colConfigData={colConfigData}
+          title="Post Journal Voucher"
+          userPassword={userPassword}
+          btnCaption="Okay"
+          onClose={onClose}
+          onPost={handlePost}
+          onViewDocument={handleViewDocument}
+          remoteLoading={loading}
+        />
+      )}
+
+      {loading && <LoadingSpinner />}
+    </>
+  );
 };
 
 export default PostJV;
-
