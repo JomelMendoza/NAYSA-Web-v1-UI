@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useSwalSuccessAlert, useSwalErrorAlert } from "@/NAYSA Cloud/Global/behavior.jsx";
 
 // UI
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -1956,36 +1957,35 @@ const APV = () => {
   };
 
   const handleCloseCancel = async (confirmation) => {
-    if (
-      confirmation &&
-      documentID !== null &&
-      ["", "OPEN"].includes((documentStatus || "").toUpperCase())
-    ) {
-      const result = await useHandleCancel(
-        docType,
-        documentID,
-        userCode,
-        confirmation.password,
-        confirmation.reason,
-        updateState,
-      );
-
-      if (result?.success) {
-        Swal.fire({
-          icon: "success",
-          title: "Success",
-          text: "Cancellation Completed",
-          timer: 5000,
-          timerProgressBar: true,
-          showConfirmButton: false,
-        });
-      }
-
-      await fetchTranData(documentNo, branchCode);
-    }
-
+  if (!confirmation) {
     updateState({ showCancelModal: false });
-  };
+    return;
+  }
+
+  if (
+    documentID !== null &&
+    ["", "OPEN"].includes((documentStatus || "").toUpperCase())
+  ) {
+    const result = await useHandleCancel(
+      docType,
+      documentID,
+      userCode,
+      confirmation.password,
+      confirmation.reason,
+      updateState,
+    );
+
+    if (result?.success) {
+      useSwalSuccessAlert("Success", "Document cancelled successfully.");
+      await fetchTranData(documentNo, branchCode);
+      updateState({ showCancelModal: false });
+    } else {
+      updateState({
+        resetCancelPasswordTrigger: Date.now(),
+      });
+    }
+  }
+};
 
   const handleCloseSignatory = async (mode) => {
     updateState({
