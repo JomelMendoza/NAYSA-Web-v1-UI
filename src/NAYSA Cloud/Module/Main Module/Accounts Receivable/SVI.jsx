@@ -854,17 +854,21 @@ const handleActivityOption = async (action) => {
         );
 
         if (response) {
-        
+          const responseDocNo =  response.data[0].sviNo;
+          const responseDocId =  response.data[0].sviId;
+
+          await fetchTranData(responseDocNo,branchCode);
 
           const isZero = Number(noReprints) === 0;
           const onSaveAndPrint = isZero
             ? () => updateState({ showSignatoryModal: true })
-            : () => handleSaveAndPrint(response.data[0].sviId);
+            : () => handleSaveAndPrint(responseDocId);
 
-          useSwalshowSaveSuccessDialog(handleReset, onSaveAndPrint);           
+          useSwalshowSaveSuccessDialog(handleReset, onSaveAndPrint);          
         }
-
         updateState({
+          documentNo:responseDocNo,
+          documentID:responseDocId,
           isDocNoDisabled: true,
           isFetchDisabled: true,
         });
@@ -876,6 +880,8 @@ const handleActivityOption = async (action) => {
     }
   }
 };
+
+
 
 
 
@@ -1090,21 +1096,49 @@ const handleAttach = async () => {
 
 
 
-const handleCopy = async () => {
- if (!detailRows || detailRows.length === 0) {
-      return;
-      }
+// const handleCopy = async () => {
+//  if (!detailRows || detailRows.length === 0) {
+//       return;
+//       }
 
-  if (documentID ) {
-    updateState({ documentNo:"",
-                  documentID:"",
-                  documentStatus:"",
-                  status:"OPEN",
-                  documentDate:useGetCurrentDayV2(), 
-                  noReprints:"0",
-     });
+//   if (documentID ) {
+//     updateState({ documentNo:"",
+//                   documentID:"",
+//                   documentStatus:"",
+//                   status:"OPEN",
+//                   documentDate:useGetCurrentDayV2(), 
+//                   noReprints:"0",
+//      });
+//   }
+// };
+
+const handleCopy = async () => {
+  if (!detailRows || detailRows.length === 0) {
+    return;
+  }
+
+  if (documentID) {
+    updateState({
+      documentNo: "",
+      documentID: "",
+      documentStatus: "",
+      status: "OPEN",
+      documentDate: useGetCurrentDayV2(),
+      noReprints: "0",
+    });
+
+    updateState({
+      detailRowsGL: Array.isArray(state.detailRowsGL)
+        ? state.detailRowsGL.map((row) => ({
+            ...row,
+            slRefNo: "",
+            slRefDate: "",
+          }))
+        : [],
+    });
   }
 };
+
 
 
 
@@ -1852,7 +1886,7 @@ return (
                         id="sviNo"
                         label="SVI No."
                         type="lookup"
-                        value={state.documentNo || ""}
+                        value={state.documentNo || documentNo ||""}
                         disabled={state.isDocNoDisabled}
                         onChange={(val) => updateState({ documentNo: val })}
                         onBlur={handleSviNoBlur}

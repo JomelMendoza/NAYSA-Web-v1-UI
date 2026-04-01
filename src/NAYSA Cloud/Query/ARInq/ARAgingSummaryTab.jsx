@@ -15,11 +15,17 @@ import {exportGenericHistoryExcel} from "@/NAYSA Cloud/Global/report";
 import BranchLookupModal from "@/NAYSA Cloud/Lookup/SearchBranchRef";
 import CustomerMastLookupModal from "@/NAYSA Cloud/Lookup/SearchCustMast";
 import COAMastLookupModal from "@/NAYSA Cloud/Lookup/SearchCOAMast.jsx";
-import { useTopUserRow, useTopBranchRow } from "@/NAYSA Cloud/Global/top1RefTable";
-import { useGetCurrentDay } from "@/NAYSA Cloud/Global/dates";
 import { useSelectedHSColConfig } from "@/NAYSA Cloud/Global/selectedData";
 import { formatNumber, parseFormattedNumber } from "@/NAYSA Cloud/Global/behavior.jsx";
 import SearchGlobalReportTable from "@/NAYSA Cloud/Lookup/SearchGlobalReportTable.jsx";
+import { useSwalErrorAlert } from "@/NAYSA Cloud/Global/behavior.jsx";
+import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
+import DateFormatInput from '@/NAYSA Cloud/Global/DateFormatInput.jsx';
+
+import {
+  useGetCurrentDayV2,
+  useformatToDatev2
+} from '@/NAYSA Cloud/Global/dates';
 
 const ENDPOINT = "getARAging";
 const COLS_KEY_BOTTOM = "getARAging";    // detail columns
@@ -102,7 +108,7 @@ const ARAgingSummaryTab = forwardRef(function ARAgingSummaryTab({ registerAction
     branchName: currentUserRow.branchName,
     custCode: "",
     custName: "",
-    refDate: useGetCurrentDay(),
+    refDate: useGetCurrentDayV2(),
     arAgingDataUnfiltered: [],  // detail (for export)
     arAgingData: [],            // detail table rows
     arAgingDataS: [],           // summary table rows (from getARInquiryS)
@@ -146,7 +152,7 @@ const ARAgingSummaryTab = forwardRef(function ARAgingSummaryTab({ registerAction
       custName: "",
       acctCode: "",
       acctName: "",
-      refDate: useGetCurrentDay(),
+      refDate: useGetCurrentDayV2(),
       arAgingData: [],
       arAgingDataS: [],
       arAgingDataUnfiltered: [],
@@ -184,30 +190,58 @@ const ARAgingSummaryTab = forwardRef(function ARAgingSummaryTab({ registerAction
     return () => { alive = false; };
   }, [requestOnce]);
 
+
+
   // fetch both summary & detail
   const fetchRecord = useCallback(async () => {
-    updateState({ isLoading: true });
-    try {
-      const response = await requestOnce(
-        `rows:${ENDPOINT}:${branchCode}:${custCode}:${refDate}:${acctCode}`,
-        () => fetchData(ENDPOINT, { json_data: { json_data: { branchCode, custCode, refDate, acctCode } } })
-      );
+  updateState({ isLoading: true });
 
-      const custData = response?.data?.[0]?.result ? JSON.parse(response.data[0].result) : [];
-      const rowsBottom = custData?.[0]?.dt1 ?? []; // detail
-      const rowsTop    = custData?.[0]?.dt2 ?? []; // summary (getARInquiryS shape)
+  try {
+    const response = await requestOnce(
+      `rows:${ENDPOINT}:${branchCode}:${custCode}:${refDate}:${acctCode}`,
+      () =>
+        fetchData(ENDPOINT, {
+          json_data: { json_data: { branchCode, custCode, refDate, acctCode } },
+        })
+    );
 
+    const custData = response?.data?.[0]?.result
+      ? JSON.parse(response.data[0].result)
+      : [];
+
+    const rowsBottom = custData?.[0]?.dt1 ?? [];
+    const rowsTop = custData?.[0]?.dt2 ?? [];
+
+    const safeRowsBottom = Array.isArray(rowsBottom) ? rowsBottom : [];
+    const safeRowsTop = Array.isArray(rowsTop) ? rowsTop : [];
+
+     console.log(safeRowsBottom)
+    if (safeRowsBottom.length === 0 && safeRowsTop.length === 0) {
       updateState({
-        arAgingData: Array.isArray(rowsBottom) ? rowsBottom : [],
-        arAgingDataUnfiltered: Array.isArray(rowsBottom) ? rowsBottom : [],
-        arAgingDataS: Array.isArray(rowsTop) ? rowsTop : [],
+        arAgingData: [],
+        arAgingDataUnfiltered: [],
+        arAgingDataS: [],
+        custCode:"",
+        custName:"",
       });
-    } catch (err) {
-      console.error("Error fetching data:", err);
-    } finally {
-      updateState({ isLoading: false });
+
+       useSwalErrorAlert("AR Aging", "No records found.");
+      return;
     }
-  }, [branchCode, custCode, refDate, acctCode, requestOnce]);
+
+    updateState({
+      arAgingData: safeRowsBottom,
+      arAgingDataUnfiltered: safeRowsBottom,
+      arAgingDataS: safeRowsTop,
+    });
+  } catch (err) {
+    console.error("Error fetching data:", err);
+  } finally {
+    updateState({ isLoading: false });
+  }
+}, [branchCode, custCode, refDate, acctCode, requestOnce]);
+
+
 
   // fetch detail per selected summary row
   const fetchRecordperCustomer = useCallback(async (selectedCustomer) => {
@@ -478,7 +512,6 @@ const ARAgingSummaryTab = forwardRef(function ARAgingSummaryTab({ registerAction
       <div className="global-tran-tab-div-ui">
         <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
           <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
-
             {/* Customer / Account / Date */}
             <section className="p-5">
               <h3 className="flex items-center gap-2 text-gray-800 font-semibold mb-4">
@@ -486,66 +519,49 @@ const ARAgingSummaryTab = forwardRef(function ARAgingSummaryTab({ registerAction
                 Customer & Account
               </h3>
 
-              <div className="global-tran-textbox-group-div-ui">
-                {/* Branch */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="branchName"
-                    placeholder=" "
-                    value={branchName}
-                    readOnly
-                    className="peer global-tran-textbox-ui cursor-pointer"
-                  />
-                  <label htmlFor="branchName" className="global-tran-floating-label">Branch</label>
-                  <button
-                    type="button"
-                    className="global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-enabled-ui global-tran-textbox-button-search-ui"
-                    onClick={() => updateState({ showBranchModal: true })}
-                    disabled={isLoading}
-                    aria-label="Find Branch"
-                    title="Find Branch"
+              <div className="space-y-3">
+                <FieldRenderer
+                  id="branchName"
+                  name="branchName"
+                  label="Branch"
+                  type="lookup"
+                  value={branchName || ""}
+                  readOnly
+                  disabled={isLoading}
+                  onLookup={() => updateState({ showBranchModal: true })}
+                />
+
+                <div className="relative w-full">
+                  <div
+                    className={`flex items-stretch global-ref-textbox-ui ${
+                      !isLoading
+                        ? "global-ref-textbox-enabled"
+                        : "global-ref-textbox-disabled"
+                    }`}
                   >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} />
-                  </button>
+                    <DateFormatInput
+                      id="refDate"
+                      className="peer flex-grow bg-transparent border-none px-3 focus:outline-none cursor-pointer"
+                      value={refDate}
+                      disabled={isLoading}
+                      updateState={updateState}
+                    />
+                  </div>
+                  <label htmlFor="refDate" className="global-ref-floating-label">
+                    Reference Date
+                  </label>
                 </div>
 
-                {/* Reference Date */}
-                <div className="relative">
-                  <input
-                    type="date"
-                    className="peer global-tran-textbox-ui"
-                    value={refDate}
-                    onChange={(e) => updateState({ refDate: e.target.value })}
-                  />
-                  <label htmlFor="SVIDate" className="global-tran-floating-label">Reference Date</label>
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                    <FontAwesomeIcon icon={faCalendarDays} />
-                  </span>
-                </div>
-
-                {/* AR Account */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="acctName"
-                    placeholder=" "
-                    value={acctName}
-                    readOnly
-                    className="peer global-tran-textbox-ui cursor-pointer"
-                  />
-                  <label htmlFor="acctName" className="global-tran-floating-label">AR Account</label>
-                  <button
-                    type="button"
-                    className="global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-enabled-ui global-tran-textbox-button-search-ui"
-                    onClick={() => updateState({ showAccountModal: true })}
-                    disabled={isLoading}
-                    aria-label="Find Account"
-                    title="Find Account"
-                  >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} />
-                  </button>
-                </div>
+                <FieldRenderer
+                  id="acctName"
+                  name="acctName"
+                  label="AR Account"
+                  type="lookup"
+                  value={acctName || ""}
+                  readOnly
+                  disabled={isLoading}
+                  onLookup={() => updateState({ showAccountModal: true })}
+                />
               </div>
             </section>
 
@@ -556,47 +572,31 @@ const ARAgingSummaryTab = forwardRef(function ARAgingSummaryTab({ registerAction
                 Filters
               </h3>
 
-              <div className="global-tran-textbox-group-div-ui">
-                {/* Customer Code */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="custCode"
-                    placeholder=" "
-                    value={custCode}
-                    onChange={(e) => updateState({ custCode: e.target.value })}
-                    className="peer global-tran-textbox-ui"
-                    disabled={isLoading}
-                  />
-                  <label htmlFor="custCode" className="global-tran-floating-label">Customer Code</label>
-                  <button
-                    type="button"
-                    className="global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-enabled-ui global-tran-textbox-button-search-ui"
-                    onClick={() => updateState({ showCustomerModal: true })}
-                    disabled={isLoading}
-                    aria-label="Find Customer"
-                    title="Find Customer"
-                  >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} />
-                  </button>
-                </div>
+              <div className="space-y-3">
+                <FieldRenderer
+                  id="custCode"
+                  name="custCode"
+                  label="Customer Code"
+                  type="lookup"
+                  value={custCode || ""}
+                  disabled={isLoading}
+                  onChange={(val) => updateState({ custCode: val })}
+                  onLookup={() => updateState({ showCustomerModal: true })}
+                />
 
-                {/* Customer Name */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="custName"
-                    placeholder=" "
-                    value={custName}
-                    readOnly
-                    className="peer global-tran-textbox-ui"
-                  />
-                  <label htmlFor="custName" className="global-tran-floating-label">Customer Name</label>
-                </div>
+                <FieldRenderer
+                  id="custName"
+                  name="custName"
+                  label="Customer Name"
+                  type="text"
+                  value={custName || ""}
+                  disabled
+                  readOnly
+                />
               </div>
             </section>
 
-            {/* Filter Summary (computed from arAgingDataS) */}
+            {/* Filter Summary */}
             <aside className="p-5 bg-gray-50">
               <h3 className="flex items-center gap-2 text-gray-800 font-semibold mb-4">
                 <FontAwesomeIcon className="text-blue-600" icon={faTableList} />
@@ -618,7 +618,6 @@ const ARAgingSummaryTab = forwardRef(function ARAgingSummaryTab({ registerAction
                 </div>
               </div>
             </aside>
-
           </div>
         </div>
       </div>
@@ -631,6 +630,7 @@ const ARAgingSummaryTab = forwardRef(function ARAgingSummaryTab({ registerAction
           </div>
         </div>
 
+
         <div className="global-tran-table-main-div-ui">
             <SearchGlobalReportTable
               ref={tableRefTop}
@@ -641,6 +641,7 @@ const ARAgingSummaryTab = forwardRef(function ARAgingSummaryTab({ registerAction
               rightActionLabel="View"
               onRowAction={handleViewTop}
               className="mt-2"
+              docType="AR Aging Summary"
               initialState={initialStateTop}
               onStateChange={(tbl) => {
                 tableStateTopRef.current = tbl;
@@ -670,6 +671,7 @@ const ARAgingSummaryTab = forwardRef(function ARAgingSummaryTab({ registerAction
               rightActionLabel="View"
               onRowAction={handleViewRow}
               className="mt-2"
+              docType="AR Advances Detailed"
               initialState={initialStateBottom}
               onStateChange={(tbl) => {
                 tableStateBottomRef.current = tbl;
@@ -690,6 +692,11 @@ const ARAgingSummaryTab = forwardRef(function ARAgingSummaryTab({ registerAction
               updateState({
                 branchCode: selectedBranch.branchCode,
                 branchName: selectedBranch.branchName,
+                acctCode: "",
+                acctName: "",
+                arAgingData: [],
+                arAgingDataS: [],
+                arAgingDataUnfiltered: [],
               });
             }
             updateState({ showBranchModal: false });
@@ -706,6 +713,9 @@ const ARAgingSummaryTab = forwardRef(function ARAgingSummaryTab({ registerAction
               updateState({
                 acctCode: selectedAccount.acctCode,
                 acctName: selectedAccount.acctName,
+                arAgingData: [],
+                arAgingDataS: [],
+                arAgingDataUnfiltered: [],
               });
             }
             updateState({ showAccountModal: false });

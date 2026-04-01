@@ -13,14 +13,11 @@ import {exportGenericHistoryExcel} from "@/NAYSA Cloud/Global/report";
 import BranchLookupModal from "@/NAYSA Cloud/Lookup/SearchBranchRef";
 import CustomerMastLookupModal from "@/NAYSA Cloud/Lookup/SearchCustMast";
 import CutoffLookupModal from "@/NAYSA Cloud/Lookup/SearchCutoffRef";
-import {
-  useTopCompanyRow,
-  useTopUserRow,
-  useTopBranchRow,
-} from "@/NAYSA Cloud/Global/top1RefTable";
 import { useSelectedHSColConfig } from "@/NAYSA Cloud/Global/selectedData";
 import { formatNumber, parseFormattedNumber } from "@/NAYSA Cloud/Global/behavior.jsx";
 import SearchGlobalReportTable from "@/NAYSA Cloud/Lookup/SearchGlobalReportTable.jsx";
+import { useSwalErrorAlert } from "@/NAYSA Cloud/Global/behavior.jsx";
+import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 
 const ENDPOINT = "getARInquiry";
 
@@ -116,16 +113,28 @@ const ARInquiryTab = forwardRef(function ARInquiryTab({ registerActions }, ref) 
 
  
 
-  const handleReset = useCallback(async () => {
+  const filterReset = () => {
     updateState({
-      custCode: "",
-      custName: "",
       arInquiryData: [],
       beginningBalance: "0.00",
       totalDebit: "0.00",
       totalCredit: "0.00",
       endingBalance: "0.00",
     });
+  };
+
+
+  const handleReset = useCallback(async () => {
+    updateState({
+      custCode: "",
+      custName: "",
+      startingCutoff: companyInfo.cutoffCode,
+      startingCutoffName: companyInfo.cutoffName,
+      endingCutoff: companyInfo.cutoffCode,
+      endingCutoffName: companyInfo.cutoffName,
+    });
+
+      filterReset()
   }, []);
 
   // totals
@@ -155,28 +164,51 @@ const ARInquiryTab = forwardRef(function ARInquiryTab({ registerActions }, ref) 
     });
   }, [beginningBalance]);
 
+
+
+
   // find (rows only)
-  const fetchRecord = useCallback(async () => {
-    updateState({ isLoading: true });
-    try {
-      // keeping payload structure as-is to avoid breaking your API
-      const response = await fetchData(ENDPOINT, {
-        json_data: { json_data: { branchCode, custCode, startingCutoff, endingCutoff } },
+const fetchRecord = useCallback(async () => {
+  updateState({ isLoading: true });
+
+  try {
+    const response = await fetchData(ENDPOINT, {
+      json_data: { json_data: { branchCode, custCode, startingCutoff, endingCutoff } },
+    });
+
+    const custData = response?.data?.[0]?.result
+      ? JSON.parse(response.data[0].result)
+      : [];
+
+    const rows = custData?.[0]?.dt1 ?? [];
+    const safeRows = Array.isArray(rows) ? rows : [];
+
+    if (safeRows.length === 0) {
+      updateState({
+        arInquiryData: [],
+        beginningBalance: "0.00",
+        totalDebit: "0.00",
+        totalCredit: "0.00",
+        endingBalance: "0.00",
+        custCode:"",
+        custName:"",
       });
 
-      const custData = response?.data?.[0]?.result
-        ? JSON.parse(response.data[0].result)
-        : [];
-
-      const rows = custData?.[0]?.dt1 ?? [];
-      updateState({ arInquiryData: Array.isArray(rows) ? rows : [] });
-      calculateTotals(rows);
-    } catch (err) {
-      console.error("Error fetching data:", err);
-    } finally {
-      updateState({ isLoading: false });
+      useSwalErrorAlert("AR Inquiry", "No records found.");
+      return;
     }
-  }, [branchCode, custCode, startingCutoff, endingCutoff, calculateTotals]);
+
+    updateState({ arInquiryData: safeRows });
+    calculateTotals(safeRows);
+  } catch (err) {
+    console.error("Error fetching data:", err);
+  } finally {
+    updateState({ isLoading: false });
+  }
+}, [branchCode, custCode, startingCutoff, endingCutoff, calculateTotals]);
+
+
+
 
   // -------- hydrate from cache or load defaults once --------
   useEffect(() => {
@@ -390,9 +422,8 @@ const ARInquiryTab = forwardRef(function ARInquiryTab({ registerActions }, ref) 
       {(showSpinner || exporting) && <LoadingSpinner />}
 
       {/* === Filters + Summary (Redesigned) === */}
-      <div id="summary" className="global-tran-tab-div-ui">
+    <div id="summary" className="global-tran-tab-div-ui">
         <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
-          {/* 3 columns with subtle dividers; stack on mobile */}
           <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
             {/* Customer Details */}
             <section className="p-5">
@@ -401,70 +432,37 @@ const ARInquiryTab = forwardRef(function ARInquiryTab({ registerActions }, ref) 
                 Customer Details
               </h3>
 
-              {/* Branch */}
-              <div className="global-tran-textbox-group-div-ui">
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="branchName"
-                    placeholder=" "
-                    value={branchName}
-                    readOnly
-                    className="peer global-tran-textbox-ui cursor-pointer"
-                  />
-                  <label htmlFor="branchName" className="global-tran-floating-label">Branch</label>
-                  <button
-                    type="button"
-                    className="global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-enabled-ui global-tran-textbox-button-search-ui"
-                    onClick={() => updateState({ showBranchModal: true })}
-                    disabled={isLoading}
-                    aria-label="Find Branch"
-                    title="Find Branch"
-                  >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} />
-                  </button>
-                </div>
-              </div>
+              <div className="space-y-3">
+                <FieldRenderer
+                  type="lookup"
+                  id="branchName"
+                  name="branchName"
+                  label="Branch"
+                  value={branchName}
+                  readOnly
+                  disabled={isLoading}
+                  onLookup={() => updateState({ showBranchModal: true })}
+                />
 
-              {/* Customer Code */}
-              <div className="global-tran-textbox-group-div-ui">
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="custCode"
-                    placeholder=" "
-                    value={custCode}
-                    onChange={(e) => updateState({ custCode: e.target.value })}
-                    className="peer global-tran-textbox-ui"
-                    disabled={isLoading}
-                  />
-                  <label htmlFor="custCode" className="global-tran-floating-label">Customer Code</label>
-                  <button
-                    type="button"
-                    className="global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-enabled-ui global-tran-textbox-button-search-ui"
-                    onClick={() => updateState({ showCustomerModal: true })}
-                    disabled={isLoading}
-                    aria-label="Find Customer"
-                    title="Find Customer"
-                  >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} />
-                  </button>
-                </div>
-              </div>
+                <FieldRenderer
+                  type="lookup"
+                  id="custCode"
+                  name="custCode"
+                  label="Customer Code"
+                  value={custCode}
+                  disabled={isLoading}
+                  onChange={(e) => updateState({ custCode: e.target.value })}
+                  onLookup={() => updateState({ showCustomerModal: true })}
+                />
 
-              {/* Customer Name */}
-              <div className="global-tran-textbox-group-div-ui">
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="custName"
-                    placeholder=" "
-                    value={custName}
-                    readOnly
-                    className="peer global-tran-textbox-ui"
-                  />
-                  <label htmlFor="custName" className="global-tran-floating-label">Customer Name</label>
-                </div>
+                <FieldRenderer
+                  type="text"
+                  id="custName"
+                  name="custName"
+                  label="Customer Name"
+                  value={custName}
+                  readOnly
+                />
               </div>
             </section>
 
@@ -475,54 +473,38 @@ const ARInquiryTab = forwardRef(function ARInquiryTab({ registerActions }, ref) 
                 Date Range
               </h3>
 
-              {/* Starting Cut-off */}
-              <div className="global-tran-textbox-group-div-ui">
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="startingCutoffName"
-                    placeholder=" "
-                    value={startingCutoffName}
-                    readOnly
-                    className="peer global-tran-textbox-ui cursor-pointer"
-                  />
-                  <label htmlFor="startingCutoffName" className="global-tran-floating-label">Starting Cut-off</label>
-                  <button
-                    type="button"
-                    className="global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-enabled-ui global-tran-textbox-button-search-ui"
-                    onClick={() => updateState({ showCutoffModal: true, cutoffModalType: "starting" })}
-                    disabled={isLoading}
-                    aria-label="Find Starting Cut-off"
-                    title="Find Starting Cut-off"
-                  >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} />
-                  </button>
-                </div>
-              </div>
+              <div className="space-y-3">
+                <FieldRenderer
+                  type="lookup"
+                  id="startingCutoffName"
+                  name="startingCutoffName"
+                  label="Starting Cut-off"
+                  value={startingCutoffName}
+                  readOnly
+                  disabled={isLoading}
+                  onLookup={() =>
+                    updateState({
+                      showCutoffModal: true,
+                      cutoffModalType: "starting",
+                    })
+                  }
+                />
 
-              {/* Ending Cut-off */}
-              <div className="global-tran-textbox-group-div-ui">
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="endingCutoffName"
-                    placeholder=" "
-                    value={endingCutoffName}
-                    readOnly
-                    className="peer global-tran-textbox-ui cursor-pointer"
-                  />
-                  <label htmlFor="endingCutoffName" className="global-tran-floating-label">Ending Cut-off</label>
-                  <button
-                    type="button"
-                    className="global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-enabled-ui global-tran-textbox-button-search-ui"
-                    onClick={() => updateState({ showCutoffModal: true, cutoffModalType: "ending" })}
-                    disabled={isLoading}
-                    aria-label="Find Ending Cut-off"
-                    title="Find Ending Cut-off"
-                  >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} />
-                  </button>
-                </div>
+                <FieldRenderer
+                  type="lookup"
+                  id="endingCutoffName"
+                  name="endingCutoffName"
+                  label="Ending Cut-off"
+                  value={endingCutoffName}
+                  readOnly
+                  disabled={isLoading}
+                  onLookup={() =>
+                    updateState({
+                      showCutoffModal: true,
+                      cutoffModalType: "ending",
+                    })
+                  }
+                />
               </div>
             </section>
 
@@ -578,6 +560,7 @@ const ARInquiryTab = forwardRef(function ARInquiryTab({ registerActions }, ref) 
               onRowAction={handleViewRow}
               className="mt-2"
               initialState={initialTableState}
+              docType="AR Inquiry Report"
               onStateChange={(tbl) => {
                 tableStateRef.current = tbl;
                 const cache = getGlobalCache();
@@ -596,6 +579,7 @@ const ARInquiryTab = forwardRef(function ARInquiryTab({ registerActions }, ref) 
           isOpen={showBranchModal}
           onClose={(selectedBranch) => {
             if (selectedBranch) {
+              filterReset(),
               updateState({
                 branchCode: selectedBranch.branchCode,
                 branchName: selectedBranch.branchName,
@@ -611,6 +595,7 @@ const ARInquiryTab = forwardRef(function ARInquiryTab({ registerActions }, ref) 
           isOpen={showCustomerModal}
           onClose={(selectedCustomer) => {
             if (selectedCustomer) {
+              filterReset(),
               updateState({
                 custCode: selectedCustomer.custCode,
                 custName: selectedCustomer.custName,
@@ -627,26 +612,45 @@ const ARInquiryTab = forwardRef(function ARInquiryTab({ registerActions }, ref) 
       )}
 
       {showCutoffModal && (
-        <CutoffLookupModal
-          isOpen={showCutoffModal}
-          onClose={(selectedCutoff) => {
-            if (selectedCutoff) {
-              if (cutoffModalType === "starting") {
-                updateState({
-                  startingCutoff: selectedCutoff.cutoffCode,
-                  startingCutoffName: selectedCutoff.cutoffName,
-                });
-              } else {
-                updateState({
-                  endingCutoff: selectedCutoff.cutoffCode,
-                  endingCutoffName: selectedCutoff.cutoffName,
-                });
+          <CutoffLookupModal
+            isOpen={showCutoffModal}
+            onClose={(selectedCutoff) => {
+              if (selectedCutoff) {
+                if (cutoffModalType === "starting") {
+                  filterReset();
+                  updateState({
+                    startingCutoff: selectedCutoff.cutoffCode,
+                    startingCutoffName: selectedCutoff.cutoffName,
+                    endingCutoff: selectedCutoff.cutoffCode,
+                    endingCutoffName: selectedCutoff.cutoffName,
+                  });
+                } else {
+                  // validate ending cutoff
+                  if (selectedCutoff.cutoffCode < startingCutoff) {
+                    useSwalErrorAlert("","","endingCutoff");
+                    filterReset();
+                    updateState({
+                      endingCutoff: startingCutoff,
+                      endingCutoffName: startingCutoffName,
+                    });
+
+                    updateState({ showCutoffModal: false, cutoffModalType: "" });
+                    return;
+                  }
+
+                  filterReset();
+                  updateState({
+                    endingCutoff: selectedCutoff.cutoffCode,
+                    endingCutoffName: selectedCutoff.cutoffName,
+                  });
+                }
               }
-            }
-            updateState({ showCutoffModal: false, cutoffModalType: "" });
-          }}
-        />
-      )}
+
+              updateState({ showCutoffModal: false, cutoffModalType: "" });
+            }}
+          />
+        )}
+
     </div>
   );
 });
