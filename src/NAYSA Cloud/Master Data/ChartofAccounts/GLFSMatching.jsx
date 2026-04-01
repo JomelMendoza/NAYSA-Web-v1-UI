@@ -338,11 +338,11 @@ const GLFSMatching = forwardRef(function GLFSMatching(
           return (
             <div className="flex items-center gap-1 min-w-[160px]">
               <div className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-[11px] bg-gray-50 text-left">
-                {row.fsConsoCode || ""}
+                {row.fsConsoCode || "NO MATCHED FS CONSO"}
               </div>
               <button
                 type="button"
-                className="h-[28px] w-[30px] rounded-md bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-600 hover:text-white transition-colors"
+                className="h-7 sm:h-6 w-7 rounded-md bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-600 hover:text-white transition-colors"
                 onClick={() => {
                   setSelectedRow(rowKey);
                   toggleModal("fsConso", true);

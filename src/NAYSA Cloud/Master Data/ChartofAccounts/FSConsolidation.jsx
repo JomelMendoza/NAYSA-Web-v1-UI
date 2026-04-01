@@ -498,7 +498,7 @@ const FSConsolidation = forwardRef(function FSConsolidation(
     () => [
       {
         key: "__actions",
-        label: "Actions",
+        label: <span className="hidden md:inline">Actions</span>,
         width: 110,
         sortable: false,
         render: (row) => (
@@ -508,10 +508,11 @@ const FSConsolidation = forwardRef(function FSConsolidation(
                 e.stopPropagation();
                 addRow();
               }}
-              className="py-1 px-2 bg-blue-100 border border-blue-100 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white transition-colors"
+              className="global-ref-td-button-edit-ui"
               title="Add"
             >
               <FontAwesomeIcon icon={faPlus} />
+              <span className="md:hidden">Add</span>
             </button>
 
             <button
@@ -519,10 +520,11 @@ const FSConsolidation = forwardRef(function FSConsolidation(
                 e.stopPropagation();
                 handleDelete(row);
               }}
-              className="py-1 px-2 bg-red-100 border border-red-100 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors"
+              className="global-ref-td-button-delete-ui"
               title="Delete"
             >
               <FontAwesomeIcon icon={faTrashAlt} />
+              <span className="md:hidden">Delete</span>
             </button>
 
             <button
@@ -530,10 +532,11 @@ const FSConsolidation = forwardRef(function FSConsolidation(
                 e.stopPropagation();
                 openRegistrationModal(row);
               }}
-              className="py-1 px-2 bg-indigo-100 border border-indigo-100 text-indigo-600 rounded-md hover:bg-indigo-600 hover:text-white transition-colors"
+              className="global-ref-td-button-reg-ui"
               title="Registration Info"
             >
               <FontAwesomeIcon icon={faClipboardList} />
+              <span className="md:hidden">Reg. Info</span>
             </button>
           </div>
         ),
@@ -587,7 +590,7 @@ const FSConsolidation = forwardRef(function FSConsolidation(
       {
         key: "fsConsoName",
         label: "FS Conso Name",
-        width: 600,
+        width: 350,
         sortable: true,
         render: (row) => {
           const rowKey = row.fsConsoCode || row.__tempId;
