@@ -25,7 +25,7 @@ import AllTranDocNo from "../../../Lookup/SearchDocNo.jsx";
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 
 // Configuration
-import {fetchData , postRequest, fetchDataJson} from '../../../Configuration/BaseURL.jsx'
+import { postRequest, fetchDataJson} from '../../../Configuration/BaseURL.jsx'
 import { useReset } from "../../../Components/ResetContext";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 
@@ -42,7 +42,6 @@ import {
   useTopAccountRow,
   useTopForexRate,
   useTopCurrencyRow,
-  useTopBankMastRow,
 } from '@/NAYSA Cloud/Global/top1RefTable';
 
 import {
@@ -82,7 +81,6 @@ import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
 // Header
 import Header from '@/NAYSA Cloud/Components/Header';
-import { faAdd } from "@fortawesome/free-solid-svg-icons/faAdd";
 
 const APDM = () => {
   const loadedFromUrlRef = useRef(false);
@@ -147,8 +145,6 @@ const APDM = () => {
     // Vendor information
     vendCode: "",
     vendName: "",
-    chainCode:"",
-    chainName:"",
     
     // Currency information
     currCode: companyInfo?.currCode||"",
@@ -157,7 +153,6 @@ const APDM = () => {
     defaultCurrRate:formatNumber(companyInfo?.currRate||1,6),
 
     //Other Header Info
-    prcNo:"",
     apdmTypes :[],
     depBankCode:"",
     depAcctName:"",
@@ -429,9 +424,6 @@ useEffect(() => {
 
       vendName:"",
       vendCode:"",
-      chainCode:"",
-      chainName:"",
-      prcNo:"",
       documentNo: "",
       documentID: "",
       detailRows: [],
@@ -681,7 +673,13 @@ const moveFocusBeforeSave = () => {
     if (action === "GenerateGL") {
         const newGlEntries = await useGenerateGLEntries(docType, buildGlData(finalDetailRowsGL));
         if (newGlEntries && newGlEntries.length > 0) {
-            updateState({ detailRowsGL: newGlEntries });
+          
+            const normalizedEntries = newGlEntries.map(entry => ({
+                ...entry,
+                slRefDate: useformatToDatev2(entry.slRefDate) 
+            }));
+
+            updateState({ detailRowsGL: normalizedEntries });
         } else {
             console.warn("GL entries generation failed or returned no data.");
         }
@@ -721,97 +719,102 @@ const moveFocusBeforeSave = () => {
   }
 };
 
-  const handleAddRow = async () => {
-    if (!vendCode) {
-      return;
-    }
+  const handleAddRow = async (index = null) => { // Added index parameter
+  if (!vendCode) {
+    return;
+  }
 
-    if (['APDM01'].includes(selectedAPDMType)) {
-      await handleOpenAPBalance();
-      return;
-    }
-   
+  if (['APDM01'].includes(selectedAPDMType)) {
+    await handleOpenAPBalance();
+    return;
+  }
+ 
   try {
     const items = await handleFetchDetail(vendCode);
     const itemList = Array.isArray(items) ? items : [items];
     const newRows = await Promise.all(itemList.map(async (item) => {
-
       return {
         lnNo: "",
         apvNo: "00000000",
         siNo: "00000000",
         siDate: documentDate,
-        siAmount:"0.00",
+        siAmount: "0.00",
         appliedAmount: "0.00",
         vatCode: item.vatCode || "",
         vatName: item.vatName || "",
-        vatAmount:"0.00",
+        vatAmount: "0.00",
         atcCode: item.atcCode || "",
         atcName: item.atcName || "",
-        atcAmount:"0.00",
+        atcAmount: "0.00",
         currCode: currCode,
-        currRate: formatNumber(currRate,6) ,
-        apAcct:"",
-        crAcct:"",
-        rcCode:"",
+        currRate: formatNumber(currRate, 6),
+        apAcct: "",
+        crAcct: "",
+        rcCode: "",
         refBranchcode: branchCode,
-        refDocCode:  "APDM",
+        refDocCode: "APDM",
         groupId: "",
-        atcRate:"0.00",
-        vatRate:"0.00"
+        atcRate: "0.00",
+        vatRate: "0.00"
       };
     }));
 
-      const updatedRows = [...detailRows, ...newRows];
-      updateState({ detailRows: updatedRows,
-                    detailRowsGL: []
-       });
-      updateTotals(updatedRows);
+    // Insert logic
+    const updatedRows = [...detailRows];
+    if (index !== null) {
+      updatedRows.splice(index + 1, 0, ...newRows); // Insert after current index
+    } else {
+      updatedRows.push(...newRows); // Add to end if no index (footer button)
+    }
 
-    setTimeout(() => {
-      const tableContainer = document.querySelector('.max-h-\\[430px\\]');
-      if (tableContainer) {
-        tableContainer.scrollTop = tableContainer.scrollHeight;
-      }
-    }, 100);
+    updateState({ 
+      detailRows: updatedRows,
+      detailRowsGL: [] 
+    });
+    updateTotals(updatedRows);
 
   } catch (error) {
     console.error("Error adding new row:", error);
-    alert("Failed to add new row. Please select a Payee first.");
   }
 };
 
-const handleAddRowGL = () => {
-    if(handleFieldBehavior("CWTReversal")){
-      return;
-    }
+const handleAddRowGL = (index = null) => { // Added index parameter
+  if (handleFieldBehavior("CWTReversal")) {
+    return;
+  }
+
+  const newRow = {
+    acctCode: "",
+    rcCode: "",
+    sltypeCode: "",
+    slCode: "",
+    particulars: "",
+    vatCode: "",
+    vatName: "",
+    atcCode: "",
+    atcName: "",
+    debit: "0.00",
+    credit: "0.00",
+    debitFx1: "0.00",
+    creditFx1: "0.00",
+    debitFx2: "0.00",
+    creditFx2: "0.00",
+    slRefNo: "",
+    remarks: "",
+    slRefDate: documentDate,
+  };
+
+  const updatedRowsGL = [...detailRowsGL];
+  if (index !== null) {
+    updatedRowsGL.splice(index + 1, 0, newRow); // Insert after current index
+  } else {
+    updatedRowsGL.push(newRow); // Add to end
+  }
 
   updateState({
-      detailRowsGL: [
-        ...detailRowsGL,
-        {
-      acctCode: "",
-      rcCode: "",
-      sltypeCode:"",
-      slCode: "",
-      particulars: "",
-      vatCode: "",
-      vatName: "",
-      atcCode: "",
-      atcName: "",
-      debit: "0.00",
-      credit: "0.00",
-      debitFx1: "0.00",
-      creditFx1: "0.00",
-      debitFx2: "0.00",
-      creditFx2: "0.00",
-      slRefNo: "",
-      remarks: "",
-      slRefDate: documentDate,
-    }
-      ]
-    });
-  };
+    detailRowsGL: updatedRowsGL
+  });
+};
 
   
 
@@ -856,14 +859,14 @@ const handleAddRowGL = () => {
   };
 
 const handlePrint = async () => {
- if (!detailRows || detailRows.length === 0) {
+  if (!detailRowsGL || detailRowsGL.length === 0) {
       return;
       }
   updateState({ showSignatoryModal: true });
 };
 
 const handlePost = async () => {
- if (!detailRows || detailRows.length === 0) {
+  if (!detailRowsGL || detailRowsGL.length === 0) {
       return;
       }
 
@@ -873,7 +876,7 @@ const handlePost = async () => {
 };
 
 const handleCancel = async () => {
- if (!detailRows || detailRows.length === 0) {
+  if (!detailRowsGL || detailRowsGL.length === 0) {
       return;
       }
 
@@ -889,9 +892,6 @@ const handleAttach = async () => {
 };
 
 const handleCopy = async () => {
-// if (selectedAPDMType !== "APDM01" || !detailRowsGL?.length) {
-//   return;
-//   }
 
   if (!detailRowsGL || detailRowsGL.length === 0) {
       return;
@@ -1547,7 +1547,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                 ? 'global-tran-tab-text_active-ui'
                 : 'global-tran-tab-text_inactive-ui'
             }`}
-            onClick={() => setActiveTab('basic')}
+            // onClick={() => setActiveTab('basic')}
         >
             Basic Information
         </button>
@@ -1710,7 +1710,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                         id="remarks"
                         placeholder=""
                         rows={6}
-                        className="peer global-tran-textbox-remarks-ui pt-2"
+                        className={`peer pt-2 ${isFormDisabled ? "global-tran-textbox-remarks-ui-disabled" : "global-tran-textbox-remarks-ui"}`}
                         value={remarks}
                         maxLength={useGetFieldLength(tblFieldArray, "remarks")}
                         onChange={(e) => updateState({ remarks: e.target.value })}
@@ -1718,7 +1718,7 @@ const handleCloseBranchModal = (selectedBranch) => {
                     />
                     <label
                         htmlFor="remarks"
-                        className="global-tran-floating-label-remarks"
+                        className={`${isFormDisabled ? "global-tran-floating-label-remarks-disabled" : "global-tran-floating-label-remarks"}`}
                     >
                         Remarks
                     </label>
@@ -1803,7 +1803,7 @@ const handleCloseBranchModal = (selectedBranch) => {
           <th className="global-tran-th-ui hidden">ATC Rate</th>
                  
          {!isFormDisabled && (
-          <th className="global-tran-th-ui sticky right-0 bg-blue-200 dark:bg-blue-900 z-30">
+          <th className="global-tran-th-ui sticky right-0 bg-blue-100 dark:bg-blue-900 z-30">
             Actions
           </th>
         )}
@@ -2234,7 +2234,7 @@ const handleCloseBranchModal = (selectedBranch) => {
               ? 'global-tran-tab-text_active-ui'
               : 'global-tran-tab-text_inactive-ui'
           }`}
-          onClick={() => setGLActiveTab('invoice')}
+          // onClick={() => setGLActiveTab('invoice')}
         >
           General Ledger
         </button>
@@ -2295,7 +2295,7 @@ const handleCloseBranchModal = (selectedBranch) => {
             <th className="global-tran-th-ui">Remarks</th>
             
             {!isFormDisabled && (
-              <th className="global-tran-th-ui sticky right-0 bg-blue-200 dark:bg-blue-900 z-30">
+              <th className="global-tran-th-ui sticky right-0 bg-blue-100 dark:bg-blue-900 z-30">
                 Actions
               </th>
             )}
@@ -2884,7 +2884,12 @@ const handleCloseBranchModal = (selectedBranch) => {
 {showSignatoryModal && (
   <DocumentSignatories
     isOpen={showSignatoryModal}
-    params={{noReprints,documentID,docType}}
+    params={{
+      documentID: documentID,
+      noReprints: 0,
+      docType: docType,
+      docNo: documentNo,
+    }}
     onClose={handleCloseSignatory}
     onCancel={() => updateState({ showSignatoryModal: false })}
   />
