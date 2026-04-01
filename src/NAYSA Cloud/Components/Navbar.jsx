@@ -873,6 +873,7 @@ import { FiSun, FiMoon } from "react-icons/fi";
 import { useSwalDeleteConfirm } from "../Global/behavior";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 import apiClient from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
+import { Link } from "react-router-dom"; // Add this import
 
 const DEFAULT_AVATAR = "/3135715.png";
 
@@ -1633,13 +1634,18 @@ const Navbar = ({
               <Menu />
             </motion.button>
 
-            <img
-              src="/naysa_logo.png"
-              className="h-[35px] w-[70px] object-contain"
-              alt="Logo"
-            />
+            <Link 
+              to="/" 
+              className="flex items-center space-x-2 transition-opacity hover:opacity-80"
+            >
+              <img
+                src="/naysa_logo.png"
+                className="h-[35px] w-[70px] object-contain"
+                alt="Logo"
+              />
+              <span className="hidden md:inline">Financials</span>
+            </Link>
 
-            <span className="hidden md:inline">Financials</span>
           </div>
 
           <div className="flex-grow text-center">
