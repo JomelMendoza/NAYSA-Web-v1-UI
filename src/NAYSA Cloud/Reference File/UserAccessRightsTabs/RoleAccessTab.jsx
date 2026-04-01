@@ -472,7 +472,7 @@ const RoleAccessTab = forwardRef(({ roles = [], tableSize = "Half" }, ref) => {
                     columns={menuColumns}
                     data={menuTableData}
                     isLoading={loadingMenus}
-                    itemsPerPage={10}
+                    itemsPerPage={50}
                     showFilters={true}
                     onRowDoubleClick={(row) => toggleMenu(row.menuCode)}
                     onRowClick={(row) => toggleMenu(row.menuCode)}

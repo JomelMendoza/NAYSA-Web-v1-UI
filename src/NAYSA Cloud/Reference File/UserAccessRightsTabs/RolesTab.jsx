@@ -428,7 +428,7 @@ const RolesTab = forwardRef(
                   columns={userColumns}
                   data={userTableData}
                   isLoading={usersLoading}
-                  itemsPerPage={10}
+                  itemsPerPage={50}
                   showFilters={true}
                   onRowDoubleClick={(row) => toggleUser(row.userCode)}
                   onRowClick={(row) => toggleUser(row.userCode)}
@@ -530,7 +530,7 @@ const RolesTab = forwardRef(
                     columns={roleColumns}
                     data={roleTableData}
                     isLoading={false}
-                    itemsPerPage={10}
+                    itemsPerPage={50}
                     showFilters={true}
                     onRowDoubleClick={(row) => toggleRole(row.roleCode)}
                     onRowClick={(row) => toggleRole(row.roleCode)}
