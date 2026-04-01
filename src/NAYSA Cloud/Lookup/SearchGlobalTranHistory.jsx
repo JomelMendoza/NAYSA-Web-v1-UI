@@ -1333,6 +1333,7 @@ const AllTranHistory = (props) => {
   };
 
   const handleExportExcel = async () => {
+    
     if (!visibleCols.length || !filteredData.length) return;
 
     try {

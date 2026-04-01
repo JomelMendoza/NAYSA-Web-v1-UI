@@ -462,6 +462,7 @@ const fetchRecord = useCallback(async () => {
                   label="Customer Name"
                   value={custName}
                   readOnly
+                  disabled
                 />
               </div>
             </section>
