@@ -763,6 +763,9 @@ const SearchGlobalReportTable = forwardRef(
       },
     }));
 
+
+  const hasRows = filteredData.length > 0;
+
     return (
       <div
         className={[
@@ -972,6 +975,7 @@ const SearchGlobalReportTable = forwardRef(
 
                 <div className="relative" data-sgrt-cols>
                   <button
+                    disabled={filteredData.length === 0}
                     onClick={() => setShowColumnChooser(!showColumnChooser)}
                     className="w-full h-9 px-2 text-[11px] font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition flex items-center justify-center"
                   >
@@ -1175,14 +1179,15 @@ const SearchGlobalReportTable = forwardRef(
 
                 <div className="relative" data-sgrt-cols>
                   <button
-                    onClick={() => setShowColumnChooser(!showColumnChooser)}
-                    className={`text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition flex items-center justify-center ${
-                      tableSize === "Half" ? "h-7 px-2" : "h-8 px-3"
-                    }`}
-                  >
-                    <FontAwesomeIcon icon={faColumns} className="mr-1" />
-                    Columns
-                  </button>
+                      disabled={filteredData.length === 0}
+                      onClick={() => setShowColumnChooser(!showColumnChooser)}
+                      className={`text-xs font-medium text-white bg-blue-600 rounded-md transition flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed ${
+                        tableSize === "Half" ? "h-7 px-2" : "h-8 px-3"
+                      }`}
+                    >
+                      <FontAwesomeIcon icon={faColumns} className="mr-1" />
+                      Columns
+                    </button>
 
                   {showColumnChooser && (
                     <div className="absolute right-0 mt-1 bg-white border rounded shadow-lg p-2 max-h-64 overflow-auto z-50 min-w-[200px]">
@@ -1423,11 +1428,15 @@ const SearchGlobalReportTable = forwardRef(
             </div>
           ) : (
             <div
-              ref={scrollRef}
-              className={`relative isolate flex-1 h-0 overflow-auto custom-scrollbar ${
-                autoFillGridState ? "overflow-x-auto" : "overflow-auto"
-              }`}
-            >
+                ref={scrollRef}
+                className={`relative isolate flex-1 h-0 custom-scrollbar ${
+                  !hasRows
+                    ? "overflow-hidden"
+                    : autoFillGridState
+                      ? "overflow-x-auto overflow-y-auto"
+                      : "overflow-auto"
+                }`}
+              >
               <table
                 className={`global-tran-table-div-ui border-collapse ${
                   autoFillGridState ? "w-full table-fixed" : "min-w-max table-auto"
@@ -1501,7 +1510,7 @@ const SearchGlobalReportTable = forwardRef(
                     ))}
                   </tr>
 
-                  {showFilters && (
+                  {showFilters &&  filteredData.length > 0 && (
                     <tr className="bg-gray-100">
                       {hasActionCol && (
                         <th
