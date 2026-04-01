@@ -286,8 +286,16 @@ export const useSwalshowSave = (onConfirm, onPrint) => {
 
 export const useSwalErrorAlert = (
   title = "Error!",
-  message = "Something went wrong."
+  message = "Something went wrong.",
+  fixedMsg= ""
+
 ) => {
+
+  if (fixedMsg === "endingCutoff") {
+    title = "Invalid cut-off range";
+    message = "Ending Cut-off must not be earlier than Starting Cut-off.";
+  }
+
   return Swal.fire({
     toast: true,
     position: "top-end",
