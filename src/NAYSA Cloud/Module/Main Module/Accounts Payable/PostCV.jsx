@@ -67,40 +67,6 @@ const PostCV = ({ isOpen, onClose, userCode }) => {
     await useHandlePostTran(selectedData, userPw, "CV", userCode, setLoading, onClose);
   };
 
-
-
-  // const handlePost = async (selectedData) => {
-  //   try {
-  //     const payload = {
-  //       json_data: {
-  //         userCode: userCode,
-  //         dt1: selectedData.map((item, index) => ({
-  //           lnNo: String(index + 1),
-  //           groupId: item,
-  //         })),
-  //       },
-  //     };
-
-  //     const response = await postRequest("finalizeCV", payload);
-
-  //     if (response?.success) {
-  //       const postedSummary = response.data[0]?.result || "No summary returned.";
-  //       useSwalValidationAlert({
-  //         icon: "info",
-  //         title: "Posting Summary",
-  //         message: postedSummary,
-  //       });
-  //       console.log("Finalize success:", response.data);
-  //     } else {
-  //       console.warn("Finalize failed:", response);
-  //     }
-
-  //     onClose();
-  //   } catch (error) {
-  //     console.error("Error posting CV:", error);
-  //   }
-  // };
-
 const pickDocAndBranch = (row) => {
   if (!row) return { docNo: null, branchCode: null };
   const docNo = row.cvNo;
@@ -144,15 +110,15 @@ return (
     {/* Mount the modal only when ready */}
     {modalReady && (
       <GlobalGLPostingModalv1
-       data={data}
-      colConfigData={colConfigData}
-      title="Post Check Voucher"
-      userPassword={userPassword}
-      btnCaption="Okay"
-      onClose={onClose}
-      onPost={handlePost}
-      onViewDocument={handleViewDocument}
-      remoteLoading={loading}
+        data={data}
+        colConfigData={colConfigData}
+        title="Post Check Voucher"
+        userPassword={userPassword}
+        btnCaption="Okay"
+        onClose={onClose}
+        onPost={handlePost}
+        onViewDocument={handleViewDocument}
+        remoteLoading={loading}
       />
     )}
 

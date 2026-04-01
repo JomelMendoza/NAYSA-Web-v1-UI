@@ -2511,21 +2511,27 @@ const APV = () => {
 
               {/* APV Number Field */}
               <FieldRenderer
-                id="apvNo"
-                label="APV No."
-                type="lookup"
-                value={documentNo || ""}
-                disabled={isDocNoDisabled}
-                onLookup={() => updateState({ showAllTranDocNo: true })}
-                onKeyDown={(e) => {
-                  if (e.key === "F1") {
-                    e.preventDefault();
-                    if (!isDocNoDisabled) {
-                      updateState({ showAllTranDocNo: true });
-                    }
-                  }
-                }}
-              />
+  id="apvNo"
+  label="APV No."
+  type="lookup"
+  value={documentNo || ""}
+  disabled={isDocNoDisabled}
+  onChange={(val) => updateState({ documentNo: val })}
+  onBlur={handleDocumentNoBlur}
+  onLookup={() => updateState({ showAllTranDocNo: true })}
+  onKeyDown={(e) => {
+    if (e.key === "F1") {
+      e.preventDefault();
+      if (!isDocNoDisabled) {
+        updateState({ showAllTranDocNo: true });
+      }
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleDocumentNoBlur();
+    }
+  }}
+/>
 
               {/* APV Date Picker */}
               <div className="relative w-full">
@@ -4231,9 +4237,10 @@ const APV = () => {
           <DocumentSignatories
             isOpen={showSignatoryModal}
             params={{
-              documentID: documentID, // âœ… Pass the actual document ID
-              noReprints: 0, // âœ… Add this if needed
-              docType: docType, // âœ… Add this if needed
+              documentID: documentID, 
+              noReprints: 0, 
+              docType: docType, 
+              docNo: documentNo,
             }}
             onClose={handleCloseSignatory}
             onCancel={() => updateState({ showSignatoryModal: false })}

@@ -57,15 +57,6 @@ import {
   useTopBankMastRow,
 } from '@/NAYSA Cloud/Global/top1RefTable';
 
-
-import {
-  useGetCurrentDayV2,
-  useFormatToDate,
-  useformatToDatev2
-} from '@/NAYSA Cloud/Global/dates';
-
-import DateFormatInput from '@/NAYSA Cloud/Global/DateFormatInput.jsx';
-
 import {
   useUpdateRowGLEntries,
   useTransactionUpsert,
@@ -78,6 +69,13 @@ import {
   useGetFieldLength,
 } from '@/NAYSA Cloud/Global/procedure';
 
+
+import {
+  useGetCurrentDayV2,
+  useformatToDatev2
+} from '@/NAYSA Cloud/Global/dates';
+
+import DateFormatInput from '@/NAYSA Cloud/Global/DateFormatInput.jsx';
 
 
 import {
@@ -107,7 +105,7 @@ const CV = () => {
    const loadedFromUrlRef = useRef(false);
    const navigate = useNavigate();
    const location = useLocation(); 
-   const { companyInfo, currentUserRow,getAllDropDown,refsLoaded } = useAuth();
+   const { companyInfo, currentUserRow,getAllDropDown,refsLoaded ,getAllTopATCRow, getAllTopVatRow,getAllTopVatAmount,getAllTopATCAmount,getAllTopHSDocRow } = useAuth();
    const [isViewDocument, setIsViewDocument] = useState(false);
    useEffect(() => {
      const p = new URLSearchParams(location.search);
@@ -121,27 +119,35 @@ const CV = () => {
    const [topTab, setTopTab] = useState("details"); // "details" | "history"
    const { user } = useAuth();
    const { resetFlag } = useReset();
+   const [focusedCell, setFocusedCell] = useState(null); // { index: number, field: string }
+   const docType = docTypes.CV; 
+   const hsDoc = getAllTopHSDocRow(docType);
+   const pdfLink = docTypePDFGuide[docType];
+   const videoLink = docTypeVideoGuide[docType];
+   const documentTitle = hsDoc.docName + ' Transaction';
+ 
    const [state, setState] = useState({
 
+
     // HS Option
-    glCurrMode:"M",
-    glCurrDefault:"PHP",
+    glCurrMode:companyInfo?.glCurrMode||"",
+    glCurrDefault:companyInfo?.currCode||"",
     withCurr2:false,
     withCurr3:false,
-    glCurrGlobal1:"",
-    glCurrGlobal2:"",
-    glCurrGlobal3:"",
+    glCurrGlobal1:companyInfo?.glCurrGlobal1||"",
+    glCurrGlobal2:companyInfo?.glCurrGlobal2||"",
+    glCurrGlobal3:companyInfo?.glCurrGlobal3||"",
 
 
     
     // Document information
-    documentName: "",
-    documentSeries: "Auto",
-    documentDocLen: 8,
+    documentName: hsDoc?.docName||"",
+    documentSeries: hsDoc?.docSeries||"Auto",
+    documentDocLen: hsDoc?.docLength||8,
     documentID: null,
+    documentDate:useGetCurrentDayV2(),   
     documentNo: "",
     documentStatus:"",
-    documentDate:useGetCurrentDayV2(),   
     status: "OPEN",
     noReprints:"0",
 
@@ -178,26 +184,20 @@ const CV = () => {
     cvWithApvDd :[],
     cvTranTypeDd:[],
     cvPayTypeDd:[],
-
-    selectedWithAPV : "Y",
-    selectedCvType : "APV01",
-    selectedPayType : "CV01",
-
-
     refDocNo1: "",
     refDocNo2: "",
     fromDate: null,
     toDate: null,
     remarks: "",
-
     bankCode: "",
     bankAcctName: "",
     bankAcctNo: "",
     checkNo: "",
     checkDate: useGetCurrentDayV2(), 
-
-    userCode: user?.USER_CODE || "", 
-
+    selectedWithAPV : "Y",
+    selectedCvType : "APV01",
+    selectedPayType : "CV01",
+    userCode: currentUserRow?.userCode||"", 
 
     //Detail 1-2
     detailRows  :[],
@@ -211,10 +211,8 @@ const CV = () => {
 
     totalDebit:"0.00",
     totalCredit:"0.00",
-
     totalDebitFx1:"0.00",
     totalCreditFx1:"0.00",
-
     totalDebitFx2:"0.00",
     totalCreditFx2:"0.00",
 
@@ -366,14 +364,9 @@ const CV = () => {
 } = state;
 
 
-  const [focusedCell, setFocusedCell] = useState(null); // { index: number, field: string }
 
-  //Document Global Setup
-  const docType = docTypes.CV; 
-  const pdfLink = docTypePDFGuide[docType];
-  const videoLink = docTypeVideoGuide[docType];
-  const documentTitle = docTypeNames[docType] || 'Transaction';
- 
+
+
 
 
   //Status Global Setup
@@ -384,8 +377,11 @@ const CV = () => {
     CLOSED: "global-tran-stat-text-closed-ui",
   };
   const statusColor = statusMap[displayStatus] || "";
-  const isFormDisabled = isViewDocumentUrl || ["FINALIZED", "CANCELLED", "CLOSED"].includes(displayStatus);
-  
+  const isFormDisabled =
+  isViewDocumentUrl ||
+  ["FINALIZED", "CANCELLED", "CLOSED"].includes(displayStatus);
+
+
 
   //Variables
 
@@ -414,13 +410,9 @@ const CV = () => {
   const customParamMap = {
         debitAcct: glAccountFilter.ActiveAll,
         apAcct: glAccountFilter.ActiveAll,
-        vatAcct: glAccountFilter.VATOutputAcct
+        vatAcct: glAccountFilter.VATInputAcct
   };
   const customParam = customParamMap[accountModalSource] || null;
-  const [header, setHeader] = useState({
-  cv_date: new Date().toISOString().split('T')[0],
-  ck_date: new Date().toISOString().split('T')[0]
-  });
 
 
 
@@ -503,7 +495,7 @@ useEffect(() => {
   if (glCurrMode && glCurrDefault && currCode) {
     loadCurrencyMode(glCurrMode, glCurrDefault, currCode);
   }
-}, [glCurrMode, glCurrDefault, currCode]);
+  }, [glCurrMode, glCurrDefault, currCode]);
 
 
 
@@ -522,6 +514,7 @@ useEffect(() => {
       updateState({isDocNoDisabled: !!state.documentID });
   }, [state.documentID]);
   
+
 
 
 
@@ -546,9 +539,46 @@ useEffect(() => {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  
+
+
+ useEffect(() => {
+  if (!refsLoaded) return;
+
+  const cvPayType = getAllDropDown("PAY_TYPE", docType);
+  const cvTranType = getAllDropDown("CVTRAN_TYPE", docType);
+  const cvWithApv = getAllDropDown("WITH_APV", docType);
+  const cvApType = getAllDropDown("APVTRAN_TYPE", "APV");
+
+  const newState = {};
+
+  if (cvPayType?.length > 0) {
+    newState.cvPayTypeDd = cvPayType;
+    newState.selectedPayType = "CV01";
+  }
+  if (cvTranType?.length > 0) {
+    newState.cvTranTypeDd = cvTranType;
+    newState.selectedCvType = "APV01";
+  }
+  if (cvWithApv?.length > 0) {
+    newState.cvWithApvDd = cvWithApv;
+    newState.selectedWithAPV = "Y";
+  }
+  if (cvApType?.length > 0) {
+    newState.cvApTypeDd = cvApType;
+    newState.selectedApType = "APV01";
+  }
+
+  if (Object.keys(newState).length > 0) {
+    updateState(newState);
+  }
+
+}, [docType, refsLoaded]); // Re-run when docType changes or refs finish loading
+
+
+
   const handleReset = () => {
     
+
     // Correct way to update the state with a single header object
     updateState({
         branchCode: currentUserRow?.branchCode||"",
@@ -556,11 +586,13 @@ useEffect(() => {
         userCode:currentUserRow?.userCode||"",
         documentDate:useGetCurrentDayV2(),
         withAPV: "Y",
-        // bankCode: "",
-        // bankAcctName: "",
-        // bankAcctNo: "",
-        // checkNo: "",
+
+        bankCode: state.defaultBankCode || "",
+        bankAcctName: state.defaultBankAcctName || "",
+        bankAcctNo: state.defaultBankAcctNo || "",
+        checkNo: state.defaultCheckNo || "",
         checkDate:useGetCurrentDayV2(),
+
         paymentType: "Y",
         cvType: "APV01",
         refDocNo1: "",
@@ -587,73 +619,16 @@ useEffect(() => {
     });
 
     updateTotalsDisplay(0, 0, 0, 0, 0, 0, 0, 0);
+
 };
 
 const loadCompanyData = async () => {
 
-
     updateState({isLoading:true})
 
     try {
-      // 🔹 1. Run these in parallel since they don’t depend on each other
-      const [cvPayType, cvTranType, cvWithApv, cvApType] = await Promise.all([
-        useTopDocDropDown(docType, "PAY_TYPE"),
-        useTopDocDropDown(docType, "CVTRAN_TYPE"),
-        useTopDocDropDown(docType, "WITH_APV"),
-        useTopDocDropDown("APV", "APVTRAN_TYPE"),
-      ]);
-
-      if (cvPayType) {
-        updateState({ cvPayTypeDd: cvPayType, selectedPayType: "CV01" });
-      }
-      if (cvTranType) {
-        updateState({ cvTranTypeDd: cvTranType, selectedCvType: "APV01" });
-      }
-      if (cvWithApv) {
-        updateState({ cvWithApvDd: cvWithApv, selectedWithAPV: "Y" });
-      }
-      if (cvApType) {
-        updateState({ cvApTypeDd: cvApType, selectedApType: "APV01" });
-      }
-
-
-
-      // 🔹 2. Document row (independent)
-      const docRow = await useTopDocControlRow(docType);
-      if (docRow) {
-        updateState({
-          documentName: docRow.docName,
-          documentSeries: docRow.docName,
-          tdocumentDocLen: docRow.docName,
-        });
-      }
-
-
-
-      // 🔹 3. HS Options + Currency row (dependent chain)
-      const hsOption = await useTopHSOption();
-      if (hsOption) {
-        updateState({
-          glCurrMode: hsOption.glCurrMode,
-          glCurrDefault: hsOption.glCurrDefault,
-          currCode: hsOption.glCurrDefault,
-          glCurrGlobal1: hsOption.glCurrGlobal1,
-          glCurrGlobal2: hsOption.glCurrGlobal2,
-          glCurrGlobal3: hsOption.glCurrGlobal3,
-        });
-
-        const curr = await useTopCurrencyRow(hsOption.glCurrDefault);
-        if (curr) {
-          updateState({
-            currName: curr.currName,
-            currRate: formatNumber(1, 6),
-          });
-        }
-      }
-
-
-
-      // 🔹 4. Company + Bank row (dependent chain)
+      
+      // 🔹 Default Disbursement Bank
       const company = await useTopCompanyRow();
       if (company) {
         updateState({ bankCode: company.disbBankcode });
@@ -665,22 +640,27 @@ const loadCompanyData = async () => {
             bankAcctName: bank.acctName,
             bankAcctNo: bank.bankAcctNo,
             checkNo: bank.checkNo,
+            
+            defaultBankCode: bank.bankCode,
+            defaultBankAcctName: bank.acctName,
+            defaultBankAcctNo: bank.bankAcctNo,
+            defaultCheckNo: bank.checkNo,
           });
         }
       }
 
-      // 🔹 5. Field Lengths
-      const tbls = 'cv_hd,cv_dt1,cv_dt2';
-      const hdtblcol_result = await useFieldLenghtCheck(tbls);
-      if (hdtblcol_result){
-        updateState({tblFieldArray :hdtblcol_result })
-      }
-
+      // 🔹 Field Lengths
+      const hdtblcol_result = await useFieldLenghtCheck(
+            "cv_hd,cv_dt1,cv_dt2"
+          );
+      
+          if (hdtblcol_result) {
+            updateState({ tblFieldArray: hdtblcol_result });
+          }
 
     } catch (err) {
       console.error("Error fetching data:", err);
     }
-
      updateState({isLoading:false})
   };
 
@@ -718,7 +698,7 @@ const loadCurrencyMode = (
 
 
 
-const fetchTranData = async (documentNo, branchCode) => {
+const fetchTranData = async (documentNo, branchCode,direction='') => {
   const resetState = () => {
     updateState({documentNo:'', documentID: '', isDocNoDisabled: false, isFetchDisabled: false });
     updateTotals([]);
@@ -727,27 +707,21 @@ const fetchTranData = async (documentNo, branchCode) => {
   updateState({ isLoading: true });
 
   try {
-    const data = await useFetchTranData(documentNo, branchCode,docType,"cvNo");
+    const data = await useFetchTranData(documentNo, branchCode,docType,"cvNo",direction);
+
 
     if (!data?.cvId) {
-      Swal.fire({ icon: 'info', 
-        text: 'No Records Found.' });
+      Swal.fire({ icon: 'info', title: 'No Records Found', text: 'Transaction does not exist.' });
       return resetState();
     }
 
 
-    let cvDateForHeader = data.cvDate ? new Date(data.cvDate).toISOString().split("T")[0] : '';
-    let checkDateForHeader = data.checkDate ? new Date(data.checkDate).toISOString().split("T")[0] : '';
-
-    setHeader({
-          cv_date: cvDateForHeader,
-          ck_date: checkDateForHeader
-      });
 
     // Format rows
     const retrievedDetailRows = (data.dt1 || []).map(item => ({
+      
       ...item,
-      siDate: item.siDate ? new Date(item.siDate).toISOString().split('T')[0] : '',
+      siDate: item.siDate ? useformatToDatev2(item.siDate): "",
       origAmount: formatNumber(item.origAmount),
       currRate: formatNumber(item.currRate),
       siAmount: formatNumber(item.siAmount),
@@ -757,6 +731,8 @@ const fetchTranData = async (documentNo, branchCode) => {
       vatAmount: formatNumber(item.vatAmount),
       atcAmount: formatNumber(item.atcAmount),
       amountDue: formatNumber(item.amountDue),
+
+      
     }));
 
     const formattedGLRows = (data.dt2 || []).map(glRow => ({
@@ -767,7 +743,7 @@ const fetchTranData = async (documentNo, branchCode) => {
       creditFx1: formatNumber(glRow.creditFx1),
       debitFx2: formatNumber(glRow.debitFx2),
       creditFx2: formatNumber(glRow.creditFx2),
-      slRefDate:useformatToDatev2(glRow.slRefDate),
+      // slRefDate: useformatToDatev2(glRow.slRefDate),
     }));
 
   
@@ -780,7 +756,7 @@ const fetchTranData = async (documentNo, branchCode) => {
       documentID: data.cvId,
       documentNo: data.cvNo,
       branchCode: data.branchCode,
-      branchName:data.branchName,
+      branchName: data.branchName,
       
       documentDate: useformatToDatev2(data.cvDate),
       selectedCvType: data.cvtranType,
@@ -898,6 +874,22 @@ const handleCurrRateNoBlur = (e) => {
     } = state;
 
 
+    if (action === "Upsert") {
+      const payTypeObj = cvPayTypeDd.find(opt => opt.DROPDOWN_CODE === selectedPayType);
+      const isCheckPayment = payTypeObj && payTypeObj.DROPDOWN_CODE.toUpperCase().includes("CV01");
+
+      if (isCheckPayment && (!checkNo || checkNo.trim() === "")) {
+        updateState({ isLoading: false });
+        Swal.fire({
+          icon: 'warning',
+          title: 'Validation Error',
+          text: 'Check No. is required when the Payment Type is Check.',
+        });
+        return; // Stop the save process
+      }
+    }
+
+
     const glData = {
       branchCode: branchCode,
       cvNo: documentNo || "",
@@ -928,7 +920,8 @@ const handleCurrRateNoBlur = (e) => {
         rrNo: row.rrNo || "",
         poNo: row.poNo || "",
         siNo: row.siNo || "",
-        siDate: row.siDate || header.cv_date,
+        // siDate: useformatToDatev2(row.siDate) || useformatToDatev2(documentDate),
+        siDate: row.siDate,
         origAmount: parseFormattedNumber(row.origAmount || 0),
         currCode: row.currCode || "",
         currRate: parseFormattedNumber(row.currRate),
@@ -970,9 +963,14 @@ const handleCurrRateNoBlur = (e) => {
           debitFx2: parseFormattedNumber(entry.debitFx2 || 0),
           creditFx2: parseFormattedNumber(entry.creditFx2 || 0),
           slRefNo: entry.slRefNo || "",
-          slRefDate: entry.slRefDate && !isNaN(new Date(entry.slRefDate).getTime())
-            ? new Date(entry.slRefDate).toISOString().split("T")[0]
-            : null,
+          // slRefDate: entry.slRefDate && !isNaN(new Date(entry.slRefDate).getTime())
+          //   ? new Date(entry.slRefDate).toISOString().split("T")[0]
+          //   : null,
+          // slRefDate: entry.slRefDate && !isNaN(new Date(entry.slRefDate).getTime())
+          //   ? new Date(entry.slRefDate).toISOString().split("T")[0]
+          //   : null,
+          // slRefDate: useformatToDatev2(entry.slRefDate),
+          slrefDate: entry.slrefDate,
           remarks: entry.remarks || "",
           dt1Lineno: entry.dt1Lineno || ""
         }))
@@ -1045,7 +1043,8 @@ const handleCurrRateNoBlur = (e) => {
 
       return {
         lnNo: "",
-        siDate: header.cv_date,
+        // siDate: documentDate,
+        siDate: useGetCurrentDayV2(),
         origAmount:"0.00",
         uomCode: "",
         siAmount: "0.00",
@@ -1053,7 +1052,7 @@ const handleCurrRateNoBlur = (e) => {
         unappliedAmount: "0.00",
         balance: "0.00",
         currCode: currCode,
-        currRate: currRate,
+        currRate: formatNumber(currRate,6) ,
         vatCode: selectedCvType === "APV02" ? "" : (item.vatCode || ""),
         vatName: selectedCvType === "APV02" ? "" : (item.vatName || ""),
         vatAmount: selectedCvType === "APV02"
@@ -1258,6 +1257,13 @@ const handleCopy = async () => {
                   status:"OPEN",
                   documentDate:useGetCurrentDayV2(), 
                   noReprints:"0",
+
+                  bankCode: state.defaultBankCode || "",
+                  bankAcctName: state.defaultBankAcctName || "",
+                  bankAcctNo: state.defaultBankAcctNo || "",
+                  checkNo: state.defaultCheckNo || "",
+                  checkDate:useGetCurrentDayV2(),
+
       detailRows: detailRows.map((row) => ({
         ...row,
         siNo: "",
@@ -1413,11 +1419,14 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
           row.atcName = value.atcName;     
         };
 
-
-    if (['debitAcct', 'apAcct', 'vatAcct'].includes(field)) {
-      row[field] = value.acctCode;
-          // row.rcCode = "REQ RC"
-          // row.rcName = "REQ RC"
+      if (['debitAcct', 'apAcct', 'vatAcct'].includes(field)) {
+        row[field] = value.acctCode;
+      
+      // NEW: If it's a DR account and requires an RC, set to REQ RC
+      if (field === 'debitAcct' && (value.rcReq === 'Y')) {
+          row.rcCode = "REQ RC";
+          row.rcName = "REQ RC";
+      }
     };
   
 
@@ -1611,8 +1620,6 @@ const handleDetailChangeGL = async (index, field, value) => {
             row.atcCode = data.atcCode
             row.atcName = data.atcName
             row.particular = data.particular
-            // row.slRefNo = data.slRefNo
-            // row.slRefDate = data.slRefDate
         }
     }
     
@@ -1633,7 +1640,7 @@ const handleDetailChangeGL = async (index, field, value) => {
     }
   }
 
-    if (['slRefNo', 'slRefDate', 'remarks'].includes(field)) {
+    if (['slRefDate','slRefNo', 'remarks'].includes(field)) {
         row[field] = value;
     }
     
@@ -1865,6 +1872,10 @@ const handleOpenAPBalance = async () => {
       payeeData = [];
     }
 
+    // NEW: Filter out invoices that are already in the CV details using groupId
+    const existingGroupIds = new Set(detailRows.map(row => row.groupId).filter(Boolean));
+    payeeData = payeeData.filter(item => !existingGroupIds.has(item.groupId));
+
     console.log('[APBAL] parsed payeeData length', payeeData.length);
 
     console.log('[APBAL] fetching colConfig');
@@ -2043,7 +2054,6 @@ const handleCloseBranchModal = (selectedBranch) => {
       if (result) {
         const rate = currCode === glCurrDefault
           ? defaultCurrRate
-          // : await useTopForexRate(currCode, header.cv_date);
           : await useTopForexRate(currCode, documentDate);
         console.log("Currency Select",glCurrDefault)
         updateState({
@@ -2838,13 +2848,26 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
 
           {/* Invoice Date */}
             <td className="global-tran-td-ui" hidden={!isVisible_Dtl1("siDate", selectedCvType, selectedWithAPV)}>
-              <input
+              {/* <input
                 type="date"
                 className="w-[100px] global-tran-td-inputclass-ui"
                 value={row.siDate || ""}
+                // value={useformatToDatev2(row.siDate) || useGetCurrentDayV2()}
                 onChange={(e) => handleDetailChange(index, 'siDate', e.target.value)}
                 disabled={isFormDisabled || selectedWithAPV === 'Y'}
-              />
+              /> */}
+              <DateFormatInput
+                id={`siDate_${index}`}
+                value={row.siDate || ""}
+                disabled={isFormDisabled || selectedWithAPV === 'Y'}
+                className="w-[100px] global-tran-td-inputclass-ui text-center pr-7"
+                updateState={(updates) => {
+                  if (updates[`siDate_${index}`] !== undefined) {
+                    handleDetailChange(index,"siDate",updates[`siDate_${index}`],false,);
+                  }
+                }}
+                />                
+
             </td>
 
 
@@ -3867,12 +3890,13 @@ const checkDuplicateCheckNo = async (checkNo, docId) => {
                            
                         <DateFormatInput
                           id={`slRefDate${index}`}
-                          value={row.slRefDate || ""}
+                          value={useformatToDatev2(row.slRefDate) || useGetCurrentDayV2()}
                           disabled={isFormDisabled}
                           className="w-[100px] global-tran-td-inputclass-ui text-center pr-7"
                           updateState={(updates) => {
                           if (updates[`slRefDate${index}`] !== undefined) { handleDetailChangeGL(index,"slRefDate", updates[`slRefDate${index}`], false,); }}}
                           />
+
         
                           </td>
                             <td className="global-tran-td-ui">

@@ -462,7 +462,7 @@ body {
 }
 
 .global-ref-label-disabled {
-  @apply bg-gray-100 text-gray-600 rounded-xl text-xs sm:text-sm
+  @apply bg-gray-50 text-gray-600 rounded-lg text-xs sm:text-sm
           dark:bg-gray-500 dark:text-white dark:peer-focus:text-white;
 }
 
@@ -473,7 +473,7 @@ body {
 }
 
 .global-ref-textbox-disabled {
-  @apply bg-gray-100 !important; /* Force background */
+  @apply bg-gray-50 !important; /* Force background */
   @apply border-gray-200 text-gray-800 cursor-not-allowed text-[10px] sm:text-[12px] !important ;
   @apply dark:bg-gray-500 dark:text-gray-200;
   opacity: 1 !important; /* Overwrite default HTML/Tailwind opacity reductions */
