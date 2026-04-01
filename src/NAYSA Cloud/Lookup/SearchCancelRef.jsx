@@ -5,7 +5,6 @@ const CancelTranModal = ({ isOpen, onClose }) => {
   const [reason, setReason] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [userPassword, setUserPassword] = useState("");
 
   useEffect(() => {
     if (!isOpen) {
@@ -113,17 +112,18 @@ const CancelTranModal = ({ isOpen, onClose }) => {
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Password
               </label>
-              <input 
-                type={showPassword ? "text" : "password"} 
-                value={userPassword} 
-                onChange={(e) => setUserPassword(e.target.value)} 
-                onPaste={(e) => e.preventDefault()} 
-                onCopy={(e) => e.preventDefault()} 
-                onCut={(e) => e.preventDefault()} 
-                onContextMenu={(e) => e.preventDefault()} 
-                autoComplete="new-password" 
-                spellCheck={false} 
-                className="border rounded px-2 py-1.5 text-xs w-full pr-8" />
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onPaste={(e) => e.preventDefault()}
+                onCopy={(e) => e.preventDefault()}
+                onCut={(e) => e.preventDefault()}
+                onContextMenu={(e) => e.preventDefault()}
+                autoComplete="new-password"
+                spellCheck={false}
+                className="border rounded px-2 py-1.5 text-xs w-full pr-8"
+              />
             </div>
           </div>
         </div>
