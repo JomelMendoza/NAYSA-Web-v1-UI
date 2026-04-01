@@ -19,6 +19,8 @@ import { useGetCurrentDay } from "@/NAYSA Cloud/Global/dates";
 import { useSelectedHSColConfig } from "@/NAYSA Cloud/Global/selectedData";
 import { formatNumber, parseFormattedNumber } from "@/NAYSA Cloud/Global/behavior.jsx";
 import SearchGlobalReportTable from "@/NAYSA Cloud/Lookup/SearchGlobalReportTable.jsx";
+import { useSwalErrorAlert } from "@/NAYSA Cloud/Global/behavior.jsx";
+import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 
 /** Different endpoints */
 const ENDPOINT_DETAIL = "getARAdvances"; // bottom table (detail/application)
@@ -174,6 +176,12 @@ const ARAdvancesTab = forwardRef(function ARAdvancesTab({ registerActions }, ref
     }
   }, [user?.USER_CODE]);
 
+
+
+
+
+
+
   const handleReset = useCallback(async () => {
     updateState({
       custCode: "",
@@ -219,49 +227,66 @@ const ARAdvancesTab = forwardRef(function ARAdvancesTab({ registerActions }, ref
     };
   }, [requestOnce]);
 
+
+
   // Fetch both summary + detail in a single "Find"
-  const fetchRecord = useCallback(async () => {
-    updateState({ isLoading: true });
-    try {
-      const [detailRes, summaryRes] = await Promise.all([
-        requestOnce(
-          `rows:${ENDPOINT_DETAIL}:${branchCode}:${custCode}:${status}`,
-          () =>
-            fetchData(ENDPOINT_DETAIL, {
-              json_data: { json_data: { branchCode, custCode, status } },
-            })
-        ),
-        requestOnce(
-          `rows:${ENDPOINT_SUMMARY}:${branchCode}:${custCode}:${status}`,
-          () =>
-            fetchData(ENDPOINT_SUMMARY, {
-              json_data: { json_data: { branchCode, custCode, status } },
-            })
-        ),
-      ]);
+ const fetchRecord = useCallback(async () => {
+  updateState({ isLoading: true });
 
-      const dtDetail = detailRes?.data?.[0]?.result
-        ? JSON.parse(detailRes.data[0].result)
-        : [];
-      const dtSummary = summaryRes?.data?.[0]?.result
-        ? JSON.parse(summaryRes.data[0].result)
-        : [];
+  try {
+    const [detailRes, summaryRes] = await Promise.all([
+      requestOnce(
+        `rows:${ENDPOINT_DETAIL}:${branchCode}:${custCode}:${status}`,
+        () =>
+          fetchData(ENDPOINT_DETAIL, {
+            json_data: { json_data: { branchCode, custCode, status } },
+          })
+      ),
+      requestOnce(
+        `rows:${ENDPOINT_SUMMARY}:${branchCode}:${custCode}:${status}`,
+        () =>
+          fetchData(ENDPOINT_SUMMARY, {
+            json_data: { json_data: { branchCode, custCode, status } },
+          })
+      ),
+    ]);
 
-      // Shape fallback handling
-      const rowsBottom = dtDetail?.[0]?.dt1 ?? dtDetail ?? [];
-      const rowsTop = dtSummary?.[0]?.dt2 ?? dtSummary ?? [];
+    const dtDetail = detailRes?.data?.[0]?.result
+      ? JSON.parse(detailRes.data[0].result)
+      : [];
+    const dtSummary = summaryRes?.data?.[0]?.result
+      ? JSON.parse(summaryRes.data[0].result)
+      : [];
 
+    const rowsBottom = Array.isArray(dtDetail?.[0]?.dt1) ? dtDetail[0].dt1 : [];
+    const rowsTop = Array.isArray(dtSummary?.[0]?.dt2) ? dtSummary[0].dt2 : [];
+
+    if (rowsBottom.length === 0 && rowsTop.length === 0) {
       updateState({
-        arAdvancesData: Array.isArray(rowsBottom) ? rowsBottom : [],
-        arAdvancesDataUnfiltered: Array.isArray(rowsBottom) ? rowsBottom : [],
-        arAdvancesDataS: Array.isArray(rowsTop) ? rowsTop : [],
+        arAdvancesData: [],
+        arAdvancesDataUnfiltered: [],
+        arAdvancesDataS: [],
       });
-    } catch (err) {
-      console.error("Error fetching data:", err);
-    } finally {
-      updateState({ isLoading: false });
+
+      useSwalErrorAlert("AR Advances", "No records found.");
+      return;
     }
-  }, [branchCode, custCode, status, requestOnce]);
+
+    updateState({
+      arAdvancesData: rowsBottom,
+      arAdvancesDataUnfiltered: rowsBottom,
+      arAdvancesDataS: rowsTop,
+    });
+  } catch (err) {
+    console.error("Error fetching data:", err);
+  } finally {
+    updateState({ isLoading: false });
+  }
+}, [branchCode, custCode, status, requestOnce]);
+
+
+
+
 
   // For "View" on top table – refresh bottom detail for selected customer only
   const fetchRecordperCustomer = useCallback(
@@ -590,7 +615,7 @@ const ARAdvancesTab = forwardRef(function ARAdvancesTab({ registerActions }, ref
       {showSpinner && <LoadingSpinner />}
 
       {/* === Redesigned Filters Card (3-panel) === */}
-      <div className="global-tran-tab-div-ui">
+     <div className="global-tran-tab-div-ui">
         <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
           <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
             {/* Customer Details */}
@@ -600,72 +625,38 @@ const ARAdvancesTab = forwardRef(function ARAdvancesTab({ registerActions }, ref
                 Customer Details
               </h3>
 
-              <div className="global-tran-textbox-group-div-ui">
-                {/* Branch */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="branchName"
-                    placeholder=" "
-                    value={branchName}
-                    readOnly
-                    className="peer global-tran-textbox-ui cursor-pointer"
-                  />
-                  <label htmlFor="branchName" className="global-tran-floating-label">
-                    Branch
-                  </label>
-                  <button
-                    type="button"
-                    className="global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-enabled-ui global-tran-textbox-button-search-ui"
-                    onClick={() => updateState({ showBranchModal: true })}
-                    disabled={isLoading}
-                    aria-label="Find Branch"
-                    title="Find Branch"
-                  >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} />
-                  </button>
-                </div>
+              <div className="space-y-3">
+                <FieldRenderer
+                  id="branchName"
+                  name="branchName"
+                  label="Branch"
+                  type="lookup"
+                  value={branchName || ""}
+                  readOnly
+                  disabled={isLoading}
+                  onLookup={() => updateState({ showBranchModal: true })}
+                />
 
-                {/* Customer Code */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="custCode"
-                    placeholder=" "
-                    value={custCode}
-                    onChange={(e) => updateState({ custCode: e.target.value })}
-                    className="peer global-tran-textbox-ui"
-                    disabled={isLoading}
-                  />
-                  <label htmlFor="custCode" className="global-tran-floating-label">
-                    Customer Code
-                  </label>
-                  <button
-                    type="button"
-                    className="global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-enabled-ui global-tran-textbox-button-search-ui"
-                    onClick={() => updateState({ showCustomerModal: true })}
-                    disabled={isLoading}
-                    aria-label="Find Customer"
-                    title="Find Customer"
-                  >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} />
-                  </button>
-                </div>
+                <FieldRenderer
+                  id="custCode"
+                  name="custCode"
+                  label="Customer Code"
+                  type="lookup"
+                  value={custCode || ""}
+                  disabled={isLoading}
+                  onChange={(val) => updateState({ custCode: val })}
+                  onLookup={() => updateState({ showCustomerModal: true })}
+                />
 
-                {/* Customer Name */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="custName"
-                    placeholder=" "
-                    value={custName}
-                    readOnly
-                    className="peer global-tran-textbox-ui"
-                  />
-                  <label htmlFor="custName" className="global-tran-floating-label">
-                    Customer Name
-                  </label>
-                </div>
+                <FieldRenderer
+                  id="custName"
+                  name="custName"
+                  label="Customer Name"
+                  type="text"
+                  value={custName || ""}
+                  disabled
+                  readOnly
+                />
               </div>
             </section>
 
@@ -676,34 +667,25 @@ const ARAdvancesTab = forwardRef(function ARAdvancesTab({ registerActions }, ref
                 Filters
               </h3>
 
-              {/* Advances Status */}
-              <div className="global-tran-textbox-group-div-ui">
-                <div className="relative">
-                  <select
-                    id="advStatus"
-                    className="peer global-tran-textbox-ui appearance-none pr-9 cursor-pointer bg-white"
-                    value={status}
-                    onChange={(e) => updateState({ status: e.target.value })}
-                    disabled={isLoading}
-                  >
-                    <option value="Open">Open</option>
-                    <option value="Closed">Closed</option>
-                    <option value="All">All</option>
-                  </select>
-                  <label htmlFor="advStatus" className="global-tran-floating-label">
-                    Advances Status
-                  </label>
-                  <span
-                    className="pointer-events-none global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-ui flex items-center justify-center"
-                    aria-hidden="true"
-                  >
-                    <FontAwesomeIcon icon={faChevronDown} />
-                  </span>
-                </div>
+              <div className="space-y-3">
+                <FieldRenderer
+                  id="advStatus"
+                  name="advStatus"
+                  label="Advances Status"
+                  type="select"
+                  value={status || ""}
+                  disabled={isLoading}
+                  onChange={(val) => updateState({ status: val })}
+                  options={[
+                    { label: "Open", value: "Open" },
+                    { label: "Closed", value: "Closed" },
+                    { label: "All", value: "All" },
+                  ]}
+                />
               </div>
             </section>
 
-            {/* Filter Summary (computed totals) */}
+            {/* Filter Summary */}
             <aside className="p-5 bg-gray-50">
               <h3 className="flex items-center gap-2 text-gray-800 font-semibold mb-4">
                 <FontAwesomeIcon className="text-blue-600" icon={faTableList} />
@@ -757,6 +739,7 @@ const ARAdvancesTab = forwardRef(function ARAdvancesTab({ registerActions }, ref
               onRowAction={handleViewTop}
               className="mt-2"
               initialState={initialStateTop}
+              docType="AR Advances Summary"
               onStateChange={(tbl) => {
                 tableStateTopRef.current = tbl;
                 const cache = getGlobalCache();
@@ -789,6 +772,7 @@ const ARAdvancesTab = forwardRef(function ARAdvancesTab({ registerActions }, ref
               onRowAction={handleViewRow}
               className="mt-2"
               initialState={initialStateBottom}
+              docType="AR Advances Detailed"
               onStateChange={(tbl) => {
                 tableStateBottomRef.current = tbl;
                 const cache = getGlobalCache();
@@ -809,6 +793,11 @@ const ARAdvancesTab = forwardRef(function ARAdvancesTab({ registerActions }, ref
               updateState({
                 branchCode: selectedBranch.branchCode,
                 branchName: selectedBranch.branchName,
+                custCode: selectedCustomer.custCode,
+                custName: selectedCustomer.custName,
+                arAdvancesData: [],
+                arAdvancesDataS: [],
+                arAdvancesDataUnfiltered: [],
               });
             }
             updateState({ showBranchModal: false });

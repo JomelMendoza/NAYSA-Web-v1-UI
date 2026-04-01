@@ -94,7 +94,8 @@ const PayeeSetupTab = forwardRef(
     const isReadOnly = !isEditing;
     const isDisabled = isReadOnly || isLoading;
 
-    const isNewRecord = form.__isNew;
+    // Helper variable to determine if we are manually adding a new code
+    const isManualNew = form.__isNew && generationMode === "M";
 
     const sl = useMemo(
       () => normalizeUpper(form?.sltypeCode || "SU"),
@@ -428,34 +429,28 @@ const PayeeSetupTab = forwardRef(
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              
-              <div
-                ref={overrideRef}
-                className={`w-full ${!canType
-                    ? "[&>div]:!bg-[#F1F5F9] [&_input]:!bg-transparent [&_input]:!pointer-events-none [&_input]:!text-slate-600 [&_button]:!text-slate-400 [&_label]:!bg-[#F1F5F9]"
-                    : ""
-                  }`}
-              >
-                <FieldRenderer
-                  label="Payee Code"
-                  required
-                  type="lookup"
-                  value={form[f.code] || ""}
-                  placeholder="" // Placeholder removed as requested
-                  onChange={
-                    canType
-                      ? (v) => {
-                        const val = getValue(v);
-                        onChangeForm({ [f.code]: val, custCode: val });
-                      }
-                      : undefined
-                  }
-                  onLookup={openPayeeLookup}
-                  readOnly={!canType}
-                  disabled={isLoading}
-                  maxLength={getLen(col.code, 20)}
-                />
-              </div>
+              <FieldRenderer
+                label="Payee Code"
+                required
+                // THE FIX: Switch to a plain text field once a record is retrieved
+                type={isManualNew || isRetrievedRecord ? "text" : "lookup"}
+                value={form[f.code] || ""}
+                onChange={
+                  isManualNew
+                    ? (v) => {
+                      const val = getValue(v);
+                      onChangeForm({ [f.code]: val, custCode: val });
+                    }
+                    : undefined
+                }
+                // Disable the lookup click if a record is already loaded
+                onLookup={isManualNew || isRetrievedRecord ? undefined : openPayeeLookup}
+                // This readOnly prop is what gives it the grey background in your system
+                readOnly={!isManualNew}
+                disabled={isLoading || isRetrievedRecord}
+                maxLength={getLen(col.code, 20)}
+              />
+
               <FieldRenderer
                 label="Tax Rate Class"
                 required

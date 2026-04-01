@@ -1,21 +1,20 @@
-import { useState, useEffect,useRef } from 'react';
-import { fetchDataJson, postRequest } from '../../../Configuration/BaseURL.jsx';
+import { useState, useEffect, useRef } from 'react';
+import { fetchDataJson } from '../../../Configuration/BaseURL.jsx';
 import { useSelectedHSColConfig } from '@/NAYSA Cloud/Global/selectedData';
-import  GlobalGLPostingModalv1 from "../../../Lookup/SearchGlobalGLPostingv1.jsx";
+import GlobalGLPostingModalv1 from "../../../Lookup/SearchGlobalGLPostingv1.jsx";
 import { useSwalValidationAlert } from '@/NAYSA Cloud/Global/behavior';
 import { useHandlePostTran } from '@/NAYSA Cloud/Global/procedure';
-import ReactDOM from 'react-dom';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSpinner } from '@fortawesome/free-solid-svg-icons';
-
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
 const PostAPCM = ({ isOpen, onClose, userCode }) => {
   const [data, setData] = useState([]);
   const [colConfigData, setcolConfigData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [modalReady, setModalReady] = useState(false); // controls modal display
+  const [modalReady, setModalReady] = useState(false);
   const alertFired = useRef(false);
   const [userPassword, setUserPassword] = useState(null);
+
+
 
   useEffect(() => {
     let isMounted = true;
@@ -39,7 +38,7 @@ const PostAPCM = ({ isOpen, onClose, userCode }) => {
             message: "There are no records to display.",
           });
           alertFired.current = true; 
-          onClose();
+          onClose?.();
         }
 
         const colConfig = await useSelectedHSColConfig(endpoint);
@@ -62,14 +61,11 @@ const PostAPCM = ({ isOpen, onClose, userCode }) => {
       isMounted = false;
       setModalReady(false);
     };
-  }, [isOpen]);
+  }, [isOpen, onClose]);
 
-
-
-const handlePost = async (selectedData, userPw) => {
-  await useHandlePostTran(selectedData,userPw,"APCM",userCode,setLoading,onClose)
-}
-
+  const handlePost = async (selectedData, userPw) => {
+    await useHandlePostTran(selectedData, userPw, "APCM", userCode, setLoading, onClose);
+  };
 
 const pickDocAndBranch = (row) => {
   if (!row) return { docNo: null, branchCode: null };
@@ -78,8 +74,10 @@ const pickDocAndBranch = (row) => {
   return { docNo, branchCode };
 };
 
+
 const handleViewDocument = (row) => {
-  const { docNo, branchCode } = pickDocAndBranch(row, colConfigData);
+
+  const { docNo, branchCode } = pickDocAndBranch(row);
   if (!docNo || !branchCode) {
     useSwalValidationAlert({
       icon: "warning",
@@ -89,13 +87,21 @@ const handleViewDocument = (row) => {
     return;
   }
 
-  const APCM_VIEW_URL = "/tran-ar-apcmtran";
-  const url =
-    `${window.location.origin}${APCM_VIEW_URL}` +
-    `?apcmNo=${encodeURIComponent(docNo)}&branchCode=${encodeURIComponent(branchCode)}`;
-  window.open(url, "_blank", "noopener,noreferrer");
-};
 
+
+const TRAN_VIEW_URL = "/page/APCM";
+const url =
+  `${window.location.origin}${TRAN_VIEW_URL}` +
+  `?apcmNo=${encodeURIComponent(docNo)}` +
+  `&branchCode=${encodeURIComponent(branchCode)}` +
+  `&viewDocument=true`;
+window.open(url, "_blank", "noopener,noreferrer");
+
+
+
+
+
+};
 
 
 
@@ -104,35 +110,25 @@ return (
     {/* Mount the modal only when ready */}
     {modalReady && (
       <GlobalGLPostingModalv1
-      data={data} 
-      colConfigData={colConfigData} 
-      title="Post AP Credit Memo" 
-      userPassword ={userPassword}
-      btnCaption="Ok"
-      onClose={onClose}
-      onPost={handlePost} 
-      onViewDocument={handleViewDocument}
-      remoteLoading={loading}
+        data={data}
+        colConfigData={colConfigData}
+        title="Post AP Credit Memo"
+        userPassword={userPassword}
+        btnCaption="Okay"
+        onClose={onClose}
+        onPost={handlePost}
+        onViewDocument={handleViewDocument}
+        remoteLoading={loading}
       />
     )}
 
-    {/* Always allow the overlay to render while loading (no modalReady / isOpen gate) */}
-    {ReactDOM.createPortal(
-      loading ? (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-white/80 backdrop-blur-sm">
-          <div className="flex flex-col items-center text-blue-600">
-            <FontAwesomeIcon icon={faSpinner} spin size="2x" className="mb-3" />
-            <span className="text-sm font-medium tracking-wide">Please wait…</span>
-          </div>
-        </div>
-      ) : null,
-      document.body
-    )}
+
+    {loading && <LoadingSpinner />}
+
+  
   </>
 );
 };
-
-
 
 export default PostAPCM;
 

@@ -698,7 +698,7 @@ const RcRef = forwardRef(
         </div>
 
         {/* Main Content Area (Left and Right Layout) */}
-        <div ref={formTopRef} className="mt-4 md:mt-0 px-4 md:px-9 flex flex-col gap-4">
+       <div ref={formTopRef} className="mt-20 md:mt-16 px-4 md:px-9 flex flex-col gap-4">
           <div className="flex flex-col xl:flex-row gap-4 h-auto xl:h-[calc(100vh-130px)]">
             
             {/* Left Column (col-span-3 equivalent): Data Entry & Registration Info */}
@@ -745,7 +745,7 @@ const RcRef = forwardRef(
             {/* Added min-w-0 and w-full to prevent flexbox from overflowing its parent width on mobile */}
             <div className="flex-1 flex flex-col gap-4 h-[500px] xl:h-full pb-8 xl:pb-0 min-w-0 w-full overflow-hidden">
               {/* Added overflow-x-auto here so the table scrolls left/right safely */}
-              <div className="global-tran-table-main-div-ui bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-x-auto overflow-y-hidden h-full mt-0 w-full">
+              <div className="global-tran-table-main-div-ui bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden h-full mt-0 w-full min-w-0 relative z-0">
                 <SearchGlobalReferenceTable
                   ref={tableRef}
                   docType="RC Type"

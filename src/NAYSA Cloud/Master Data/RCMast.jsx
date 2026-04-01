@@ -604,6 +604,7 @@ const RCMast = () => {
 
                 <FieldRenderer
                   label="RC Type"
+                  required
                   type="lookup"
                   value={
                     form.rcTypeCode

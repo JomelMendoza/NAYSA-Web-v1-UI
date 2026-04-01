@@ -27,7 +27,7 @@ body {
   /* TRANSACTION HEADER UI */
 
   .global-tran-main-div-ui {
-    @apply p-2 bg-gray-100 min-h-screen mt-32 sm:mt-24 md:mt-6 lg:mt-9
+    @apply p-2 bg-gray-50 min-h-screen mt-32 sm:mt-24 md:mt-6 lg:mt-9
     dark:bg-black;
   }
   
@@ -47,7 +47,7 @@ body {
             sm:flex-row sm:justify-between sm:items-center gap-y-1 sm:gap-y-0 sm:gap-x-4
             md:mt-14
             dark:bg-blue-900 dark:text-white; */
-      @apply fixed mt-24 top-12 left-6 right-6 z-30 bg-gradient-to-r from-blue-200 to-blue-200 p-1 rounded-lg text-blue-900 shadow-xl 
+      @apply fixed mt-24 top-12 left-6 right-6 z-30 bg-gradient-to-r from-blue-200 to-blue-100 p-1 rounded-lg text-blue-900 shadow-xl 
             lg:p-1 mb-4 flex flex-col 
             sm:flex-row sm:justify-between sm:items-center gap-y-1 sm:gap-y-0 sm:gap-x-4
             md:mt-14
@@ -165,19 +165,20 @@ body {
       dark:bg-gray-600 dark:text-white;
     }
 
-  /* .global-tran-textbox-remarks-ui {
-      @apply block w-full appearance-none rounded-lg border border-gray-400 bg-white px-2 pb-2 text-xs text-black focus:border-blue-600 focus:outline-none focus:ring-0 min-h-20
-      dark:bg-gray-600 dark:text-white;
-        height: 100px; 
-        min-height: 100px;
-        max-height: 100px;
-    } */
 
     .global-tran-textbox-remarks-ui {
-  @apply block w-full appearance-none rounded-lg border border-gray-400 bg-white px-2 pb-2 text-xs text-black focus:border-blue-600 focus:outline-none focus:ring-0 min-h-24
-         dark:bg-gray-600 dark:text-white 
-        
-}
+      @apply block w-full appearance-none px-2 pb-2 rounded-lg bg-white border border-gray-200 focus:border-blue-600 focus:outline-none focus:ring-0 !important;
+      @apply text-[10px] sm:text-[12px] min-h-24 !important ;
+      @apply dark:bg-gray-600 dark:text-white dark:peer-focus:text-white;
+    }
+
+
+    .global-tran-textbox-remarks-ui-disabled {
+      @apply block w-full appearance-none px-2 pb-2 rounded-lg bg-gray-50  border border-gray-200 !important; /* Force background */
+      @apply border-gray-200 text-gray-800 cursor-not-allowed text-[10px] sm:text-[12px] min-h-24 !important ;
+      @apply dark:bg-gray-500 dark:text-gray-200;
+      opacity: 1 !important; /* Overwrite default HTML/Tailwind opacity reductions */    
+    }
     
   .global-tran-textbox-button-search-padding-ui {
         @apply w-[40px] h-[30px] sm:h-[30px] lg:h-[35px] absolute inset-y-0 right-0;
@@ -205,11 +206,21 @@ body {
   }
 
   .global-tran-floating-label-remarks {
-    @apply absolute left-4 top-0 z-10 origin-[0] scale-75 transform bg-white px-1 text-xs text-gray-600 transition-all 
+    @apply absolute left-3 top-0 z-10 origin-[0] scale-75 transform bg-white rounded-xl px-2 text-xs sm:text-sm text-gray-600 transition-all 
+    peer-placeholder-shown:top-4 peer-placeholder-shown:scale-100 
+    peer-focus:top-0 peer-focus:scale-75 peer-focus:text-blue-600
+    dark:bg-gray-600 dark:text-white dark:peer-focus:text-white;
+
+
+  }
+
+  .global-tran-floating-label-remarks-disabled {
+    @apply absolute left-3 top-0 z-10 origin-[0] scale-75 transform bg-gray-50 rounded-xl px-2 text-xs sm:text-sm text-gray-600 transition-all 
     peer-placeholder-shown:top-4 peer-placeholder-shown:scale-100 
     peer-focus:top-0 peer-focus:scale-75 peer-focus:text-blue-600
     dark:bg-gray-600 dark:text-white dark:peer-focus:text-white;
   }
+
 
   .global-tran-asterisk-ui {
     @apply text-red-600 font-extrabold;
@@ -235,14 +246,12 @@ body {
   }
 
   .global-tran-thead-div-ui {
-    /* @apply sticky top-0 bg-blue-300 z-10 
-    dark:bg-blue-900 dark:text-white; */
-    @apply sticky top-0 bg-blue-200 z-10 
+    @apply sticky top-0 bg-blue-100 z-10 
     dark:bg-blue-900 dark:text-white;
   }
 
   .global-tran-th-ui {
-    @apply px-2 py-2 sm:py-2 lg:py-2 text-center text-[10px] sm:text-[10px] lg:text-xs font-bold text-gray-900
+    @apply px-2 py-2 sm:py-2 lg:py-2 text-center text-[10px] sm:text-[10px] lg:text-xs font-bold text-gray-900 cursor-pointer whitespace-nowrap
     dark:text-gray-300;
   }
 
@@ -261,12 +270,14 @@ body {
   }
 
   .global-tran-td-button-add-ui {
-    @apply bg-blue-500 text-white px-3 py-1 rounded-lg hover:bg-blue-700 transition w-[35px]
+    /* @apply bg-blue-500 text-white px-3 py-1 rounded-lg hover:bg-blue-700 transition w-[35px] */
+    @apply flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-blue-50 border border-blue-100 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-colors text-xs
     dark:bg-black dark:hover:bg-blue-900;
   }
 
   .global-tran-td-button-delete-ui {
-    @apply bg-red-500 text-white px-3 py-1 rounded-lg hover:bg-red-700 transition w-[35px]
+    /* @apply bg-red-500 text-white px-3 py-1 rounded-lg hover:bg-red-700 transition w-[35px] */
+    @apply flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-red-50 border border-red-100 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors text-xs
     dark:bg-black dark:hover:bg-red-900;
   }
 
@@ -462,7 +473,7 @@ body {
 }
 
 .global-ref-label-disabled {
-  @apply bg-gray-100 text-gray-600 rounded-xl text-xs sm:text-sm
+  @apply bg-gray-50 text-gray-600 rounded-lg text-xs sm:text-sm
           dark:bg-gray-500 dark:text-white dark:peer-focus:text-white;
 }
 
@@ -473,7 +484,7 @@ body {
 }
 
 .global-ref-textbox-disabled {
-  @apply bg-gray-100 !important; /* Force background */
+  @apply bg-gray-50 !important; /* Force background */
   @apply border-gray-200 text-gray-800 cursor-not-allowed text-[10px] sm:text-[12px] !important ;
   @apply dark:bg-gray-500 dark:text-gray-200;
   opacity: 1 !important; /* Overwrite default HTML/Tailwind opacity reductions */
@@ -1292,36 +1303,30 @@ body {
 }
 
 .swal-sonner-error-toast-wrap {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px 16px;
-  padding-right: 42px;
-  text-align: left;
+    display: flex;
+    align-items: flex-start; /* Keeps icon at the top */
+    padding: 12px 10px;
+    gap: 10px;
 }
 
 .swal-sonner-error-toast-icon {
-  margin-top: 1px;
-  display: flex;
-  height: 36px;
-  width: 36px;
-  min-width: 36px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9999px;
-  background: #fef2f2;
-  border: 1px solid #fee2e2;
-  color: #ef4444;
+    width: 18px; /* Smaller icon */
+    height: 18px;
+    color: #ef4444;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.swal-sonner-error-toast-content {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+    max-width: 240px; /* Constraints text width */
 }
 
 .swal-sonner-error-toast-icon svg {
   width: 18px;
   height: 18px;
-}
-
-.swal-sonner-error-toast-content {
-  min-width: 0;
-  flex: 1;
 }
 
 .swal-sonner-error-toast-title {
