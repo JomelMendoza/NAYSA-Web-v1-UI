@@ -760,7 +760,7 @@ const RcRef = forwardRef(
                   tableSize="half"
                   title="RC Types"
                   fileName={`RcType_Reference_${new Date().toISOString().split("T")[0]}`}
-                  onMobileRowOpen={openMobileActionSheet} 
+                  onMobileRowOpen={isMobile ? openMobileActionSheet : undefined}
                 />
               </div>
             </div>

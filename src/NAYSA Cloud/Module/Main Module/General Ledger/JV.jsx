@@ -29,7 +29,7 @@ import SLMastLookupModal from "../../../Lookup/SearchSLMast.jsx";
 import BillTermLookupModal from "../../../Lookup/SearchBillTermRef.jsx";
 import BillCodeLookupModal from "../../../Lookup/SearchBillCodeRef.jsx";
 import CancelTranModal from "../../../Lookup/SearchCancelRef.jsx";
-import PostJV from "./PostJV.jsx"; 
+import PostJV from "./PostJV.jsx";
 import AttachDocumentModal from "../../../Lookup/SearchAttachment.jsx";
 import DocumentSignatories from "../../../Lookup/SearchSignatory.jsx";
 import AllTranHistory from "../../../Lookup/SearchGlobalTranHistory.jsx";
@@ -96,18 +96,18 @@ const JV = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [topTab, setTopTab] = useState("details");
-  
-  const { user, getAllTopHSDocRow, getAllDropDown, refsLoaded } = useAuth(); 
+
+  const { user, getAllTopHSDocRow, getAllDropDown, refsLoaded } = useAuth();
   const { resetFlag } = useReset();
   const [isViewDocument, setIsViewDocument] = useState(false);
-  
+
   useEffect(() => {
     const p = new URLSearchParams(location.search);
     if (p.get("viewDocument") === "true") {
       setIsViewDocument(true);
     }
   }, []);
-  
+
   const [state, setState] = useState({
     // HS Option
     glCurrMode: "M",
@@ -282,9 +282,9 @@ const JV = () => {
   const docType = docTypes.JV;
   const pdfLink = docTypePDFGuide[docType];
   const videoLink = docTypeVideoGuide[docType];
-  
+
   const hsDoc = getAllTopHSDocRow ? getAllTopHSDocRow(docType) : null;
-  const documentTitle = hsDoc.docName + ' Transaction';
+  const documentTitle = hsDoc.docName + " Transaction";
 
   // Status Global Setup
   const displayStatus = status || "OPEN";
@@ -316,7 +316,14 @@ const JV = () => {
   };
   const customParam = customParamMap[accountModalSource] || null;
 
-  const updateTotalsDisplay = (grossAmt, discAmt, netDisc, vat, atc, amtDue) => {
+  const updateTotalsDisplay = (
+    grossAmt,
+    discAmt,
+    netDisc,
+    vat,
+    atc,
+    amtDue,
+  ) => {
     setTotals({
       totalGrossAmount: formatNumber(grossAmt),
       totalDiscountAmount: formatNumber(discAmt),
@@ -421,14 +428,10 @@ const JV = () => {
   const loadInitialData = async () => {
     updateState({ isLoading: true, showSpinner: true });
     try {
-      const [
-        hsOptionReq,
-        fieldLengthsReq,
-        docControlReq
-      ] = await Promise.all([
+      const [hsOptionReq, fieldLengthsReq, docControlReq] = await Promise.all([
         useTopHSOption(),
         useFieldLenghtCheck("jv_hd,jv_dt1,jv_dt2"),
-        useTopDocControlRow(docType)
+        useTopDocControlRow(docType),
       ]);
 
       let currReq = null;
@@ -470,7 +473,7 @@ const JV = () => {
   };
 
   const handleReset = () => {
-    loadInitialData(); 
+    loadInitialData();
     updateState({
       header: { jv_date: useGetCurrentDayV2() },
       branchCode: "HO",
@@ -514,7 +517,7 @@ const JV = () => {
     });
   };
 
-  const fetchTranData = async (documentNo, branchCode) => {
+  const fetchTranData = async (documentNo, branchCode, direction = "") => {
     const resetState = () => {
       updateState({
         documentNo: "",
@@ -533,6 +536,7 @@ const JV = () => {
         branchCode,
         docType,
         "jvNo",
+        direction,
       );
 
       if (!data?.jvId) {
@@ -572,7 +576,7 @@ const JV = () => {
         branchCode: data.branchCode,
         header: { ...state.header, jv_date: jvDateForHeader },
         selectedJVType: data.jvtranType,
-        noReprints: noReprints,
+        noReprints: data.noReprints,
         selectedRefDocType: data.refDocType,
         custCode: data.slCode,
         custName: data.slName,
@@ -728,8 +732,8 @@ const JV = () => {
         branchCode: branchCode,
         jvNo: documentNo || "",
         jvId: documentID || "",
-        jvDate: header.jv_date.includes("/") 
-          ? new Date(header.jv_date).toISOString().split("T")[0] 
+        jvDate: header.jv_date.includes("/")
+          ? new Date(header.jv_date).toISOString().split("T")[0]
           : header.jv_date,
         jvtranType: selectedJVType,
         refDocType: selectedRefDocType,
@@ -814,7 +818,7 @@ const JV = () => {
                 handleReset();
                 setTopTab("history");
               },
-              () => handleSaveAndPrint(response.data[0].jvId), 
+              () => handleSaveAndPrint(response.data[0].jvId),
             );
           }
         } catch (error) {
@@ -1486,6 +1490,20 @@ const JV = () => {
     }
   };
 
+const handleTranDocNoRetrieval = async (data) => {
+  await fetchTranData(data.docNo, data.branchCode || branchCode, data.key);
+  updateState({ showAllTranDocNo: data.modalClose });
+};
+
+const handleTranDocNoSelection = async (data) => {
+  handleReset(); 
+  updateState({
+    showAllTranDocNo: false,
+    documentNo: data.docNo,
+  });
+  fetchTranData(data.docNo, data.branchCode || branchCode);
+};
+
   const handleJVTypeChange = (e) => {
     const selectedType = e.target.value;
     updateState({ selectedJVType: selectedType });
@@ -1564,7 +1582,7 @@ const JV = () => {
                   ? "global-tran-tab-text_active-ui"
                   : "global-tran-tab-text_inactive-ui"
               }`}
-              onClick={() => updateState({activeTab: "basic"})}
+              onClick={() => updateState({ activeTab: "basic" })}
             >
               Basic Information
             </button>
@@ -1576,7 +1594,6 @@ const JV = () => {
             id="jv_hd"
           >
             <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              
               {/* Column 1 */}
               <div className="global-tran-textbox-group-div-ui">
                 <FieldRenderer
@@ -1584,7 +1601,11 @@ const JV = () => {
                   label="Branch"
                   type="lookup"
                   value={branchName || ""}
-                  disabled={state.isFetchDisabled || state.isDocNoDisabled || isFormDisabled}
+                  disabled={
+                    state.isFetchDisabled ||
+                    state.isDocNoDisabled ||
+                    isFormDisabled
+                  }
                   onLookup={() => updateState({ branchModalOpen: true })}
                 />
 
@@ -1723,7 +1744,9 @@ const JV = () => {
                     value={remarks}
                     onChange={(e) => updateState({ remarks: e.target.value })}
                     disabled={isFormDisabled}
-                    maxLength={useGetFieldLength(tblFieldArray, "remarks") || 250}
+                    maxLength={
+                      useGetFieldLength(tblFieldArray, "remarks") || 250
+                    }
                   />
                   <label
                     htmlFor="remarks"
@@ -1742,7 +1765,11 @@ const JV = () => {
                 id="currName"
                 label="Currency"
                 type="lookup"
-                value={currCode ? `${currCode}${currName ? ` - ${currName}` : ""}` : ""}
+                value={
+                  currCode
+                    ? `${currCode}${currName ? ` - ${currName}` : ""}`
+                    : ""
+                }
                 disabled={isFormDisabled}
                 onLookup={() => updateState({ currencyModalOpen: true })}
                 lookupDisabled={isFetchDisabled}
@@ -1757,7 +1784,10 @@ const JV = () => {
                 disabled={isFormDisabled || glCurrDefault === currCode}
                 onChange={(val) => {
                   const sanitizedValue = String(val).replace(/[^0-9.]/g, "");
-                  if (/^\d*\.?\d{0,6}$/.test(sanitizedValue) || sanitizedValue === "") {
+                  if (
+                    /^\d*\.?\d{0,6}$/.test(sanitizedValue) ||
+                    sanitizedValue === ""
+                  ) {
                     updateState({ currRate: sanitizedValue });
                   }
                 }}
@@ -1779,7 +1809,7 @@ const JV = () => {
                     ? "global-tran-tab-text_active-ui"
                     : "global-tran-tab-text_inactive-ui"
                 }`}
-                onClick={() => updateState({GLactiveTab: "invoice"})}
+                onClick={() => updateState({ GLactiveTab: "invoice" })}
               >
                 General Ledger
               </button>
@@ -2078,7 +2108,11 @@ const JV = () => {
                           className="w-[200px] global-tran-td-inputclass-ui"
                           value={row.atcName || ""}
                           onChange={(e) =>
-                            handleDetailChangeGL(index, "atcName", e.target.value)
+                            handleDetailChangeGL(
+                              index,
+                              "atcName",
+                              e.target.value,
+                            )
                           }
                         />
                       </td>
@@ -2381,7 +2415,9 @@ const JV = () => {
                           type="text"
                           className="w-[100px] global-tran-td-inputclass-ui"
                           value={row.slRefNo || ""}
-                          maxLength={useGetFieldLength(tblFieldArray, "slRefNo") || 50}
+                          maxLength={
+                            useGetFieldLength(tblFieldArray, "slRefNo") || 50
+                          }
                           onChange={(e) =>
                             handleDetailChangeGL(
                               index,
@@ -2415,8 +2451,16 @@ const JV = () => {
                           type="text"
                           className="w-[100px] global-tran-td-inputclass-ui"
                           value={row.remarks || ""}
-                          maxLength={useGetFieldLength(tblFieldArray, "remarks") || 250}
-                          onChange={(e) => handleDetailChangeGL(index, "remarks", e.target.value)}
+                          maxLength={
+                            useGetFieldLength(tblFieldArray, "remarks") || 250
+                          }
+                          onChange={(e) =>
+                            handleDetailChangeGL(
+                              index,
+                              "remarks",
+                              e.target.value,
+                            )
+                          }
                         />
                       </td>
 
@@ -2621,16 +2665,11 @@ const JV = () => {
               documentTitle,
               fieldNo: "jvNo",
             }}
-            onRetrieve={(data) => {
-              fetchTranData(data.docNo, branchCode);
-              updateState({ showAllTranDocNo: false });
-            }}
-            onSelected={(data) => {
-              handleReset();
-              updateState({ showAllTranDocNo: false, documentNo: data.docNo });
-            }}
-            onClose={() => updateState({ showAllTranDocNo: false })}
-          />
+           onRetrieve={handleTranDocNoRetrieval}
+    onResponse={{ documentNo: documentNo }} // Pass current docNo
+    onSelected={handleTranDocNoSelection}
+    onClose={() => updateState({ showAllTranDocNo: false })}
+  />
         )}
 
         {showSpinner && <LoadingSpinner />}
