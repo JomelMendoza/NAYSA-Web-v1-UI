@@ -1,377 +1,304 @@
-// import React, { useState, useEffect } from 'react';
-// import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-// import { faTimes } from '@fortawesome/free-solid-svg-icons';
-// import {fetchData} from '../Configuration/BaseURL';
+import React, { useState, useMemo, useEffect } from "react";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faTimes,
+  faSpinner,
+  faSyncAlt,
+  faSort,
+  faSearch,
+  faEraser,
+} from "@fortawesome/free-solid-svg-icons";
+import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 
+// Simple debounce hook to prevent excessive filtering
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
 
-// const BillTermLookupModal = ({ isOpen, onClose }) => {
-//   const [billterm, setBillterms] = useState([]);
-//   const [filtered, setFiltered] = useState([]);
-//   const [filters, setFilters] = useState({ billtermCode: '', billtermName: '', daysDue: '' });
-//   const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
 
-//   useEffect(() => {
-//     if (isOpen) {
-//       setLoading(true);
-  
-//       const params = {
-//         PARAMS: JSON.stringify({
-//           search: "",
-//           page: 1,
-//           pageSize: 10,
-//         }),
-//       };
-
-//       fetchData("/lookupBillterm", params) 
-//       .then((result) => {
-//         if (result.success) {
-//           const resultData = JSON.parse(result.data[0].result);
-//           setBillterms(resultData);
-//           setFiltered(resultData);
-//         } else {
-//           alert(result.message || "Failed to fetch Billing Term");
-//         }
-//       })
-//       .catch((err) => {
-//         console.error("Failed to fetch Billing Term:", err);
-//         alert(`Error: ${err.message}`);
-//       })
-//       .finally(() => {
-//         setLoading(false);
-//       });
-//   }
-//   }, [isOpen]);
-  
-
-//   useEffect(() => {
-//     const newFiltered = billterm.filter(item =>
-//       (item.billtermCode || '').toLowerCase().includes((filters.billtermCode || '').toLowerCase()) &&
-//       (item.billtermName || '').toLowerCase().includes((filters.billtermName || '').toLowerCase()) &&
-//       (item.daysDue?.toString() || '').toLowerCase().includes((filters.daysDue || '').toLowerCase())
-//     );
-//     setFiltered(newFiltered);
-//   }, [filters, billterm]);
-
-//   const handleApply = (billterm) => {
-//     onClose(billterm);
-//   };
-
-  
-//   const handleFilterChange = (e, key) => {
-//     setFilters({ ...filters, [key]: e.target.value });
-//   };
-
-//   if (!isOpen) return null;
-
-//   return (
-//     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-//       <div className="bg-white rounded-lg p-6 w-full max-w-lg max-h-[90vh] overflow-auto relative">
-//         {/* Close Icon */}
-//         <button
-//           onClick={() => onClose(null)}
-//           className="absolute top-3 right-3 text-red-500 hover:text-red-700"
-//         >
-//           <FontAwesomeIcon icon={faTimes} size="lg" />
-//         </button>
-
-//         <h2 className="text-lg font-semibold mb-4 uppercase">Select Billing Term</h2>
-
-//         {loading ? (
-//           <div className="flex justify-center items-center h-32">
-//             <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-//           </div>
-//         ) : (
-//           <div className="overflow-x-auto max-h-[60vh] rounded">
-//             <table className="min-w-full border-collapse text-sm border border-gray-200">
-//               <thead className='text-gray-700 uppercase bg-gray-100 sticky top-0 z-10'>
-//                 <tr>
-//                   <th className="px-2 py-2 border">Billing Term</th>
-//                   <th className="px-10 py-2 border">Description</th>
-//                   <th className="px-4 py-2 border text-right">Rate</th>
-//                   <th className="px-4 py-2 border">Action</th>
-//                 </tr>
-//                 <tr className="bg-white">
-//                   <th className="border px-4 py-1">
-//                     <input
-//                       type="text"
-//                       value={filters.billtermCode}
-//                       onChange={(e) => handleFilterChange(e, 'billtermCode')}
-//                       className="w-full border px-2 py-1 rounded text-sm"
-//                     />
-//                   </th>
-//                   <th className="border px-4 py-1">
-//                     <input
-//                       type="text"
-//                       value={filters.billtermName}
-//                       onChange={(e) => handleFilterChange(e, 'billtermName')}
-//                       className="w-full border px-2 py-1 rounded text-sm"
-//                     />
-//                   </th>
-//                   <th className="border px-4 py-1">
-//                     <input
-//                       type="text"
-//                       value={filters.daysDue}
-//                       onChange={(e) => handleFilterChange(e, 'daysDue')}
-//                       className="w-full border px-2 py-1 rounded text-sm"
-//                     />
-//                   </th>              
-//                   <th className="border px-4 py-1"></th>
-//                 </tr>
-//               </thead>
-//               <tbody className="divide-y divide-gray-200">
-//   {loading ? (
-//     <tr>
-//       <td colSpan="3" className="py-10 text-center">
-//         <div className="w-8 h-8 mx-auto border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-//         <div className="text-sm text-gray-500 mt-2">Loading Billing Term...</div>
-//       </td>
-//     </tr>
-//   ) : filtered.length > 0 ? (
-//     filtered.map((billterm, index) => (
-//       <tr key={index} className="bg-white hover:bg-gray-100 transition">
-//         <td className="px-4 py-2 border">{billterm.billtermCode}</td>
-//         <td className="px-4 py-2 border">{billterm.billtermName}</td>
-//         <td className="px-4 py-2 border">{billterm.daysDue}</td>
-//         <td className="border px-4 py-2">
-//           <button
-//             onClick={() => handleApply(billterm)}
-//             className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
-//           >
-//             Apply
-//           </button>
-//         </td>
-//       </tr>
-//     ))
-//   ) : (
-//     <tr>
-//       <td colSpan="3" className="px-4 py-6 text-center text-gray-500">
-//         No matching Billing Term found.
-//       </td>
-//     </tr>
-//   )}
-// </tbody>
-
-//             </table>
-//             <div className="p-3 text-sm text-gray-600">
-//               Showing <strong>{filtered.length}</strong> of {billterm.length} entries
-//             </div>
-//           </div>
-//         )}
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default BillTermLookupModal;
-
-import React, { useState, useEffect } from 'react';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTimes, faSpinner } from '@fortawesome/free-solid-svg-icons'; // Added faSpinner
-import { fetchData } from '../Configuration/BaseURL'; // Assuming this path is correct
+  return debouncedValue;
+}
 
 const BillTermLookupModal = ({ isOpen, onClose }) => {
-    const [billterm, setBillterms] = useState([]);
-    const [filtered, setFiltered] = useState([]);
-    const [filters, setFilters] = useState({ billtermCode: '', billtermName: '', daysDue: '' });
-    const [loading, setLoading] = useState(false);
+  const [filters, setFilters] = useState({
+    billtermCode: "",
+    billtermName: "",
+    daysDue: "",
+  });
 
-    useEffect(() => {
-        if (!isOpen) {
-            // Reset state when modal closes
-            setBillterms([]);
-            setFiltered([]);
-            setFilters({ billtermCode: '', billtermName: '', daysDue: '' });
-            return; // Exit early if not open
-        }
+  const [sortConfig, setSortConfig] = useState({
+    key: "",
+    direction: "asc",
+  });
 
-        setLoading(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 1000;
 
-        const params = {
-            PARAMS: JSON.stringify({
-                search: "",
-                page: 1,
-                pageSize: 10,
-            }),
-        };
+  const hasActiveFilters = Object.values(filters).some((val) => val !== "");
 
-        fetchData("/lookupBillterm", params)
-            .then((result) => {
-                if (result.success && result.data && result.data.length > 0 && result.data[0].result) {
-                    const resultData = JSON.parse(result.data[0].result);
-                    setBillterms(resultData);
-                    setFiltered(resultData); // Initialize filtered with all data
-                } else {
-                    console.warn(result.message || "No Billing Term found.");
-                    setBillterms([]); // Ensure state is empty if no data
-                    setFiltered([]);
-                }
-            })
-            .catch((err) => {
-                console.error("Failed to fetch Billing Term:", err);
-                // Optionally, display a user-friendly error message in the UI
-            })
-            .finally(() => {
-                setLoading(false);
-            });
-    }, [isOpen]);
+  const resetFilters = () =>
+    setFilters({
+      billtermCode: "",
+      billtermName: "",
+      daysDue: "",
+    });
 
-    useEffect(() => {
-        const newFiltered = billterm.filter(item =>
-            (item.billtermCode || '').toLowerCase().includes((filters.billtermCode || '').toLowerCase()) &&
-            (item.billtermName || '').toLowerCase().includes((filters.billtermName || '').toLowerCase()) &&
-            (item.daysDue?.toString() || '').toLowerCase().includes((filters.daysDue || '').toLowerCase())
-        );
-        setFiltered(newFiltered);
-    }, [filters, billterm]); // Depend on 'billterm' (original data) for filtering
+  const debouncedFilters = useDebounce(filters, 300);
 
-    const handleApply = (selectedBillterm) => { // Renamed parameter for clarity
-        onClose(selectedBillterm);
-    };
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedFilters]);
 
-    const handleFilterChange = (e, key) => {
-        setFilters({ ...filters, [key]: e.target.value });
-    };
+  const {
+    data: billterms = [],
+    isLoading,
+    isFetching,
+    refetch,
+  } = useQuery({
+    queryKey: ["lookupBillterm"],
+    queryFn: async () => {
+      // Fix: Wrapping parameters in PARAMS string as required by your backend
+      const { data: result } = await apiClient.get("/lookupBillterm", {
+        params: {
+          PARAMS: JSON.stringify({
+            search: "",
+            page: 1,
+            pageSize: 1000,
+          }),
+        },
+      });
 
-    if (!isOpen) return null;
+      const rawData = result?.data?.[0]?.result || "[]";
+      const parsedData = Array.isArray(rawData) ? rawData : JSON.parse(rawData);
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 sm:p-6 lg:p-8 animate-fade-in">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col relative overflow-hidden transform scale-95 animate-scale-in">
-                {/* Close Icon */}
-                <button
-                    onClick={() => onClose(null)}
-                    className="absolute top-3 right-3 text-blue-500 hover:text-blue-700 transition duration-200 focus:outline-none p-1 rounded-full hover:bg-blue-100"
-                    aria-label="Close modal"
-                >
-                    <FontAwesomeIcon icon={faTimes} size="lg" />
-                </button>
+      return parsedData;
+    },
+    enabled: isOpen,
+    staleTime: 1000 * 60 * 5,
+    refetchInterval: 1000 * 30,
+    refetchIntervalInBackground: false,
+    placeholderData: keepPreviousData,
+  });
 
-                <h2 className="text-sm font-semibold text-blue-800 p-3 border-b border-gray-100">Select Billing Term</h2>
+  const filteredAndSorted = useMemo(() => {
+    if (!billterms.length) return [];
 
-                <div className="flex-grow overflow-hidden">
-                    {loading ? (
-                        <div className="flex items-center justify-center h-full min-h-[200px] text-blue-500">
-                            <FontAwesomeIcon icon={faSpinner} spin size="2x" className="mr-3" />
-                            <span>Loading Billing Terms...</span>
-                        </div>
-                    ) : (
-                        <div className="overflow-auto max-h-[calc(90vh-160px)] custom-scrollbar"> {/* Adjusted max-h */}
-                            <table className="min-w-full divide-y divide-gray-100">
-                                <thead className='bg-gray-100 sticky top-0 z-10 shadow-sm'>
-                                    <tr>
-                                        <th className="px-4 py-2 text-left text-xs font-bold text-blue-900 tracking-wider">Billing Term</th>
-                                        <th className="px-4 py-2 text-left text-xs font-bold text-blue-900 tracking-wider">Description</th>
-                                        <th className="px-4 py-2 text-left text-xs font-bold text-blue-900 tracking-wider">Days Due</th>
-                                        <th className="px-4 py-2 text-left text-xs font-bold text-blue-900 tracking-wider">Action</th>
-                                    </tr>
-                                    {/* Filter Row */}
-                                    <tr className="bg-gray-100">
-                                        <th className="px-3 py-1">
-                                            <input
-                                                type="text"
-                                                value={filters.billtermCode}
-                                                onChange={(e) => handleFilterChange(e, 'billtermCode')}
-                                                placeholder="Filter..."
-                                                className="block w-full px-2 py-1 text-xs text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                            />
-                                        </th>
-                                        <th className="px-3 py-1">
-                                            <input
-                                                type="text"
-                                                value={filters.billtermName}
-                                                onChange={(e) => handleFilterChange(e, 'billtermName')}
-                                                placeholder="Filter..."
-                                                className="block w-full px-2 py-1 text-xs text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                            />
-                                        </th>
-                                        <th className="px-3 py-1">
-                                            <input
-                                                type="text"
-                                                value={filters.daysDue}
-                                                onChange={(e) => handleFilterChange(e, 'daysDue')}
-                                                placeholder="Filter..."
-                                                className="block w-full px-2 py-1 text-xs text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                            />
-                                        </th>
-                                        <th className="px-3 py-1"></th> {/* Empty header for action column */}
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {filtered.length > 0 ? (
-                                        filtered.map((item, index) => (
-                                            <tr key={index}
-                                                className="hover:bg-blue-50 transition-colors duration-150 cursor-pointer text-xs"
-                                                onClick={() => handleApply(item)} // Allow clicking row to apply
-                                            >
-                                                <td className="px-4 py-1 whitespace-nowrap">{item.billtermCode}</td>
-                                                <td className="px-4 py-1 whitespace-nowrap">{item.billtermName}</td>
-                                                <td className="px-4 py-1 whitespace-nowrap text-right">{item.daysDue}</td>
-                                                <td className="px-4 py-1 whitespace-nowrap">
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); handleApply(item); }} // Stop propagation to prevent row click
-                                                        className="px-6 py-1 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-150"
-                                                    >
-                                                        Apply
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    ) : (
-                                        <tr>
-                                            <td colSpan="4" className="px-4 py-6 text-center text-gray-500 text-lg">
-                                                No matching Billing Terms found.
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </div>
+    let result = billterms.filter((item) => {
+      const code = String(item?.billtermCode ?? "").toLowerCase();
+      const name = String(item?.billtermName ?? "").toLowerCase();
+      const days = String(item?.daysDue ?? "").toLowerCase();
 
-                {/* Footer with count */}
-                <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end items-center text-xs text-gray-600">
-                    <div className="font-semibold">
-                        Showing <strong>{filtered.length}</strong> of {billterm.length} entries
-                    </div>
-                </div>
+      return (
+        code.includes(debouncedFilters.billtermCode.toLowerCase()) &&
+        name.includes(debouncedFilters.billtermName.toLowerCase()) &&
+        days.includes(debouncedFilters.daysDue.toLowerCase())
+      );
+    });
+
+    if (sortConfig.key) {
+      result.sort((a, b) => {
+        const aVal = String(a?.[sortConfig.key] ?? "");
+        const bVal = String(b?.[sortConfig.key] ?? "");
+
+        return sortConfig.direction === "asc"
+          ? aVal.localeCompare(bVal, undefined, { numeric: true })
+          : bVal.localeCompare(aVal, undefined, { numeric: true });
+      });
+    }
+
+    return result;
+  }, [billterms, debouncedFilters, sortConfig]);
+
+  const paginatedData = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredAndSorted.slice(startIndex, startIndex + pageSize);
+  }, [filteredAndSorted, currentPage]);
+
+  const handleApply = (term) => {
+    onClose(term);
+  };
+
+  const handleSort = (key) => {
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
+    }));
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4 animate-fade-in">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[75vh] flex flex-col relative overflow-hidden transform animate-scale-in border border-slate-200">
+        {/* Header */}
+        <div className="flex items-center justify-between p-2 border-b bg-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <h2 className="text-md font-bold text-blue-800 tracking-tight propercase pl-2">
+                Select Billing Term
+              </h2>
+              <div className="absolute -top-1 -right-4 flex h-2 w-2">
+                <span
+                  className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 ${
+                    isFetching ? "block" : "hidden"
+                  }`}
+                ></span>
+                <span
+                  className={`relative inline-flex rounded-full h-2 w-2 bg-blue-500 ${
+                    isFetching ? "block" : "hidden"
+                  }`}
+                ></span>
+              </div>
             </div>
+          </div>
 
-            {/* Tailwind CSS Animations (add to your CSS file or a style block if not globally available) */}
-            <style jsx="true">{`
-                @keyframes fade-in {
-                    from { opacity: 0; }
-                    to { opacity: 1; }
-                }
-                @keyframes scale-in {
-                    from { transform: scale(0.95); opacity: 0; }
-                    to { transform: scale(1); opacity: 1; }
-                }
-                .animate-fade-in {
-                    animation: fade-in 0.2s ease-out forwards;
-                }
-                .animate-scale-in {
-                    animation: scale-in 0.3s ease-out forwards;
-                }
-                /* Custom Scrollbar */
-                .custom-scrollbar::-webkit-scrollbar {
-                    width: 8px;
-                    height: 8px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-track {
-                    background: #f1f1f1;
-                    border-radius: 10px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb {
-                    background: #888;
-                    border-radius: 10px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-                    background: #555;
-                }
-            `}</style>
+          <div className="flex items-center gap-2">
+            {hasActiveFilters && (
+              <button
+                onClick={resetFilters}
+                className="px-2 py-1 text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded transition-all flex items-center gap-1.5"
+              >
+                <FontAwesomeIcon icon={faEraser} />
+                CLEAR
+              </button>
+            )}
+
+            <button
+              onClick={() => refetch()}
+              className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+            >
+              <FontAwesomeIcon icon={faSyncAlt} size="sm" spin={isFetching} />
+            </button>
+
+            <button
+              onClick={() => onClose(null)}
+              className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+            >
+              <FontAwesomeIcon icon={faTimes} size="lg" />
+            </button>
+          </div>
         </div>
-    );
+
+        {/* Main Table */}
+        <div className="flex-grow overflow-auto custom-scrollbar bg-white">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center h-64 text-slate-400">
+              <FontAwesomeIcon
+                icon={faSpinner}
+                spin
+                size="2x"
+                className="mb-4 text-blue-500"
+              />
+              <p className="text-sm">Loading Billing Terms...</p>
+            </div>
+          ) : (
+            <table className="min-w-full border-separate border-spacing-0">
+              <thead className="sticky top-0 z-10 bg-slate-200">
+                <tr>
+                  {[
+                    { label: "Term Code", key: "billtermCode" },
+                    { label: "Description", key: "billtermName" },
+                    { label: "Days Due", key: "daysDue" },
+                  ].map((col) => (
+                    <th
+                      key={col.key}
+                      className="px-4 py-2 text-left border-b border-slate-200"
+                    >
+                      <div
+                        onClick={() => handleSort(col.key)}
+                        className="flex items-center gap-1 cursor-pointer group mb-1.5"
+                      >
+                        <label className="block text-[12px] font-bold text-slate-600 propercase mb-1">
+                          {col.label}
+                        </label>
+                        <FontAwesomeIcon
+                          icon={faSort}
+                          className={`text-[9px] ${
+                            sortConfig.key === col.key
+                              ? "text-blue-500"
+                              : "opacity-20"
+                          }`}
+                        />
+                      </div>
+
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={filters[col.key]}
+                          onChange={(e) =>
+                            setFilters((prev) => ({
+                              ...prev,
+                              [col.key]: e.target.value,
+                            }))
+                          }
+                          placeholder="Filter..."
+                          className="w-full pl-7 pr-2 py-1.5 text-xs font-normal border border-slate-200 rounded bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                        />
+                        <FontAwesomeIcon
+                          icon={faSearch}
+                          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-300 text-[9px]"
+                        />
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-100">
+                {paginatedData.length > 0 ? (
+                  paginatedData.map((term, index) => (
+                    <tr
+                      key={term.billtermCode || index}
+                      onClick={() => handleApply(term)}
+                      className="group hover:bg-blue-50 cursor-pointer transition-colors"
+                    >
+                      <td className="px-4 py-2 text-xs font-bold text-slate-600 w-[160px]">
+                        {term.billtermCode}
+                      </td>
+                      <td className="px-4 py-2 text-xs text-slate-600 font-medium w-[420px]">
+                        {term.billtermName}
+                      </td>
+                      <td className="px-4 py-2 text-xs text-slate-500 w-[160px] text-right">
+                        {term.daysDue}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan="3"
+                      className="px-4 py-20 text-center text-slate-400 italic text-sm"
+                    >
+                      No matching Billing Terms found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-3 px-4 border-t bg-slate-50 flex items-center justify-between">
+          <div className="flex flex-col">
+            <span className="text-[12px] text-slate-500 font-medium">
+              Total Records: {filteredAndSorted.length}
+            </span>
+            {isFetching && (
+              <span className="text-[9px] text-blue-500 animate-pulse font-bold flex items-center gap-1 uppercase">
+                <div className="w-1 h-1 bg-blue-500 rounded-full"></div>
+                Syncing Terms...
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default BillTermLookupModal;
