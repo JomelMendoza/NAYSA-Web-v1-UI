@@ -1,4 +1,4 @@
-import React, { forwardRef, useState } from "react";
+import React, { forwardRef, useState, useMemo, useEffect, useRef } from "react";
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer";
 import { useQuery } from "@tanstack/react-query";
 
@@ -28,75 +28,91 @@ const Card = ({ children, className = "" }) => (
 
 const normalizeUpper = (v) => String(v ?? "").toUpperCase().trim();
 
+const getValue = (input) => {
+  if (input && typeof input === "object") {
+    if ("target" in input) return input.target?.value ?? "";
+    if ("value" in input) return input.value ?? "";
+  }
+  return input ?? "";
+};
+
 const CustSetupTab = forwardRef(
   (
     {
       isLoading,
       isEditing,
       form = {},
-      generationMode,
       sltypeOptions = [],
       sourceOptions = [],
       activeOptions = [],
       onChangeForm,
       onSelectCustomerCode,
-      onLookupCode,
-      payeeTypeOptions = [],
       taxClassOptions = [],
-      handleTaxClassChange,
-      handleBusinessNameChange,
-      handleCheckNameChange,
-      applyAutoNames
     },
     ref
   ) => {
     const [salesTab, setSalesTab] = useState("sales");
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
+    // --- 1. FIELD LENGTHS ---
     const { data: tblFieldArray = [] } = useQuery({
       queryKey: ["fieldLengths", "cust_mast"],
       queryFn: () => useFieldLenghtCheck("cust_mast"),
     });
-
-    const [lookups, setLookups] = useState({
-      cust: false,
-      branch: false,
-      salesRep: false,
-      chain: false,
-      chainCust: false,
-      warehouse: false,
-      curr: false,
-      atc: false,
-      vat: false,
-      billTerm: false,
-    });
-
-    const toggleLookup = (key, val) =>
-      setLookups((prev) => ({ ...prev, [key]: val }));
 
     const getLen = (colName, fallback = undefined) => {
       const n = useGetFieldLength(tblFieldArray, colName);
       return n || fallback;
     };
 
-    const getValue = (input) => {
-      if (input && typeof input === "object") {
-        if ("target" in input) return input.target?.value ?? "";
-        if ("value" in input) return input.value ?? "";
-      }
-      return input ?? "";
-    };
-
+    // --- 2. LOGIC CONSTANTS ---
     const isReadOnly = !isEditing;
     const isDisabled = isReadOnly || isLoading;
-
     const isNewRecord = form.__isNew;
-    const isRetrievedRecord = !form.__isNew && !!form.custCode;
 
-    const openCustomerLookup = () => {
-      if (isLoading) return;
-      toggleLookup("cust", true);
+    const taxClass = useMemo(() => normalizeUpper(form?.taxClass || ""), [form?.taxClass]);
+    const isIndividual = taxClass === "WI";
+    
+    const buildRegisteredName = (fn, mn, ln) => {
+      return [fn, mn, ln].map((v) => String(v ?? "").trim()).filter(Boolean).join(" ");
     };
+
+    const nameAutoRef = useRef({ businessTouched: false });
+
+    // --- 3. AUTO-NAMING EFFECT ---
+    useEffect(() => {
+      if (!isEditing || !isIndividual) return;
+
+      const reg = buildRegisteredName(form.firstName, form.middleName, form.lastName);
+      
+      if (reg && (form.custName || "") !== reg) {
+        const updates = { custName: reg };
+        
+        // Auto-sync Business Name if not manually touched
+        if (!nameAutoRef.current.businessTouched || !form.businessName) {
+          updates.businessName = reg;
+        }
+        
+        onChangeForm(updates);
+      }
+    }, [isEditing, isIndividual, form.firstName, form.middleName, form.lastName]);
+
+    // --- 4. LOOKUP & OPTIONS ---
+    const [lookups, setLookups] = useState({ 
+      cust: false, branch: false, atc: false, vat: false, billTerm: false, curr: false 
+    });
+    const toggleLookup = (key, val) => setLookups(prev => ({ ...prev, [key]: val }));
+
+    const mappedTaxClassOptions = useMemo(() => {
+      const base = [{ value: "WC", label: "Corporate" }, { value: "WI", label: "Individual" }];
+      const extra = (Array.isArray(taxClassOptions) ? taxClassOptions : [])
+        .map(o => {
+          const val = normalizeUpper(o?.value ?? o?.code ?? o);
+          return (val === "WC" || val === "WI" || !val) ? null : { value: val, label: o?.label || o?.name || val };
+        }).filter(Boolean);
+      const seen = new Set();
+      return [...base, ...extra].filter(x => !seen.has(x.value) && seen.add(x.value));
+    }, [taxClassOptions]);
 
     return (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-start rounded-lg relative">
@@ -105,252 +121,95 @@ const CustSetupTab = forwardRef(
             <SectionHeader title="BASIC INFORMATION" />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
-              <FieldRenderer
-                label="SL Type"
-                type="select"
-                value={form?.sltypeCode || ""}
-                options={sltypeOptions}
-                onChange={(v) => onChangeForm({ sltypeCode: getValue(v) })}
-                readOnly={isReadOnly}
-                disabled={isDisabled}
-              />
-
-              <FieldRenderer
-                label="Active?"
-                type="select"
-                value={form?.active || "Y"}
-                options={activeOptions}
-                onChange={(v) => onChangeForm({ active: getValue(v) })}
-                readOnly={isReadOnly}
-                disabled={isDisabled}
-              />
+              <FieldRenderer label="SL Type" type="select" value={form?.sltypeCode || ""} options={sltypeOptions} onChange={(v) => onChangeForm({ sltypeCode: getValue(v) })} readOnly={isReadOnly} disabled={isDisabled} />
+              <FieldRenderer label="Active?" type="select" value={form?.active || "Y"} options={activeOptions} onChange={(v) => onChangeForm({ active: getValue(v) })} readOnly={isReadOnly} disabled={isDisabled} />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
-              <FieldRenderer
-                label="Customer Code"
-                required
-                type="lookup" 
-                value={form.custCode || ""}
-                onChange={
-                  isNewRecord
-                    ? (v) => {
-                        const val = getValue(v);
-                        onChangeForm({ custCode: val });
-                      }
-                    : undefined
-                }
-                onLookup={openCustomerLookup} 
-                readOnly={!isNewRecord} 
-                disabled={isLoading}
-                maxLength={getLen("cust_code", 20)}
-              />
-
-              <FieldRenderer
-                label="Tax Rate Class"
-                required
-                type="select"
-                value={normalizeUpper(form?.taxClass || "")}
-                options={taxClassOptions}
-                onChange={(v) =>
-                  (handleTaxClassChange ||
-                    ((x) => onChangeForm({ taxClass: x })))(getValue(v))
-                }
-                readOnly={isReadOnly}
-                disabled={isDisabled}
-              />
+              <FieldRenderer label="Customer Code" required type="lookup" value={form.custCode || ""} onChange={isNewRecord ? (v) => onChangeForm({ custCode: getValue(v) }) : undefined} onLookup={() => toggleLookup("cust", true)} readOnly={!isNewRecord} disabled={isLoading} maxLength={getLen("cust_code", 20)} />
+              <FieldRenderer label="Tax Rate Class" required type="select" value={taxClass} options={mappedTaxClassOptions} onChange={(v) => onChangeForm({ taxClass: getValue(v) })} readOnly={isReadOnly} disabled={isDisabled} />
             </div>
 
-            <FieldRenderer
-              label="Registered Name"
-              required
-              type="text"
-              value={form?.custName || ""}
-              onChange={(v) => onChangeForm({ custName: getValue(v) })}
-              readOnly={isReadOnly}
-              disabled={isDisabled}
-              maxLength={getLen("cust_name", 150)}
+            <FieldRenderer 
+              label="Registered Name" 
+              required 
+              type="text" 
+              value={form?.custName || ""} 
+              onChange={(v) => onChangeForm({ custName: getValue(v) })} 
+              readOnly={isReadOnly} 
+              disabled={isDisabled} 
+              maxLength={getLen("cust_name", 150)} 
             />
 
-            <FieldRenderer
-              label="Business Name"
-              required
-              type="text"
-              value={form?.businessName || ""}
-              onChange={(v) =>
-                (handleBusinessNameChange ||
-                  ((x) => onChangeForm({ businessName: x })))(getValue(v))
-              }
-              readOnly={isReadOnly}
-              disabled={isDisabled}
-              maxLength={getLen("business_name", 150)}
+            <FieldRenderer 
+              label="Business Name" 
+              required={!isIndividual} 
+              type="text" 
+              value={form?.businessName || ""} 
+              onChange={(v) => { 
+                nameAutoRef.current.businessTouched = true; 
+                onChangeForm({ businessName: getValue(v) }); 
+              }} 
+              readOnly={isReadOnly} 
+              disabled={isDisabled} 
+              maxLength={getLen("business_name", 150)} 
             />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5">
-              <FieldRenderer
-                label="First Name"
-                type="text"
-                value={form?.firstName || ""}
-                onChange={(v) => onChangeForm({ firstName: getValue(v) })}
-                readOnly={isReadOnly}
-                disabled={isDisabled}
-                maxLength={getLen("first_name", 100)}
+              <FieldRenderer 
+                label="First Name" 
+                required={isIndividual} 
+                type="text" 
+                value={form?.firstName || ""} 
+                onChange={(v) => onChangeForm({ firstName: getValue(v) })} 
+                readOnly={isReadOnly || !isIndividual} 
+                disabled={isDisabled || !isIndividual} 
+                maxLength={getLen("first_name", 100)} 
               />
-
-              <FieldRenderer
-                label="Middle Name"
-                type="text"
-                value={form?.middleName || ""}
-                onChange={(v) => onChangeForm({ middleName: getValue(v) })}
-                readOnly={isReadOnly}
-                disabled={isDisabled}
-                maxLength={getLen("middle_name", 100)}
+              <FieldRenderer 
+                label="Middle Name" 
+                type="text" 
+                value={form?.middleName || ""} 
+                onChange={(v) => onChangeForm({ middleName: getValue(v) })} 
+                readOnly={isReadOnly || !isIndividual} 
+                disabled={isDisabled || !isIndividual} 
+                maxLength={getLen("middle_name", 100)} 
               />
-
-              <FieldRenderer
-                label="Last Name"
-                type="text"
-                value={form?.lastName || ""}
-                onChange={(v) => onChangeForm({ lastName: getValue(v) })}
-                readOnly={isReadOnly}
-                disabled={isDisabled}
-                maxLength={getLen("last_name", 100)}
+              <FieldRenderer 
+                label="Last Name" 
+                required={isIndividual} 
+                type="text" 
+                value={form?.lastName || ""} 
+                onChange={(v) => onChangeForm({ lastName: getValue(v) })} 
+                readOnly={isReadOnly || !isIndividual} 
+                disabled={isDisabled || !isIndividual} 
+                maxLength={getLen("last_name", 100)} 
               />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
-              <FieldRenderer
-                label="Old Code"
-                type="text"
-                value={form?.oldCode || ""}
-                onChange={(v) => onChangeForm({ oldCode: getValue(v) })}
-                readOnly={isReadOnly}
-                disabled={isDisabled}
-                maxLength={getLen("old_code", 50)}
-              />
-
-              <FieldRenderer
-                label="Branch"
-                type="lookup"
-                value={form?.branchCode || ""}
-                onLookup={
-                  isDisabled ? undefined : () => toggleLookup("branch", true)
-                }
-                readOnly={isReadOnly}
-                disabled={isDisabled}
-              />
+              <FieldRenderer label="Old Code" type="text" value={form?.oldCode || ""} onChange={(v) => onChangeForm({ oldCode: getValue(v) })} readOnly={isReadOnly} disabled={isDisabled} maxLength={getLen("old_code", 50)} />
+              <FieldRenderer label="Branch" type="lookup" value={form?.branchCode || ""} onLookup={isDisabled ? undefined : () => toggleLookup("branch", true)} readOnly={isReadOnly} disabled={isDisabled} />
             </div>
           </Card>
 
           <Card className="border border-blue-500/30 p-5 md:p-7 rounded-lg space-y-5 md:space-y-6">
             <SectionHeader title="CONTACT INFORMATION" />
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
-              <FieldRenderer
-                label="Contact Person"
-                type="text"
-                value={form?.custContact || ""}
-                onChange={(v) => onChangeForm({ custContact: getValue(v) })}
-                readOnly={isReadOnly}
-                disabled={isDisabled}
-                maxLength={getLen("cust_contact", 100)}
-              />
-
-              <FieldRenderer
-                label="Position"
-                type="text"
-                value={form?.custPosition || ""}
-                onChange={(v) => onChangeForm({ custPosition: getValue(v) })}
-                readOnly={isReadOnly}
-                disabled={isDisabled}
-                maxLength={getLen("cust_position", 100)}
-              />
+              <FieldRenderer label="Contact Person" type="text" value={form?.custContact || ""} onChange={(v) => onChangeForm({ custContact: getValue(v) })} readOnly={isReadOnly} disabled={isDisabled} maxLength={getLen("cust_contact", 100)} />
+              <FieldRenderer label="Position" type="text" value={form?.custPosition || ""} onChange={(v) => onChangeForm({ custPosition: getValue(v) })} readOnly={isReadOnly} disabled={isDisabled} maxLength={getLen("cust_position", 100)} />
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
-              <FieldRenderer
-                label="Telephone No."
-                type="text"
-                value={form?.custTelno || ""}
-                onChange={(v) => onChangeForm({ custTelno: getValue(v) })}
-                readOnly={isReadOnly}
-                disabled={isDisabled}
-                maxLength={getLen("cust_telno", 50)}
-              />
-
-              <FieldRenderer
-                label="Mobile No."
-                type="text"
-                value={form?.custMobileno || ""}
-                onChange={(v) => onChangeForm({ custMobileno: getValue(v) })}
-                readOnly={isReadOnly}
-                disabled={isDisabled}
-                maxLength={getLen("cust_mobileno", 50)}
-              />
+              <FieldRenderer label="Telephone No." type="text" value={form?.custTelno || ""} onChange={(v) => onChangeForm({ custTelno: getValue(v) })} readOnly={isReadOnly} disabled={isDisabled} maxLength={getLen("cust_telno", 50)} />
+              <FieldRenderer label="Mobile No." type="text" value={form?.custMobileno || ""} onChange={(v) => onChangeForm({ custMobileno: getValue(v) })} readOnly={isReadOnly} disabled={isDisabled} maxLength={getLen("cust_mobileno", 50)} />
             </div>
-
-            <FieldRenderer
-              label="Email Address"
-              type="text"
-              value={form?.custEmail || ""}
-              onChange={(v) => onChangeForm({ custEmail: getValue(v) })}
-              readOnly={isReadOnly}
-              disabled={isDisabled}
-              maxLength={getLen("cust_email", 150)}
-            />
-
-            <FieldRenderer
-              label="Address 1"
-              required
-              type="text"
-              value={form?.custAddr1 || ""}
-              onChange={(v) => onChangeForm({ custAddr1: getValue(v) })}
-              readOnly={isReadOnly}
-              disabled={isDisabled}
-              maxLength={getLen("cust_addr1", 255)}
-            />
-
-            <FieldRenderer
-              label="Address 2"
-              type="text"
-              value={form?.custAddr2 || ""}
-              onChange={(v) => onChangeForm({ custAddr2: getValue(v) })}
-              readOnly={isReadOnly}
-              disabled={isDisabled}
-              maxLength={getLen("cust_addr2", 255)}
-            />
-
-            <FieldRenderer
-              label="Address 3"
-              type="text"
-              value={form?.custAddr3 || ""}
-              onChange={(v) => onChangeForm({ custAddr3: getValue(v) })}
-              readOnly={isReadOnly}
-              disabled={isDisabled}
-              maxLength={getLen("cust_addr3", 255)}
-            />
-
+            <FieldRenderer label="Email Address" type="text" value={form?.custEmail || ""} onChange={(v) => onChangeForm({ custEmail: getValue(v) })} readOnly={isReadOnly} disabled={isDisabled} maxLength={getLen("cust_email", 150)} />
+            <FieldRenderer label="Address 1" required type="text" value={form?.custAddr1 || ""} onChange={(v) => onChangeForm({ custAddr1: getValue(v) })} readOnly={isReadOnly} disabled={isDisabled} maxLength={getLen("cust_addr1", 255)} />
+            <FieldRenderer label="Address 2" type="text" value={form?.custAddr2 || ""} onChange={(v) => onChangeForm({ custAddr2: getValue(v) })} readOnly={isReadOnly} disabled={isDisabled} maxLength={getLen("cust_addr2", 255)} />
+            <FieldRenderer label="Address 3" type="text" value={form?.custAddr3 || ""} onChange={(v) => onChangeForm({ custAddr3: getValue(v) })} readOnly={isReadOnly} disabled={isDisabled} maxLength={getLen("cust_addr3", 255)} />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
-              <FieldRenderer
-                label="ZIP Code"
-                type="text"
-                value={form?.custZip || ""}
-                onChange={(v) => onChangeForm({ custZip: getValue(v) })}
-                readOnly={isReadOnly}
-                disabled={isDisabled}
-                maxLength={getLen("cust_zip", 20)}
-              />
-
-              <FieldRenderer
-                label="Source"
-                required
-                type="select"
-                value={form?.source || ""}
-                options={sourceOptions}
-                onChange={(v) => onChangeForm({ source: getValue(v) })}
-                readOnly={isReadOnly}
-                disabled={isDisabled}
-              />
+              <FieldRenderer label="ZIP Code" type="text" value={form?.custZip || ""} onChange={(v) => onChangeForm({ custZip: getValue(v) })} readOnly={isReadOnly} disabled={isDisabled} maxLength={getLen("cust_zip", 20)} />
+              <FieldRenderer label="Source" required type="select" value={form?.source || ""} options={sourceOptions} onChange={(v) => onChangeForm({ source: getValue(v) })} readOnly={isReadOnly} disabled={isDisabled} />
             </div>
           </Card>
         </div>
@@ -469,7 +328,7 @@ const CustSetupTab = forwardRef(
 
                   <FieldRenderer
                     label="Area"
-                    type="select"
+                    type="lookup"
                     value={form?.area || ""}
                     options={[]}
                     onChange={(v) => onChangeForm({ area: getValue(v) })}
@@ -479,7 +338,7 @@ const CustSetupTab = forwardRef(
 
                   <FieldRenderer
                     label="Zone"
-                    type="select"
+                    type="lookup"
                     value={form?.zone || ""}
                     options={[]}
                     onChange={(v) => onChangeForm({ zone: getValue(v) })}
