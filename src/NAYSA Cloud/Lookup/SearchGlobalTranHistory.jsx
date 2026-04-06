@@ -1884,7 +1884,7 @@ const AllTranHistory = (props) => {
           <FontAwesomeIcon icon={faFilter} className="text-[10px]" />
         </button>
 
-        <button
+        {/* <button
           className="flex items-center justify-center bg-green-600 text-white h-[36px] w-[36px] rounded-md text-[10px] font-semibold hover:bg-green-700 shadow-md"
           onClick={handleExportExcel_All}
           disabled={loading || exporting || !filteredData.length}
@@ -1892,7 +1892,7 @@ const AllTranHistory = (props) => {
           aria-label="Export All"
         >
           <FontAwesomeIcon icon={faDownload} className="text-[10px]" />
-        </button>
+        </button> */}
       </div>
     </div>
   </div>

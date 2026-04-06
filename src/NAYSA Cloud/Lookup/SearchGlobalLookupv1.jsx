@@ -36,7 +36,6 @@ import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 
 
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
-
 const GlobalLookupModalv1 = ({
   isOpen,
   onClose,
@@ -1242,12 +1241,7 @@ const handleExportExcelClick = async () => {
 
                                     // hide column - but retain at least 2
                                     if (currentlyVisible <= MIN_VISIBLE_COLUMNS) {
-                                      Swal.fire({
-                                        icon: "error",
-                                        title: "Minimum columns required",
-                                        text: `Please retain at least ${MIN_VISIBLE_COLUMNS} columns.`,
-                                        confirmButtonColor: "#2563eb",
-                                      });
+                                      useSwalErrorAlert("Minimum columns required", "Please retain at least 2 columns.")
                                       return prev;
                                     }
 

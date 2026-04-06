@@ -1585,7 +1585,7 @@ const handleTranDocNoSelection = async (data) => {
 const handleCloseCancel = async (confirmation) => {
     if(confirmation && documentStatus !== "OPEN" && documentID !== null ) {
 
-      const result = await useHandleCancel(docType,documentID,userCode,confirmation.password,confirmation.reason,updateState);
+      const result = await useHandleCancel(docType,documentID,currentUserRow.userCode,confirmation.password,confirmation.reason,updateState);
       if (result.success) 
       {
        Swal.fire({

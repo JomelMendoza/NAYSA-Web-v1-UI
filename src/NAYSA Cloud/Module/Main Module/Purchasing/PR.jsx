@@ -38,12 +38,7 @@ import {
   docTypePDFGuide,
 } from "@/NAYSA Cloud/Global/doctype";
 
-import {
-  useTopCurrencyRow,
-  useTopHSOption,
-  useTopDocControlRow,
-  useTopDocDropDown,
-} from "@/NAYSA Cloud/Global/top1RefTable";
+
 
 import {
   useTransactionUpsert,
@@ -60,7 +55,6 @@ import {
 
 import {
   useGetCurrentDayV2,
-  useFormatToDate,
   useformatToDatev2
 } from '@/NAYSA Cloud/Global/dates';
 
@@ -244,6 +238,8 @@ import Header from "@/NAYSA Cloud/Components/Header";
     currCode,
     userCode,
     tblFieldArray,
+    prTranTypes,
+    prTypes,
     selectedPrTranType,
     selectedPrType,
     documentDate,
@@ -374,12 +370,10 @@ useEffect(() => {
   // ==========================
 
   const handleReset = () => {
-    loadDocDropDown();
-    loadDocControl();
+
     loadCompanyData();
 
-    const today = new Date().toISOString().split("T")[0];
-
+    
     updateState({
       branchCode: currentUserRow?.branchCode||"",
       branchName: currentUserRow?.branchName||"",
@@ -393,6 +387,8 @@ useEffect(() => {
       reqRcCode: "",
       reqRcName: "",
       dateNeeded: useGetCurrentDayV2(),
+      selectedPrTranType:"PR01",
+      selectedPrType:"PR11",
       
       refPrNo1: "",
       refPrNo2: "",
@@ -462,27 +458,6 @@ useEffect(() => {
     });
   };
 
-  const loadDocControl = async () => {
-    const data = await useTopDocControlRow(docType);
-    if (data) {
-      updateState({
-        documentName: data.docName,
-        documentSeries: data.docName,
-        documentDocLen: data.docName,
-      });
-    }
-  };
-
-  const loadDocDropDown = async () => {
-    const data = await useTopDocDropDown(docType, "PRTRAN_TYPE");
-    if (data) {
-      updateState({
-        prTranTypes: data,
-        selectedPrTranType: data[0]?.DROPDOWN_CODE ?? "",
-      });
-    }
-  };
-
   // ==========================
   // FETCH (GET) – PR HEADER + DT1
   // ==========================
@@ -522,7 +497,6 @@ const fetchTranData = async (documentNo, branchCode,direction='') => {
   
     // Update state with fetched data
 
- 
     updateState({
 
       documentStatus: data.prHStatus,
@@ -1172,18 +1146,18 @@ if (field === 'prStatus') {
       const response = await useTransactionUpsert(docType,prData,updateState,"prId","prNo");
 
       if (response) {
+          const responseDocNo =  response.data[0].prNo;
+          const responseDocId =  response.data[0].prId;
 
-        if (documentStatus==="C"){
-          await fetchTranData(documentNo,branchCode)
-        }
+          await fetchTranData(responseDocNo,branchCode);
+
 
     
         const isZero = Number(noReprints) === 0;
-                        await fetchTranData(documentNo, branchCode);
                         const onSaveAndPrint =
                           isZero
                             ? () => updateState({ showSignatoryModal: true })                  
-                            : () => handleSaveAndPrint(response.data[0].prId); 
+                            : () => handleSaveAndPrint(responseDocId); 
                         useSwalshowSaveSuccessDialog(
                           handleReset,          
                           onSaveAndPrint       
@@ -1292,12 +1266,12 @@ const handleHeaderStatusChange = (value) => {
       qtyOnHand: formatNumber(match ? match.quantity : 0, decQty),
       qtyAlloc: formatNumber(0, decQty),
       groupId: "",
-      dateNeeded: useGetCurrentDay()
+      dateNeeded: useGetCurrentDayV2()
     };
   });
 
   if (documentID) {
-    const commonDate = useGetCurrentDay();
+    const commonDate = useGetCurrentDayV2();
     
     updateState({
       documentNo: "",
@@ -1629,10 +1603,10 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
                   value={selectedPrTranType || ""}
                   disabled={isFormDisabled || detailRows.length > 0}
                   onChange={(val) => handlePrTranTypeChange({ target: { value: val } })}
-                  options={[
-                    { label: "Regular Transaction", value: "PRO1" },
-                    { label: "Job Order", value: "PR02" },
-                  ]}
+                  options={prTranTypes.map((t) => ({
+                                label: t.DROPDOWN_NAME,
+                                value: t.DROPDOWN_CODE,
+                            }))}
                 />
               </div>
 
@@ -1679,11 +1653,10 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
                   value={selectedPrType || ""}
                   disabled={isFormDisabled}
                   onChange={(val) => handlePrTypeChange({ target: { value: val } })}
-                  options={[
-                    { label: "Regular", value: "REG" },
-                    { label: "Priority", value: "PRI" },
-                    { label: "Urgent", value: "URG" },
-                  ]}
+                  options={prTypes.map((t) => ({
+                                label: t.DROPDOWN_NAME,
+                                value: t.DROPDOWN_CODE,
+                            }))}
                 />
 
                 <div className="relative w-full">
