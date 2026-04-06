@@ -851,7 +851,10 @@ const handleActivityOption = async (action) => {
       );
 
       if (response) {
-  
+        const responseDocNo =  response.data[0].soaNo;
+        const responseDocId =  response.data[0].soaId;
+
+        await fetchTranData(responseDocNo,branchCode);
 
         const isZero = Number(noReprints) === 0;
         const onSaveAndPrint =
@@ -862,6 +865,8 @@ const handleActivityOption = async (action) => {
         useSwalshowSaveSuccessDialog(handleReset, onSaveAndPrint);
         
         updateState({
+          documentNo: response?.data?.[0]?.soaNo || "",
+          documentID: response?.data?.[0]?.soaId || "",
           isDocNoDisabled: true,
           isFetchDisabled: true,
         });
@@ -1083,18 +1088,29 @@ const handleAttach = async () => {
 
 
 const handleCopy = async () => {
- if (!detailRows || detailRows.length === 0) {
-      return;
-      }
+  if (!detailRows || detailRows.length === 0) {
+    return;
+  }
 
+  if (documentID) {
+    updateState({
+      documentNo: "",
+      documentID: "",
+      documentStatus: "",
+      status: "OPEN",
+      documentDate: useGetCurrentDayV2(),
+      noReprints: "0",
+    });
 
-  if (documentID ) {
-    updateState({ documentNo:"",
-                  documentID:"",
-                  documentStatus:"",
-                  status:"OPEN",
-                  noReprints:"0",
-     });
+    updateState({
+      detailRowsGL: Array.isArray(state.detailRowsGL)
+        ? state.detailRowsGL.map((row) => ({
+            ...row,
+            slRefNo: "",
+            slRefDate: "",
+          }))
+        : [],
+    });
   }
 };
 

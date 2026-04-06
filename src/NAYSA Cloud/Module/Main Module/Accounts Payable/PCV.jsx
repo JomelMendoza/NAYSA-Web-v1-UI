@@ -812,7 +812,10 @@ const handleActivityOption = async (action) => {
       );
 
       if (response) {
-   
+        const responseDocNo =  response.data[0].pcvNo;
+        const responseDocId =  response.data[0].pcvId;
+
+        await fetchTranData(responseDocNo,branchCode);
 
         const isZero = Number(noReprints) === 0;
         const onSaveAndPrint =
@@ -823,6 +826,8 @@ const handleActivityOption = async (action) => {
         useSwalshowSaveSuccessDialog(handleReset, onSaveAndPrint);
 
         updateState({
+          documentNo: response?.data?.[0]?.pcvNo || "",
+          documentID: response?.data?.[0]?.pcvId || "",
           isDocNoDisabled: true,
           isFetchDisabled: true,
         });

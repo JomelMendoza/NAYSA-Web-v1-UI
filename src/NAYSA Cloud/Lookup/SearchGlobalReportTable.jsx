@@ -670,6 +670,9 @@ const SearchGlobalReportTable = forwardRef(
         fileName,
         currentUserRow?.userName,
         companyInfo?.compName,
+        companyInfo?.compAddr,
+        companyInfo?.telNo,
+        docType
       );
     };
 
