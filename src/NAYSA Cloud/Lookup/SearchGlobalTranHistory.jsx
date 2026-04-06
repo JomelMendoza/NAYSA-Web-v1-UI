@@ -714,57 +714,99 @@ const AllTranHistory = (props) => {
   }, [visibleCols, primaryCardCol]);
 
   /* ---------------- filtered rows ---------------- */
+
   const filteredData = useMemo(() => {
-    const base = currentRows.filter((row) =>
-      Object.entries(searchFields).every(([key, value]) => {
-        if (!value) return true;
-        return String(row?.[key] ?? "")
-          .toLowerCase()
-          .includes(String(value).toLowerCase());
-      })
-    );
+  const base = currentRows.filter((row) =>
+    Object.entries(searchFields).every(([key, value]) => {
+      if (!value) return true;
 
-    const statusFiltered = (() => {
-      if (status === "All") return base;
-      const statusFieldCandidates = ["C", "doc_stat", "docStatus", "status", "stat"];
-      return base.filter((row) => {
-        const rowStatus =
-          statusFieldCandidates
-            .map((f) => (row[f] !== undefined ? String(row[f]) : undefined))
-            .find((v) => v !== undefined) ?? "";
-        return rowStatus === status;
-      });
-    })();
+      const col = baseColumns.find((c) => c.key === key);
+      const searchValue = String(value).toLowerCase().trim();
 
-    let result = statusFiltered;
+      let compareValue = "";
 
-    // Apply global quick search
-    const q = String(globalSearch || "").trim().toLowerCase();
-    if (q) {
-      const keys = baseColumns.map(c => c.key);
-      result = result.filter(r => keys.some(k => String(r?.[k] ?? "").toLowerCase().includes(q)));
-    }
+      if (col?.renderType === "date") {
+        try {
+          const rawDate = row?.[key];
+          if (!rawDate) return false;
 
-    if (!sortConfig.key || sortConfig.tabKey !== activeTab) return result;
-
-    const col = baseColumns.find((c) => c.key === sortConfig.key);
-    const isNum = isNumericColumn(col);
-
-    return [...result].sort((a, b) => {
-      const valA = a?.[sortConfig.key];
-      const valB = b?.[sortConfig.key];
-
-      if (isNum) {
-        const numA = parseNumber(valA);
-        const numB = parseNumber(valB);
-        return sortConfig.direction === "asc" ? numA - numB : numB - numA;
+          const datePart = String(rawDate).split("T")[0];
+          compareValue = String(useReturnToDate(datePart)).toLowerCase();
+        } catch {
+          compareValue = String(row?.[key] ?? "").toLowerCase();
+        }
+      } else {
+        compareValue = String(row?.[key] ?? "").toLowerCase();
       }
 
-      const sA = String(valA ?? "");
-      const sB = String(valB ?? "");
-      return sortConfig.direction === "asc" ? sA.localeCompare(sB) : sB.localeCompare(sA);
+      return compareValue.includes(searchValue);
+    })
+  );
+
+  const statusFiltered = (() => {
+    if (status === "All") return base;
+    const statusFieldCandidates = ["C", "doc_stat", "docStatus", "status", "stat"];
+    return base.filter((row) => {
+      const rowStatus =
+        statusFieldCandidates
+          .map((f) => (row[f] !== undefined ? String(row[f]) : undefined))
+          .find((v) => v !== undefined) ?? "";
+      return rowStatus === status;
     });
-  }, [currentRows, searchFields, status, sortConfig, activeTab, baseColumns, globalSearch]);
+  })();
+
+  let result = statusFiltered;
+
+  const q = String(globalSearch || "").trim().toLowerCase();
+  if (q) {
+    const keys = baseColumns.map((c) => c.key);
+    result = result.filter((row) =>
+      keys.some((key) => {
+        const col = baseColumns.find((c) => c.key === key);
+
+        let compareValue = "";
+
+        if (col?.renderType === "date") {
+          try {
+            const rawDate = row?.[key];
+            if (!rawDate) return false;
+
+            const datePart = String(rawDate).split("T")[0];
+            compareValue = String(useReturnToDate(datePart)).toLowerCase();
+          } catch {
+            compareValue = String(row?.[key] ?? "").toLowerCase();
+          }
+        } else {
+          compareValue = String(row?.[key] ?? "").toLowerCase();
+        }
+
+        return compareValue.includes(q);
+      })
+    );
+  }
+
+  if (!sortConfig.key || sortConfig.tabKey !== activeTab) return result;
+
+  const col = baseColumns.find((c) => c.key === sortConfig.key);
+  const isNum = isNumericColumn(col);
+
+  return [...result].sort((a, b) => {
+    const valA = a?.[sortConfig.key];
+    const valB = b?.[sortConfig.key];
+
+    if (isNum) {
+      const numA = parseNumber(valA);
+      const numB = parseNumber(valB);
+      return sortConfig.direction === "asc" ? numA - numB : numB - numA;
+    }
+
+    const sA = String(valA ?? "");
+    const sB = String(valB ?? "");
+    return sortConfig.direction === "asc" ? sA.localeCompare(sB) : sB.localeCompare(sA);
+  });
+}, [currentRows, searchFields, status, sortConfig, activeTab, baseColumns, globalSearch]);
+
+
 
   /* ---------------- grouping / totals helpers ---------------- */
   const totalExemptions = ["rate", "percent", "ratio", "id", "code"];
@@ -1994,7 +2036,7 @@ const AllTranHistory = (props) => {
       </div>
 
         <div className="bg-white shadow-md rounded-md overflow-hidden p-2 mt-0 mb-4 mx-4">
-          {activeTab && visibleCols.length > 0 && filteredData.length > 0 && (
+          {activeTab && visibleCols.length > 0  && (
             <div className="p-1 bg-white rounded-md flex flex-col md:flex-row md:items-center md:justify-between gap-2 shrink-0 mb-0"
                  onDragOver={e => e.preventDefault()}
                  onDrop={e => handleColDrop(e, null, true)}>
