@@ -714,57 +714,99 @@ const AllTranHistory = (props) => {
   }, [visibleCols, primaryCardCol]);
 
   /* ---------------- filtered rows ---------------- */
+
   const filteredData = useMemo(() => {
-    const base = currentRows.filter((row) =>
-      Object.entries(searchFields).every(([key, value]) => {
-        if (!value) return true;
-        return String(row?.[key] ?? "")
-          .toLowerCase()
-          .includes(String(value).toLowerCase());
-      })
-    );
+  const base = currentRows.filter((row) =>
+    Object.entries(searchFields).every(([key, value]) => {
+      if (!value) return true;
 
-    const statusFiltered = (() => {
-      if (status === "All") return base;
-      const statusFieldCandidates = ["C", "doc_stat", "docStatus", "status", "stat"];
-      return base.filter((row) => {
-        const rowStatus =
-          statusFieldCandidates
-            .map((f) => (row[f] !== undefined ? String(row[f]) : undefined))
-            .find((v) => v !== undefined) ?? "";
-        return rowStatus === status;
-      });
-    })();
+      const col = baseColumns.find((c) => c.key === key);
+      const searchValue = String(value).toLowerCase().trim();
 
-    let result = statusFiltered;
+      let compareValue = "";
 
-    // Apply global quick search
-    const q = String(globalSearch || "").trim().toLowerCase();
-    if (q) {
-      const keys = baseColumns.map(c => c.key);
-      result = result.filter(r => keys.some(k => String(r?.[k] ?? "").toLowerCase().includes(q)));
-    }
+      if (col?.renderType === "date") {
+        try {
+          const rawDate = row?.[key];
+          if (!rawDate) return false;
 
-    if (!sortConfig.key || sortConfig.tabKey !== activeTab) return result;
-
-    const col = baseColumns.find((c) => c.key === sortConfig.key);
-    const isNum = isNumericColumn(col);
-
-    return [...result].sort((a, b) => {
-      const valA = a?.[sortConfig.key];
-      const valB = b?.[sortConfig.key];
-
-      if (isNum) {
-        const numA = parseNumber(valA);
-        const numB = parseNumber(valB);
-        return sortConfig.direction === "asc" ? numA - numB : numB - numA;
+          const datePart = String(rawDate).split("T")[0];
+          compareValue = String(useReturnToDate(datePart)).toLowerCase();
+        } catch {
+          compareValue = String(row?.[key] ?? "").toLowerCase();
+        }
+      } else {
+        compareValue = String(row?.[key] ?? "").toLowerCase();
       }
 
-      const sA = String(valA ?? "");
-      const sB = String(valB ?? "");
-      return sortConfig.direction === "asc" ? sA.localeCompare(sB) : sB.localeCompare(sA);
+      return compareValue.includes(searchValue);
+    })
+  );
+
+  const statusFiltered = (() => {
+    if (status === "All") return base;
+    const statusFieldCandidates = ["C", "doc_stat", "docStatus", "status", "stat"];
+    return base.filter((row) => {
+      const rowStatus =
+        statusFieldCandidates
+          .map((f) => (row[f] !== undefined ? String(row[f]) : undefined))
+          .find((v) => v !== undefined) ?? "";
+      return rowStatus === status;
     });
-  }, [currentRows, searchFields, status, sortConfig, activeTab, baseColumns, globalSearch]);
+  })();
+
+  let result = statusFiltered;
+
+  const q = String(globalSearch || "").trim().toLowerCase();
+  if (q) {
+    const keys = baseColumns.map((c) => c.key);
+    result = result.filter((row) =>
+      keys.some((key) => {
+        const col = baseColumns.find((c) => c.key === key);
+
+        let compareValue = "";
+
+        if (col?.renderType === "date") {
+          try {
+            const rawDate = row?.[key];
+            if (!rawDate) return false;
+
+            const datePart = String(rawDate).split("T")[0];
+            compareValue = String(useReturnToDate(datePart)).toLowerCase();
+          } catch {
+            compareValue = String(row?.[key] ?? "").toLowerCase();
+          }
+        } else {
+          compareValue = String(row?.[key] ?? "").toLowerCase();
+        }
+
+        return compareValue.includes(q);
+      })
+    );
+  }
+
+  if (!sortConfig.key || sortConfig.tabKey !== activeTab) return result;
+
+  const col = baseColumns.find((c) => c.key === sortConfig.key);
+  const isNum = isNumericColumn(col);
+
+  return [...result].sort((a, b) => {
+    const valA = a?.[sortConfig.key];
+    const valB = b?.[sortConfig.key];
+
+    if (isNum) {
+      const numA = parseNumber(valA);
+      const numB = parseNumber(valB);
+      return sortConfig.direction === "asc" ? numA - numB : numB - numA;
+    }
+
+    const sA = String(valA ?? "");
+    const sB = String(valB ?? "");
+    return sortConfig.direction === "asc" ? sA.localeCompare(sB) : sB.localeCompare(sA);
+  });
+}, [currentRows, searchFields, status, sortConfig, activeTab, baseColumns, globalSearch]);
+
+
 
   /* ---------------- grouping / totals helpers ---------------- */
   const totalExemptions = ["rate", "percent", "ratio", "id", "code"];
@@ -1333,6 +1375,7 @@ const AllTranHistory = (props) => {
   };
 
   const handleExportExcel = async () => {
+    
     if (!visibleCols.length || !filteredData.length) return;
 
     try {
@@ -1841,7 +1884,7 @@ const AllTranHistory = (props) => {
           <FontAwesomeIcon icon={faFilter} className="text-[10px]" />
         </button>
 
-        <button
+        {/* <button
           className="flex items-center justify-center bg-green-600 text-white h-[36px] w-[36px] rounded-md text-[10px] font-semibold hover:bg-green-700 shadow-md"
           onClick={handleExportExcel_All}
           disabled={loading || exporting || !filteredData.length}
@@ -1849,14 +1892,14 @@ const AllTranHistory = (props) => {
           aria-label="Export All"
         >
           <FontAwesomeIcon icon={faDownload} className="text-[10px]" />
-        </button>
+        </button> */}
       </div>
     </div>
   </div>
 ) : (
-          <div className="flex flex-col md:flex-row flex-wrap items-end gap-2 overflow-x-auto p-6 mt-8">
+          <div className="flex flex-col md:flex-row flex-wrap items-end gap-2 overflow-x-auto p-4 mt-10">
             <div className="flex-shrink-0 sm:min-w-[200px]">
-              <label className="block text-sm font-semibold text-gray-600 mb-1">Date Range:</label>
+              {/* <label className="block text-sm font-semibold text-gray-600 mb-1">Date Range:</label> */}
               <div className="flex items-center border border-gray-300 rounded-md px-2 py-1 bg-white">
                 <select
                   className="border-none focus:ring-0 text-sm bg-transparent pr-2"
@@ -1887,7 +1930,7 @@ const AllTranHistory = (props) => {
             </div>
 
             <div className="flex-shrink-0 min-w-[200px]">
-              <label className="block text-sm font-semibold text-gray-600 mb-1">Status:</label>
+              {/* <label className="block text-sm font-semibold text-gray-600 mb-1">Status:</label> */}
               <div className="flex items-center border border-gray-300 rounded-md px-2 py-1 bg-white">
                 <FontAwesomeIcon icon={faFilter} className="text-gray-400 mr-2" />
                 <select
@@ -1940,7 +1983,7 @@ const AllTranHistory = (props) => {
             key={tabKey}
             title={tabLabel}
             aria-label={tabLabel}
-            className={`py-2 ${isMobile ? "px-1.5 min-w-[60px]" : "px-10"} text-sm text-center border rounded-t-lg transition-all duration-200 ${
+            className={`py-1.5 ${isMobile ? "px-1.5 min-w-[60px]" : "px-10"} text-sm text-center border rounded-t-lg transition-all duration-200 ${
               isTabActive
                 ? "bg-blue-100 text-blue-700 font-semibold shadow-lg shadow-blue-300 relative before:absolute before:inset-x-0 before:bottom-0 before:h-[3px] before:bg-blue-700 before:rounded-t-md"
                 : "bg-white shadow-lg shadow-blue-50 text-gray-600 font-semibold hover:text-blue-700 hover:bg-blue-50"
@@ -1992,9 +2035,9 @@ const AllTranHistory = (props) => {
         </div>
       </div>
 
-        <div className="bg-white shadow-md rounded-md overflow-hidden p-4">
-          {activeTab && visibleCols.length > 0 && filteredData.length > 0 && (
-            <div className="p-2 bg-gray-50 border rounded-md flex flex-col md:flex-row md:items-center md:justify-between gap-2 shrink-0 mb-3"
+        <div className="bg-white shadow-md rounded-md overflow-hidden p-2 mt-0 mb-4 mx-4">
+          {activeTab && visibleCols.length > 0  && (
+            <div className="p-1 bg-white rounded-md flex flex-col md:flex-row md:items-center md:justify-between gap-2 shrink-0 mb-0"
                  onDragOver={e => e.preventDefault()}
                  onDrop={e => handleColDrop(e, null, true)}>
               
@@ -2114,7 +2157,7 @@ const AllTranHistory = (props) => {
 
           <div
             ref={tableScrollRef}
-            className={`overflow-auto bg-white rounded-md max-h-[55vh] relative custom-scrollbar ${autoFillGridState ? "overflow-x-hidden" : ""}`}
+            className={`overflow-auto bg-white rounded-md max-h-[60vh] relative custom-scrollbar ${autoFillGridState ? "overflow-x-hidden" : ""}`}
           >
             {loading ? (
               <div className="text-center py-6 text-gray-500">Loading data and configurations...</div>
@@ -2155,12 +2198,12 @@ const AllTranHistory = (props) => {
                 )}
 
                <table
-                    className={`global-tran-table-div-ui border-collapse w-full text-center border border-gray-300 ${autoFillGridState ? "table-fixed" : "min-w-[1200px] table-auto"}`}
+                    className={`global-tran-table-div-ui w-full text-center ${autoFillGridState ? "table-fixed" : "min-w-[1200px] table-auto"}`}
                   >
                   <thead className="text-[11px] font-bold sticky top-0 z-30">
-                    <tr className="bg-blue-100 text-blue-900 border-b border-blue-200">
+                    <tr className="bg-blue-100 text-blue-900">
                       <th
-                        className="sticky left-0 top-0 z-50 px-2 py-2 border-r border-blue-200 bg-blue-100 text-blue-900 w-[64px]"
+                        className="sticky left-0 top-0 z-50 px-2 bg-blue-100 text-blue-900 w-[64px]"
                         style={{ minWidth: ACTION_COL_WIDTH, maxWidth: ACTION_COL_WIDTH }}
                       >
                         View
@@ -2189,9 +2232,9 @@ const AllTranHistory = (props) => {
                             onDragOver={(e) => e.preventDefault()}
                             onDrop={(e) => handleColDrop(e, col.key)}
                             onClick={() => col.sortable !== false && handleSort(col.key)}
-                            className={`px-2 py-1.5 border-r border-blue-200 whitespace-nowrap select-none relative ${
+                            className={`px-2 py-2 whitespace-nowrap select-none relative ${
                               col.sortable !== false ? "cursor-pointer" : ""
-                            } ${meta.sticky ? "sticky z-40 bg-blue-100" : ""} ${numberAlignClass(col)}`}
+                            } ${meta.sticky ? "sticky z-50 bg-blue-100" : ""} ${numberAlignClass(col)}`}
                             style={style}
                           >
                             <div className="flex items-center justify-between gap-2">
@@ -2215,7 +2258,7 @@ const AllTranHistory = (props) => {
                       })}
                     </tr>
 
-                    <tr className="bg-gray-100 sticky top-[32px] z-20">
+                    <tr className="bg-gray-100 sticky top-[25px] z-20">
                       <td className="sticky left-0 z-40 px-2 py-1 border-r border-b border-gray-200 bg-gray-100" />
                       {renderVisibleCols.map((col, i) => {
                         const meta = stickyPlan[i];

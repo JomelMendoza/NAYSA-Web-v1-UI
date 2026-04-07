@@ -130,12 +130,12 @@ const CustMast = () => {
     const [activeTab, setActiveTab] = useState("setup");
     const [isLoading, setIsLoading] = useState(false);
 
-    const docType = "CustMast"; 
+    const docType = "CustMast";
     const guideRef = useRef(null);
     const pdfLink = reftablesPDFGuide?.[docType] || "#";
     const videoLink = reftablesVideoGuide?.[docType] || "#";
     const [isOpenGuide, setOpenGuide] = useState(false);
-    
+
 
     useEffect(() => {
         const handleClick = (e) => {
@@ -461,7 +461,6 @@ const CustMast = () => {
         let code = String(form?.custCode || "").trim();
         const isAddMode = !selectedCustCode;
 
-        // Only run duplicate check if the user actually typed a code!
         if (isAddMode && code) {
             const isDuplicate = await checkDuplicateCustomer(code);
             if (isDuplicate) {
@@ -475,7 +474,7 @@ const CustMast = () => {
             const jsonData = {
                 json_data: {
                     action: selectedCustCode ? "edit" : "add",
-                    custCode: code, 
+                    custCode: code,
                     custName: form.custName || "",
                     businessName: form.businessName || "",
                     firstName: form.firstName || "",
@@ -594,7 +593,7 @@ const CustMast = () => {
         setForm({
             ...emptyForm,
             sltypeCode: sl,
-            custCode: "", // Let the backend decide
+            custCode: "",
             __isNew: true,
         });
         setIsEditing(true);
@@ -642,59 +641,57 @@ const CustMast = () => {
         return [
             {
                 key: "add",
-                label: <span className="sm:inline ml-1">Add</span>,
+                label: <span className="hidden sm:inline ml-1">Add</span>,
                 icon: faPlus,
                 onClick: handleAdd,
                 disabled: isLoading,
-                className: "flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm",
+                className: "flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[12px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm",
             },
             {
                 key: "save",
-                label: <span className="sm:inline ml-1">Save</span>,
+                label: <span className="hidden sm:inline ml-1">Save</span>,
                 icon: faSave,
                 onClick: upsertCustomer,
                 disabled: isLoading || !isEditing,
-                className: `flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md transition-all shadow-sm ${
-                    isLoading || !isEditing
-                        ? "bg-blue-500 opacity-50 cursor-not-allowed text-white"
-                        : "bg-blue-600 text-white hover:bg-blue-700"
-                }`,
+                className: `flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[12px] font-medium rounded-md transition-all shadow-sm ${isLoading || !isEditing
+                    ? "bg-blue-500 opacity-50 cursor-not-allowed text-white"
+                    : "bg-blue-600 text-white hover:bg-blue-700"
+                    }`,
             },
             {
                 key: "reset",
-                label: <span className="sm:inline ml-1">Reset</span>,
+                label: <span className="hidden sm:inline ml-1">Reset</span>,
                 icon: faUndo,
                 onClick: handleResetSetup,
                 disabled: isLoading,
-                className: "flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm",
+                className: "flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[12px] font-medium rounded-md bg-blue-500 text-white hover:bg-blue-600 transition-all shadow-sm",
             },
             {
                 key: "edit",
-                label: <span className="sm:inline ml-1">Edit</span>,
+                label: <span className="hidden sm:inline ml-1">Edit</span>,
                 icon: faPenToSquare,
                 onClick: handleEdit,
                 disabled: isLoading,
-                className: "flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm",
+                className: "flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[12px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm",
             },
             {
                 key: "attach",
-                label: <span className="sm:inline ml-1">Attach File</span>,
+                label: <span className="hidden sm:inline ml-1">Attach File</span>,
                 icon: faPaperclip,
                 onClick: handleOpenAttach,
                 disabled: isLoading || !hasRecord,
-                className: "flex items-center justify-center h-7 w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm",
+                className: "flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[12px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm",
             },
             {
                 key: "delete",
-                label: <span className="sm:inline ml-1">Delete</span>,
+                label: <span className="hidden sm:inline ml-1">Delete</span>,
                 icon: faTrash,
                 onClick: deleteCustomer,
                 disabled: isLoading || isEditing || !hasRecord,
-                className: `flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md transition-all shadow-sm ${
-                    isLoading || isEditing || !hasRecord
-                        ? "bg-red-400 opacity-50 cursor-not-allowed text-white"
-                        : "bg-red-500 text-white hover:bg-red-600"
-                }`,
+                className: `flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[12px] font-medium rounded-md transition-all shadow-sm ${isLoading || isEditing || !hasRecord
+                    ? "bg-red-400 opacity-50 cursor-not-allowed text-white"
+                    : "bg-red-500 text-white hover:bg-red-600"
+                    }`,
             },
         ];
     }, [activeTab, isLoading, isEditing, form]);
@@ -740,10 +737,10 @@ const CustMast = () => {
                             <div ref={guideRef} className="relative z-[60]">
                                 <button
                                     onClick={() => setOpenGuide((v) => !v)}
-                                    className="flex items-center justify-center h-7 w-16 sm:w-auto sm:h-8 sm:px-4 text-[11px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm"
+                                    className="flex items-center justify-center h-8 w-8 sm:w-auto sm:h-8 sm:px-4 text-[12px] font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm"
                                 >
-                                    <FontAwesomeIcon icon={faInfoCircle} className="text-[12px]" />
-                                    <span className="sm:inline ml-1">Info</span>
+                                    <FontAwesomeIcon icon={faInfoCircle} className="text-[14px] sm:text-[12px]" />
+                                    <span className="hidden sm:inline ml-1">Info</span>
                                     <FontAwesomeIcon icon={faChevronDown} className="hidden sm:inline ml-1 text-[10px] opacity-80" />
                                 </button>
 
@@ -764,7 +761,7 @@ const CustMast = () => {
             </div>
 
             <div
-                className="global-tran-tab-div-ui mt-28 sm:mt-16"
+                className="global-tran-tab-div-ui mt-36 sm:mt-32 md:mt-28 lg:mt-24"
                 style={{ minHeight: "calc(100vh - 170px)" }}
             >
                 {activeTab === "setup" && (

@@ -27,7 +27,7 @@ import {
   faFileImage,
   faColumns,
 } from "@fortawesome/free-solid-svg-icons";
-import { formatNumber } from "../Global/behavior.jsx";
+import { formatNumber,useSwalErrorAlert } from "../Global/behavior.jsx";
 import { exportGenericQueryExcel } from "@/NAYSA Cloud/Global/report";
 import Swal from "sweetalert2";
 import html2canvas from "html2canvas";
@@ -36,7 +36,6 @@ import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 
 
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
-
 const GlobalLookupModalv1 = ({
   isOpen,
   onClose,
@@ -775,6 +774,7 @@ const baseVisibleCols = useMemo(() => {
   // =========================
   // Export helpers
   // =========================
+  const MIN_VISIBLE_COLUMNS = 2;
   const hasDataFiltered = Array.isArray(filtered) && filtered.length > 0;
 
   const getDateTimeStamp = () => {
@@ -981,11 +981,18 @@ const handleExportExcelClick = async () => {
 
   // Column chooser helpers
   const allChooserKeys = baseVisibleCols.map((c) => c.key);
-  const allChecked = userHiddenCols.length === 0;
+  const visibleChooserCount = allChooserKeys.filter(
+    (key) => !userHiddenCols.includes(key)
+  ).length;
+  const allChecked = visibleChooserCount === allChooserKeys.length;
 
   const toggleSelectAllColumns = () => {
-    if (allChecked) setUserHiddenCols(allChooserKeys);
-    else setUserHiddenCols([]);
+    if (allChecked) {
+      useSwalErrorAlert("Minimum columns required", "Please retain at least 2 columns.")
+      return;
+    }
+
+    setUserHiddenCols([]);
   };
 
   // =========================
@@ -1221,8 +1228,23 @@ const handleExportExcelClick = async () => {
                                 checked={!userHiddenCols.includes(col.key)}
                                 onChange={(e) => {
                                   const checked = e.target.checked;
+
                                   setUserHiddenCols((prev) => {
-                                    if (checked) return prev.filter((k) => k !== col.key);
+                                    const currentlyVisible = allChooserKeys.filter(
+                                      (key) => !prev.includes(key)
+                                    ).length;
+
+                                    // show column
+                                    if (checked) {
+                                      return prev.filter((k) => k !== col.key);
+                                    }
+
+                                    // hide column - but retain at least 2
+                                    if (currentlyVisible <= MIN_VISIBLE_COLUMNS) {
+                                      useSwalErrorAlert("Minimum columns required", "Please retain at least 2 columns.")
+                                      return prev;
+                                    }
+
                                     return [...prev, col.key];
                                   });
                                 }}

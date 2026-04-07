@@ -703,9 +703,9 @@ const VendMast = () => {
       </div>
 
       <div
-        className={`global-tran-tab-div-ui mt-44 sm:mt-24 lg:mt-20 ${contentPadding} transition-all duration-300`}
-        style={{ minHeight: "calc(100vh - 120px)" }}
-      >
+                className="global-tran-tab-div-ui mt-36 sm:mt-32 md:mt-28 lg:mt-24"
+                style={{ minHeight: "calc(100vh - 170px)" }}
+            >
         {activeTab === "setup" && (
           <PayeeSetupTab
             isLoading={isLoading}

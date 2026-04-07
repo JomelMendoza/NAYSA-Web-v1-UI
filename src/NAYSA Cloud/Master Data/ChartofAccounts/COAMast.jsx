@@ -308,7 +308,8 @@ const columns = useMemo(() => [
             handleEdit(row);
           }
         }}
-        className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-blue-50 border border-blue-100 text-blue-600 rounded-md hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-colors text-xs"title="Edit"
+        className="global-ref-td-button-edit-ui"
+        title="Edit"
       >
         <FontAwesomeIcon icon={faEdit} />
         <span className="md:hidden">Edit</span>
@@ -323,7 +324,7 @@ const columns = useMemo(() => [
             handleDelete(row);
           }
         }}
-        className="flex-1 h-7 md:flex-none flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-red-50 border border-red-100 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors text-xs"
+        className="global-ref-td-button-delete-ui"
         title="Delete"
       >
         <FontAwesomeIcon icon={faTrashAlt} />
@@ -333,7 +334,7 @@ const columns = useMemo(() => [
   ),
 },
 
-  { key: "acctCode", label: "Account Code", sortable: true, width: 100 },
+  { key: "acctCode", label: "Account Code", sortable: true, width: 120 },
   { key: "acctName", label: "Account Name", sortable: true, width: 150 },
 
   {
@@ -798,7 +799,7 @@ const columns = useMemo(() => [
       <div className="space-y-2">
         <button
           onClick={() => handleEdit(selectedMobileRow)}
-          className="w-full flex items-center justify-center gap-2 rounded-lg bg-blue-50 text-blue-600 py-3 text-sm font-medium hover:bg-blue-600 hover:text-white transition-colors"
+          className="global-ref-td-button-edit-ui-mobile"
         >
           <FontAwesomeIcon icon={faEdit} />
           Edit
@@ -813,7 +814,7 @@ const columns = useMemo(() => [
               handleDelete(row);
             }
           }}
-          className="w-full flex items-center justify-center gap-1 py-2 md:py-2 px-3 md:px-2 bg-red-50 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors text-xs"
+          className="global-ref-td-button-delete-ui-mobile"
           title="Delete"
         >
           <FontAwesomeIcon icon={faTrashAlt} />
@@ -822,7 +823,7 @@ const columns = useMemo(() => [
 
         <button
           onClick={closeMobileActionSheet}
-          className="w-full rounded-lg bg-gray-100 text-gray-700 py-3 text-sm font-medium"
+          className="global-ref-td-button-cancel-ui-mobile"
         >
           Cancel
         </button>

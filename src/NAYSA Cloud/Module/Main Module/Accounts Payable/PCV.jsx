@@ -812,7 +812,10 @@ const handleActivityOption = async (action) => {
       );
 
       if (response) {
-   
+        const responseDocNo =  response.data[0].pcvNo;
+        const responseDocId =  response.data[0].pcvId;
+
+        await fetchTranData(responseDocNo,branchCode);
 
         const isZero = Number(noReprints) === 0;
         const onSaveAndPrint =
@@ -823,6 +826,8 @@ const handleActivityOption = async (action) => {
         useSwalshowSaveSuccessDialog(handleReset, onSaveAndPrint);
 
         updateState({
+          documentNo: response?.data?.[0]?.pcvNo || "",
+          documentID: response?.data?.[0]?.pcvId || "",
           isDocNoDisabled: true,
           isFetchDisabled: true,
         });
@@ -1825,7 +1830,7 @@ const handleTranDocNoSelection = async (data) => {
 const handleCloseCancel = async (confirmation) => {
     if(confirmation && documentStatus !== "OPEN" && documentID !== null ) {
 
-      const result = await useHandleCancel(docType,documentID,userCode,confirmation.password,confirmation.reason,updateState);
+      const result = await useHandleCancel(docType,documentID,currentUserRow.userCode,confirmation.password,confirmation.reason,updateState);
       if (result.success) 
       {
        Swal.fire({

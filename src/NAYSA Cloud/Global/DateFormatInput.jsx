@@ -6,12 +6,15 @@ const getAllowedYearRange = () => {
   const currentYear = new Date().getFullYear();
   return {
     minYear: currentYear - 1,
+    currentYear,
     maxYear: currentYear + 1,
   };
 };
 
 export const isStrictDateAllowed = ({ value }) => {
-  const cleaned = String(value || "").replace(/\D/g, "").slice(0, 8);
+  const cleaned = String(value || "")
+    .replace(/\D/g, "")
+    .slice(0, 8);
 
   const month = cleaned.slice(0, 2);
   const day = cleaned.slice(2, 4);
@@ -35,7 +38,7 @@ export const isStrictDateAllowed = ({ value }) => {
     const y = Number(year);
     const { minYear, maxYear } = getAllowedYearRange();
 
-    if (y < minYear || y > maxYear || y === new Date().getFullYear()) {
+    if (y < minYear || y > maxYear) {
       return false;
     }
   }
@@ -44,7 +47,9 @@ export const isStrictDateAllowed = ({ value }) => {
 };
 
 export const usehandleDateChange = (value, field, updateState) => {
-  const cleaned = String(value || "").replace(/\D/g, "").slice(0, 8);
+  const cleaned = String(value || "")
+    .replace(/\D/g, "")
+    .slice(0, 8);
 
   let formatted = cleaned;
 
@@ -65,13 +70,12 @@ export const usehandleDateBlur = (value, field, updateState) => {
     return false;
   }
 
-  const { minYear, maxYear } = getAllowedYearRange();
-  const currentYear = new Date().getFullYear();
+  const { minYear, currentYear, maxYear } = getAllowedYearRange();
 
   const showInvalidDateAlert = () => {
     useSwalErrorAlert(
       "Invalid Date",
-      `Please enter a valid date in MM/DD/YYYY format. Allowed years are ${minYear} and ${maxYear} only.`
+      `Please enter a valid date in MM/DD/YYYY format. Allowed years are ${minYear}, ${currentYear}, and ${maxYear} only.`
     );
   };
 
@@ -85,7 +89,7 @@ export const usehandleDateBlur = (value, field, updateState) => {
 
   const [month, day, year] = dateStr.split("/").map(Number);
 
-  if (year < minYear || year > maxYear || year === currentYear) {
+  if (year < minYear || year > maxYear) {
     updateState({ [field]: "" });
     showInvalidDateAlert();
     return false;
@@ -156,7 +160,7 @@ const DateFormatInput = ({
   const fieldName = name || id;
   const nativeDateRef = useRef(null);
 
-  const { minYear, maxYear } = getAllowedYearRange();
+  const { minYear, currentYear, maxYear } = getAllowedYearRange();
 
   const handleBlur = (e) => {
     const isValid = usehandleDateBlur(value || "", fieldName, updateState);
@@ -186,15 +190,10 @@ const DateFormatInput = ({
     const formattedValue = formatDateToMMDDYYYY(selectedValue);
 
     const selectedYear = Number((selectedValue || "").slice(0, 4));
-    if (
-      selectedYear &&
-      (selectedYear < minYear ||
-        selectedYear > maxYear ||
-        selectedYear === new Date().getFullYear())
-    ) {
+    if (selectedYear && (selectedYear < minYear || selectedYear > maxYear)) {
       useSwalErrorAlert(
         "Invalid Date",
-        `Allowed years are ${minYear} and ${maxYear} only.`
+        `Allowed years are ${minYear}, ${currentYear}, and ${maxYear} only.`
       );
       updateState({ [fieldName]: "" });
       return;

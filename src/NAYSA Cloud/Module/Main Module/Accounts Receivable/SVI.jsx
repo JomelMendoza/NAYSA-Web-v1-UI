@@ -806,9 +806,7 @@ const handleActivityOption = async (action) => {
           debitFx2: parseFormattedNumber(entry.debitFx2 || 0),
           creditFx2: parseFormattedNumber(entry.creditFx2 || 0),
           slRefNo: entry.slRefNo || "",
-          slRefDate: entry.slRefDate
-            ? new Date(entry.slRefDate).toISOString().split("T")[0]
-            : null,
+          slRefDate: entry.slRefDate || null,
           remarks: entry.remarks || "",
           dt1Lineno: entry.dt1Lineno || "",
         })),
@@ -867,8 +865,8 @@ const handleActivityOption = async (action) => {
           useSwalshowSaveSuccessDialog(handleReset, onSaveAndPrint);          
         }
         updateState({
-          documentNo:responseDocNo,
-          documentID:responseDocId,
+          documentNo: response?.data?.[0]?.sviNo || "",
+          documentID: response?.data?.[0]?.sviId || "",
           isDocNoDisabled: true,
           isFetchDisabled: true,
         });
@@ -1096,21 +1094,6 @@ const handleAttach = async () => {
 
 
 
-// const handleCopy = async () => {
-//  if (!detailRows || detailRows.length === 0) {
-//       return;
-//       }
-
-//   if (documentID ) {
-//     updateState({ documentNo:"",
-//                   documentID:"",
-//                   documentStatus:"",
-//                   status:"OPEN",
-//                   documentDate:useGetCurrentDayV2(), 
-//                   noReprints:"0",
-//      });
-//   }
-// };
 
 const handleCopy = async () => {
   if (!detailRows || detailRows.length === 0) {
@@ -1602,7 +1585,7 @@ const handleTranDocNoSelection = async (data) => {
 const handleCloseCancel = async (confirmation) => {
     if(confirmation && documentStatus !== "OPEN" && documentID !== null ) {
 
-      const result = await useHandleCancel(docType,documentID,userCode,confirmation.password,confirmation.reason,updateState);
+      const result = await useHandleCancel(docType,documentID,currentUserRow.userCode,confirmation.password,confirmation.reason,updateState);
       if (result.success) 
       {
        Swal.fire({

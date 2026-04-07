@@ -1,33 +1,30 @@
 
+
 import { useEffect, useState, useRef, useCallback, forwardRef, useMemo } from "react";
 import { fetchData } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faMagnifyingGlass,
-  faChevronDown,
   faUser,
   faSliders,
   faTableList,
 } from "@fortawesome/free-solid-svg-icons";
 import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
-import {
-  exportToTabbedJson,
-  exportBuildJsonSheets,
-  exportHistoryExcel,
-  makeSheet,
-} from "@/NAYSA Cloud/Global/report";
+import { exportGenericHistoryExcel } from "@/NAYSA Cloud/Global/report";
 import BranchLookupModal from "@/NAYSA Cloud/Lookup/SearchBranchRef";
 import PayeeMastLookupModal from "@/NAYSA Cloud/Lookup/SearchVendMast";
 import { useTopUserRow, useTopBranchRow } from "@/NAYSA Cloud/Global/top1RefTable";
-import { useGetCurrentDay } from "@/NAYSA Cloud/Global/dates";
 import { useSelectedHSColConfig } from "@/NAYSA Cloud/Global/selectedData";
-import { formatNumber, parseFormattedNumber } from "@/NAYSA Cloud/Global/behavior.jsx";
+import {
+  formatNumber,
+  parseFormattedNumber,
+  useSwalErrorAlert,
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 import SearchGlobalReportTable from "@/NAYSA Cloud/Lookup/SearchGlobalReportTable.jsx";
+import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 
-/** Different endpoints */
-const ENDPOINT_DETAIL = "getAPAdvances"; // bottom table (detail/application)
-const ENDPOINT_SUMMARY = "getAPAdvances"; // top table (summary)
+const ENDPOINT_DETAIL = "getAPAdvances";
+const ENDPOINT_SUMMARY = "getAPAdvances";
 
 /** Light global cache so the tab remembers its UI state across mounts */
 function getGlobalCache() {
@@ -47,14 +44,12 @@ async function getHSColsSafe(endpointKey) {
     console.warn("useSelectedHSColConfig failed; falling back to /getHSColConfig:", e);
   }
 
-  // Try GET with query params (e.g., /api/getHSColConfig?endpoint=key)
   try {
     const res = await fetchData("getHSColConfig", { params: { endpoint: endpointKey } });
     const data = Array.isArray(res?.data) ? res.data : res?.data?.data ?? [];
     if (!Array.isArray(data)) throw new Error("Invalid getHSColConfig response shape");
     return data;
   } catch (_) {
-    // Fallback to POST-style if your helper is wired that way
     const res2 = await fetchData("getHSColConfig", { endpoint: endpointKey });
     const data2 = Array.isArray(res2?.data) ? res2.data : res2?.data?.data ?? [];
     if (!Array.isArray(data2)) throw new Error("Invalid getHSColConfig (POST) response shape");
@@ -95,11 +90,11 @@ function useRequestCoalescer() {
     return p;
   }, []);
 
-  return { requestOnce, inflightMap, resultCache };
+  return { requestOnce };
 }
 
 const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref) {
-  const { user,companyInfo, currentUserRow, refsLoaded, refsLoading } = useAuth();
+  const { user, companyInfo, currentUserRow } = useAuth();
   const baseKey = "AP_ADVANCES";
   const hydratedRef = useRef(false);
 
@@ -109,16 +104,17 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
     vendCode: "",
     vendName: "",
     status: "Open",
-    apAdvancesDataUnfiltered: [], // preserve full detail dataset for export
-    apAdvancesData: [], // BOTTOM table (detail/application)
-    apAdvancesDataS: [], // TOP table (summary)
-    columnConfig: [], // BOTTOM columns
-    columnConfigS: [], // TOP columns
+    apAdvancesDataUnfiltered: [],
+    apAdvancesData: [],
+    apAdvancesDataS: [],
+    columnConfig: [],
+    columnConfigS: [],
     showBranchModal: false,
     showPayeeModal: false,
     isLoading: false,
     showSpinner: false,
   });
+
   const updateState = (u) => setState((p) => ({ ...p, ...u }));
 
   const {
@@ -138,21 +134,21 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
     showPayeeModal,
   } = state;
 
-  // table refs + UI state persistence refs
-  const tableRefTop = useRef(null); // summary table
-  const tableRefBottom = useRef(null); // detail table
+  const tableRefTop = useRef(null);
+  const tableRefBottom = useRef(null);
+
   const tableStateTopRef = useRef({
     filters: {},
     sortConfig: { key: null, direction: null },
     currentPage: 1,
   });
+
   const tableStateBottomRef = useRef({
     filters: {},
     sortConfig: { key: null, direction: null },
     currentPage: 1,
   });
 
-  // smooth spinner
   useEffect(() => {
     let t;
     if (isLoading) t = setTimeout(() => updateState({ showSpinner: true }), 200);
@@ -160,7 +156,6 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
     return () => clearTimeout(t);
   }, [isLoading]);
 
-  // load defaults (user/branch) once
   const loadDefaults = useCallback(async () => {
     updateState({ showSpinner: true });
     try {
@@ -179,20 +174,26 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
     }
   }, [user?.USER_CODE]);
 
+  const filterReset = useCallback(() => {
+    updateState({
+      apAdvancesData: [],
+      apAdvancesDataS: [],
+      apAdvancesDataUnfiltered: [],
+    });
+  }, []);
+
   const handleReset = useCallback(async () => {
     updateState({
       vendCode: "",
       vendName: "",
-     apAdvancesData: [],
-     apAdvancesDataS: [],
-     apAdvancesDataUnfiltered: [],
+      apAdvancesData: [],
+      apAdvancesDataS: [],
+      apAdvancesDataUnfiltered: [],
     });
   }, []);
 
-  /** Request de-duplication hook */
   const { requestOnce } = useRequestCoalescer();
 
-  // Load columns once for both endpoints – StrictMode-safe + deduped
   const loadedColsOnceRef = useRef(false);
   useEffect(() => {
     if (loadedColsOnceRef.current) return;
@@ -224,9 +225,9 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
     };
   }, [requestOnce]);
 
-  // Fetch both summary + detail in a single "Find"
   const fetchRecord = useCallback(async () => {
     updateState({ isLoading: true });
+
     try {
       const [detailRes, summaryRes] = await Promise.all([
         requestOnce(
@@ -248,18 +249,29 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
       const dtDetail = detailRes?.data?.[0]?.result
         ? JSON.parse(detailRes.data[0].result)
         : [];
+
       const dtSummary = summaryRes?.data?.[0]?.result
         ? JSON.parse(summaryRes.data[0].result)
         : [];
 
-      // Shape fallback handling
-      const rowsBottom = dtDetail?.[0]?.dt1 ?? dtDetail ?? [];
-      const rowsTop = dtSummary?.[0]?.dt2 ?? dtSummary ?? [];
+      const rowsBottom = Array.isArray(dtDetail?.[0]?.dt1) ? dtDetail[0].dt1 : [];
+      const rowsTop = Array.isArray(dtSummary?.[0]?.dt2) ? dtSummary[0].dt2 : [];
+
+      if (rowsBottom.length === 0 && rowsTop.length === 0) {
+        updateState({
+          apAdvancesData: [],
+          apAdvancesDataUnfiltered: [],
+          apAdvancesDataS: [],
+        });
+
+        useSwalErrorAlert("AP Advances", "No records found.");
+        return;
+      }
 
       updateState({
-       apAdvancesData: Array.isArray(rowsBottom) ? rowsBottom : [],
-       apAdvancesDataUnfiltered: Array.isArray(rowsBottom) ? rowsBottom : [],
-       apAdvancesDataS: Array.isArray(rowsTop) ? rowsTop : [],
+        apAdvancesData: rowsBottom,
+        apAdvancesDataUnfiltered: rowsBottom,
+        apAdvancesDataS: rowsTop,
       });
     } catch (err) {
       console.error("Error fetching data:", err);
@@ -268,8 +280,7 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
     }
   }, [branchCode, vendCode, status, requestOnce]);
 
-  // For "View" on top table – refresh bottom detail for selected customer only
-  const fetchRecordperCustomer = useCallback(
+  const fetchRecordperPayee = useCallback(
     async (selectedPayee) => {
       updateState({ isLoading: true });
       try {
@@ -285,9 +296,10 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
 
         const dt = resp?.data?.[0]?.result ? JSON.parse(resp.data[0].result) : [];
         const rowsBottom = dt?.[0]?.dt1 ?? dt ?? [];
+
         updateState({
-         apAdvancesData: Array.isArray(rowsBottom) ? rowsBottom : [],
-         apAdvancesDataUnfiltered: Array.isArray(rowsBottom) ? rowsBottom : [],
+          apAdvancesData: Array.isArray(rowsBottom) ? rowsBottom : [],
+          apAdvancesDataUnfiltered: Array.isArray(rowsBottom) ? rowsBottom : [],
         });
       } catch (e) {
         console.error("Error fetching detail:", e);
@@ -298,9 +310,9 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
     [branchCode, status, requestOnce]
   );
 
-  // hydrate from cache OR load defaults once
   useEffect(() => {
     let cancelled = false;
+
     const run = async () => {
       if (hydratedRef.current) return;
 
@@ -322,10 +334,10 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
             vendCode: snap.vendCode ?? prev.vendCode,
             vendName: snap.vendName ?? prev.vendName,
             status: snap.status ?? prev.status,
-           apAdvancesData: Array.isArray(snap.apAdvancesData)
+            apAdvancesData: Array.isArray(snap.apAdvancesData)
               ? snap.apAdvancesData
               : prev.apAdvancesData,
-           apAdvancesDataS: Array.isArray(snap.apAdvancesDataS)
+            apAdvancesDataS: Array.isArray(snap.apAdvancesDataS)
               ? snap.apAdvancesDataS
               : prev.apAdvancesDataS,
             columnConfig: Array.isArray(snap.columnConfig)
@@ -335,7 +347,7 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
               ? snap.columnConfigS
               : prev.columnConfigS,
           }));
-          // hydrate table UI states (filters/sort/page) independently
+
           tableStateTopRef.current = snap.tableTop || tableStateTopRef.current;
           tableStateBottomRef.current = snap.tableBottom || tableStateBottomRef.current;
           hydratedRef.current = true;
@@ -344,21 +356,24 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
       }
 
       if (!user?.USER_CODE) return;
+
       await loadDefaults();
       await handleReset();
       hydratedRef.current = true;
     };
+
     run();
     return () => {
       cancelled = true;
     };
   }, [user?.USER_CODE, loadDefaults, handleReset]);
 
-  // snapshot into cache whenever important things change
   useEffect(() => {
     if (!hydratedRef.current) return;
+
     const cache = getGlobalCache();
     const prev = cache[baseKey] || {};
+
     cache[baseKey] = {
       ...prev,
       branchCode,
@@ -387,7 +402,6 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
     columnConfigS,
   ]);
 
-  // restore & persist scroll: TOP table
   useEffect(() => {
     const cache = getGlobalCache();
     const snap = cache[baseKey] || {};
@@ -403,13 +417,16 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
         if (tries++ < maxTries) requestAnimationFrame(tryRestore);
         return;
       }
+
       const ready =
         scroller.scrollHeight > scroller.clientHeight ||
         scroller.scrollWidth > scroller.clientWidth;
+
       if (!ready && tries++ < maxTries) {
         requestAnimationFrame(tryRestore);
         return;
       }
+
       scroller.scrollTop = targetTop;
       scroller.scrollLeft = targetLeft;
     };
@@ -418,6 +435,7 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
 
     const scroller = tableRefTop.current?.scrollRef?.current;
     if (!scroller) return;
+
     const onScroll = () => {
       const cacheNow = getGlobalCache();
       const prev = cacheNow[baseKey] || {};
@@ -426,11 +444,11 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
         scrollTop: { top: scroller.scrollTop, left: scroller.scrollLeft },
       };
     };
+
     scroller.addEventListener("scroll", onScroll, { passive: true });
     return () => scroller.removeEventListener("scroll", onScroll);
   }, [apAdvancesDataS.length, columnConfigS.length]);
 
-  // restore & persist scroll: BOTTOM table
   useEffect(() => {
     const cache = getGlobalCache();
     const snap = cache[baseKey] || {};
@@ -446,13 +464,16 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
         if (tries++ < maxTries) requestAnimationFrame(tryRestore);
         return;
       }
+
       const ready =
         scroller.scrollHeight > scroller.clientHeight ||
         scroller.scrollWidth > scroller.clientWidth;
+
       if (!ready && tries++ < maxTries) {
         requestAnimationFrame(tryRestore);
         return;
       }
+
       scroller.scrollTop = targetTop;
       scroller.scrollLeft = targetLeft;
     };
@@ -461,6 +482,7 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
 
     const scroller = tableRefBottom.current?.scrollRef?.current;
     if (!scroller) return;
+
     const onScroll = () => {
       const cacheNow = getGlobalCache();
       const prev = cacheNow[baseKey] || {};
@@ -469,59 +491,53 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
         scrollBottom: { top: scroller.scrollTop, left: scroller.scrollLeft },
       };
     };
+
     scroller.addEventListener("scroll", onScroll, { passive: true });
     return () => scroller.removeEventListener("scroll", onScroll);
   }, [apAdvancesData.length, columnConfig.length]);
 
-  // Export (maps Summary→top dataset/cols; Detail→bottom)
   const handleExport = useCallback(async () => {
     try {
       updateState({ isLoading: true });
 
-       const exportData = {
-        "Data" : {
-          "AP Advances Summary" : apAdvancesDataS,
-          "AP Advances Application" : apAdvancesDataUnfiltered,
-        }
-      }
+      const exportData = {
+        Data: {
+          "AP Advances Summary": apAdvancesDataS,
+          "AP Advances Application": apAdvancesDataUnfiltered,
+        },
+      };
 
       const columnConfigsMap = {
-          "AP Advances Summary" : columnConfigS,
-          "AP Advances Application" : columnConfig,
-        }
-      
-
+        "AP Advances Summary": columnConfigS,
+        "AP Advances Application": columnConfig,
+      };
 
       const payload = {
         ReportName: "AP Advances Report",
         UserCode: currentUserRow?.userName,
         Branch: branchCode || "",
         JsonData: exportData,
-        companyName:companyInfo?.compName,
-        companyAddress:companyInfo?.compAddr,
-        companyTelNo:companyInfo?.telNo
+        companyName: companyInfo?.compName,
+        companyAddress: companyInfo?.compAddr,
+        companyTelNo: companyInfo?.telNo,
       };
-    
 
       await exportGenericHistoryExcel(payload, columnConfigsMap);
-
-
-
     } catch (e) {
       console.error("❌ Export failed:", e);
     } finally {
       updateState({ isLoading: false });
     }
   }, [
-   apAdvancesDataS,
-   apAdvancesDataUnfiltered,
+    apAdvancesDataS,
+    apAdvancesDataUnfiltered,
     columnConfigS,
     columnConfig,
     branchCode,
-    user,
+    currentUserRow?.userName,
+    companyInfo,
   ]);
 
-  // register action bar handlers
   useEffect(() => {
     registerActions?.({
       onFind: fetchRecord,
@@ -532,13 +548,12 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
     });
   }, [registerActions, fetchRecord, handleReset, handleExport]);
 
-  // Row actions
   const handleViewTop = useCallback(
     (row) => {
-      fetchRecordperCustomer(row.vendCode);
+      fetchRecordperPayee(row.vendCode);
       updateState({ vendName: row.vendName, vendCode: row.vendCode });
     },
-    [fetchRecordperCustomer]
+    [fetchRecordperPayee]
   );
 
   const handleViewRow = useCallback((row) => {
@@ -546,12 +561,11 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
     window.open(url, "_blank", "noopener,noreferrer");
   }, []);
 
-  // Totals for Filter Summary (from SUMMARY rows)
   const totals = useMemo(() => {
-    const rows = Array.isArray(apAdvancesDataS) ?apAdvancesDataS : [];
-    let adv = 0,
-      appl = 0,
-      bal = 0;
+    const rows = Array.isArray(apAdvancesDataS) ? apAdvancesDataS : [];
+    let adv = 0;
+    let appl = 0;
+    let bal = 0;
 
     for (const r of rows) {
       const a =
@@ -584,7 +598,6 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
     return { adv: fmt(adv), appl: fmt(appl), bal: fmt(bal) };
   }, [apAdvancesDataS]);
 
-  // initial table UI states from cache (if any)
   const initialStateTop = getGlobalCache()[baseKey]?.tableTop || undefined;
   const initialStateBottom = getGlobalCache()[baseKey]?.tableBottom || undefined;
 
@@ -592,121 +605,74 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
     <div>
       {showSpinner && <LoadingSpinner />}
 
-      {/* === Redesigned Filters Card (3-panel) === */}
       <div className="global-tran-tab-div-ui">
         <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
           <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
-            {/* Customer Details */}
             <section className="p-5">
               <h3 className="flex items-center gap-2 text-gray-800 font-semibold mb-4">
                 <FontAwesomeIcon className="text-blue-600" icon={faUser} />
                 Payee Details
               </h3>
 
-              <div className="global-tran-textbox-group-div-ui">
-                {/* Branch */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="branchName"
-                    placeholder=" "
-                    value={branchName}
-                    readOnly
-                    className="peer global-tran-textbox-ui cursor-pointer"
-                  />
-                  <label htmlFor="branchName" className="global-tran-floating-label">
-                    Branch
-                  </label>
-                  <button
-                    type="button"
-                    className="global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-enabled-ui global-tran-textbox-button-search-ui"
-                    onClick={() => updateState({ showBranchModal: true })}
-                    disabled={isLoading}
-                    aria-label="Find Branch"
-                    title="Find Branch"
-                  >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} />
-                  </button>
-                </div>
+              <div className="space-y-3">
+                <FieldRenderer
+                  id="branchName"
+                  name="branchName"
+                  label="Branch"
+                  type="lookup"
+                  value={branchName || ""}
+                  readOnly
+                  disabled={isLoading}
+                  onLookup={() => updateState({ showBranchModal: true })}
+                />
 
-                {/* Customer Code */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="vendCode"
-                    placeholder=" "
-                    value={vendCode}
-                    onChange={(e) => updateState({ vendCode: e.target.value })}
-                    className="peer global-tran-textbox-ui"
-                    disabled={isLoading}
-                  />
-                  <label htmlFor="vendCode" className="global-tran-floating-label">
-                    Payee Code
-                  </label>
-                  <button
-                    type="button"
-                    className="global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-enabled-ui global-tran-textbox-button-search-ui"
-                    onClick={() => updateState({ showPayeeModal: true })}
-                    disabled={isLoading}
-                    aria-label="Find Payee"
-                    title="Find Payee"
-                  >
-                    <FontAwesomeIcon icon={faMagnifyingGlass} />
-                  </button>
-                </div>
+                <FieldRenderer
+                  id="vendCode"
+                  name="vendCode"
+                  label="Payee Code"
+                  type="lookup"
+                  value={vendCode || ""}
+                  disabled={isLoading}
+                  onChange={(val) => updateState({ vendCode: val?.target ? val.target.value : val })}
+                  onLookup={() => updateState({ showPayeeModal: true })}
+                />
 
-                {/* Customer Name */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    id="vendName"
-                    placeholder=" "
-                    value={vendName}
-                    readOnly
-                    className="peer global-tran-textbox-ui"
-                  />
-                  <label htmlFor="vendName" className="global-tran-floating-label">
-                    Payee Name
-                  </label>
-                </div>
+                <FieldRenderer
+                  id="vendName"
+                  name="vendName"
+                  label="Payee Name"
+                  type="text"
+                  value={vendName || ""}
+                  disabled
+                  readOnly
+                />
               </div>
             </section>
 
-            {/* Filters */}
             <section className="p-5">
               <h3 className="flex items-center gap-2 text-gray-800 font-semibold mb-4">
                 <FontAwesomeIcon className="text-blue-600" icon={faSliders} />
                 Filters
               </h3>
 
-              {/* Advances Status */}
-              <div className="global-tran-textbox-group-div-ui">
-                <div className="relative">
-                  <select
-                    id="advStatus"
-                    className="peer global-tran-textbox-ui appearance-none pr-9 cursor-pointer bg-white"
-                    value={status}
-                    onChange={(e) => updateState({ status: e.target.value })}
-                    disabled={isLoading}
-                  >
-                    <option value="Open">Open</option>
-                    <option value="Closed">Closed</option>
-                    <option value="All">All</option>
-                  </select>
-                  <label htmlFor="advStatus" className="global-tran-floating-label">
-                    Advances Status
-                  </label>
-                  <span
-                    className="pointer-events-none global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-ui flex items-center justify-center"
-                    aria-hidden="true"
-                  >
-                    <FontAwesomeIcon icon={faChevronDown} />
-                  </span>
-                </div>
+              <div className="space-y-3">
+                <FieldRenderer
+                  id="advStatus"
+                  name="advStatus"
+                  label="Advances Status"
+                  type="select"
+                  value={status || ""}
+                  disabled={isLoading}
+                  onChange={(val) => updateState({ status: val?.target ? val.target.value : val })}
+                  options={[
+                    { label: "Open", value: "Open" },
+                    { label: "Closed", value: "Closed" },
+                    { label: "All", value: "All" },
+                  ]}
+                />
               </div>
             </section>
 
-            {/* Filter Summary (computed totals) */}
             <aside className="p-5 bg-gray-50">
               <h3 className="flex items-center gap-2 text-gray-800 font-semibold mb-4">
                 <FontAwesomeIcon className="text-blue-600" icon={faTableList} />
@@ -739,7 +705,6 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
         </div>
       </div>
 
-      {/* === Summary (TOP TABLE) === */}
       <div className="global-tran-tab-div-ui">
         <div className="global-tran-tab-nav-ui">
           <div className="flex flex-row sm:flex-row">
@@ -750,27 +715,27 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
         </div>
 
         <div className="global-tran-table-main-div-ui">
-            <SearchGlobalReportTable
-              ref={tableRefTop}
-              columns={columnConfigS}
-              data={apAdvancesDataS}
-              itemsPerPage={50}
-              showFilters={true}
-              rightActionLabel="View"
-              onRowAction={handleViewTop}
-              className="mt-2"
-              initialState={initialStateTop}
-              onStateChange={(tbl) => {
-                tableStateTopRef.current = tbl;
-                const cache = getGlobalCache();
-                const prev = cache[baseKey] || {};
-                cache[baseKey] = { ...prev, tableTop: tbl };
-              }}
-            />
-          </div>
+          <SearchGlobalReportTable
+            ref={tableRefTop}
+            columns={columnConfigS}
+            data={apAdvancesDataS}
+            itemsPerPage={50}
+            showFilters={true}
+            rightActionLabel="View"
+            onRowAction={handleViewTop}
+            className="mt-2"
+            initialState={initialStateTop}
+            docType="AP Advances Summary"
+            onStateChange={(tbl) => {
+              tableStateTopRef.current = tbl;
+              const cache = getGlobalCache();
+              const prev = cache[baseKey] || {};
+              cache[baseKey] = { ...prev, tableTop: tbl };
+            }}
+          />
+        </div>
       </div>
 
-      {/* === Detailed (BOTTOM TABLE) === */}
       <div className="global-tran-tab-div-ui">
         <div className="global-tran-tab-nav-ui">
           <div className="flex flex-row sm:flex-row">
@@ -781,32 +746,33 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
         </div>
 
         <div className="global-tran-table-main-div-ui">
-            <SearchGlobalReportTable
-              ref={tableRefBottom}
-              columns={columnConfig}
-              data={apAdvancesData}
-              itemsPerPage={50}
-              showFilters={true}
-              rightActionLabel="View"
-              onRowAction={handleViewRow}
-              className="mt-2"
-              initialState={initialStateBottom}
-              onStateChange={(tbl) => {
-                tableStateBottomRef.current = tbl;
-                const cache = getGlobalCache();
-                const prev = cache[baseKey] || {};
-                cache[baseKey] = { ...prev, tableBottom: tbl };
-              }}
-            />
-          </div>
+          <SearchGlobalReportTable
+            ref={tableRefBottom}
+            columns={columnConfig}
+            data={apAdvancesData}
+            itemsPerPage={50}
+            showFilters={true}
+            rightActionLabel="View"
+            onRowAction={handleViewRow}
+            className="mt-2"
+            initialState={initialStateBottom}
+            docType="AP Advances Detailed"
+            onStateChange={(tbl) => {
+              tableStateBottomRef.current = tbl;
+              const cache = getGlobalCache();
+              const prev = cache[baseKey] || {};
+              cache[baseKey] = { ...prev, tableBottom: tbl };
+            }}
+          />
+        </div>
       </div>
 
-      {/* === Modals === */}
       {showBranchModal && (
         <BranchLookupModal
           isOpen={showBranchModal}
           onClose={(selectedBranch) => {
             if (selectedBranch) {
+              filterReset();
               updateState({
                 branchCode: selectedBranch.branchCode,
                 branchName: selectedBranch.branchName,
@@ -822,12 +788,10 @@ const APAdvancesTab = forwardRef(function APAdvancesTab({ registerActions }, ref
           isOpen={showPayeeModal}
           onClose={(selectedPayee) => {
             if (selectedPayee) {
+              filterReset();
               updateState({
                 vendCode: selectedPayee.vendCode,
                 vendName: selectedPayee.vendName,
-               apAdvancesData: [],
-               apAdvancesDataS: [],
-               apAdvancesDataUnfiltered: [],
               });
             }
             updateState({ showPayeeModal: false });

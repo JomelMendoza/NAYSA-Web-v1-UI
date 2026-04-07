@@ -1,4 +1,5 @@
-// import { useState, useEffect, useLayoutEffect, useCallback, useRef } from "react";
+
+// import { useState, useEffect, useCallback, useRef } from "react";
 // import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 // import {
 //   faFileLines,
@@ -12,13 +13,12 @@
 //   faFileExcel,
 //   faNoteSticky,
 //   faUndo,
-//   faDatabase
 // } from "@fortawesome/free-solid-svg-icons";
 
 // import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 // import { fetchData } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 // import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
-// import {exportGenericHistoryExcel} from "@/NAYSA Cloud/Global/report";
+// import { exportGenericHistoryExcel } from "@/NAYSA Cloud/Global/report";
 // import {
 //   useTopCompanyRow,
 //   useTopUserRow,
@@ -28,53 +28,16 @@
 // import { useSelectedHSColConfig } from "@/NAYSA Cloud/Global/selectedData";
 // import { formatNumber, parseFormattedNumber } from "@/NAYSA Cloud/Global/behavior.jsx";
 // import SearchGlobalReportTable from "@/NAYSA Cloud/Lookup/SearchGlobalReportTable.jsx";
+// import BranchLookupModal from "@/NAYSA Cloud/Lookup/SearchBranchRef";
 // import CustomerMastLookupModal from "@/NAYSA Cloud/Lookup/SearchCustMast";
-// import PayeeMastLookupModal from "@/NAYSA Cloud/Lookup/SearchVendMast";
 // import CutoffLookupModal from "@/NAYSA Cloud/Lookup/SearchCutoffRef";
 
 // const ENDPOINT = "getCWTInquiry";
 // const ENDPOINT_Att = "getCWTAtt";
 
 // export default function CWTINQ() {
-//    const { user,companyInfo, currentUserRow, refsLoaded, refsLoading } = useAuth();
+//   const { user, companyInfo, currentUserRow } = useAuth();
 
-//   // ----- Layout (fixed header bar) -----
-//   const barRef = useRef(null);
-//   const [headerH, setHeaderH] = useState(48);
-//   const [barH, setBarH] = useState(48);
-
-//   useLayoutEffect(() => {
-//     if (typeof window === "undefined") return;
-
-//     const header =
-//       document.querySelector("#appHeader") ||
-//       document.querySelector(".global-app-topbar") ||
-//       document.querySelector("header[role='banner']") ||
-//       document.querySelector("header");
-
-//     const remeasure = () => {
-//       if (header) {
-//         const rect = header.getBoundingClientRect();
-//         setHeaderH(Math.max(0, Math.round(rect.height)));
-//       }
-//       if (barRef.current) {
-//         const rect = barRef.current.getBoundingClientRect();
-//         setBarH(Math.max(0, Math.round(rect.height)));
-//       }
-//     };
-
-//     remeasure();
-//     window.addEventListener("resize", remeasure);
-//     const a = requestAnimationFrame(remeasure);
-//     const b = requestAnimationFrame(remeasure);
-//     return () => {
-//       window.removeEventListener("resize", remeasure);
-//       cancelAnimationFrame(a);
-//       cancelAnimationFrame(b);
-//     };
-//   }, []);
-
-//   // ----- App state -----
 //   const [state, setState] = useState({
 //     branchCode: "",
 //     branchName: "",
@@ -85,7 +48,7 @@
 //     endingCutoff: "",
 //     endingCutoffName: "",
 //     rows: [],
-//     originalRows: [], 
+//     originalRows: [],
 //     rows_Att: [],
 //     cols: [],
 //     cols_Att: [],
@@ -104,13 +67,12 @@
 //     isLoading: false,
 //     showSpinner: false,
 //     guideOpen: false,
-
-//     // dropdown menus
 //     showExportMenu: false,
 //     showGenerateMenu: false,
 //   });
 
 //   const updateState = (u) => setState((p) => ({ ...p, ...u }));
+
 //   const {
 //     branchCode,
 //     branchName,
@@ -144,10 +106,10 @@
 //     showGenerateMenu,
 //   } = state;
 
-//   // Table ref (no persisted state)
 //   const tableRef = useRef(null);
+//   const exportMenuRef = useRef(null);
+//   const generateMenuRef = useRef(null);
 
-//   // Spinner smoothing
 //   useEffect(() => {
 //     let t;
 //     if (isLoading) t = setTimeout(() => updateState({ showSpinner: true }), 200);
@@ -155,9 +117,6 @@
 //     return () => clearTimeout(t);
 //   }, [isLoading]);
 
-//   // Close menus when clicking outside
-//   const exportMenuRef = useRef(null);
-//   const generateMenuRef = useRef(null);
 //   useEffect(() => {
 //     const onDocClick = (e) => {
 //       if (
@@ -179,30 +138,34 @@
 //     return () => document.removeEventListener("mousedown", onDocClick);
 //   }, [showExportMenu, showGenerateMenu]);
 
-//   // Load column config once
 //   const loadedColsRef = useRef(false);
 //   useEffect(() => {
 //     if (loadedColsRef.current) return;
 //     let alive = true;
+
 //     (async () => {
 //       try {
 //         const result = await useSelectedHSColConfig(ENDPOINT);
 //         const resultAtt = await useSelectedHSColConfig(ENDPOINT_Att);
 
-//         if (!alive || !Array.isArray(result)) return;
-//         setState((prev) => ({ ...prev, cols: result.map((c) => ({ ...c })) }));
-//         setState((prev) => ({ ...prev, cols_Att: resultAtt.map((c) => ({ ...c })) }));
+//         if (!alive) return;
+
+//         updateState({
+//           cols: Array.isArray(result) ? result.map((c) => ({ ...c })) : [],
+//           cols_Att: Array.isArray(resultAtt) ? resultAtt.map((c) => ({ ...c })) : [],
+//         });
+
 //         loadedColsRef.current = true;
 //       } catch (e) {
 //         console.error("Load column config failed:", e);
 //       }
 //     })();
+
 //     return () => {
 //       alive = false;
 //     };
 //   }, []);
 
-//   // Defaults (company + user/branch)
 //   const loadDefaults = useCallback(async () => {
 //     updateState({ showSpinner: true });
 //     try {
@@ -210,6 +173,7 @@
 //         useTopCompanyRow(),
 //         useTopUserRow(user?.USER_CODE),
 //       ]);
+
 //       if (hsCompany) {
 //         updateState({
 //           startingCutoff: hsCompany.cutoffCode,
@@ -218,6 +182,7 @@
 //           endingCutoffName: hsCompany.cutoffName,
 //         });
 //       }
+
 //       if (hsUser) {
 //         const hsBranch = await useTopBranchRow(hsUser.branchCode);
 //         updateState({
@@ -232,15 +197,13 @@
 //     }
 //   }, [user?.USER_CODE]);
 
-
-
 //   const handleReset = useCallback(() => {
 //     updateState({
 //       custCode: "",
 //       custName: "",
 //       rows: [],
-//       originalRows: [], 
-//       rows_Att:[],
+//       originalRows: [],
+//       rows_Att: [],
 //       tbl1702Q_dat: [],
 //       tbl1702_dat: [],
 //       tbl1702Q_att: [],
@@ -250,9 +213,6 @@
 //     });
 //   }, []);
 
-
-
-//   // Compute summary totals
 //   const computeTotals = useCallback((list = []) => {
 //     if (!Array.isArray(list) || list.length === 0) {
 //       updateState({
@@ -261,6 +221,7 @@
 //       });
 //       return;
 //     }
+
 //     const acc = list.reduce(
 //       (a, r) => {
 //         a.atcAmount += parseFormattedNumber(r.atcAmt) || 0;
@@ -269,16 +230,13 @@
 //       },
 //       { atcAmount: 0, baseAmount: 0 }
 //     );
+
 //     updateState({
 //       atcAmount: formatNumber(acc.atcAmount),
 //       baseAmount: formatNumber(acc.baseAmount),
 //     });
 //   }, []);
 
-
-
-
-//   // Find: load rows
 //   const doFind = useCallback(async () => {
 //     updateState({ isLoading: true });
 //     try {
@@ -292,13 +250,14 @@
 //       const dtF1702 = parsed?.[0]?.dtF1702 ?? [];
 //       const dtF1702Q_att = parsed?.[0]?.f1702Q_att ?? [];
 //       const dtF1702_att = parsed?.[0]?.f1702_att ?? [];
-//       const rowsAttData = Array.isArray(dtF1702Q_att) && dtF1702Q_att.length > 0
-//             ? dtF1702Q_att[0].data
-//             : [];
+//       const rowsAttData =
+//         Array.isArray(dtF1702Q_att) && dtF1702Q_att.length > 0
+//           ? dtF1702Q_att[0].data
+//           : [];
 
 //       updateState({
 //         rows: Array.isArray(dt1) ? dt1 : [],
-//         originalRows: Array.isArray(dt1) ? dt1 : [], // <-- Save the original data
+//         originalRows: Array.isArray(dt1) ? dt1 : [],
 //         rows_Att: rowsAttData,
 //         tbl1702Q_dat: Array.isArray(dtF1702Q) ? dtF1702Q : [],
 //         tbl1702_dat: Array.isArray(dtF1702) ? dtF1702 : [],
@@ -316,10 +275,6 @@
 //     }
 //   }, [branchCode, custCode, startingCutoff, endingCutoff, computeTotals]);
 
-
-
-
-//   // Initial defaults (no persisted state)
 //   useEffect(() => {
 //     if (!user?.USER_CODE) return;
 //     (async () => {
@@ -328,77 +283,63 @@
 //     })();
 //   }, [user?.USER_CODE, loadDefaults, handleReset]);
 
+//   const handleViewTop = useCallback(
+//     (row) => {
+//       const filteredRows = originalRows.filter((r) => r.custCode === row.custCode);
 
+//       updateState({
+//         custName: row.corpName,
+//         custCode: row.custCode,
+//         rows: filteredRows,
+//       });
 
-
-// const handleViewTop = useCallback((row) => {
-//       const filteredRows = originalRows.filter(
-//         (r) => r.custCode === row.custCode
-//       );
-//     updateState({ 
-//       custName: row.corpName, 
-//       custCode: row.custCode, 
-//       rows: filteredRows 
-//     });  
-//      computeTotals(filteredRows); 
-//   }, [originalRows, computeTotals]);
-
-
+//       computeTotals(filteredRows);
+//     },
+//     [originalRows, computeTotals]
+//   );
 
 //   function useNormalizeDat(data) {
-//   return data
-//     .map(row => Object.values(row).join(""))
-//     .join("\r\n");
-// }
+//     return data.map((row) => Object.values(row).join("")).join("\r\n");
+//   }
 
-//   // Export (base "Export Query")
 //   const doExport = useCallback(async () => {
 //     if (!Array.isArray(rows) || rows.length === 0) return;
+
 //     try {
 //       updateState({ isLoading: true });
-     
-     
 
-//         const exportData = {
-//         "Data" : {
-//           "CWT Inquiry Detailed" : rows,
-//           "CWT Inquiry Summary" : rows_Att
-//         }
-//       }
+//       const exportData = {
+//         Data: {
+//           "CWT Inquiry Detailed": rows,
+//           "CWT Inquiry Summary": rows_Att,
+//         },
+//       };
 
 //       const columnConfigsMap = {
-//           "CWT Inquiry Detailed" : cols,
-//           "CWT Inquiry Summary" : cols_Att
-//         }
-      
+//         "CWT Inquiry Detailed": cols,
+//         "CWT Inquiry Summary": cols_Att,
+//       };
+
 //       const payload = {
 //         ReportName: "CWT Inquiry Report",
 //         UserCode: currentUserRow?.userName,
 //         Branch: branchCode || "",
 //         JsonData: exportData,
-//         companyName:companyInfo?.compName,
-//         companyAddress:companyInfo?.compAddr,
-//         companyTelNo:companyInfo?.telNo
+//         companyName: companyInfo?.compName,
+//         companyAddress: companyInfo?.compAddr,
+//         companyTelNo: companyInfo?.telNo,
 //       };
-    
 
 //       await exportGenericHistoryExcel(payload, columnConfigsMap);
-
-
-
-
-
-
 //     } catch (e) {
 //       console.error("Export failed:", e);
 //     } finally {
 //       updateState({ isLoading: false });
 //     }
-//   }, [rows, cols, branchCode, user?.USER_CODE]);
+//   }, [rows, rows_Att, cols, cols_Att, branchCode, currentUserRow?.userName, companyInfo]);
 
-//   // Export attachments
 //   const doExportAttachment = useCallback(
-//     async (kind /* '1702Q' | '1702' */) => {
+//     async (kind) => {
 //       if (!Array.isArray(rows) || rows.length === 0) return;
 
 //       try {
@@ -434,11 +375,8 @@
 //     [rows, tbl1702Q_att, tbl1702_att]
 //   );
 
-
-
-
 //   const doGenerate = useCallback(
-//     (kind /* '1702Q' | '1702' */) => {
+//     (kind) => {
 //       if (!Array.isArray(rows) || rows.length === 0) return;
 
 //       try {
@@ -448,19 +386,15 @@
 //         const filename = kind === "1702Q" ? tbl1702Q_fileName : tbl1702_fileName;
 //         const datText = useNormalizeDat(src).trim();
 
-//         if (typeof useDownloadTextFile === "function") {
-//           useDownloadTextFile(filename, datText);
-//         } else {
-//           const blob = new Blob([datText], { type: "text/plain;charset=utf-8" });
-//           const url = URL.createObjectURL(blob);
-//           const a = document.createElement("a");
-//           a.href = url;
-//           a.download = filename;
-//           document.body.appendChild(a);
-//           a.click();
-//           a.remove();
-//           URL.revokeObjectURL(url);
-//         }
+//         const blob = new Blob([datText], { type: "text/plain;charset=utf-8" });
+//         const url = URL.createObjectURL(blob);
+//         const a = document.createElement("a");
+//         a.href = url;
+//         a.download = filename;
+//         document.body.appendChild(a);
+//         a.click();
+//         a.remove();
+//         URL.revokeObjectURL(url);
 //       } catch (err) {
 //         console.error(`Download ${kind} failed:`, err);
 //         alert(`Failed to download ${kind} file.`);
@@ -471,7 +405,6 @@
 //     [rows, tbl1702Q_dat, tbl1702_dat, tbl1702Q_fileName, tbl1702_fileName]
 //   );
 
-//   // ----- Action handlers (inline ActionBar) -----
 //   const onAction = (id) => {
 //     switch (id) {
 //       case "find":
@@ -482,13 +415,13 @@
 //         return window.print();
 //       case "export-query":
 //         return doExport();
-//       case "export-1601eq-att":
+//       case "export-1702q-att":
 //         return doExportAttachment("1702Q");
-//       case "export-1604e-att":
+//       case "export-1702-att":
 //         return doExportAttachment("1702");
-//       case "gen-1601eq":
+//       case "gen-1702q":
 //         return doGenerate("1702Q");
-//       case "gen-1604e":
+//       case "gen-1702":
 //         return doGenerate("1702");
 //       case "guide":
 //         return updateState({
@@ -503,398 +436,372 @@
 //     }
 //   };
 
-
-
-
-
-
-//   // ----- Render -----
 //   return (
-//     <div className="global-tran-main-div-ui">
+//     <div className="global-ref-main-div-ui">
 //       {showSpinner && <LoadingSpinner />}
 
-//       {/* spacer below fixed bar */}
-//       <div style={{ height: barH }} />
-
-//       {/* Fixed header bar */}
-//       <div
-//         ref={barRef}
-//         className="fixed left-0 right-0 z-40 bg-white/95 backdrop-blur supports-backdrop-blur:bg-white/80 border-b shadow-sm"
-//         style={{ top: headerH }}
-//       >
-//         <div className="flex justify-between items-center px-6 py-2">
-//           {/* Single "tab" label */}
-//           <div className="flex flex-row gap-2">
-//             <span className="flex items-center px-3 py-2 rounded-md text-xs md:text-sm font-bold bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-//               <FontAwesomeIcon icon={faDatabase} className="w-4 h-4 mr-2" />
-//               Creditable Witholding Tax Query
-//             </span>
+//       {/* HEADER SECTION */}
+//       <div className="global-ref-header-ui">
+//         <div className="w-full flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+//           <div className="w-full md:w-auto flex md:justify-start">
+//             <h1 className="global-ref-headertext-ui w-full md:w-auto truncate text-center md:text-left">
+//               Creditable Withholding Tax Query
+//             </h1>
 //           </div>
 
-//           {/* Inline ActionBar */}
-//           <div className="flex flex-wrap items-center justify-end gap-1 lg:gap-2">
-//             <button
-//               onClick={() => onAction("find")}
-//               className="px-3 py-2 text-xs font-medium rounded-md text-white bg-blue-600 hover:opacity-90"
-//             >
-//               <FontAwesomeIcon icon={faMagnifyingGlass} />{" "}
-//               <span className="hidden lg:inline ml-2">Find</span>
-//             </button>
+//           <div className="w-full md:w-auto flex md:justify-end">
+//             <div className="w-full md:w-auto overflow-visible">
+//               <div className="flex flex-nowrap items-center justify-center md:justify-end gap-2">
+//                 <button
+//                   onClick={() => onAction("find")}
+//                   className="shrink-0 px-3 py-2 text-xs font-medium rounded-md text-white bg-blue-600 hover:opacity-90"
+//                 >
+//                   <FontAwesomeIcon icon={faMagnifyingGlass} />
+//                   <span className="hidden lg:inline ml-2">Find</span>
+//                 </button>
 
-//             <button
-//               onClick={() => onAction("reset")}
-//               className="px-3 py-2 text-xs font-medium rounded-md text-white bg-blue-600 hover:opacity-90"
-//             >
-//               <FontAwesomeIcon icon={faUndo} />{" "}
-//               <span className="hidden lg:inline ml-2">Reset</span>
-//             </button>
+//                 <button
+//                   onClick={() => onAction("reset")}
+//                   className="shrink-0 px-3 py-2 text-xs font-medium rounded-md text-white bg-blue-600 hover:opacity-90"
+//                 >
+//                   <FontAwesomeIcon icon={faUndo} />
+//                   <span className="hidden lg:inline ml-2">Reset</span>
+//                 </button>
 
-//             <button
-//               onClick={() => onAction("print")}
-//               className="px-3 py-2 text-xs font-medium rounded-md text-white bg-blue-600 hover:opacity-90"
-//             >
-//               <FontAwesomeIcon icon={faPrint} />{" "}
-//               <span className="hidden lg:inline ml-2">Print</span>
-//             </button>
+//                 <button
+//                   onClick={() => onAction("print")}
+//                   className="shrink-0 px-3 py-2 text-xs font-medium rounded-md text-white bg-blue-600 hover:opacity-90"
+//                 >
+//                   <FontAwesomeIcon icon={faPrint} />
+//                   <span className="hidden lg:inline ml-2">Print</span>
+//                 </button>
 
-//             {/* EXPORT: dropdown */}
-//             <div className="relative" ref={exportMenuRef}>
-//               <button
-//                 onClick={() =>
-//                   updateState({
-//                     showExportMenu: !showExportMenu,
-//                     showGenerateMenu: false,
-//                     guideOpen: false,
-//                   })
-//                 }
-//                 className="px-3 py-2 text-xs font-medium rounded-md text-white bg-blue-600 hover:opacity-90 flex items-center"
-//               >
-//                 <FontAwesomeIcon icon={faFileExport} />
-//                 <span className="hidden lg:inline ml-2">Export</span>
-//                 <FontAwesomeIcon icon={faChevronDown} className="ml-2 text-[10px]" />
-//               </button>
-
-//               {showExportMenu && (
-//                 <div className="absolute right-0 mt-2 w-52 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 dark:bg-gray-700 dark:ring-gray-600 z-50">
+//                 <div className="relative shrink-0" ref={exportMenuRef}>
 //                   <button
-//                     onClick={() => onAction("export-query")}
-//                     className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-600 flex items-center gap-2"
+//                     onClick={() =>
+//                       updateState({
+//                         showExportMenu: !showExportMenu,
+//                         showGenerateMenu: false,
+//                         guideOpen: false,
+//                       })
+//                     }
+//                     className="px-3 py-2 text-xs font-medium rounded-md text-white bg-blue-600 hover:opacity-90 flex items-center"
 //                   >
-//                     <FontAwesomeIcon icon={faFileExcel} className="text-green-600" />
-//                     <span>Export Query</span>
+//                     <FontAwesomeIcon icon={faFileExport} />
+//                     <span className="hidden lg:inline ml-2">Export</span>
+//                     <FontAwesomeIcon icon={faChevronDown} className="ml-2 text-[10px]" />
 //                   </button>
-//                   <button
-//                     onClick={() => onAction("export-1601eq-att")}
-//                     className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-600 flex items-center gap-2"
-//                   >
-//                     <FontAwesomeIcon icon={faFileExcel} className="text-green-600" />
-//                     <span>Export 1702Q Attachment</span>
-//                   </button>
-//                   <button
-//                     onClick={() => onAction("export-1604e-att")}
-//                     className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-600 flex items-center gap-2"
-//                   >
-//                     <FontAwesomeIcon icon={faFileExcel} className="text-green-600" />
-//                     <span>Export 1702 Attachment</span>
-//                   </button>
+
+//                   {showExportMenu && (
+//                     <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 z-[9999]">
+//                       <button
+//                         onClick={() => onAction("export-query")}
+//                         className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 flex items-center gap-2"
+//                       >
+//                         <FontAwesomeIcon icon={faFileExcel} className="text-green-600" />
+//                         <span>Export Query</span>
+//                       </button>
+//                       <button
+//                         onClick={() => onAction("export-1702q-att")}
+//                         className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 flex items-center gap-2"
+//                       >
+//                         <FontAwesomeIcon icon={faFileExcel} className="text-green-600" />
+//                         <span>Export 1702Q Attachment</span>
+//                       </button>
+//                       <button
+//                         onClick={() => onAction("export-1702-att")}
+//                         className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 flex items-center gap-2"
+//                       >
+//                         <FontAwesomeIcon icon={faFileExcel} className="text-green-600" />
+//                         <span>Export 1702 Attachment</span>
+//                       </button>
+//                     </div>
+//                   )}
 //                 </div>
-//               )}
-//             </div>
 
-//             {/* GENERATE: dropdown (after Export) */}
-//             <div className="relative" ref={generateMenuRef}>
-//               <button
-//                 onClick={() =>
-//                   updateState({
-//                     showGenerateMenu: !showGenerateMenu,
-//                     showExportMenu: false,
-//                     guideOpen: false,
-//                   })
-//                 }
-//                 className="px-3 py-2 text-xs font-medium rounded-md text-white bg-blue-600 hover:opacity-90 flex items-center"
-//               >
-//                 <FontAwesomeIcon icon={faFileLines} />
-//                 <span className="hidden lg:inline ml-2">Generate</span>
-//                 <FontAwesomeIcon icon={faChevronDown} className="ml-2 text-[10px]" />
-//               </button>
+//                 <div className="relative shrink-0" ref={generateMenuRef}>
+//                   <button
+//                     onClick={() =>
+//                       updateState({
+//                         showGenerateMenu: !showGenerateMenu,
+//                         showExportMenu: false,
+//                         guideOpen: false,
+//                       })
+//                     }
+//                     className="px-3 py-2 text-xs font-medium rounded-md text-white bg-blue-600 hover:opacity-90 flex items-center"
+//                   >
+//                     <FontAwesomeIcon icon={faFileLines} />
+//                     <span className="hidden lg:inline ml-2">Generate</span>
+//                     <FontAwesomeIcon icon={faChevronDown} className="ml-2 text-[10px]" />
+//                   </button>
 
-//               {showGenerateMenu && (
-//                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 dark:bg-gray-700 dark:ring-gray-600 z-50">
-//                   <button
-//                     onClick={() => onAction("gen-1601eq")}
-//                     className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-600 flex items-center gap-2"
-//                   >
-//                     <FontAwesomeIcon icon={faNoteSticky} className="text-yellow-600" />
-//                     <span>Generate 1702Q</span>
-//                   </button>
-//                   <button
-//                     onClick={() => onAction("gen-1604e")}
-//                     className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-600 flex items-center gap-2"
-//                   >
-//                     <FontAwesomeIcon icon={faNoteSticky} className="text-yellow-600" />
-//                     <span>Generate 1702</span>
-//                   </button>
+//                   {showGenerateMenu && (
+//                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 z-[9999]">
+//                       <button
+//                         onClick={() => onAction("gen-1702q")}
+//                         className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 flex items-center gap-2"
+//                       >
+//                         <FontAwesomeIcon icon={faNoteSticky} className="text-yellow-600" />
+//                         <span>Generate 1702Q</span>
+//                       </button>
+//                       <button
+//                         onClick={() => onAction("gen-1702")}
+//                         className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 flex items-center gap-2"
+//                       >
+//                         <FontAwesomeIcon icon={faNoteSticky} className="text-yellow-600" />
+//                         <span>Generate 1702</span>
+//                       </button>
+//                     </div>
+//                   )}
 //                 </div>
-//               )}
-//             </div>
 
-//             {/* Guide dropdown */}
-//             <div className="relative">
-//               <button
-//                 onClick={() => onAction("guide")}
-//                 className="px-3 py-2 text-xs font-medium rounded-md text-white bg-blue-600 hover:opacity-90"
-//               >
-//                 <FontAwesomeIcon icon={faInfoCircle} />{" "}
-//                 <span className="hidden lg:inline ml-2">Guide</span>
-//               </button>
-//               {guideOpen && (
-//                 <div className="absolute right-0 mt-2 w-40 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 dark:bg-gray-700 dark:ring-gray-600">
+//                 <div className="relative shrink-0">
 //                   <button
-//                     onClick={() => onAction("pdf")}
-//                     className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-600"
+//                     onClick={() => onAction("guide")}
+//                     className="px-3 py-2 text-xs font-medium rounded-md text-white bg-blue-600 hover:opacity-90"
 //                   >
-//                     <FontAwesomeIcon icon={faFileLines} className="mr-2" />
-//                     PDF Guide
+//                     <FontAwesomeIcon icon={faInfoCircle} />
+//                     <span className="hidden lg:inline ml-2">Guide</span>
 //                   </button>
+
+//                   {guideOpen && (
+//                     <div className="absolute right-0 mt-2 w-40 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 z-[9999]">
+//                       <button
+//                         onClick={() => onAction("pdf")}
+//                         className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100"
+//                       >
+//                         <FontAwesomeIcon icon={faFileLines} className="mr-2" />
+//                         PDF Guide
+//                       </button>
+//                     </div>
+//                   )}
 //                 </div>
-//               )}
+//               </div>
 //             </div>
 //           </div>
 //         </div>
 //       </div>
 
-//       {/* Filters + Summary */}
-//       <div id="summary" className="global-tran-tab-div-ui">
-//         <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
-//           <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
-//             {/* Payee Details */}
-//             <section className="p-5">
-//               <h3 className="flex items-center gap-2 text-gray-800 font-semibold mb-4">
-//                 <FontAwesomeIcon className="text-blue-600" icon={faUser} />
-//                 Customer Details
-//               </h3>
+//       <div className="mt-32 sm:mt-24 px-0">
+//         <div id="summary" className="global-tran-tab-div-ui">
+//           <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+//             <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
+//               <section className="p-5">
+//                 <h3 className="flex items-center gap-2 text-gray-800 font-semibold mb-4">
+//                   <FontAwesomeIcon className="text-blue-600" icon={faUser} />
+//                   Customer Details
+//                 </h3>
 
-//               {/* Branch */}
-//               <div className="global-tran-textbox-group-div-ui">
-//                 <div className="relative">
-//                   <input
-//                     type="text"
-//                     id="branchName"
-//                     placeholder=" "
-//                     value={branchName}
-//                     readOnly
-//                     className="peer global-tran-textbox-ui cursor-pointer"
-//                   />
-//                   <label htmlFor="branchName" className="global-tran-floating-label">
-//                     Branch
-//                   </label>
-//                   <button
-//                     type="button"
-//                     className="global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-enabled-ui global-tran-textbox-button-search-ui"
-//                     onClick={() => updateState({ showBranchModal: true })}
-//                     disabled={isLoading}
-//                     aria-label="Find Branch"
-//                     title="Find Branch"
-//                   >
-//                     <FontAwesomeIcon icon={faMagnifyingGlass} />
-//                   </button>
+//                 <div className="global-tran-textbox-group-div-ui">
+//                   <div className="relative">
+//                     <input
+//                       type="text"
+//                       id="branchName"
+//                       placeholder=" "
+//                       value={branchName}
+//                       readOnly
+//                       className="peer global-tran-textbox-ui cursor-pointer"
+//                     />
+//                     <label htmlFor="branchName" className="global-tran-floating-label">
+//                       Branch
+//                     </label>
+//                     <button
+//                       type="button"
+//                       className="global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-enabled-ui global-tran-textbox-button-search-ui"
+//                       onClick={() => updateState({ showBranchModal: true })}
+//                       disabled={isLoading}
+//                       aria-label="Find Branch"
+//                       title="Find Branch"
+//                     >
+//                       <FontAwesomeIcon icon={faMagnifyingGlass} />
+//                     </button>
+//                   </div>
 //                 </div>
-//               </div>
 
-//               {/* Payee Code */}
-//               <div className="global-tran-textbox-group-div-ui">
-//                 <div className="relative">
-//                   <input
-//                     type="text"
-//                     id="custCode"
-//                     placeholder=" "
-//                     value={custCode}
-//                     onChange={(e) => updateState({ custCode: e.target.value })}
-//                     className="peer global-tran-textbox-ui"
-//                     disabled={isLoading}
-//                   />
-//                   <label htmlFor="custCode" className="global-tran-floating-label">
-//                     Customer Code
-//                   </label>
-//                   <button
-//                     type="button"
-//                     className="global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-enabled-ui global-tran-textbox-button-search-ui"
-//                     onClick={() => updateState({ showCustomerModal: true })}
-//                     disabled={isLoading}
-//                     aria-label="Find Customer"
-//                     title="Find Customer"
-//                   >
-//                     <FontAwesomeIcon icon={faMagnifyingGlass} />
-//                   </button>
+//                 <div className="global-tran-textbox-group-div-ui">
+//                   <div className="relative">
+//                     <input
+//                       type="text"
+//                       id="custCode"
+//                       placeholder=" "
+//                       value={custCode}
+//                       onChange={(e) => updateState({ custCode: e.target.value })}
+//                       className="peer global-tran-textbox-ui"
+//                       disabled={isLoading}
+//                     />
+//                     <label htmlFor="custCode" className="global-tran-floating-label">
+//                       Customer Code
+//                     </label>
+//                     <button
+//                       type="button"
+//                       className="global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-enabled-ui global-tran-textbox-button-search-ui"
+//                       onClick={() => updateState({ showCustomerModal: true })}
+//                       disabled={isLoading}
+//                       aria-label="Find Customer"
+//                       title="Find Customer"
+//                     >
+//                       <FontAwesomeIcon icon={faMagnifyingGlass} />
+//                     </button>
+//                   </div>
 //                 </div>
-//               </div>
 
-//               {/* Payee Name */}
-//               <div className="global-tran-textbox-group-div-ui">
-//                 <div className="relative">
-//                   <input
-//                     type="text"
-//                     id="custName"
-//                     placeholder=" "
-//                     value={custName}
-//                     readOnly
-//                     className="peer global-tran-textbox-ui"
-//                   />
-//                   <label htmlFor="custName" className="global-tran-floating-label">
-//                     Customer Name
-//                   </label>
+//                 <div className="global-tran-textbox-group-div-ui">
+//                   <div className="relative">
+//                     <input
+//                       type="text"
+//                       id="custName"
+//                       placeholder=" "
+//                       value={custName}
+//                       readOnly
+//                       className="peer global-tran-textbox-ui"
+//                     />
+//                     <label htmlFor="custName" className="global-tran-floating-label">
+//                       Customer Name
+//                     </label>
+//                   </div>
 //                 </div>
-//               </div>
-//             </section>
+//               </section>
 
-//             {/* Date Range */}
-//             <section className="p-5">
-//               <h3 className="flex items-center gap-2 text-gray-800 font-semibold mb-4">
-//                 <FontAwesomeIcon className="text-blue-600" icon={faCalendarAlt} />
-//                 Date Range
-//               </h3>
+//               <section className="p-5">
+//                 <h3 className="flex items-center gap-2 text-gray-800 font-semibold mb-4">
+//                   <FontAwesomeIcon className="text-blue-600" icon={faCalendarAlt} />
+//                   Date Range
+//                 </h3>
 
-//               {/* Starting Cut-off */}
-//               <div className="global-tran-textbox-group-div-ui">
-//                 <div className="relative">
-//                   <input
-//                     type="text"
-//                     id="startingCutoffName"
-//                     placeholder=" "
-//                     value={startingCutoffName}
-//                     readOnly
-//                     className="peer global-tran-textbox-ui cursor-pointer"
-//                   />
-//                   <label htmlFor="startingCutoffName" className="global-tran-floating-label">
-//                     Starting Cut-off
-//                   </label>
-//                   <button
-//                     type="button"
-//                     className="global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-enabled-ui global-tran-textbox-button-search-ui"
-//                     onClick={() =>
-//                       updateState({
-//                         showCutoffModal: true,
-//                         cutoffModalType: "starting",
-//                       })
-//                     }
-//                     disabled={isLoading}
-//                     aria-label="Find Start Cut-off"
-//                     title="Find Start Cut-off"
-//                   >
-//                     <FontAwesomeIcon icon={faMagnifyingGlass} />
-//                   </button>
+//                 <div className="global-tran-textbox-group-div-ui">
+//                   <div className="relative">
+//                     <input
+//                       type="text"
+//                       id="startingCutoffName"
+//                       placeholder=" "
+//                       value={startingCutoffName}
+//                       readOnly
+//                       className="peer global-tran-textbox-ui cursor-pointer"
+//                     />
+//                     <label htmlFor="startingCutoffName" className="global-tran-floating-label">
+//                       Starting Cut-off
+//                     </label>
+//                     <button
+//                       type="button"
+//                       className="global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-enabled-ui global-tran-textbox-button-search-ui"
+//                       onClick={() =>
+//                         updateState({
+//                           showCutoffModal: true,
+//                           cutoffModalType: "starting",
+//                         })
+//                       }
+//                       disabled={isLoading}
+//                       aria-label="Find Start Cut-off"
+//                       title="Find Start Cut-off"
+//                     >
+//                       <FontAwesomeIcon icon={faMagnifyingGlass} />
+//                     </button>
+//                   </div>
 //                 </div>
-//               </div>
 
-//               {/* Ending Cut-off */}
-//               <div className="global-tran-textbox-group-div-ui">
-//                 <div className="relative">
-//                   <input
-//                     type="text"
-//                     id="endingCutoffName"
-//                     placeholder=" "
-//                     value={endingCutoffName}
-//                     readOnly
-//                     className="peer global-tran-textbox-ui cursor-pointer"
-//                   />
-//                   <label htmlFor="endingCutoffName" className="global-tran-floating-label">
-//                     Ending Cut-off
-//                   </label>
-//                   <button
-//                     type="button"
-//                     className="global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-enabled-ui global-tran-textbox-button-search-ui"
-//                     onClick={() =>
-//                       updateState({
-//                         showCutoffModal: true,
-//                         cutoffModalType: "ending",
-//                       })
-//                     }
-//                     disabled={isLoading}
-//                     aria-label="Find End Cut-off"
-//                     title="Find End Cut-off"
-//                   >
-//                     <FontAwesomeIcon icon={faMagnifyingGlass} />
-//                   </button>
+//                 <div className="global-tran-textbox-group-div-ui">
+//                   <div className="relative">
+//                     <input
+//                       type="text"
+//                       id="endingCutoffName"
+//                       placeholder=" "
+//                       value={endingCutoffName}
+//                       readOnly
+//                       className="peer global-tran-textbox-ui cursor-pointer"
+//                     />
+//                     <label htmlFor="endingCutoffName" className="global-tran-floating-label">
+//                       Ending Cut-off
+//                     </label>
+//                     <button
+//                       type="button"
+//                       className="global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-enabled-ui global-tran-textbox-button-search-ui"
+//                       onClick={() =>
+//                         updateState({
+//                           showCutoffModal: true,
+//                           cutoffModalType: "ending",
+//                         })
+//                       }
+//                       disabled={isLoading}
+//                       aria-label="Find End Cut-off"
+//                       title="Find End Cut-off"
+//                     >
+//                       <FontAwesomeIcon icon={faMagnifyingGlass} />
+//                     </button>
+//                   </div>
 //                 </div>
-//               </div>
-//             </section>
+//               </section>
 
-//             {/* Summary Totals */}
-//             <section className="p-5">
-//               <h3 className="flex items-center gap-2 text-gray-800 font-semibold mb-4">
-//                 <FontAwesomeIcon className="text-blue-600" icon={faFileLines} />
+//               <section className="p-5">
+//                 <h3 className="flex items-center gap-2 text-gray-800 font-semibold mb-4">
+//                   <FontAwesomeIcon className="text-blue-600" icon={faFileLines} />
+//                   Summary
+//                 </h3>
+
+//                 <div className="grid grid-cols-2 gap-3">
+//                   <div>
+//                     <div className="text-xs text-gray-500">Base Amount</div>
+//                     <div className="font-semibold">{baseAmount}</div>
+//                   </div>
+//                   <div>
+//                     <div className="text-xs text-gray-500">ATC Amount</div>
+//                     <div className="font-semibold">{atcAmount}</div>
+//                   </div>
+//                 </div>
+//               </section>
+//             </div>
+//           </div>
+//         </div>
+
+//         <div className="global-tran-tab-div-ui">
+//           <div className="global-tran-tab-nav-ui">
+//             <div className="flex flex-row sm:flex-row">
+//               <button className="global-tran-tab-padding-ui global-tran-tab-text_active-ui">
 //                 Summary
-//               </h3>
+//               </button>
+//             </div>
+//           </div>
 
-//               <div className="grid grid-cols-2 gap-3">
-//                 <div>
-//                   <div className="text-xs text-gray-500">Base Amount</div>
-//                   <div className="font-semibold">{baseAmount}</div>
-//                 </div>
-//                 <div>
-//                   <div className="text-xs text-gray-500">ATC Amount</div>
-//                   <div className="font-semibold">{atcAmount}</div>
-//                 </div>
-//               </div>
-//             </section>
+//           <div className="global-tran-table-main-div-ui">
+//             <div className="max-h-[600px] overflow-y-auto relative">
+//               <SearchGlobalReportTable
+//                 ref={tableRef}
+//                 columns={cols_Att}
+//                 data={rows_Att}
+//                 itemsPerPage={50}
+//                 rightActionLabel="View"
+//                 onRowAction={handleViewTop}
+//               />
+//             </div>
+//           </div>
+//         </div>
+
+//         <div className="global-tran-tab-div-ui">
+//           <div className="global-tran-tab-nav-ui">
+//             <div className="flex flex-row sm:flex-row">
+//               <button className="global-tran-tab-padding-ui global-tran-tab-text_active-ui">
+//                 Detailed
+//               </button>
+//             </div>
+//           </div>
+
+//           <div className="global-tran-table-main-div-ui">
+//             <div className="max-h-[600px] overflow-y-auto relative">
+//               <SearchGlobalReportTable
+//                 ref={tableRef}
+//                 columns={cols}
+//                 data={rows}
+//                 itemsPerPage={50}
+//                 rightActionLabel="View"
+//                 onRowAction={(row) => {
+//                   const url = `${window.location.origin}${row.pathUrl}`;
+//                   window.open(url, "_blank", "noopener,noreferrer");
+//                 }}
+//               />
+//             </div>
 //           </div>
 //         </div>
 //       </div>
 
-
-
-//        <div className="global-tran-tab-div-ui">
-//         <div className="global-tran-tab-nav-ui">
-//           <div className="flex flex-row sm:flex-row">
-//             <button className="global-tran-tab-padding-ui global-tran-tab-text_active-ui">Summary</button>
-//           </div>
-//         </div>
-
-//         <div className="global-tran-table-main-div-ui">
-//           <div className="max-h-[600px] overflow-y-auto relative">
-//             <SearchGlobalReportTable
-//               ref={tableRef}
-//               columns={cols_Att}
-//               data={rows_Att}
-//               itemsPerPage={50}
-//               rightActionLabel="View"
-//               onRowAction={handleViewTop} // This action now filters the top table
-//             />
-//           </div>
-//         </div>
-//       </div>
-
-
-
-
-//          <div className="global-tran-tab-div-ui">
-//         <div className="global-tran-tab-nav-ui">
-//           <div className="flex flex-row sm:flex-row">
-//             <button className="global-tran-tab-padding-ui global-tran-tab-text_active-ui">Detailed</button>
-//           </div>
-//         </div>
-
-//         <div className="global-tran-table-main-div-ui">
-//           <div className="max-h-[600px] overflow-y-auto relative">
-//             <SearchGlobalReportTable
-//               ref={tableRef}
-//               columns={cols}
-//               data={rows}
-//               itemsPerPage={50}
-//               rightActionLabel="View"
-//               onRowAction={(row) => {
-//                 const url = `${window.location.origin}${row.pathUrl}`;
-//                 window.open(url, "_blank", "noopener,noreferrer");
-//               }}
-//             />
-//           </div>
-//         </div>
-//       </div>
-             
-
-
-
-//       {/* Modals */}
 //       {showBranchModal && (
 //         <BranchLookupModal
 //           isOpen={showBranchModal}
@@ -909,6 +816,7 @@
 //           }}
 //         />
 //       )}
+
 //       {showCustomerModal && (
 //         <CustomerMastLookupModal
 //           isOpen={showCustomerModal}
@@ -925,6 +833,7 @@
 //           }}
 //         />
 //       )}
+
 //       {showCutoffModal && (
 //         <CutoffLookupModal
 //           isOpen={showCutoffModal}
@@ -965,6 +874,7 @@ import {
   faFileExcel,
   faNoteSticky,
   faUndo,
+  faChartLine,
 } from "@fortawesome/free-solid-svg-icons";
 
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
@@ -976,13 +886,21 @@ import {
   useTopUserRow,
   useTopBranchRow,
 } from "@/NAYSA Cloud/Global/top1RefTable";
-import { export1702QReportExcel, export1702ReportExcel } from "@/NAYSA Cloud/Global/birReport";
+import {
+  export1702QReportExcel,
+  export1702ReportExcel,
+} from "@/NAYSA Cloud/Global/birReport";
 import { useSelectedHSColConfig } from "@/NAYSA Cloud/Global/selectedData";
-import { formatNumber, parseFormattedNumber } from "@/NAYSA Cloud/Global/behavior.jsx";
+import {
+  formatNumber,
+  parseFormattedNumber,
+  useSwalErrorAlert,
+} from "@/NAYSA Cloud/Global/behavior.jsx";
 import SearchGlobalReportTable from "@/NAYSA Cloud/Lookup/SearchGlobalReportTable.jsx";
 import BranchLookupModal from "@/NAYSA Cloud/Lookup/SearchBranchRef";
 import CustomerMastLookupModal from "@/NAYSA Cloud/Lookup/SearchCustMast";
 import CutoffLookupModal from "@/NAYSA Cloud/Lookup/SearchCutoffRef";
+import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 
 const ENDPOINT = "getCWTInquiry";
 const ENDPOINT_Att = "getCWTAtt";
@@ -1078,6 +996,7 @@ export default function CWTINQ() {
       ) {
         updateState({ showExportMenu: false });
       }
+
       if (
         generateMenuRef.current &&
         !generateMenuRef.current.contains(e.target) &&
@@ -1086,6 +1005,7 @@ export default function CWTINQ() {
         updateState({ showGenerateMenu: false });
       }
     };
+
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [showExportMenu, showGenerateMenu]);
@@ -1116,6 +1036,22 @@ export default function CWTINQ() {
     return () => {
       alive = false;
     };
+  }, []);
+
+  const filterReset = useCallback(() => {
+    updateState({
+      rows: [],
+      originalRows: [],
+      rows_Att: [],
+      tbl1702Q_dat: [],
+      tbl1702_dat: [],
+      tbl1702Q_att: [],
+      tbl1702_att: [],
+      tbl1702Q_fileName: "",
+      tbl1702_fileName: "",
+      baseAmount: "0.00",
+      atcAmount: "0.00",
+    });
   }, []);
 
   const loadDefaults = useCallback(async () => {
@@ -1153,17 +1089,14 @@ export default function CWTINQ() {
     updateState({
       custCode: "",
       custName: "",
-      rows: [],
-      originalRows: [],
-      rows_Att: [],
-      tbl1702Q_dat: [],
-      tbl1702_dat: [],
-      tbl1702Q_att: [],
-      tbl1702_att: [],
-      baseAmount: "0.00",
-      atcAmount: "0.00",
+      startingCutoff: companyInfo?.cutoffCode || "",
+      startingCutoffName: companyInfo?.cutoffName || "",
+      endingCutoff: companyInfo?.cutoffCode || "",
+      endingCutoffName: companyInfo?.cutoffName || "",
     });
-  }, []);
+
+    filterReset();
+  }, [companyInfo, filterReset]);
 
   const computeTotals = useCallback((list = []) => {
     if (!Array.isArray(list) || list.length === 0) {
@@ -1207,10 +1140,23 @@ export default function CWTINQ() {
           ? dtF1702Q_att[0].data
           : [];
 
+      const safeRows = Array.isArray(dt1) ? dt1 : [];
+      const safeRowsAtt = Array.isArray(rowsAttData) ? rowsAttData : [];
+
+      if (safeRows.length === 0 && safeRowsAtt.length === 0) {
+        filterReset();
+        updateState({
+          custCode: "",
+          custName: "",
+        });
+        useSwalErrorAlert("Creditable Withholding Tax Query", "No records found.");
+        return;
+      }
+
       updateState({
-        rows: Array.isArray(dt1) ? dt1 : [],
-        originalRows: Array.isArray(dt1) ? dt1 : [],
-        rows_Att: rowsAttData,
+        rows: safeRows,
+        originalRows: safeRows,
+        rows_Att: safeRowsAtt,
         tbl1702Q_dat: Array.isArray(dtF1702Q) ? dtF1702Q : [],
         tbl1702_dat: Array.isArray(dtF1702) ? dtF1702 : [],
         tbl1702Q_att: Array.isArray(dtF1702Q_att) ? dtF1702Q_att : [],
@@ -1219,13 +1165,13 @@ export default function CWTINQ() {
         tbl1702_fileName: parsed?.[0]?.f1702_name || "",
       });
 
-      computeTotals(dt1);
+      computeTotals(safeRows);
     } catch (e) {
       console.error("Find failed:", e);
     } finally {
       updateState({ isLoading: false });
     }
-  }, [branchCode, custCode, startingCutoff, endingCutoff, computeTotals]);
+  }, [branchCode, custCode, startingCutoff, endingCutoff, computeTotals, filterReset]);
 
   useEffect(() => {
     if (!user?.USER_CODE) return;
@@ -1250,12 +1196,15 @@ export default function CWTINQ() {
     [originalRows, computeTotals]
   );
 
-  function useNormalizeDat(data) {
+  const normalizeDat = useCallback((data = []) => {
     return data.map((row) => Object.values(row).join("")).join("\r\n");
-  }
+  }, []);
 
   const doExport = useCallback(async () => {
-    if (!Array.isArray(rows) || rows.length === 0) return;
+    if (!Array.isArray(rows) || rows.length === 0) {
+      useSwalErrorAlert("Creditable Withholding Tax Query", "No data available.");
+      return;
+    }
 
     try {
       updateState({ isLoading: true });
@@ -1292,14 +1241,20 @@ export default function CWTINQ() {
 
   const doExportAttachment = useCallback(
     async (kind) => {
-      if (!Array.isArray(rows) || rows.length === 0) return;
+      if (!Array.isArray(rows) || rows.length === 0) {
+        useSwalErrorAlert("Creditable Withholding Tax Query", "No data available.");
+        return;
+      }
 
       try {
         updateState({ isLoading: true });
 
         const tblAtt = kind === "1702Q" ? tbl1702Q_att : tbl1702_att;
         if (!tblAtt || tblAtt.length === 0) {
-          console.warn(`No attachment data for ${kind}`);
+          useSwalErrorAlert(
+            "Creditable Withholding Tax Query",
+            `No ${kind} attachment data found.`
+          );
           return;
         }
 
@@ -1329,32 +1284,46 @@ export default function CWTINQ() {
 
   const doGenerate = useCallback(
     (kind) => {
-      if (!Array.isArray(rows) || rows.length === 0) return;
+      if (!Array.isArray(rows) || rows.length === 0) {
+        useSwalErrorAlert("Creditable Withholding Tax Query", "No data available.");
+        return;
+      }
 
       try {
         updateState({ isLoading: true });
 
         const src = kind === "1702Q" ? tbl1702Q_dat : tbl1702_dat;
         const filename = kind === "1702Q" ? tbl1702Q_fileName : tbl1702_fileName;
-        const datText = useNormalizeDat(src).trim();
+        const datText = normalizeDat(src).trim();
+
+        if (!datText) {
+          useSwalErrorAlert(
+            "Creditable Withholding Tax Query",
+            `No ${kind} file data found.`
+          );
+          return;
+        }
 
         const blob = new Blob([datText], { type: "text/plain;charset=utf-8" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = filename;
+        a.download = filename || `${kind}.txt`;
         document.body.appendChild(a);
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
       } catch (err) {
         console.error(`Download ${kind} failed:`, err);
-        alert(`Failed to download ${kind} file.`);
+        useSwalErrorAlert(
+          "Creditable Withholding Tax Query",
+          `Failed to generate ${kind} file.`
+        );
       } finally {
         updateState({ isLoading: false, showGenerateMenu: false });
       }
     },
-    [rows, tbl1702Q_dat, tbl1702_dat, tbl1702Q_fileName, tbl1702_fileName]
+    [rows, tbl1702Q_dat, tbl1702_dat, tbl1702Q_fileName, tbl1702_fileName, normalizeDat]
   );
 
   const onAction = (id) => {
@@ -1392,7 +1361,6 @@ export default function CWTINQ() {
     <div className="global-ref-main-div-ui">
       {showSpinner && <LoadingSpinner />}
 
-      {/* HEADER SECTION */}
       <div className="global-ref-header-ui">
         <div className="w-full flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="w-full md:w-auto flex md:justify-start">
@@ -1445,7 +1413,7 @@ export default function CWTINQ() {
                   </button>
 
                   {showExportMenu && (
-                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 z-[9999]">
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 z-50">
                       <button
                         onClick={() => onAction("export-query")}
                         className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 flex items-center gap-2"
@@ -1488,7 +1456,7 @@ export default function CWTINQ() {
                   </button>
 
                   {showGenerateMenu && (
-                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 z-[9999]">
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 z-50">
                       <button
                         onClick={() => onAction("gen-1702q")}
                         className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100 flex items-center gap-2"
@@ -1517,7 +1485,7 @@ export default function CWTINQ() {
                   </button>
 
                   {guideOpen && (
-                    <div className="absolute right-0 mt-2 w-40 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 z-[9999]">
+                    <div className="absolute right-0 mt-2 w-40 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 z-50">
                       <button
                         onClick={() => onAction("pdf")}
                         className="w-full px-3 py-2 text-sm text-left hover:bg-gray-100"
@@ -1534,7 +1502,7 @@ export default function CWTINQ() {
         </div>
       </div>
 
-      <div className="mt-32 sm:mt-24 px-0">
+      <div className="mt-32 sm:mt-24 px-1">
         <div id="summary" className="global-tran-tab-div-ui">
           <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
             <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-gray-200">
@@ -1544,73 +1512,44 @@ export default function CWTINQ() {
                   Customer Details
                 </h3>
 
-                <div className="global-tran-textbox-group-div-ui">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      id="branchName"
-                      placeholder=" "
-                      value={branchName}
-                      readOnly
-                      className="peer global-tran-textbox-ui cursor-pointer"
-                    />
-                    <label htmlFor="branchName" className="global-tran-floating-label">
-                      Branch
-                    </label>
-                    <button
-                      type="button"
-                      className="global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-enabled-ui global-tran-textbox-button-search-ui"
-                      onClick={() => updateState({ showBranchModal: true })}
-                      disabled={isLoading}
-                      aria-label="Find Branch"
-                      title="Find Branch"
-                    >
-                      <FontAwesomeIcon icon={faMagnifyingGlass} />
-                    </button>
-                  </div>
-                </div>
+                <div className="space-y-3">
+                  <FieldRenderer
+                    type="lookup"
+                    id="branchName"
+                    name="branchName"
+                    label="Branch"
+                    value={branchName}
+                    readOnly
+                    disabled={isLoading}
+                    onLookup={() => updateState({ showBranchModal: true })}
+                  />
 
-                <div className="global-tran-textbox-group-div-ui">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      id="custCode"
-                      placeholder=" "
-                      value={custCode}
-                      onChange={(e) => updateState({ custCode: e.target.value })}
-                      className="peer global-tran-textbox-ui"
-                      disabled={isLoading}
-                    />
-                    <label htmlFor="custCode" className="global-tran-floating-label">
-                      Customer Code
-                    </label>
-                    <button
-                      type="button"
-                      className="global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-enabled-ui global-tran-textbox-button-search-ui"
-                      onClick={() => updateState({ showCustomerModal: true })}
-                      disabled={isLoading}
-                      aria-label="Find Customer"
-                      title="Find Customer"
-                    >
-                      <FontAwesomeIcon icon={faMagnifyingGlass} />
-                    </button>
-                  </div>
-                </div>
+                  <FieldRenderer
+                    type="lookup"
+                    id="custCode"
+                    name="custCode"
+                    label="Customer Code"
+                    value={custCode}
+                    disabled={isLoading}
+                    onChange={(e) => {
+                      updateState({
+                        custCode: e.target.value,
+                        custName: "",
+                      });
+                      filterReset();
+                    }}
+                    onLookup={() => updateState({ showCustomerModal: true })}
+                  />
 
-                <div className="global-tran-textbox-group-div-ui">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      id="custName"
-                      placeholder=" "
-                      value={custName}
-                      readOnly
-                      className="peer global-tran-textbox-ui"
-                    />
-                    <label htmlFor="custName" className="global-tran-floating-label">
-                      Customer Name
-                    </label>
-                  </div>
+                  <FieldRenderer
+                    type="text"
+                    id="custName"
+                    name="custName"
+                    label="Customer Name"
+                    value={custName}
+                    readOnly
+                    disabled
+                  />
                 </div>
               </section>
 
@@ -1620,86 +1559,58 @@ export default function CWTINQ() {
                   Date Range
                 </h3>
 
-                <div className="global-tran-textbox-group-div-ui">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      id="startingCutoffName"
-                      placeholder=" "
-                      value={startingCutoffName}
-                      readOnly
-                      className="peer global-tran-textbox-ui cursor-pointer"
-                    />
-                    <label htmlFor="startingCutoffName" className="global-tran-floating-label">
-                      Starting Cut-off
-                    </label>
-                    <button
-                      type="button"
-                      className="global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-enabled-ui global-tran-textbox-button-search-ui"
-                      onClick={() =>
-                        updateState({
-                          showCutoffModal: true,
-                          cutoffModalType: "starting",
-                        })
-                      }
-                      disabled={isLoading}
-                      aria-label="Find Start Cut-off"
-                      title="Find Start Cut-off"
-                    >
-                      <FontAwesomeIcon icon={faMagnifyingGlass} />
-                    </button>
-                  </div>
-                </div>
+                <div className="space-y-3">
+                  <FieldRenderer
+                    type="lookup"
+                    id="startingCutoffName"
+                    name="startingCutoffName"
+                    label="Starting Cut-off"
+                    value={startingCutoffName}
+                    readOnly
+                    disabled={isLoading}
+                    onLookup={() =>
+                      updateState({
+                        showCutoffModal: true,
+                        cutoffModalType: "starting",
+                      })
+                    }
+                  />
 
-                <div className="global-tran-textbox-group-div-ui">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      id="endingCutoffName"
-                      placeholder=" "
-                      value={endingCutoffName}
-                      readOnly
-                      className="peer global-tran-textbox-ui cursor-pointer"
-                    />
-                    <label htmlFor="endingCutoffName" className="global-tran-floating-label">
-                      Ending Cut-off
-                    </label>
-                    <button
-                      type="button"
-                      className="global-tran-textbox-button-search-padding-ui global-tran-textbox-button-search-enabled-ui global-tran-textbox-button-search-ui"
-                      onClick={() =>
-                        updateState({
-                          showCutoffModal: true,
-                          cutoffModalType: "ending",
-                        })
-                      }
-                      disabled={isLoading}
-                      aria-label="Find End Cut-off"
-                      title="Find End Cut-off"
-                    >
-                      <FontAwesomeIcon icon={faMagnifyingGlass} />
-                    </button>
-                  </div>
+                  <FieldRenderer
+                    type="lookup"
+                    id="endingCutoffName"
+                    name="endingCutoffName"
+                    label="Ending Cut-off"
+                    value={endingCutoffName}
+                    readOnly
+                    disabled={isLoading}
+                    onLookup={() =>
+                      updateState({
+                        showCutoffModal: true,
+                        cutoffModalType: "ending",
+                      })
+                    }
+                  />
                 </div>
               </section>
 
-              <section className="p-5">
+              <aside className="p-5 bg-gray-50">
                 <h3 className="flex items-center gap-2 text-gray-800 font-semibold mb-4">
-                  <FontAwesomeIcon className="text-blue-600" icon={faFileLines} />
-                  Summary
+                  <FontAwesomeIcon className="text-blue-600" icon={faChartLine} />
+                  CWT Summary
                 </h3>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <div className="text-xs text-gray-500">Base Amount</div>
-                    <div className="font-semibold">{baseAmount}</div>
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Base Amount:</span>
+                    <span className="font-semibold text-gray-800">{baseAmount}</span>
                   </div>
-                  <div>
-                    <div className="text-xs text-gray-500">ATC Amount</div>
-                    <div className="font-semibold">{atcAmount}</div>
+                  <div className="border-t pt-3 flex items-center justify-between">
+                    <span className="text-gray-700">ATC Amount:</span>
+                    <span className="font-bold text-blue-600">{atcAmount}</span>
                   </div>
                 </div>
-              </section>
+              </aside>
             </div>
           </div>
         </div>
@@ -1714,16 +1625,15 @@ export default function CWTINQ() {
           </div>
 
           <div className="global-tran-table-main-div-ui">
-            <div className="max-h-[600px] overflow-y-auto relative">
-              <SearchGlobalReportTable
-                ref={tableRef}
-                columns={cols_Att}
-                data={rows_Att}
-                itemsPerPage={50}
-                rightActionLabel="View"
-                onRowAction={handleViewTop}
-              />
-            </div>
+            <SearchGlobalReportTable
+              ref={tableRef}
+              columns={cols_Att}
+              data={rows_Att}
+              itemsPerPage={50}
+              docType="CWT Summary"
+              rightActionLabel="View"
+              onRowAction={handleViewTop}
+            />
           </div>
         </div>
 
@@ -1737,19 +1647,18 @@ export default function CWTINQ() {
           </div>
 
           <div className="global-tran-table-main-div-ui">
-            <div className="max-h-[600px] overflow-y-auto relative">
-              <SearchGlobalReportTable
-                ref={tableRef}
-                columns={cols}
-                data={rows}
-                itemsPerPage={50}
-                rightActionLabel="View"
-                onRowAction={(row) => {
-                  const url = `${window.location.origin}${row.pathUrl}`;
-                  window.open(url, "_blank", "noopener,noreferrer");
-                }}
-              />
-            </div>
+            <SearchGlobalReportTable
+              ref={tableRef}
+              columns={cols}
+              data={rows}
+              itemsPerPage={50}
+              docType="CWT Detailed"
+              rightActionLabel="View"
+              onRowAction={(row) => {
+                const url = `${window.location.origin}${row.pathUrl}`;
+                window.open(url, "_blank", "noopener,noreferrer");
+              }}
+            />
           </div>
         </div>
       </div>
@@ -1762,7 +1671,10 @@ export default function CWTINQ() {
               updateState({
                 branchCode: selectedBranch.branchCode,
                 branchName: selectedBranch.branchName,
+                custCode: "",
+                custName: "",
               });
+              filterReset();
             }
             updateState({ showBranchModal: false });
           }}
@@ -1777,9 +1689,8 @@ export default function CWTINQ() {
               updateState({
                 custCode: selectedCustomer.custCode,
                 custName: selectedCustomer.custName,
-                baseAmount: "0.00",
-                atcAmount: "0.00",
               });
+              filterReset();
             }
             updateState({ showCustomerModal: false });
           }}
@@ -1792,11 +1703,26 @@ export default function CWTINQ() {
           onClose={(selectedCutoff) => {
             if (selectedCutoff) {
               if (cutoffModalType === "starting") {
+                filterReset();
                 updateState({
                   startingCutoff: selectedCutoff.cutoffCode,
                   startingCutoffName: selectedCutoff.cutoffName,
+                  endingCutoff: selectedCutoff.cutoffCode,
+                  endingCutoffName: selectedCutoff.cutoffName,
                 });
-              } else if (cutoffModalType === "ending") {
+              } else {
+                if (selectedCutoff.cutoffCode < startingCutoff) {
+                  useSwalErrorAlert("", "", "endingCutoff");
+                  filterReset();
+                  updateState({
+                    endingCutoff: startingCutoff,
+                    endingCutoffName: startingCutoffName,
+                  });
+                  updateState({ showCutoffModal: false, cutoffModalType: "" });
+                  return;
+                }
+
+                filterReset();
                 updateState({
                   endingCutoff: selectedCutoff.cutoffCode,
                   endingCutoffName: selectedCutoff.cutoffName,
@@ -1810,5 +1736,3 @@ export default function CWTINQ() {
     </div>
   );
 }
-
-

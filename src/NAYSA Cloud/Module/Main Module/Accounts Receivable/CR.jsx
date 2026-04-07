@@ -93,7 +93,8 @@ import {
   formatNumber,
   parseFormattedNumber,
   useSwalshowSaveSuccessDialog,
-  useSwalvalidateRequiredFields
+  useSwalvalidateRequiredFields,
+  useSwalErrorAlert
 } from '@/NAYSA Cloud/Global/behavior.jsx';
 
 
@@ -236,6 +237,7 @@ const CR = () => {
     showSlModal:false,
     showARBalanceModal:false,
     showPostingModal:false,
+    custModalParams:"ActiveAll",
 
     currencyModalOpen:false,
     branchModalOpen:false,
@@ -353,6 +355,7 @@ const CR = () => {
   currencyModalOpen,
   branchModalOpen,
   custModalOpen,
+  custModalParams,
   showCancelModal,
   showAttachModal,
   showSignatoryModal,
@@ -553,6 +556,9 @@ useEffect(() => {
       currCode:companyInfo?.currCode||"",
       currName:companyInfo?.currName||"",
       currRate:formatNumber(companyInfo?.currRate||1,6) ,
+      selectedCRType:"CR11",
+      selectedCheckType: "CR21",
+      selectedPayType:"CR01",
       noReprints:"0",
       
       refDocNo1: "",
@@ -765,17 +771,6 @@ const handleCurrRateNoBlur = (e) => {
 
 
 
- 
-const moveFocusBeforeSave = () => {
-  const remarksEl = document.getElementById("remarks");
-  if (remarksEl) {
-    remarksEl.focus();
-    return true;
-  }
-  return false;
-};
-
-
 
 
 
@@ -783,12 +778,6 @@ const moveFocusBeforeSave = () => {
 const handleActivityOption = async (action) => {
     if ((detailRows?.length || 0) + (detailRowsGL?.length || 0) === 0) {
     return;
-  }
-
-
-  if (action === "Upsert") {
-    moveFocusBeforeSave();
-    await new Promise((resolve) => setTimeout(resolve, 0));
   }
 
   if (documentStatus !== "") return;
@@ -895,27 +884,38 @@ const handleActivityOption = async (action) => {
         debitFx2: parseFormattedNumber(entry.debitFx2 || 0),
         creditFx2: parseFormattedNumber(entry.creditFx2 || 0),
         slRefNo: entry.slRefNo || "",
-        slRefDate: entry.slRefDate
-          ? new Date(entry.slRefDate).toISOString().split("T")[0]
-          : null,
+        slRefDate: entry.slRefDate || null,
         remarks: entry.remarks || "",
         dt1Lineno: entry.dt1Lineno || "",
       })),
     });
 
-    if (action === "GenerateGL") {
-      const newGlEntries = await useGenerateGLEntries(
-        docType,
-        buildGlData(finalDetailRowsGL)
-      );
+   
 
-      if (newGlEntries && newGlEntries.length > 0) {
-        updateState({ detailRowsGL: newGlEntries });
-      } else {
-        console.warn("GL entries generation failed or returned no data.");
-      }
-      return;
-    }
+
+      if (action === "GenerateGL") {
+            const newGlEntries = await useGenerateGLEntries(
+              docType,
+              buildGlData(finalDetailRowsGL)
+            );
+
+
+            const formattedGlEntries = newGlEntries.map((entry) => ({
+              ...entry,        
+              slRefDate: useformatToDatev2(entry.slRefDate),
+            }));
+
+    
+            if (newGlEntries) {
+              updateState({ detailRowsGL: formattedGlEntries });
+            } else {
+              console.warn("GL entries generation failed or returned no data.");
+            }
+            return;
+          }
+
+
+
 
     if (action === "Upsert") {
       if (finalDetailRowsGL.length === 0) {
@@ -929,9 +929,18 @@ const handleActivityOption = async (action) => {
           return;
         }
 
+         const formattedGlEntries = newGlEntries.map((entry) => ({
+              ...entry,        
+              slRefDate: useformatToDatev2(entry.slRefDate),
+            }));
+
+      
         finalDetailRowsGL = newGlEntries;
-        updateState({ detailRowsGL: newGlEntries });
+        updateState({ detailRowsGL: formattedGlEntries });
       }
+
+
+
 
       const response = await useTransactionUpsert(
         docType,
@@ -942,16 +951,21 @@ const handleActivityOption = async (action) => {
       );
 
       if (response) {
+        const responseDocNo =  response.data[0].crNo;
+        const responseDocId =  response.data[0].crId;
 
+        await fetchTranData(responseDocNo,branchCode);
 
         const isZero = Number(noReprints) === 0;
         const onSaveAndPrint = isZero
           ? () => updateState({ showSignatoryModal: true })
-          : () => handleSaveAndPrint(response.data[0].crId);
+          : () => handleSaveAndPrint(responseDocId);
 
         useSwalshowSaveSuccessDialog(handleReset, onSaveAndPrint);
 
         updateState({
+          documentNo: response?.data?.[0]?.crNo || "",
+          documentID: response?.data?.[0]?.crId || "",
           isDocNoDisabled: true,
           isFetchDisabled: true,
         });
@@ -1078,7 +1092,7 @@ const handleAddRowGL = (index = null) => {
 
     updateState({
         detailRows: updatedRows,
-        triggerGLEntries:true });
+        detailRowsGL:[] });
     updateTotals(updatedRows);
 
   };
@@ -1179,6 +1193,7 @@ const handleCopy = async () => {
                   status:"OPEN",
                   documentDate:useGetCurrentDayV2(), 
                   noReprints:"0",
+                  detailRowsGL:[]
      });
   }
 };
@@ -1318,62 +1333,98 @@ useEffect(() => {
 
 
 
+
 const handleDetailChange = async (index, field, value, runCalculations = true) => {
-    const updatedRows = [...detailRows];
+  const updatedRows = [...detailRows];
+  const originalRow = { ...updatedRows[index] };
 
-    updatedRows[index] = {
-      ...updatedRows[index],
-      [field]: value,
+  const numericFields = [
+    "appliedAmount",
+    "unappliedAmount",
+    "siAmount",
+    "checkAmount",
+    "balance",
+  ];
+
+  const lookupFields = ["arAcct"];
+
+  const normalizeValue = (fld, val) => {
+    if (lookupFields.includes(fld)) {
+      return val?.acctCode ?? val ?? "";
     }
-   
-     const row = updatedRows[index];
 
-     
-    if (['arAcct'].includes(field)) {
-      row[field] = value.acctCode;
+    if (numericFields.includes(fld)) {
+      return parseFormattedNumber(val) || 0;
     }
 
-if (runCalculations) {
-  const origSIAmt = parseFormattedNumber(row.siAmount) || 0;
-  const origUnApplied = parseFormattedNumber(row.unappliedAmount) || 0;
-  const origApplied = parseFormattedNumber(row.appliedAmount) || 0;
-  const newCheckAmt = origApplied + origUnApplied;
+    return val ?? "";
+  };
 
+  const originalFieldValue = normalizeValue(field, originalRow?.[field]);
+  const incomingFieldValue = normalizeValue(field, value);
 
-  if (field === "appliedAmount") {
-    if (selectedCRType === "CR11") {
-      const newBalance = origSIAmt - origApplied;
+  const glTriggerFields = ["appliedAmount", "unappliedAmount", "arAcct"];
+  const shouldClearGL =
+    glTriggerFields.includes(field) && originalFieldValue !== incomingFieldValue;
+
+  updatedRows[index] = {
+    ...updatedRows[index],
+    [field]: value,
+  };
+
+  const row = updatedRows[index];
+
+  if (field === "arAcct") {
+    row[field] = value?.acctCode ?? "";
+  }
+
+  if (runCalculations) {
+    const origSIAmt = parseFormattedNumber(row.siAmount) || 0;
+    const origUnApplied = parseFormattedNumber(row.unappliedAmount) || 0;
+    const origApplied = parseFormattedNumber(row.appliedAmount) || 0;
+    const newCheckAmt = origApplied + origUnApplied;
+
+    if (field === "appliedAmount") {
+      if (selectedCRType === "CR11") {
+        const newBalance = origSIAmt - origApplied;
+        row.checkAmount = formatNumber(newCheckAmt);
+        row.balance = formatNumber(origApplied > origSIAmt ? 0 : newBalance);
+
+        const applied =
+          origSIAmt < 0
+            ? Math.abs(origApplied) <= Math.abs(origSIAmt)
+              ? origApplied
+              : origSIAmt
+            : Math.min(origApplied, origSIAmt);
+
+        row.appliedAmount = formatNumber(applied);
+      }
+
+      if (selectedCRType === "CR13" || selectedCRType === "CR12") {
+        row.checkAmount = formatNumber(newCheckAmt);
+        row.balance = formatNumber(0);
+        row.siAmount = formatNumber(newCheckAmt);
+        row.appliedAmount = formatNumber(origApplied);
+      }
+    }
+
+    if (field === "unappliedAmount") {
       row.checkAmount = formatNumber(newCheckAmt);
-      row.balance = formatNumber(origApplied > origSIAmt ? 0 : newBalance);
-
-
-     const applied =
-      origSIAmt < 0
-        ? (Math.abs(origApplied) <= Math.abs(origSIAmt) ? origApplied : origSIAmt)
-        : Math.min(origApplied, origSIAmt);
-        row.appliedAmount = formatNumber(applied);    
-        }
-
-
-    if (selectedCRType === "CR13" || selectedCRType === "CR12" ) {
-      row.checkAmount = formatNumber(newCheckAmt);
-      row.balance = formatNumber(0);
-      row.siAmount = formatNumber(newCheckAmt);
-      row.appliedAmount = formatNumber(origApplied);
+      row.balance = formatNumber(
+        selectedCRType === "CR11" ? origSIAmt - origApplied : 0
+      );
+      row.unappliedAmount = formatNumber(origUnApplied);
     }
   }
 
-  if (field === "unappliedAmount") {
-    row.checkAmount = formatNumber(newCheckAmt);
-    row.balance = formatNumber(selectedCRType === "CR11" ? origSIAmt - origApplied : 0);
-    row.unappliedAmount = formatNumber(origUnApplied);
-  }
-}
+  updatedRows[index] = row;
 
+  updateState({
+    detailRows: updatedRows,
+    ...(shouldClearGL ? { detailRowsGL: [] } : {}),
+  });
 
-    updatedRows[index] = row;
-    updateState({ detailRows: updatedRows });
-    updateTotals(updatedRows);
+  updateTotals(updatedRows);
 };
 
 
@@ -1674,7 +1725,7 @@ const handleTranDocNoSelection = async (data) => {
 const handleCloseCancel = async (confirmation) => {
     if(confirmation && documentStatus !== "OPEN" && documentID !== null ) {
 
-      const result = await useHandleCancel(docType,documentID,userCode,confirmation.password,confirmation.reason,updateState);
+      const result = await useHandleCancel(docType,documentID,currentUserRow.userCode,confirmation.password,confirmation.reason,updateState);
       if (result.success) 
       {
        Swal.fire({
@@ -1741,12 +1792,8 @@ const handleOpenARBalance = async () => {
     const colConfig = await useSelectedHSColConfig(endpoint);
 
    if (custData.length === 0) {
-      await Swal.fire({
-        icon: "info",
-        title: "Open AR Balance",
-        text: "There are no AR balance records for the selected customer/branch.",
-      });
-       updateState({ isLoading: false });
+      useSwalErrorAlert("Open AR Balance", "There are no AR balance records for the selected customer/branch.")
+      updateState({ isLoading: false });
       return; 
     }
 
@@ -2130,7 +2177,8 @@ const handleCloseBranchModal = (selectedBranch) => {
                       disabled={handleFieldBehavior("disableOnSaved")}
                       readOnly
                       lookupDisabled={isFetchDisabled}
-                      onLookup={() => updateState({ custModalOpen: true })}
+                      onLookup={() => updateState({ custModalOpen: true,                                
+                                                    custModalParams : selectedCRType==="CR11"?"OpenAR":"ActiveAll" })}
                     />
 
                     <FieldRenderer
@@ -3458,6 +3506,7 @@ const handleCloseBranchModal = (selectedBranch) => {
       <CustomerMastLookupModal
         isOpen={custModalOpen}
         onClose={handleCloseCustModal}
+        customParam={custModalParams}
       />
     )}
 
