@@ -762,17 +762,6 @@ const handleCurrRateNoBlur = (e) => {
 
 
 
-const moveFocusBeforeSave = () => {
-  const remarksEl = document.getElementById("remarks");
-  if (remarksEl) {
-    remarksEl.focus();
-    return true;
-  }
-  return false;
-};
-
-
-
 
 
 
@@ -780,13 +769,6 @@ const moveFocusBeforeSave = () => {
 const handleActivityOption = async (action) => {
   if ((detailRows?.length || 0) + (detailRowsGL?.length || 0) === 0) {
     return;
-  }
-
-
-
- if (action === "Upsert") {
-    moveFocusBeforeSave();
-    await new Promise((resolve) => setTimeout(resolve, 0));
   }
 
 
@@ -1368,9 +1350,9 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
   const originalFieldValue = normalizeValue(field, originalRow?.[field]);
   const incomingFieldValue = normalizeValue(field, value);
 
-  const amountFields = ["appliedAmount", "unappliedAmount"];
+  const glTriggerFields = ["appliedAmount", "unappliedAmount", "arAcct"];
   const shouldClearGL =
-    amountFields.includes(field) && originalFieldValue !== incomingFieldValue;
+    glTriggerFields.includes(field) && originalFieldValue !== incomingFieldValue;
 
   updatedRows[index] = {
     ...updatedRows[index],
@@ -1379,7 +1361,7 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
 
   const row = updatedRows[index];
 
-  if (["arAcct"].includes(field)) {
+  if (field === "arAcct") {
     row[field] = value?.acctCode ?? "";
   }
 
@@ -1431,66 +1413,6 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
 
   updateTotals(updatedRows);
 };
-
-
-// const handleDetailChange = async (index, field, value, runCalculations = true) => {
-//     const updatedRows = [...detailRows];
-
-//     updatedRows[index] = {
-//       ...updatedRows[index],
-//       [field]: value,
-//     }
-   
-//      const row = updatedRows[index];
-
-     
-//     if (['arAcct'].includes(field)) {
-//       row[field] = value.acctCode;
-//     }
-
-// if (runCalculations) {
-//   const origSIAmt = parseFormattedNumber(row.siAmount) || 0;
-//   const origUnApplied = parseFormattedNumber(row.unappliedAmount) || 0;
-//   const origApplied = parseFormattedNumber(row.appliedAmount) || 0;
-//   const newCheckAmt = origApplied + origUnApplied;
-
-
-//   if (field === "appliedAmount") {
-//     if (selectedARType === "AR11") {
-//       const newBalance = origSIAmt - origApplied;
-//       row.checkAmount = formatNumber(newCheckAmt);
-//       row.balance = formatNumber(origApplied > origSIAmt ? 0 : newBalance);
-
-
-//      const applied =
-//       origSIAmt < 0
-//         ? (Math.abs(origApplied) <= Math.abs(origSIAmt) ? origApplied : origSIAmt)
-//         : Math.min(origApplied, origSIAmt);
-//         row.appliedAmount = formatNumber(applied);    
-//         }
-
-
-//     if (selectedARType === "AR13" || selectedARType === "AR12" ) {
-//       row.checkAmount = formatNumber(newCheckAmt);
-//       row.balance = formatNumber(0);
-//       row.siAmount = formatNumber(newCheckAmt);
-//       row.appliedAmount = formatNumber(origApplied);
-//     }
-//   }
-
-//   if (field === "unappliedAmount") {
-//     row.checkAmount = formatNumber(newCheckAmt);
-//     row.balance = formatNumber(selectedARType === "AR11" ? origSIAmt - origApplied : 0);
-//     row.unappliedAmount = formatNumber(origUnApplied);
-//   }
-// }
-
-
-//     updatedRows[index] = row;
-//     updateState({ detailRows: updatedRows });
-//     updateTotals(updatedRows);
-// };
-
 
 
 
