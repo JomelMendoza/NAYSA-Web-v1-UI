@@ -602,7 +602,7 @@ const JV = () => {
     }
   };
 
-  const fetchTranDataReversal = async (documentNo, branchCode) => {
+  const fetchTranDataReversal = async (documentNo, branchCode, docType) => {
     const resetState = () => {
       updateState({
         documentNo: "",
@@ -1719,7 +1719,7 @@ const handleTranDocNoSelection = async (data) => {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
-                      fetchTranDataReversal(state.refDocNo, state.branchCode);
+                      fetchTranDataReversal(state.refDocNo, state.branchCode, state.selectedRefDocType);
                     }
                   }}
                 />
