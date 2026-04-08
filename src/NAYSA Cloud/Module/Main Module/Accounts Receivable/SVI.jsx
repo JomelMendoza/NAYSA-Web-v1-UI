@@ -75,7 +75,8 @@ import {
   formatNumber,
   parseFormattedNumber,
   useSwalshowSaveSuccessDialog,
-  useSwalHandleOpenSpecsModal
+  useSwalHandleOpenSpecsModal,
+  useSwalSuccessAlert
 } from '@/NAYSA Cloud/Global/behavior.jsx';
 
 
@@ -1259,7 +1260,6 @@ useEffect(() => {
 
 
 
-
 const handleDetailChange = async (index, field, value, runCalculations = true) => {
   const updatedRows = [...detailRows];
 
@@ -1281,6 +1281,12 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
   if (field === "atcCode") {
     row.atcCode = value.atcCode;
     row.atcName = value.atcName;
+  }
+
+  if (field === "atcName") {
+    row.atcCode = "";
+    row.atcName = "";
+    row.atcAmount = "0.00";
   }
 
   if (field === "billCode") {
@@ -1367,7 +1373,7 @@ const handleDetailChange = async (index, field, value, runCalculations = true) =
       await recalcRow(newGrossAmt, newDiscAmt);
     }
 
-    if (field === "vatCode" || field === "atcCode") {
+    if (field === "vatCode" || field === "atcCode" || field === "atcName") {
       async function updateVatAndAtc() {
         const newNetDiscount = +(
           parseFormattedNumber(row.grossAmount) - parseFormattedNumber(row.discAmount)
@@ -1588,14 +1594,7 @@ const handleCloseCancel = async (confirmation) => {
       const result = await useHandleCancel(docType,documentID,currentUserRow.userCode,confirmation.password,confirmation.reason,updateState);
       if (result.success) 
       {
-       Swal.fire({
-          icon: "success",
-          title: "Success",
-          text: "Cancellation Completed",
-          timer: 5000, 
-          timerProgressBar: true,
-          showConfirmButton: false,
-        });    
+       useSwalSuccessAlert("Success","Cancellation Completed")  
       }    
      await fetchTranData(documentNo,branchCode);
     }
@@ -2640,6 +2639,7 @@ return (
                     type="text"
                     className="w-[200px] global-tran-td-inputclass-ui"
                     value={row.atcName || ""}
+                    onDoubleClick={!isFormDisabled ? () => handleDetailChange(index, "atcName", 0, true) : undefined}
                     readOnly
                   />
                 </td>

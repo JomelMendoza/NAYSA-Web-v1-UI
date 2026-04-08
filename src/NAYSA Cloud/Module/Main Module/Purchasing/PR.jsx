@@ -70,7 +70,8 @@ import {
   useSwalvalidateRequiredFields,
   useSwalInfoAlert,
   useSwalConfirmAlert,
-  useSwalHandleOpenSpecsModal
+  useSwalHandleOpenSpecsModal,
+  useSwalSuccessAlert
 } from "@/NAYSA Cloud/Global/behavior.jsx";
 
 import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
@@ -1314,16 +1315,9 @@ const handleHeaderStatusChange = (value) => {
   
         const result = await useHandleCancel(docType,documentID,userCode,confirmation.password,confirmation.reason,updateState);
         if (result.success) 
-        {
-         Swal.fire({
-            icon: "success",
-            title: "Success",
-            text: "Cancellation Completed",
-            timer: 5000, 
-            timerProgressBar: true,
-            showConfirmButton: false,
-          });    
-        }    
+      {
+       useSwalSuccessAlert("Success","Cancellation Completed")  
+      }  
        await fetchTranData(documentNo,branchCode);
       }
       updateState({showCancelModal: false});

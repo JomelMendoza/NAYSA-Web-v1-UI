@@ -1540,12 +1540,8 @@ const handleCloseCancel = async (confirmation) => {
       const result = await useHandleCancel(docType,documentID,currentUserRow.userCode,confirmation.reason,updateState);
       if (result.success) 
       {
-        Swal.fire({
-          icon: "success",
-          title: "Success",
-          text: result.message,
-        });       
-      } 
+       useSwalSuccessAlert("Success","Cancellation Completed")  
+      }  
      await fetchTranData(documentNo,branchCode);
     }
     updateState({showCancelModal: false});

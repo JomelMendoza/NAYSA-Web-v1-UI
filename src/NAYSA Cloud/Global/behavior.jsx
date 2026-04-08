@@ -118,6 +118,7 @@ export const useSwalReturnSummary = ({ icon = "info", title = "", message = "" }
   });
 };
 
+
 export const useSwalshowSaveSuccessDialog = (
   onConfirm,
   onPrint,
@@ -173,9 +174,21 @@ export const useSwalshowSaveSuccessDialog = (
 
     didOpen: () => {
       const popup = Swal.getPopup();
+
       if (popup) {
         popup.style.borderRadius = "18px";
         popup.style.boxShadow = "0 14px 32px rgba(15, 23, 42, 0.18)";
+
+        popup.addEventListener("mouseenter", Swal.stopTimer);
+        popup.addEventListener("mouseleave", Swal.resumeTimer);
+      }
+    },
+
+    willClose: () => {
+      const popup = Swal.getPopup();
+      if (popup) {
+        popup.removeEventListener("mouseenter", Swal.stopTimer);
+        popup.removeEventListener("mouseleave", Swal.resumeTimer);
       }
     },
   }).then((result) => {
@@ -192,6 +205,81 @@ export const useSwalshowSaveSuccessDialog = (
     }
   });
 };
+
+// export const useSwalshowSaveSuccessDialog = (
+//   onConfirm,
+//   onPrint,
+//   onComplete
+// ) => {
+//   Swal.fire({
+//     title: "",
+//     text: "",
+//     icon: undefined,
+//     html: `
+//       <div class="swal-save-dialog-wrap">
+//         <div class="swal-save-dialog-icon">
+//           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+//             <path d="M20 6L9 17l-5-5"></path>
+//           </svg>
+//         </div>
+
+//         <div class="swal-save-dialog-title">Record Saved</div>
+//         <div class="swal-save-dialog-message">What would you like to do next?</div>
+//       </div>
+//     `,
+//     showCancelButton: true,
+//     showDenyButton: true,
+//     confirmButtonText: "Create New",
+//     denyButtonText: "Print Preview",
+//     cancelButtonText: "Completed",
+//     reverseButtons: false,
+//     buttonsStyling: false,
+
+//     width: 430,
+//     padding: "0",
+//     background: "#ffffff",
+
+//     timer: 5000,
+//     timerProgressBar: true,
+
+//     customClass: {
+//       popup: "swal-save-dialog-popup",
+//       htmlContainer: "swal-save-dialog-html",
+//       actions: "swal-save-dialog-actions",
+//       confirmButton: "swal-save-dialog-confirm",
+//       denyButton: "swal-save-dialog-deny",
+//       cancelButton: "swal-save-dialog-cancel",
+//       timerProgressBar: "swal-save-dialog-progress",
+//     },
+
+//     showClass: {
+//       popup: "swal2-show toast-smooth-in",
+//     },
+//     hideClass: {
+//       popup: "swal2-hide toast-smooth-out",
+//     },
+
+//     didOpen: () => {
+//       const popup = Swal.getPopup();
+//       if (popup) {
+//         popup.style.borderRadius = "18px";
+//         popup.style.boxShadow = "0 14px 32px rgba(15, 23, 42, 0.18)";
+//       }
+//     },
+//   }).then((result) => {
+//     if (result.isConfirmed && typeof onConfirm === "function") {
+//       onConfirm();
+//     } else if (result.isDenied && typeof onPrint === "function") {
+//       onPrint();
+//     } else if (
+//       (result.dismiss === Swal.DismissReason.cancel ||
+//         result.dismiss === Swal.DismissReason.timer) &&
+//       typeof onComplete === "function"
+//     ) {
+//       onComplete();
+//     }
+//   });
+// };
 
 export const useSwalshowSave = (onConfirm, onPrint) => {
   Swal.fire({

@@ -79,6 +79,7 @@ import {
   parseFormattedNumber,
   useSwalshowSaveSuccessDialog,
   useSwalErrorAlert,
+  useSwalSuccessAlert,
 } from '@/NAYSA Cloud/Global/behavior.jsx';
 
 
@@ -1831,17 +1832,10 @@ const handleCloseCancel = async (confirmation) => {
     if(confirmation && documentStatus !== "OPEN" && documentID !== null ) {
 
       const result = await useHandleCancel(docType,documentID,currentUserRow.userCode,confirmation.password,confirmation.reason,updateState);
-      if (result.success) 
+       if (result.success) 
       {
-       Swal.fire({
-          icon: "success",
-          title: "Success",
-          text: "Cancellation Completed",
-          timer: 5000, 
-          timerProgressBar: true,
-          showConfirmButton: false,
-        });    
-      }    
+       useSwalSuccessAlert("Success","Cancellation Completed")  
+      }  
      await fetchTranData(documentNo,branchCode);
     }
     updateState({showCancelModal: false});

@@ -12,13 +12,18 @@ import { apiClient } from "@/NAYSA Cloud/Configuration/BaseURL.jsx";
 export const useGenerateGLEntries = async (docCode, glData) => {
     const payload = { json_data: glData };
 
+    console.log(JSON.stringify(payload))
+
     try {
         const response = await postRequest("generateGL" + docCode, JSON.stringify(payload));
 
+     
         if (response?.status === 'success' && Array.isArray(response.data) && response.data.length > 0) {
             const resultData = response.data[0];
             const returnedErrorCount = resultData['errorCount'];
             const returnedErrorMsg = resultData['errorMsg'];
+
+          
 
             if (returnedErrorMsg && returnedErrorCount > 0) {
                 if (returnedErrorMsg.includes("Unbalanced")) {
