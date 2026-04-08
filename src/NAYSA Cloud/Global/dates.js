@@ -14,6 +14,32 @@ export const useGetCurrentDayV2 = () => {
 
 
 
+export const useGetFirstDayOfMonth = () => {
+  const today = new Date();
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+  const month = String(firstDay.getMonth() + 1).padStart(2, "0");
+  const day = String(firstDay.getDate()).padStart(2, "0");
+  const year = firstDay.getFullYear();
+  return `${month}/${day}/${year}`;
+};
+
+
+
+export const useGetLastDayOfMonth = () => {
+ const today = new Date();
+  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  const month = String(lastDay.getMonth() + 1).padStart(2, "0");
+  const day = String(lastDay.getDate()).padStart(2, "0");
+  const year = lastDay.getFullYear();
+  return `${month}/${day}/${year}`;
+};
+
+
+
+
+
+
+
 export function useFormatToDate(value) {
   if (!value) return "";
   if (typeof value === "string") {

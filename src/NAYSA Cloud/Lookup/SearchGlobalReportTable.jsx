@@ -266,15 +266,18 @@ const SearchGlobalReportTable = forwardRef(
         ([, v]) => String(v || "").trim() !== "",
       );
 
-      if (activeF.length) {
+     if (activeF.length) {
         rows = rows.filter((r) =>
-          activeF.every(([k, v]) =>
-            String(r?.[k] ?? "")
+          activeF.every(([k, v]) => {
+            const col = columns.find((c) => c.key === k);
+            const cellValue = formatValue(r?.[k], col);
+
+            return String(cellValue ?? "")
               .toLowerCase()
-              .includes(String(v).toLowerCase()),
-          ),
+              .includes(String(v ?? "").toLowerCase());
+          }),
         );
-      }
+}
 
       const q = String(globalSearch || "").trim().toLowerCase();
 
@@ -1513,7 +1516,7 @@ const SearchGlobalReportTable = forwardRef(
                     ))}
                   </tr>
 
-                  {showFilters &&  filteredData.length > 0 && (
+                  {showFilters && Array.isArray(data) && data.length > 0 && (
                     <tr className="bg-gray-100">
                       {hasActionCol && (
                         <th
