@@ -71,7 +71,7 @@ const SearchGlobalReportTable = forwardRef(
       className = "",
       initialState,
       onStateChange,
-      totalExemptions = ["rate", "percent", "ratio", "id", "code"],
+      totalExemptions = ["rate", "percent", "ratio", "id", "code","ROW_NO"],
       isLoading = false,
       isFetching = false,
       onRefresh,
@@ -262,7 +262,7 @@ const SearchGlobalReportTable = forwardRef(
 
     const filteredData = useMemo(() => {
       let rows = Array.isArray(data) ? data : [];
-      const activeF = Object.entries(filters).filter(
+      const activeF = Object.entries(filters).filter( 
         ([, v]) => String(v || "").trim() !== "",
       );
 

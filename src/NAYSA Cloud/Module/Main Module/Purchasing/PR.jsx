@@ -2239,6 +2239,8 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
     {showUploadModal && (
         <ExcelBatchUploadModal 
           isOpen={showUploadModal}
+          uploadedDocType={docType}
+          companyCode={companyInfo?.compCode||""}
           // params={{
           //   DocumentID: documentID,
           //   DocumentName: documentName,

@@ -43,6 +43,11 @@ import {
   useFormatToDate,
 } from "@/NAYSA Cloud/Global/dates";
 
+import {
+  useSwalSuccessAlert,
+  useSwalErrorAlert,
+} from "@/NAYSA Cloud/Global/behavior.jsx";
+
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 import DateFormatInput from "@/NAYSA Cloud/Global/DateFormatInput.jsx";
 
@@ -676,73 +681,42 @@ export default function CheckRL() {
 
     if (activeTab === "release") {
       if (normalizedCurrentStatus === "H" && !String(remarks || "").trim()) {
-        await Swal.fire({
-          icon: "warning",
-          title: "Remarks required",
-          text: "Remarks is required when status is set to HOLD.",
-        });
+        useSwalErrorAlert("Remarks required","Remarks is required when status is set to HOLD.",)      
         return;
       }
 
       if (isReleased) {
-        const missingFields = [];
-        if (!String(releasedBy || "").trim()) missingFields.push("Released By");
-        if (!String(receivedBy || "").trim()) missingFields.push("Received By");
-        if (!String(receivedDate || "").trim()) missingFields.push("Received Date");
-        if (!String(invoiceNo || "").trim()) missingFields.push("Invoice No");
+      const missingFields = [];
+      if (!String(releasedBy || "").trim()) missingFields.push("Released By");
+      if (!String(receivedBy || "").trim()) missingFields.push("Received By");
+      if (!String(receivedDate || "").trim()) missingFields.push("Received Date");
+      if (!String(invoiceNo || "").trim()) missingFields.push("Invoice No");
 
-        if (missingFields.length > 0) {
-          await Swal.fire({
-            icon: "warning",
-            title: "Missing required fields",
-            text:
-              "The following field(s) are required when status is Released: " +
-              missingFields.join(", "),
-          });
-          return;
-        }
+      if (missingFields.length > 0) {
+        const numberedFields = missingFields
+          .map((field, index) => `${index + 1}. ${field}`)
+          .join("\n");
+
+        useSwalErrorAlert(
+          "Missing required fields",
+          `The following field(s) are required when status is Released:\n\n${numberedFields}`
+        );
+        return;
+      }
+
 
         const docDateStr = getRowDocDate(row);
         const docD = safeDateFromString(docDateStr);
         const recvD = safeDateFromString(receivedDate);
 
         if (docD && recvD && recvD < docD) {
-          await Swal.fire({
-            icon: "warning",
-            title: "Invalid Received Date",
-            text: "Received Date must be equal to or later than the Document Date.",
-          });
+          useSwalErrorAlert("Invalid Received Date","Received Date must be equal to or later than the Document Date.")         
           return;
         }
       }
-    } else if (activeTab === "return") {
-      if (
-        !String(returnedBy || "").trim() ||
-        !String(returnedDate || "").trim() ||
-        !String(returnedReason || "").trim()
-      ) {
-        await Swal.fire({
-          icon: "warning",
-          title: "Returned info required",
-          text:
-            "Returned By, Returned Date, and Reason are all required on the Returned Info tab.",
-        });
-        return;
-      }
+    } 
 
-      const recvStr = receivedDate || getRowReceivedDate(row);
-      const recvD = safeDateFromString(recvStr);
-      const retD = safeDateFromString(returnedDate);
-
-      if (recvD && retD && retD < recvD) {
-        await Swal.fire({
-          icon: "warning",
-          title: "Invalid Returned Date",
-          text: "Returned Date must be equal to or later than the Received Date.",
-        });
-        return;
-      }
-    }
+    
 
     try {
       updateState({ isLoading: true });
@@ -770,23 +744,14 @@ export default function CheckRL() {
       const { data: res } = await apiClient.post("updateAPCKRL", payload);
 
       if (res?.status !== "success") {
-        await Swal.fire(
-          "Check Releasing failed",
-          res?.message ?? "Check Releasing failed.",
-          "error"
-        );
+        useSwalErrorAlert("Check Releasing failed", res?.message ?? "Check Releasing failed.")  
+        
         return;
       }
 
       await doFind();
-
-      await Swal.fire({
-        icon: "success",
-        title: "Update completed",
-        text: "Document status has been updated successfully.",
-        timer: 1800,
-        showConfirmButton: false,
-      });
+      useSwalSuccessAlert("Update completed","Document status has been updated successfully.")  
+      
 
       handleActionModalCancel();
     } catch (error) {

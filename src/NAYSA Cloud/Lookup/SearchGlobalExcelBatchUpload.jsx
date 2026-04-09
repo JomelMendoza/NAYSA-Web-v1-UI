@@ -1,58 +1,1596 @@
+
+
+// import React, { useEffect, useMemo, useRef, useState } from "react";
+// import * as XLSX from "xlsx";
+// import axios from "axios";
+// import { AnimatePresence, motion } from "framer-motion";
+// import {
+//   X,
+//   Upload,
+//   FolderOpen,
+//   Trash2,
+//   RefreshCcw,
+//   Send,
+//   FileSpreadsheet,
+//   Files,
+//   Table2,
+// } from "lucide-react";
+// import { postRequest } from "@/NAYSA Cloud/Configuration/BaseURL";
+// import {
+//   useSwalSuccessAlert,
+//   useSwalErrorAlert,
+// } from "@/NAYSA Cloud/Global/behavior.jsx";
+// import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
+
+// import SearchGlobalReportTable from "../Lookup/SearchGlobalReportTable.jsx";
+
+// export default function ExcelFileUploadDesktopModal({
+//   isOpen,
+//   onClose,
+//   uploadedDocType,
+//   companyCode,
+//   validateApiUrl = "excelFileUpload",
+//   uploadApiUrl = "excelFileUpload",
+//   title = "Excel / CSV File Uploading",
+// }) {
+//   const fileInputRef = useRef(null);
+//   const folderInputRef = useRef(null);
+//   const tableRef = useRef(null);
+
+//   const [selectedFiles, setSelectedFiles] = useState([]);
+//   const [rejectedFiles, setRejectedFiles] = useState([]);
+//   const [headerCheck, setHeaderCheck] = useState({
+//     passed: false,
+//     referenceFileName: "",
+//     referenceHeaders: [],
+//     mismatches: [],
+//     reason: "",
+//   });
+
+//   const [excelHeaderLabels, setExcelHeaderLabels] = useState({});
+//   const [rawRows, setRawRows] = useState([]);
+//   const [validatedRows, setValidatedRows] = useState([]);
+//   const [validationOrderedKeys, setValidationOrderedKeys] = useState([]);
+//   const [selectedRow, setSelectedRow] = useState(null);
+
+//   const [isPreparing, setIsPreparing] = useState(false);
+//   const [isValidating, setIsValidating] = useState(false);
+//   const [isUploading, setIsUploading] = useState(false);
+//   const [hasValidated, setHasValidated] = useState(false);
+//   const [uploadCompleted, setUploadCompleted] = useState(false);
+
+//   const [selectedFileName, setSelectedFileName] = useState("");
+//   const [directoryLabel, setDirectoryLabel] = useState("");
+//   const [mobileActiveTab, setMobileActiveTab] = useState("files");
+
+//   const HEADER_SCAN_LIMIT = 10;
+//   const WIDTH_SAMPLE_LIMIT = 200;
+//   const PREVIEW_ROW_LIMIT = 1000;
+
+//   useEffect(() => {
+//     if (!isOpen) {
+//       resetAll();
+//     }
+//   }, [isOpen]);
+
+//   useEffect(() => {
+//     if (folderInputRef.current) {
+//       folderInputRef.current.setAttribute("webkitdirectory", "");
+//       folderInputRef.current.setAttribute("directory", "");
+//       folderInputRef.current.setAttribute("multiple", "");
+//       folderInputRef.current.setAttribute("accept", ".xlsx,.csv");
+//     }
+//   }, [isOpen]);
+
+//   const normalizeHeader = (value) =>
+//     String(value ?? "")
+//       .trim()
+//       .replace(/\s+/g, " ")
+//       .toLowerCase()
+//       .replace(/[^\w\s]/g, "")
+//       .replace(/\s+/g, "_");
+
+//   const normalizeHeaderKey = (value) =>
+//     String(value ?? "")
+//       .trim()
+//       .replace(/\s+/g, " ")
+//       .toLowerCase()
+//       .replace(/[^\w\s]/g, "")
+//       .replace(/\s+/g, "_");
+
+//   const normalizeHeaderForComparison = (headers = []) => {
+//     return headers.map((header) => normalizeHeader(header));
+//   };
+
+//   const getFileExtension = (file) => {
+//     const name = String(file?.name || "").toLowerCase().trim();
+//     if (name.endsWith(".xlsx")) return "xlsx";
+//     if (name.endsWith(".csv")) return "csv";
+//     return "";
+//   };
+
+//   const getBatchFileType = (files = []) => {
+//     const distinctTypes = Array.from(
+//       new Set(files.map((file) => getFileExtension(file)).filter(Boolean))
+//     );
+
+//     if (distinctTypes.length === 1) return distinctTypes[0];
+//     if (distinctTypes.length > 1) return "mixed";
+//     return "";
+//   };
+
+//   const filterValidImportFiles = (files) => {
+//     const valid = [];
+//     const rejected = [];
+
+//     for (const file of files) {
+//       const ext = getFileExtension(file);
+
+//       if (ext === "xlsx" || ext === "csv") {
+//         valid.push(file);
+//       } else {
+//         rejected.push({
+//           fileName: file.name,
+//           reason: "Only .xlsx and .csv files are allowed.",
+//         });
+//       }
+//     }
+
+//     return { valid, rejected };
+//   };
+
+//   const dedupeByFileName = (files) => {
+//     const seen = new Set();
+//     const valid = [];
+//     const rejected = [];
+
+//     for (const file of files) {
+//       const lowerName = String(file?.name || "").toLowerCase();
+//       if (seen.has(lowerName)) {
+//         rejected.push({
+//           fileName: file.name,
+//           reason: "Duplicate file name is not allowed.",
+//         });
+//       } else {
+//         seen.add(lowerName);
+//         valid.push(file);
+//       }
+//     }
+
+//     return { valid, rejected };
+//   };
+
+//   const readWorkbook = async (file) => {
+//     const extension = getFileExtension(file);
+
+//     if (extension === "csv") {
+//       const text = await file.text();
+//       return XLSX.read(text, {
+//         type: "string",
+//         raw: false,
+//       });
+//     }
+
+//     const buffer = await file.arrayBuffer();
+//     return XLSX.read(buffer, { type: "array" });
+//   };
+
+//   const getFirstSheetName = (workbook) => workbook?.SheetNames?.[0] || "";
+
+//   const headersAreExactMatch = (referenceHeaders, currentHeaders) => {
+//     if (referenceHeaders.length !== currentHeaders.length) return false;
+
+//     const referenceNormalized = normalizeHeaderForComparison(referenceHeaders);
+//     const currentNormalized = normalizeHeaderForComparison(currentHeaders);
+
+//     for (let i = 0; i < referenceNormalized.length; i += 1) {
+//       if (referenceNormalized[i] !== currentNormalized[i]) return false;
+//     }
+
+//     return true;
+//   };
+
+//   const buildMismatchReason = (expected, actual) => {
+//     if (expected.length !== actual.length) {
+//       return `Column count mismatch. Expected ${expected.length} but found ${actual.length}.`;
+//     }
+
+//     const expectedNormalized = normalizeHeaderForComparison(expected);
+//     const actualNormalized = normalizeHeaderForComparison(actual);
+
+//     for (let i = 0; i < expectedNormalized.length; i += 1) {
+//       if (expectedNormalized[i] !== actualNormalized[i]) {
+//         return `Column ${i + 1} mismatch. Expected "${expected[i]}" but found "${actual[i]}".`;
+//       }
+//     }
+
+//     return "Header mismatch detected.";
+//   };
+
+//   const AMOUNT_COLUMN_KEYWORDS = ["amount", "balance", "debit", "credit"];
+//   const PRICE_COLUMN_KEYWORDS = ["price", "cost", "rate"];
+//   const QUANTITY_COLUMN_KEYWORDS = ["qty", "quantity"];
+
+//   const columnContainsKeyword = (key, keywords = []) => {
+//     const normalizedKey = String(key || "").trim().toLowerCase();
+//     return keywords.some((keyword) => normalizedKey.includes(keyword));
+//   };
+
+//   const isAmountColumn = (key) =>
+//     columnContainsKeyword(key, AMOUNT_COLUMN_KEYWORDS);
+
+//   const isPriceColumn = (key) =>
+//     columnContainsKeyword(key, PRICE_COLUMN_KEYWORDS);
+
+//   const isQuantityColumn = (key) =>
+//     columnContainsKeyword(key, QUANTITY_COLUMN_KEYWORDS);
+
+//   const isNumericColumnKey = (key) =>
+//     isAmountColumn(key) || isPriceColumn(key) || isQuantityColumn(key);
+
+//   const normalizeNumericCellValue = (key, value) => {
+//     if (!isNumericColumnKey(key)) return value;
+//     if (value === null || value === undefined || value === "") return "";
+
+//     const cleaned = String(value).replace(/,/g, "").trim();
+//     if (cleaned === "") return "";
+
+//     const parsed = Number(cleaned);
+//     return Number.isNaN(parsed) ? value : parsed;
+//   };
+
+//   const getWorksheetMatrix = (worksheet) => {
+//     return XLSX.utils.sheet_to_json(worksheet, {
+//       header: 1,
+//       defval: "",
+//       raw: false,
+//       blankrows: false,
+//     });
+//   };
+
+//   const cleanRowValues = (row = []) => {
+//     return row.map((cell) => String(cell ?? "").trim());
+//   };
+
+//   const isMeaningfulCellValue = (value) => {
+//     if (value === null || value === undefined) return false;
+//     return String(value).trim() !== "";
+//   };
+
+//   const isLikelyDataValue = (value) => {
+//     if (!isMeaningfulCellValue(value)) return false;
+
+//     const text = String(value).trim();
+
+//     if (/^\d+(\.\d+)?$/.test(text)) return true;
+//     if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(text)) return true;
+//     if (/^[A-Z0-9\-_/.]+$/i.test(text) && text.length <= 40) return true;
+//     if (text.length > 1) return true;
+
+//     return false;
+//   };
+
+//   const hasDuplicateHeaders = (headers = []) => {
+//     const filtered = headers.filter(Boolean);
+//     return new Set(filtered).size !== filtered.length;
+//   };
+
+//   const scoreHeaderRowCandidate = (matrix, rowIndex) => {
+//     const currentRow = cleanRowValues(matrix[rowIndex] || []);
+//     const nextRow = cleanRowValues(matrix[rowIndex + 1] || []);
+//     const nextNextRow = cleanRowValues(matrix[rowIndex + 2] || []);
+
+//     const nonEmptyCells = currentRow.filter((value) => value !== "");
+//     const nonEmptyCount = nonEmptyCells.length;
+
+//     if (nonEmptyCount < 2) return -9999;
+
+//     const normalizedHeaders = nonEmptyCells.map((value) =>
+//       normalizeHeader(value)
+//     );
+
+//     if (!normalizedHeaders.length) return -9999;
+//     if (hasDuplicateHeaders(normalizedHeaders)) return -9999;
+
+//     let score = 0;
+
+//     score += nonEmptyCount * 10;
+
+//     currentRow.forEach((cell) => {
+//       if (!cell) return;
+
+//       if (/^[A-Za-z0-9 _\-\/().%#]+$/.test(cell) && cell.length <= 40) {
+//         score += 4;
+//       }
+
+//       if (normalizeHeader(cell)) {
+//         score += 2;
+//       }
+
+//       if (
+//         /^(tel no|telephone|address|extracted by|date\/time|prepared by|printed by|page\b|company|corporation|inc\.?)/i.test(
+//           cell
+//         )
+//       ) {
+//         score -= 20;
+//       }
+//     });
+
+//     const nextRowNonEmpty = nextRow.filter((value) => value !== "").length;
+//     const nextRowLikelyData = nextRow.filter((value) =>
+//       isLikelyDataValue(value)
+//     ).length;
+//     const nextNextRowLikelyData = nextNextRow.filter((value) =>
+//       isLikelyDataValue(value)
+//     ).length;
+
+//     score += nextRowNonEmpty * 3;
+//     score += nextRowLikelyData * 5;
+//     score += nextNextRowLikelyData * 2;
+
+//     if (nonEmptyCount === 1) {
+//       score -= 50;
+//     }
+
+//     return score;
+//   };
+
+//   const detectHeaderRowIndex = (worksheet) => {
+//     const matrix = getWorksheetMatrix(worksheet);
+
+//     if (!matrix.length) {
+//       return {
+//         headerRowIndex: -1,
+//         matrix,
+//       };
+//     }
+
+//     let bestIndex = -1;
+//     let bestScore = -9999;
+
+//     const scanLimit = Math.min(matrix.length, HEADER_SCAN_LIMIT);
+
+//     for (let i = 0; i < scanLimit; i += 1) {
+//       const score = scoreHeaderRowCandidate(matrix, i);
+//       if (score > bestScore) {
+//         bestScore = score;
+//         bestIndex = i;
+//       }
+//     }
+
+//     return {
+//       headerRowIndex: bestIndex,
+//       matrix,
+//     };
+//   };
+
+//   const buildDisplayLabelsFromHeaderRow = (headerRow = []) => {
+//     const labels = {};
+//     const usedKeys = new Set();
+
+//     headerRow.forEach((cell, index) => {
+//       const rawLabel = String(cell ?? "").trim();
+//       if (!rawLabel) return;
+
+//       let normalizedKey = normalizeHeader(rawLabel);
+
+//       if (!normalizedKey) {
+//         normalizedKey = `column_${index + 1}`;
+//       }
+
+//       if (usedKeys.has(normalizedKey)) {
+//         let counter = 2;
+//         let candidate = `${normalizedKey}_${counter}`;
+
+//         while (usedKeys.has(candidate)) {
+//           counter += 1;
+//           candidate = `${normalizedKey}_${counter}`;
+//         }
+
+//         normalizedKey = candidate;
+//       }
+
+//       usedKeys.add(normalizedKey);
+//       labels[normalizedKey] = rawLabel;
+//     });
+
+//     return labels;
+//   };
+
+//   const worksheetToNormalizedJson = (worksheet) => {
+//     const { headerRowIndex, matrix } = detectHeaderRowIndex(worksheet);
+
+//     if (headerRowIndex < 0 || !matrix.length) {
+//       return {
+//         headers: [],
+//         displayLabels: {},
+//         rows: [],
+//       };
+//     }
+
+//     const headerRow = cleanRowValues(matrix[headerRowIndex] || []);
+//     const displayLabels = buildDisplayLabelsFromHeaderRow(headerRow);
+//     const normalizedHeaders = Object.keys(displayLabels);
+
+//     if (!normalizedHeaders.length) {
+//       return {
+//         headers: [],
+//         displayLabels: {},
+//         rows: [],
+//       };
+//     }
+
+//     const rows = [];
+
+//     for (
+//       let rowIndex = headerRowIndex + 1;
+//       rowIndex < matrix.length;
+//       rowIndex += 1
+//     ) {
+//       const rawRow = matrix[rowIndex] || [];
+//       const cleanedRow = cleanRowValues(rawRow);
+
+//       const hasAnyValue = cleanedRow.some((value) => value !== "");
+//       if (!hasAnyValue) continue;
+
+//       const newRow = {};
+//       let hasMappedValue = false;
+
+//       normalizedHeaders.forEach((key, columnIndex) => {
+//         const rawValue = cleanedRow[columnIndex] ?? "";
+//         newRow[key] = normalizeNumericCellValue(key, rawValue);
+
+//         if (String(rawValue).trim() !== "") {
+//           hasMappedValue = true;
+//         }
+//       });
+
+//       if (hasMappedValue) {
+//         rows.push(newRow);
+//       }
+//     }
+
+//     return {
+//       headers: normalizedHeaders,
+//       displayLabels,
+//       rows,
+//     };
+//   };
+
+//   const resetAll = () => {
+//     setSelectedFiles([]);
+//     setRejectedFiles([]);
+//     setHeaderCheck({
+//       passed: false,
+//       referenceFileName: "",
+//       referenceHeaders: [],
+//       mismatches: [],
+//       reason: "",
+//     });
+//     setExcelHeaderLabels({});
+//     setRawRows([]);
+//     setValidatedRows([]);
+//     setValidationOrderedKeys([]);
+//     setSelectedRow(null);
+//     setIsPreparing(false);
+//     setIsValidating(false);
+//     setIsUploading(false);
+//     setHasValidated(false);
+//     setUploadCompleted(false);
+//     setSelectedFileName("");
+//     setDirectoryLabel("");
+//     setMobileActiveTab("files");
+
+//     if (fileInputRef.current) fileInputRef.current.value = "";
+//     if (folderInputRef.current) folderInputRef.current.value = "";
+//   };
+
+//   const prepareSelectedFiles = async (incomingFiles, sourceType = "files") => {
+//     if (!incomingFiles?.length) return;
+
+//     setIsPreparing(true);
+//     setHasValidated(false);
+//     setValidatedRows([]);
+//     setValidationOrderedKeys([]);
+//     setUploadCompleted(false);
+//     setSelectedRow(null);
+
+//     try {
+//       await new Promise((resolve) => requestAnimationFrame(resolve));
+
+//       const incomingArray = Array.from(incomingFiles);
+
+//       const { valid: validImportFiles, rejected: invalidFiles } =
+//         filterValidImportFiles(incomingArray);
+
+//       const { valid: uniqueFiles, rejected: duplicateFiles } =
+//         dedupeByFileName(validImportFiles);
+
+//       const combinedRejected = [...invalidFiles, ...duplicateFiles];
+//       const batchType = getBatchFileType(uniqueFiles);
+
+//       if (batchType === "mixed") {
+//         const mixedRejected = uniqueFiles.map((file) => ({
+//           fileName: file.name,
+//           reason:
+//             "Cannot combine CSV and Excel files in the same upload. Please upload only one file type per batch.",
+//         }));
+
+//         setRejectedFiles([...combinedRejected, ...mixedRejected]);
+//         setSelectedFiles([]);
+//         setHeaderCheck({
+//           passed: false,
+//           referenceFileName: "",
+//           referenceHeaders: [],
+//           mismatches: [],
+//           reason:
+//             "Mixed file types detected. CSV and Excel cannot be uploaded together in one batch.",
+//         });
+//         setExcelHeaderLabels({});
+//         setRawRows([]);
+//         setSelectedFileName("");
+//         setDirectoryLabel("");
+
+//         useSwalErrorAlert(
+//           "Mixed file types not allowed",
+//           "CSV and Excel files cannot be uploaded together in one batch. Please upload only CSV files or only Excel files."
+//         );
+//         return;
+//       }
+
+//       setRejectedFiles(combinedRejected);
+//       setSelectedFiles(uniqueFiles);
+
+//       if (sourceType === "folder" && uniqueFiles.length > 0) {
+//         const relativePath =
+//           uniqueFiles[0]?.webkitRelativePath || uniqueFiles[0]?.path || "";
+//         const folderName = relativePath.includes("/")
+//           ? relativePath.split("/")[0]
+//           : "Selected Folder";
+//         setDirectoryLabel(folderName);
+//       } else {
+//         setDirectoryLabel("Selected Files");
+//       }
+
+//       if (!uniqueFiles.length) {
+//         setHeaderCheck({
+//           passed: false,
+//           referenceFileName: "",
+//           referenceHeaders: [],
+//           mismatches: [],
+//           reason: "No valid Excel or CSV files selected.",
+//         });
+//         setExcelHeaderLabels({});
+//         setRawRows([]);
+//         useSwalErrorAlert(
+//           "No valid files selected",
+//           "Please select .xlsx or .csv files with unique file names."
+//         );
+//         return;
+//       }
+
+//       const parsedFiles = await Promise.all(
+//         uniqueFiles.map(async (file, index) => {
+//           const workbook = await readWorkbook(file);
+//           const sheetName = getFirstSheetName(workbook);
+
+//           if (!sheetName) {
+//             return {
+//               fileName: file.name,
+//               index,
+//               error: "No worksheet found.",
+//             };
+//           }
+
+//           const worksheet = workbook.Sheets[sheetName];
+//           const { headers, displayLabels, rows } =
+//             worksheetToNormalizedJson(worksheet);
+
+//           if (!headers.length) {
+//             return {
+//               fileName: file.name,
+//               index,
+//               error: `No valid header row detected within the first ${HEADER_SCAN_LIMIT} rows.`,
+//             };
+//           }
+
+//           return {
+//             fileName: file.name,
+//             index,
+//             headers,
+//             displayLabels,
+//             rows,
+//           };
+//         })
+//       );
+
+//       parsedFiles.sort((a, b) => a.index - b.index);
+
+//       const mismatches = [];
+//       const fileMeta = [];
+//       let referenceHeaders = [];
+//       let referenceDisplayLabels = {};
+//       let referenceFileName = "";
+
+//       parsedFiles.forEach((parsed, index) => {
+//         if (parsed.error) {
+//           mismatches.push({
+//             fileName: parsed.fileName,
+//             reason: parsed.error,
+//             expectedHeaders: referenceHeaders,
+//             actualHeaders: [],
+//           });
+//           return;
+//         }
+
+//         if (index === 0) {
+//           referenceHeaders = parsed.headers;
+//           referenceDisplayLabels = parsed.displayLabels;
+//           referenceFileName = parsed.fileName;
+//           fileMeta.push(parsed);
+//           return;
+//         }
+
+//         if (!headersAreExactMatch(referenceHeaders, parsed.headers)) {
+//           mismatches.push({
+//             fileName: parsed.fileName,
+//             reason: buildMismatchReason(referenceHeaders, parsed.headers),
+//             expectedHeaders: referenceHeaders,
+//             actualHeaders: parsed.headers,
+//           });
+//           return;
+//         }
+
+//         fileMeta.push(parsed);
+//       });
+
+//       if (mismatches.length > 0) {
+//         setHeaderCheck({
+//           passed: false,
+//           referenceFileName,
+//           referenceHeaders,
+//           mismatches,
+//           reason:
+//             "One or more selected files have different columns. Entire batch was ignored.",
+//         });
+//         setExcelHeaderLabels({});
+//         setRawRows([]);
+//         useSwalErrorAlert(
+//           "Column mismatch detected",
+//           "One or more files have different columns, or no valid header was detected within the first 10 rows. Entire selected batch was ignored."
+//         );
+//         return;
+//       }
+
+//       const consolidatedRows = [];
+//       fileMeta.forEach((meta) => {
+//         meta.rows.forEach((row, index) => {
+//           consolidatedRows.push({
+//             ...row,
+//             filename: meta.fileName,
+//             row_no: index + 1,
+//           });
+//         });
+//       });
+
+//       setHeaderCheck({
+//         passed: true,
+//         referenceFileName,
+//         referenceHeaders,
+//         mismatches: [],
+//         reason: "",
+//       });
+
+//       setExcelHeaderLabels(referenceDisplayLabels);
+//       setRawRows(consolidatedRows);
+
+//       if (uniqueFiles.length > 0) {
+//         setSelectedFileName(uniqueFiles[0].name);
+//       }
+
+//       if (consolidatedRows.length) {
+//         setMobileActiveTab("preview");
+//       } else {
+//         setMobileActiveTab("files");
+//         useSwalErrorAlert(
+//           "No data found",
+//           "The selected files do not contain data rows."
+//         );
+//       }
+//     } catch (error) {
+//       console.error(error);
+//       useSwalErrorAlert(
+//         "Preparation Error",
+//         error?.message || "Failed to read selected Excel / CSV files."
+//       );
+//     } finally {
+//       setIsPreparing(false);
+//     }
+//   };
+
+//   const handleChooseFiles = async (event) => {
+//     const files = event.target.files;
+//     await prepareSelectedFiles(files, "files");
+//     event.target.value = "";
+//   };
+
+//   const handleChooseFolder = async (event) => {
+//     const files = event.target.files;
+//     await prepareSelectedFiles(files, "folder");
+//     event.target.value = "";
+//   };
+
+//   const handleDropFiles = async (event) => {
+//     event.preventDefault();
+//     event.stopPropagation();
+
+//     const files = Array.from(event.dataTransfer?.files || []);
+//     if (!files.length) return;
+
+//     await prepareSelectedFiles(files, "files");
+//   };
+
+//   const handleDragOver = (event) => {
+//     event.preventDefault();
+//     event.stopPropagation();
+//   };
+
+//   const parseValidationJsonArray = (value) => {
+//     if (typeof value !== "string" || !value.trim()) return [];
+//     try {
+//       const parsed = JSON.parse(value);
+//       return Array.isArray(parsed) ? parsed : [];
+//     } catch (error) {
+//       console.error("Failed to parse validation result JSON:", error);
+//       return [];
+//     }
+//   };
+
+//   const getValidationSourceRows = (responseData) => {
+//     if (
+//       Array.isArray(responseData?.data) &&
+//       typeof responseData.data[0]?.result === "string"
+//     ) {
+//       return parseValidationJsonArray(responseData.data[0].result);
+//     }
+
+//     if (
+//       Array.isArray(responseData) &&
+//       typeof responseData[0]?.result === "string"
+//     ) {
+//       return parseValidationJsonArray(responseData[0].result);
+//     }
+
+//     if (typeof responseData?.result === "string") {
+//       return parseValidationJsonArray(responseData.result);
+//     }
+
+//     if (Array.isArray(responseData?.data)) {
+//       return responseData.data;
+//     }
+
+//     if (Array.isArray(responseData)) {
+//       return responseData;
+//     }
+
+//     return [];
+//   };
+
+//   const normalizeValidateResponse = (responseData, fallbackRows = []) => {
+//     const apiRows = getValidationSourceRows(responseData);
+
+//     if (!apiRows.length) {
+//       const fallbackKeys = Object.keys(fallbackRows?.[0] || {});
+//       return {
+//         rows: fallbackRows.map((row) => ({
+//           ...row,
+//           status: "PASSED",
+//           error_log: "",
+//         })),
+//         headerLabels: {
+//           ...excelHeaderLabels,
+//           status: "Status",
+//           error_log: "Error Log",
+//         },
+//         orderedKeys: [
+//           ...fallbackKeys.filter(
+//             (key) =>
+//               key !== "status" &&
+//               key !== "validationstatus" &&
+//               key !== "validation_status" &&
+//               key !== "errorlog" &&
+//               key !== "error_log"
+//           ),
+//           "status",
+//           "error_log",
+//         ],
+//       };
+//     }
+
+//     const normalizedRows = [];
+//     const orderedKeys = [];
+//     const headerLabels = {};
+//     const seenKeys = new Set();
+
+//     const statusAliases = new Set(["status", "validationstatus", "validation_status"]);
+//     const errorAliases = new Set([
+//       "error_log",
+//       "errorlog",
+//       "errormsg",
+//       "error_msg",
+//       "errormessage",
+//     ]);
+
+//     const registerOrderedKey = (key, label) => {
+//       if (!key || seenKeys.has(key)) return;
+//       seenKeys.add(key);
+//       orderedKeys.push(key);
+//       headerLabels[key] = label;
+//     };
+
+//     apiRows.forEach((apiRow) => {
+//       const newRow = {};
+//       let resolvedStatus = "";
+//       let resolvedErrorLog = "";
+
+//       Object.entries(apiRow || {}).forEach(([rawKey, rawValue]) => {
+//         const normalizedKey = normalizeHeaderKey(rawKey);
+
+//         if (statusAliases.has(normalizedKey)) {
+//           if (!resolvedStatus && String(rawValue ?? "").trim() !== "") {
+//             resolvedStatus = String(rawValue ?? "");
+//           }
+//           registerOrderedKey("status", "Status");
+//           return;
+//         }
+
+//         if (errorAliases.has(normalizedKey)) {
+//           if (!resolvedErrorLog && String(rawValue ?? "").trim() !== "") {
+//             resolvedErrorLog = String(rawValue ?? "");
+//           }
+//           registerOrderedKey("error_log", "Error Log");
+//           return;
+//         }
+
+//         registerOrderedKey(normalizedKey, rawKey);
+//         newRow[normalizedKey] = rawValue ?? "";
+//       });
+
+//       newRow.status = String(resolvedStatus || "PASSED").toUpperCase();
+//       newRow.error_log = String(resolvedErrorLog || "");
+
+//       if (!seenKeys.has("status")) {
+//         registerOrderedKey("status", "Status");
+//       }
+
+//       if (!seenKeys.has("error_log")) {
+//         registerOrderedKey("error_log", "Error Log");
+//       }
+
+//       normalizedRows.push(newRow);
+//     });
+
+//     return {
+//       rows: normalizedRows,
+//       headerLabels,
+//       orderedKeys,
+//     };
+//   };
+
+//   const handleValidate = async () => {
+//     if (!selectedFiles.length) {
+//       useSwalErrorAlert(
+//         "No files selected",
+//         "Please select .xlsx or .csv files first."
+//       );
+//       return;
+//     }
+
+//     if (!headerCheck.passed) {
+//       useSwalErrorAlert(
+//         "Header mismatch",
+//         "All selected files must have the same exact columns."
+//       );
+//       return;
+//     }
+
+//     if (!rawRows.length) {
+//       useSwalErrorAlert(
+//         "No records found",
+//         "No data rows were found in the selected files."
+//       );
+//       return;
+//     }
+
+//     setIsValidating(true);
+
+//     // clear current preview/table first before validation response reloads
+//     setHasValidated(false);
+//     setValidatedRows([]);
+//     setValidationOrderedKeys([]);
+//     setExcelHeaderLabels({});
+//     setSelectedRow(null);
+//     setMobileActiveTab("preview");
+
+//     try {
+//       const glData = {
+//         dt1: rawRows,
+//         mode: "validate",
+//         compCode:companyCode,
+//         docCode:uploadedDocType
+//       };
+
+//       const payload = { json_data: glData };
+//       const response = await postRequest(validateApiUrl, JSON.stringify(payload));
+
+//       const normalizedResult = normalizeValidateResponse(response.data, rawRows);
+
+//       setValidatedRows(normalizedResult.rows);
+//       setValidationOrderedKeys(normalizedResult.orderedKeys);
+//       setExcelHeaderLabels(normalizedResult.headerLabels);
+//       setHasValidated(true);
+
+//       const failedCount = normalizedResult.rows.filter(
+//         (row) => String(row.status || "").toUpperCase() !== "PASSED"
+//       ).length;
+
+//       if (failedCount > 0) {
+//         useSwalErrorAlert(
+//           "Validation completed with errors",
+//           `${failedCount} record(s) failed validation.`
+//         );
+//       } else {
+//         useSwalSuccessAlert(
+//           "Validation successful",
+//           "All records passed validation. You can now upload."
+//         );
+//       }
+//     } catch (error) {
+//       console.error(error);
+
+//       // restore import preview if validation failed
+//       setHasValidated(false);
+//       setValidatedRows([]);
+//       setValidationOrderedKeys([]);
+//       setExcelHeaderLabels({});
+
+//       useSwalErrorAlert(
+//         "Validation Failed",
+//         error?.response?.data?.message ||
+//           error?.message ||
+//           "Failed to validate imported records."
+//       );
+//     } finally {
+//       setIsValidating(false);
+//     }
+//   };
+
+//   const handleUpload = async () => {
+//     if (!hasValidated || !validatedRows.length) {
+//       useSwalErrorAlert(
+//         "Upload not allowed",
+//         "Please validate the records first."
+//       );
+//       return;
+//     }
+
+//     const failedCount = validatedRows.filter(
+//       (row) => String(row.status || "").toUpperCase() !== "PASSED"
+//     ).length;
+
+//     if (failedCount > 0) {
+//       useSwalErrorAlert(
+//         "Upload blocked",
+//         "There are failed validation records. Upload cannot continue."
+//       );
+//       return;
+//     }
+
+//     setIsUploading(true);
+
+//     try {
+//       const payload = {
+//         json_data: validatedRows,
+//       };
+
+//       const response = await axios.post(uploadApiUrl, payload);
+//       setUploadCompleted(true);
+
+//       useSwalSuccessAlert(
+//         "Upload Successful",
+//         response?.data?.message || "Records were uploaded successfully."
+//       );
+//     } catch (error) {
+//       console.error(error);
+//       setUploadCompleted(false);
+
+//       useSwalErrorAlert(
+//         "Upload Failed",
+//         error?.response?.data?.message ||
+//           error?.message ||
+//           "Failed to upload records."
+//       );
+//     } finally {
+//       setIsUploading(false);
+//     }
+//   };
+
+//   const handleDownloadErrors = () => {
+//     const errorRows = validatedRows.filter(
+//       (row) => String(row.status || "").toUpperCase() !== "PASSED"
+//     );
+
+//     if (!errorRows.length) {
+//       useSwalErrorAlert("No errors found", "There are no failed records.");
+//       return;
+//     }
+
+//     useSwalErrorAlert(
+//       "Export removed",
+//       "Error log download is no longer available."
+//     );
+//   };
+
+//   const displayRows = useMemo(() => {
+//     if (isValidating) return [];
+//     return hasValidated ? validatedRows : rawRows;
+//   }, [isValidating, hasValidated, validatedRows, rawRows]);
+
+//   const activeDisplayRows = useMemo(() => {
+//     if (isValidating) return [];
+
+//     const hasFilenameColumn = displayRows.some((row) =>
+//       Object.prototype.hasOwnProperty.call(row || {}, "filename")
+//     );
+
+//     const rows =
+//       selectedFileName && hasFilenameColumn
+//         ? displayRows.filter((row) => row.filename === selectedFileName)
+//         : displayRows;
+
+//     return rows.slice(0, PREVIEW_ROW_LIMIT);
+//   }, [displayRows, selectedFileName, isValidating]);
+
+//   const totalFiles = selectedFiles.length;
+//   const totalRecords = displayRows.length;
+//   const passedCount = hasValidated
+//     ? validatedRows.filter(
+//         (row) => String(row.status || "").toUpperCase() === "PASSED"
+//       ).length
+//     : 0;
+//   const failedCount = hasValidated ? validatedRows.length - passedCount : 0;
+
+//   const getTextLength = (value) => {
+//     if (value === null || value === undefined) return 0;
+//     return String(value).trim().length;
+//   };
+
+//   const getDynamicColumnWidth = (key, label, rows) => {
+//     const MIN_WIDTH = 100;
+//     const MAX_WIDTH = 360;
+//     const PIXELS_PER_CHAR = 8;
+//     const CELL_PADDING = 36;
+
+//     const fixedWidths = {
+//       filename: 220,
+//       row_no: 90,
+//       status: 120,
+//       error_log: 260,
+//     };
+
+//     if (fixedWidths[key]) {
+//       return fixedWidths[key];
+//     }
+
+//     let maxLength = getTextLength(label);
+//     const sampleRows = rows.slice(0, WIDTH_SAMPLE_LIMIT);
+
+//     sampleRows.forEach((row) => {
+//       const cellValue = row?.[key];
+//       const cellLength = getTextLength(cellValue);
+//       if (cellLength > maxLength) {
+//         maxLength = cellLength;
+//       }
+//     });
+
+//     const computedWidth = maxLength * PIXELS_PER_CHAR + CELL_PADDING;
+
+//     return Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, computedWidth));
+//   };
+
+//   const tableColumns = useMemo(() => {
+//     if (isValidating) return [];
+//     if (!displayRows.length) return [];
+
+//     const allKeys = new Set();
+//     displayRows.forEach((row) => {
+//       Object.keys(row || {}).forEach((key) => allKeys.add(key));
+//     });
+
+//     const orderedBase = hasValidated
+//       ? validationOrderedKeys
+//       : [...(headerCheck.referenceHeaders || []), "filename", "row_no"];
+
+//     const tail = hasValidated ? [] : ["status", "error_log"];
+
+//     const remaining = Array.from(allKeys).filter(
+//       (key) => !orderedBase.includes(key) && !tail.includes(key)
+//     );
+
+//     const finalKeys = [
+//       ...orderedBase.filter((key) => allKeys.has(key)),
+//       ...remaining,
+//       ...tail.filter((key) => allKeys.has(key)),
+//     ].filter(
+//       (key, index, arr) =>
+//         arr.indexOf(key) === index &&
+//         key !== "validationstatus" &&
+//         key !== "validation_status" &&
+//         key !== "errorlog"
+//     );
+
+//     return finalKeys.map((key) => {
+//       const displayLabel =
+//         excelHeaderLabels[key] ||
+//         (key === "filename"
+//           ? "File Name"
+//           : key === "row_no"
+//           ? "Row No"
+//           : key === "status"
+//           ? "Status"
+//           : key === "error_log"
+//           ? "Error Log"
+//           : key);
+
+//       const isNumericColumn = isNumericColumnKey(key) ;
+
+//       const column = {
+//         key,
+//         label: displayLabel,
+//         sortable: true,
+//         filterable: true,
+//         width: getDynamicColumnWidth(key, displayLabel, displayRows),
+//         renderType: isNumericColumn ? "number" : undefined,
+//         className:
+//           key === "status"
+//             ? "text-center"
+//             : isNumericColumn
+//             ? "text-right"
+//             : "",
+//       };
+
+//       if (isNumericColumn) {
+//         column.render = (row) => {
+//           const failed =
+//             String(row?.status || "").toUpperCase() !== "PASSED" &&
+//             String(row?.status || "").trim() !== "";
+
+//           return (
+//             <span className={failed ? "text-red-600" : ""}>
+//               {String(row[key] ?? "")}
+//             </span>
+//           );
+//         };
+//         return column;
+//       }
+
+//       column.render = (row) => {
+//         const failed =
+//           String(row?.status || "").toUpperCase() !== "PASSED" &&
+//           String(row?.status || "").trim() !== "";
+
+//         if (key === "status") {
+//           const value = String(row[key] ?? "").toUpperCase();
+
+//           if (value === "PASSED") {
+//             return (
+//               <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+//                 PASSED
+//               </span>
+//             );
+//           }
+
+//           if (value === "FAILED" || value === "ERROR") {
+//             return (
+//               <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
+//                 {value}
+//               </span>
+//             );
+//           }
+
+//           return (
+//             <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+//               {value || "PENDING"}
+//             </span>
+//           );
+//         }
+
+//         if (key === "error_log") {
+//           return (
+//             <span className={failed ? "text-red-600" : "text-slate-500"}>
+//               {String(row[key] ?? "")}
+//             </span>
+//           );
+//         }
+
+//         return (
+//           <span className={failed ? "text-red-600" : ""}>
+//             {String(row[key] ?? "")}
+//           </span>
+//         );
+//       };
+
+//       return column;
+//     });
+//   }, [
+//     isValidating,
+//     displayRows,
+//     hasValidated,
+//     headerCheck.referenceHeaders,
+//     excelHeaderLabels,
+//     validationOrderedKeys,
+//   ]);
+
+//   const fileListRows = useMemo(() => {
+//     return selectedFiles.map((file) => {
+//       const fileRows = displayRows.filter((row) => row.filename === file.name);
+//       const filePassed = fileRows.filter(
+//         (row) => String(row.status || "").toUpperCase() === "PASSED"
+//       ).length;
+//       const fileFailed = fileRows.filter(
+//         (row) => String(row.status || "").toUpperCase() !== "PASSED"
+//       ).length;
+
+//       return {
+//         fileName: file.name,
+//         recordCount: fileRows.length,
+//         passed: filePassed,
+//         failed: fileFailed,
+//       };
+//     });
+//   }, [selectedFiles, displayRows]);
+
+//   const hasTableColumns = tableColumns.length > 0;
+//   const showFooterBusy = isPreparing || isValidating || isUploading;
+
+//   if (!isOpen) return null;
+
+//   const renderFilesPanel = () => (
+//     <div className="flex w-full shrink-0 flex-col border-b border-slate-200 bg-slate-50 sm:w-[310px] sm:border-b-0 sm:border-r">
+//       <div className="border-b border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-600">
+//         <div className="grid grid-cols-[1fr_60px] gap-2">
+//           <div className="truncate">Name</div>
+//           <div className="text-center">Count</div>
+//         </div>
+//       </div>
+
+//       <div className="max-h-[180px] min-h-0 overflow-auto bg-white text-slate-700 sm:max-h-none sm:flex-1">
+//         {fileListRows.length === 0 ? (
+//           <div className="px-3 py-4 text-xs text-slate-400">No file selected</div>
+//         ) : (
+//           fileListRows.map((item) => {
+//             const isActive = selectedFileName === item.fileName;
+
+//             return (
+//               <button
+//                 key={item.fileName}
+//                 type="button"
+//                 onClick={() => setSelectedFileName(item.fileName)}
+//                 className={`grid w-full grid-cols-[1fr_60px] gap-2 border-b border-slate-100 px-3 py-2 text-left text-xs transition ${
+//                   isActive
+//                     ? "bg-blue-500 text-white"
+//                     : "bg-white text-slate-700 hover:bg-slate-50"
+//                 }`}
+//               >
+//                 <span className="truncate">{item.fileName}</span>
+//                 <span className="text-center">{item.recordCount}</span>
+//               </button>
+//             );
+//           })
+//         )}
+//       </div>
+
+//       <div className="border-t border-slate-200 bg-slate-50 p-3">
+//         <div className="grid grid-cols-2 gap-2">
+//           <button
+//             type="button"
+//             onClick={() => fileInputRef.current?.click()}
+//             disabled={isPreparing || isValidating || isUploading}
+//             className="flex items-center justify-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-2.5 text-xs font-medium text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 sm:py-2"
+//           >
+//             <Upload size={14} />
+//             Search File
+//           </button>
+
+//           <button
+//             type="button"
+//             onClick={handleValidate}
+//             disabled={
+//               isPreparing ||
+//               isValidating ||
+//               !selectedFiles.length ||
+//               !headerCheck.passed ||
+//               !rawRows.length
+//             }
+//             className="flex items-center justify-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-2.5 text-xs font-medium text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 sm:py-2"
+//           >
+//             <RefreshCcw size={14} />
+//             Validate
+//           </button>
+
+//           <button
+//             type="button"
+//             onClick={resetAll}
+//             disabled={isPreparing || isValidating || isUploading}
+//             className="flex items-center justify-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-2.5 text-xs font-medium text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 sm:py-2"
+//           >
+//             <Trash2 size={14} />
+//             Clear
+//           </button>
+
+//           <button
+//             type="button"
+//             onClick={handleUpload}
+//             disabled={
+//               isUploading ||
+//               !hasValidated ||
+//               !validatedRows.length ||
+//               failedCount > 0
+//             }
+//             className="flex items-center justify-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-2.5 text-xs font-medium text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 sm:py-2"
+//           >
+//             <Send size={14} />
+//             Upload
+//           </button>
+//         </div>
+
+//         <div className="mt-2 grid grid-cols-1 gap-2 text-xs">
+//           <button
+//             type="button"
+//             onClick={() => folderInputRef.current?.click()}
+//             disabled={isPreparing || isValidating || isUploading}
+//             className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-2.5 font-medium text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 sm:py-2"
+//           >
+//             <span className="inline-flex items-center gap-1">
+//               <FolderOpen size={14} />
+//               Search Folder
+//             </span>
+//           </button>
+//         </div>
+//       </div>
+//     </div>
+//   );
+
+//   const renderPreviewPanel = () => (
+//     <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-white">
+//       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden p-2">
+//         {isPreparing ? (
+//           <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50">
+//             <div className="flex flex-col items-center gap-3 text-center">
+//               <LoadingSpinner />
+//               <div className="text-sm font-medium text-slate-700">
+//                 Loading imported file(s)...
+//               </div>
+//               <div className="text-xs text-slate-500">
+//                 Please wait while the file data is being prepared
+//               </div>
+//             </div>
+//           </div>
+//         ) : isValidating ? (
+//           <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50">
+//             <div className="flex flex-col items-center gap-3 text-center">
+//               <LoadingSpinner />
+//               <div className="text-sm font-medium text-slate-700">
+//                 Validating records...
+//               </div>
+//               <div className="text-xs text-slate-500">
+//                 Please wait while the table is being reloaded
+//               </div>
+//             </div>
+//           </div>
+//         ) : !hasTableColumns ? (
+//           <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50">
+//             <div className="text-center">
+//               <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
+//                 <FileSpreadsheet size={22} className="text-blue-600" />
+//               </div>
+//               <div className="text-sm font-medium text-slate-700">
+//                 No data loaded yet
+//               </div>
+//               <div className="mt-1 text-xs text-slate-500">
+//                 Select Excel / CSV file(s) or a folder to preview records
+//               </div>
+//             </div>
+//           </div>
+//         ) : (
+//           <div className="min-h-0 flex-1 overflow-x-auto">
+//               <SearchGlobalReportTable
+//                 ref={tableRef}
+//                 columns={tableColumns}
+//                 data={activeDisplayRows}
+//                 showFilters={true}
+//                 showGlobalSearch={true}
+//                 showGroupBy={true}
+//                 isLoading={isPreparing}
+//                 isFetching={isUploading}
+//                 autoFit={false}
+//                 autoFillGrid={false}
+//                 pagination={false}
+//                 docType="Excel / CSV Upload Preview"
+//                 onRowDoubleClick={(row) => setSelectedRow(row)}
+//               />          
+//           </div>
+//         )}
+//       </div>
+//     </div>
+//   );
+
+//   return (
+//     <AnimatePresence>
+//       <motion.div
+//         className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/55 p-0 sm:p-3 backdrop-blur-[1px]"
+//         initial={{ opacity: 0 }}
+//         animate={{ opacity: 1 }}
+//         exit={{ opacity: 0 }}
+//         onDragOver={handleDragOver}
+//         onDrop={handleDropFiles}
+//       >
+//         <motion.div
+//           initial={{ opacity: 0, y: 14, scale: 0.99 }}
+//           animate={{ opacity: 1, y: 0, scale: 1 }}
+//           exit={{ opacity: 0, y: 10, scale: 0.99 }}
+//           transition={{ duration: 0.18 }}
+//           className="flex h-[100dvh] w-screen flex-col overflow-hidden rounded-none border-0 bg-white shadow-2xl sm:h-[74vh] sm:w-[98vw] sm:max-w-[1680px] sm:rounded-xl sm:border sm:border-slate-300"
+//           onDragOver={handleDragOver}
+//           onDrop={handleDropFiles}
+//         >
+//           <div className="flex flex-col gap-2 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+//             <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-700">
+//               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100">
+//                 <FileSpreadsheet size={16} className="text-blue-600" />
+//               </div>
+//               <div className="flex min-w-0 flex-col">
+//                 <span className="truncate">{title}</span>
+//                 <span className="text-[11px] font-normal text-slate-500">
+//                   Upload, validate, review, and submit Excel or CSV records
+//                 </span>
+//               </div>
+//             </div>
+
+//             <button
+//               type="button"
+//               onClick={onClose}
+//               className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-600 shadow-sm transition hover:border-red-300 hover:bg-red-50 hover:text-red-600 sm:px-3 sm:py-1.5"
+//             >
+//               <X size={14} />
+//               Close
+//             </button>
+//           </div>
+
+//           <div className="border-b border-slate-200 bg-white px-3 py-2 sm:hidden">
+//             <div className="grid grid-cols-2 gap-2">
+//               <button
+//                 type="button"
+//                 onClick={() => setMobileActiveTab("files")}
+//                 className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition ${
+//                   mobileActiveTab === "files"
+//                     ? "border-blue-500 bg-blue-500 text-white"
+//                     : "border-slate-300 bg-white text-slate-600"
+//                 }`}
+//               >
+//                 <Files size={14} />
+//                 Files
+//               </button>
+
+//               <button
+//                 type="button"
+//                 onClick={() => setMobileActiveTab("preview")}
+//                 className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition ${
+//                   mobileActiveTab === "preview"
+//                     ? "border-blue-500 bg-blue-500 text-white"
+//                     : "border-slate-300 bg-white text-slate-600"
+//                 }`}
+//               >
+//                 <Table2 size={14} />
+//                 Preview
+//               </button>
+//             </div>
+//           </div>
+
+//           <div className="hidden min-h-0 flex-1 overflow-hidden bg-white sm:flex">
+//             {renderFilesPanel()}
+//             {renderPreviewPanel()}
+//           </div>
+
+//           <div className="flex min-h-0 flex-1 overflow-hidden bg-white sm:hidden">
+//             {mobileActiveTab === "files" ? renderFilesPanel() : renderPreviewPanel()}
+//           </div>
+
+//           <div className="flex flex-col gap-2 border-t border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+//             <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+//               <span>Total File/s : {totalFiles}</span>
+//               <span>Total Record/s : {totalRecords}</span>
+//               <span>Total Record/s (Passed) : {passedCount}</span>
+//               <span>Total Record/s (Failed) : {failedCount}</span>
+//             </div>
+
+//             <div className="flex min-w-[28px] items-center justify-end">
+//               {showFooterBusy ? (
+//                 <div className="flex items-center gap-1">
+//                   <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-500 [animation-delay:-0.3s]" />
+//                   <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-500 [animation-delay:-0.15s]" />
+//                   <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-500" />
+//                 </div>
+//               ) : uploadCompleted ? (
+//                 <div className="h-2 w-2 rounded-full bg-emerald-500" />
+//               ) : selectedFileName ? (
+//                 <div className="h-2 w-2 rounded-full bg-blue-500" />
+//               ) : (
+//                 <div className="h-2 w-2 rounded-full bg-slate-300" />
+//               )}
+//             </div>
+//           </div>
+
+//           <input
+//             ref={fileInputRef}
+//             type="file"
+//             multiple
+//             accept=".xlsx,.csv"
+//             onChange={handleChooseFiles}
+//             className="hidden"
+//           />
+
+//           <input
+//             ref={folderInputRef}
+//             type="file"
+//             onChange={handleChooseFolder}
+//             className="hidden"
+//           />
+//         </motion.div>
+//       </motion.div>
+//     </AnimatePresence>
+//   );
+// }
+
+
+
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import axios from "axios";
-import Swal from "sweetalert2";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   X,
   Upload,
   FolderOpen,
-  FileSpreadsheet,
-  RefreshCcw,
   Trash2,
-  CheckCircle2,
-  XCircle,
-  AlertTriangle,
+  RefreshCcw,
   Send,
-  FileWarning,
+  FileSpreadsheet,
+  Files,
+  Table2,
 } from "lucide-react";
+import { postRequest } from "@/NAYSA Cloud/Configuration/BaseURL";
+import {
+  useSwalSuccessAlert,
+  useSwalErrorAlert,
+} from "@/NAYSA Cloud/Global/behavior.jsx";
+import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
 
-/**
- * ExcelBatchUploadModal
- *
- * Flow:
- * 1) Select .xlsx files or folder
- * 2) Check duplicate file names
- * 3) Check all files have same exact headers and same order
- * 4) Convert all rows to one JSON
- * 5) Validate via API
- * 6) Show preview + counts
- * 7) Upload only when validation is successful
- *
- * Props:
- * - isOpen: boolean
- * - onClose: function
- * - validateApiUrl: string
- * - uploadApiUrl: string
- * - title?: string
- *
- * Notes:
- * - The component preserves exact Excel column names.
- * - It adds:
- *    fileName
- *    rowNo
- * - Validation API is expected to return per-row status/error info.
- * - Because API shapes vary, a normalizer is included below.
- */
-export default function ExcelBatchUploadModal({
+import SearchGlobalReportTable from "../Lookup/SearchGlobalReportTable.jsx";
+
+export default function ExcelFileUploadDesktopModal({
   isOpen,
   onClose,
-  validateApiUrl = "/api/validateExcelBatch",
-  uploadApiUrl = "/api/uploadExcelBatch",
-  title = "Upload Excel Files",
+  uploadedDocType,
+  companyCode,
+  validateApiUrl = "excelFileUpload",
+  uploadApiUrl = "excelFileUpload",
+  title = "Excel / CSV File Uploading",
 }) {
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
+  const tableRef = useRef(null);
 
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [rejectedFiles, setRejectedFiles] = useState([]);
@@ -61,23 +1599,29 @@ export default function ExcelBatchUploadModal({
     referenceFileName: "",
     referenceHeaders: [],
     mismatches: [],
+    reason: "",
   });
 
-  const [rawMergedRows, setRawMergedRows] = useState([]);
+  const [excelHeaderLabels, setExcelHeaderLabels] = useState({});
+  const [rawRows, setRawRows] = useState([]);
   const [validatedRows, setValidatedRows] = useState([]);
-  const [previewColumns, setPreviewColumns] = useState([]);
+  const [validationOrderedKeys, setValidationOrderedKeys] = useState([]);
+  const [selectedRow, setSelectedRow] = useState(null);
 
   const [isPreparing, setIsPreparing] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [hasValidated, setHasValidated] = useState(false);
+  const [uploadCompleted, setUploadCompleted] = useState(false);
 
-  const [validationSummary, setValidationSummary] = useState({
-    totalFiles: 0,
-    totalRecords: 0,
-    passed: 0,
-    failed: 0,
-  });
+  const [selectedFileName, setSelectedFileName] = useState("");
+  const [directoryLabel, setDirectoryLabel] = useState("");
+  const [mobileActiveTab, setMobileActiveTab] = useState("files");
+  const [recordViewMode, setRecordViewMode] = useState("selected");
+
+  const HEADER_SCAN_LIMIT = 10;
+  const WIDTH_SAMPLE_LIMIT = 200;
+  const PREVIEW_ROW_LIMIT = 1000;
 
   useEffect(() => {
     if (!isOpen) {
@@ -90,67 +1634,65 @@ export default function ExcelBatchUploadModal({
       folderInputRef.current.setAttribute("webkitdirectory", "");
       folderInputRef.current.setAttribute("directory", "");
       folderInputRef.current.setAttribute("multiple", "");
-      folderInputRef.current.setAttribute("accept", ".xlsx");
+      folderInputRef.current.setAttribute("accept", ".xlsx,.csv");
     }
   }, [isOpen]);
 
-  const resetAll = () => {
-    setSelectedFiles([]);
-    setRejectedFiles([]);
-    setHeaderCheck({
-      passed: false,
-      referenceFileName: "",
-      referenceHeaders: [],
-      mismatches: [],
-    });
-    setRawMergedRows([]);
-    setValidatedRows([]);
-    setPreviewColumns([]);
-    setIsPreparing(false);
-    setIsValidating(false);
-    setIsUploading(false);
-    setHasValidated(false);
-    setValidationSummary({
-      totalFiles: 0,
-      totalRecords: 0,
-      passed: 0,
-      failed: 0,
-    });
+  const normalizeHeader = (value) =>
+    String(value ?? "")
+      .trim()
+      .replace(/\s+/g, " ")
+      .toLowerCase()
+      .replace(/[^\w\s]/g, "")
+      .replace(/\s+/g, "_");
 
-    if (fileInputRef.current) fileInputRef.current.value = "";
-    if (folderInputRef.current) folderInputRef.current.value = "";
+  const normalizeHeaderKey = (value) =>
+    String(value ?? "")
+      .trim()
+      .replace(/\s+/g, " ")
+      .toLowerCase()
+      .replace(/[^\w\s]/g, "")
+      .replace(/\s+/g, "_");
+
+  const normalizeHeaderForComparison = (headers = []) => {
+    return headers.map((header) => normalizeHeader(header));
   };
 
-  const showError = async (title, text) => {
-    await Swal.fire({
-      icon: "error",
-      title,
-      text,
-      confirmButtonColor: "#2563eb",
-    });
+  const getFileExtension = (file) => {
+    const name = String(file?.name || "").toLowerCase().trim();
+    if (name.endsWith(".xlsx")) return "xlsx";
+    if (name.endsWith(".csv")) return "csv";
+    return "";
   };
 
-  const showWarning = async (title, text) => {
-    await Swal.fire({
-      icon: "warning",
-      title,
-      text,
-      confirmButtonColor: "#2563eb",
-    });
+  const getBatchFileType = (files = []) => {
+    const distinctTypes = Array.from(
+      new Set(files.map((file) => getFileExtension(file)).filter(Boolean))
+    );
+
+    if (distinctTypes.length === 1) return distinctTypes[0];
+    if (distinctTypes.length > 1) return "mixed";
+    return "";
   };
 
-  const showSuccess = async (title, text) => {
-    await Swal.fire({
-      icon: "success",
-      title,
-      text,
-      confirmButtonColor: "#2563eb",
-    });
-  };
+  const filterValidImportFiles = (files) => {
+    const valid = [];
+    const rejected = [];
 
-  const isXlsxFile = (file) => {
-    const name = file?.name?.toLowerCase?.() || "";
-    return name.endsWith(".xlsx");
+    for (const file of files) {
+      const ext = getFileExtension(file);
+
+      if (ext === "xlsx" || ext === "csv") {
+        valid.push(file);
+      } else {
+        rejected.push({
+          fileName: file.name,
+          reason: "Only .xlsx and .csv files are allowed.",
+        });
+      }
+    }
+
+    return { valid, rejected };
   };
 
   const dedupeByFileName = (files) => {
@@ -159,7 +1701,7 @@ export default function ExcelBatchUploadModal({
     const rejected = [];
 
     for (const file of files) {
-      const lowerName = (file.name || "").toLowerCase();
+      const lowerName = String(file?.name || "").toLowerCase();
       if (seen.has(lowerName)) {
         rejected.push({
           fileName: file.name,
@@ -174,209 +1716,551 @@ export default function ExcelBatchUploadModal({
     return { valid, rejected };
   };
 
-  const filterXlsxFiles = (files) => {
-    const valid = [];
-    const rejected = [];
+  const readWorkbook = async (file) => {
+    const extension = getFileExtension(file);
 
-    for (const file of files) {
-      if (isXlsxFile(file)) {
-        valid.push(file);
-      } else {
-        rejected.push({
-          fileName: file.name,
-          reason: "Only .xlsx files are allowed.",
-        });
-      }
+    if (extension === "csv") {
+      const text = await file.text();
+      return XLSX.read(text, {
+        type: "string",
+        raw: false,
+      });
     }
 
-    return { valid, rejected };
-  };
-
-  const readWorkbookFromFile = async (file) => {
     const buffer = await file.arrayBuffer();
     return XLSX.read(buffer, { type: "array" });
   };
 
   const getFirstSheetName = (workbook) => workbook?.SheetNames?.[0] || "";
 
-  const getSheetHeadersExact = (worksheet) => {
-    const rows = XLSX.utils.sheet_to_json(worksheet, {
-      header: 1,
-      defval: "",
-      blankrows: false,
-      raw: false,
-    });
-
-    if (!rows.length) return [];
-
-    const firstRow = Array.isArray(rows[0]) ? rows[0] : [];
-    return firstRow.map((h) => String(h ?? ""));
-  };
-
-  const sheetToJsonPreserveHeaders = (worksheet) => {
-    return XLSX.utils.sheet_to_json(worksheet, {
-      defval: "",
-      raw: false,
-      blankrows: false,
-    });
-  };
-
   const headersAreExactMatch = (referenceHeaders, currentHeaders) => {
     if (referenceHeaders.length !== currentHeaders.length) return false;
-    for (let i = 0; i < referenceHeaders.length; i += 1) {
-      if (referenceHeaders[i] !== currentHeaders[i]) return false;
+
+    const referenceNormalized = normalizeHeaderForComparison(referenceHeaders);
+    const currentNormalized = normalizeHeaderForComparison(currentHeaders);
+
+    for (let i = 0; i < referenceNormalized.length; i += 1) {
+      if (referenceNormalized[i] !== currentNormalized[i]) return false;
     }
+
     return true;
   };
 
-  const buildMismatchReason = (referenceHeaders, currentHeaders) => {
-    if (referenceHeaders.length !== currentHeaders.length) {
-      return `Column count mismatch. Expected ${referenceHeaders.length} but found ${currentHeaders.length}.`;
+  const buildMismatchReason = (expected, actual) => {
+    if (expected.length !== actual.length) {
+      return `Column count mismatch. Expected ${expected.length} but found ${actual.length}.`;
     }
 
-    for (let i = 0; i < referenceHeaders.length; i += 1) {
-      if (referenceHeaders[i] !== currentHeaders[i]) {
-        return `Column ${i + 1} mismatch. Expected "${referenceHeaders[i]}" but found "${currentHeaders[i]}".`;
+    const expectedNormalized = normalizeHeaderForComparison(expected);
+    const actualNormalized = normalizeHeaderForComparison(actual);
+
+    for (let i = 0; i < expectedNormalized.length; i += 1) {
+      if (expectedNormalized[i] !== actualNormalized[i]) {
+        return `Column ${i + 1} mismatch. Expected "${expected[i]}" but found "${actual[i]}".`;
       }
     }
 
     return "Header mismatch detected.";
   };
 
-  const prepareSelectedFiles = async (incomingFiles) => {
+  const AMOUNT_COLUMN_KEYWORDS = ["amount", "balance", "debit", "credit"];
+  const PRICE_COLUMN_KEYWORDS = ["price", "cost", "rate"];
+  const QUANTITY_COLUMN_KEYWORDS = ["qty", "quantity"];
+
+  const columnContainsKeyword = (key, keywords = []) => {
+    const normalizedKey = String(key || "").trim().toLowerCase();
+    return keywords.some((keyword) => normalizedKey.includes(keyword));
+  };
+
+  const isAmountColumn = (key) =>
+    columnContainsKeyword(key, AMOUNT_COLUMN_KEYWORDS);
+
+  const isPriceColumn = (key) =>
+    columnContainsKeyword(key, PRICE_COLUMN_KEYWORDS);
+
+  const isQuantityColumn = (key) =>
+    columnContainsKeyword(key, QUANTITY_COLUMN_KEYWORDS);
+
+  const isNumericColumnKey = (key) =>
+    isAmountColumn(key) || isPriceColumn(key) || isQuantityColumn(key);
+
+  const normalizeNumericCellValue = (key, value) => {
+    if (!isNumericColumnKey(key)) return value;
+    if (value === null || value === undefined || value === "") return "";
+
+    const cleaned = String(value).replace(/,/g, "").trim();
+    if (cleaned === "") return "";
+
+    const parsed = Number(cleaned);
+    return Number.isNaN(parsed) ? value : parsed;
+  };
+
+  const getWorksheetMatrix = (worksheet) => {
+    return XLSX.utils.sheet_to_json(worksheet, {
+      header: 1,
+      defval: "",
+      raw: false,
+      blankrows: false,
+    });
+  };
+
+  const cleanRowValues = (row = []) => {
+    return row.map((cell) => String(cell ?? "").trim());
+  };
+
+  const isMeaningfulCellValue = (value) => {
+    if (value === null || value === undefined) return false;
+    return String(value).trim() !== "";
+  };
+
+  const isLikelyDataValue = (value) => {
+    if (!isMeaningfulCellValue(value)) return false;
+
+    const text = String(value).trim();
+
+    if (/^\d+(\.\d+)?$/.test(text)) return true;
+    if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(text)) return true;
+    if (/^[A-Z0-9\-_/.]+$/i.test(text) && text.length <= 40) return true;
+    if (text.length > 1) return true;
+
+    return false;
+  };
+
+  const hasDuplicateHeaders = (headers = []) => {
+    const filtered = headers.filter(Boolean);
+    return new Set(filtered).size !== filtered.length;
+  };
+
+  const scoreHeaderRowCandidate = (matrix, rowIndex) => {
+    const currentRow = cleanRowValues(matrix[rowIndex] || []);
+    const nextRow = cleanRowValues(matrix[rowIndex + 1] || []);
+    const nextNextRow = cleanRowValues(matrix[rowIndex + 2] || []);
+
+    const nonEmptyCells = currentRow.filter((value) => value !== "");
+    const nonEmptyCount = nonEmptyCells.length;
+
+    if (nonEmptyCount < 2) return -9999;
+
+    const normalizedHeaders = nonEmptyCells.map((value) =>
+      normalizeHeader(value)
+    );
+
+    if (!normalizedHeaders.length) return -9999;
+    if (hasDuplicateHeaders(normalizedHeaders)) return -9999;
+
+    let score = 0;
+
+    score += nonEmptyCount * 10;
+
+    currentRow.forEach((cell) => {
+      if (!cell) return;
+
+      if (/^[A-Za-z0-9 _\-\/().%#]+$/.test(cell) && cell.length <= 40) {
+        score += 4;
+      }
+
+      if (normalizeHeader(cell)) {
+        score += 2;
+      }
+
+      if (
+        /^(tel no|telephone|address|extracted by|date\/time|prepared by|printed by|page\b|company|corporation|inc\.?)/i.test(
+          cell
+        )
+      ) {
+        score -= 20;
+      }
+    });
+
+    const nextRowNonEmpty = nextRow.filter((value) => value !== "").length;
+    const nextRowLikelyData = nextRow.filter((value) =>
+      isLikelyDataValue(value)
+    ).length;
+    const nextNextRowLikelyData = nextNextRow.filter((value) =>
+      isLikelyDataValue(value)
+    ).length;
+
+    score += nextRowNonEmpty * 3;
+    score += nextRowLikelyData * 5;
+    score += nextNextRowLikelyData * 2;
+
+    if (nonEmptyCount === 1) {
+      score -= 50;
+    }
+
+    return score;
+  };
+
+  const detectHeaderRowIndex = (worksheet) => {
+    const matrix = getWorksheetMatrix(worksheet);
+
+    if (!matrix.length) {
+      return {
+        headerRowIndex: -1,
+        matrix,
+      };
+    }
+
+    let bestIndex = -1;
+    let bestScore = -9999;
+
+    const scanLimit = Math.min(matrix.length, HEADER_SCAN_LIMIT);
+
+    for (let i = 0; i < scanLimit; i += 1) {
+      const score = scoreHeaderRowCandidate(matrix, i);
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = i;
+      }
+    }
+
+    return {
+      headerRowIndex: bestIndex,
+      matrix,
+    };
+  };
+
+  const buildDisplayLabelsFromHeaderRow = (headerRow = []) => {
+    const labels = {};
+    const usedKeys = new Set();
+
+    headerRow.forEach((cell, index) => {
+      const rawLabel = String(cell ?? "").trim();
+      if (!rawLabel) return;
+
+      let normalizedKey = normalizeHeader(rawLabel);
+
+      if (!normalizedKey) {
+        normalizedKey = `column_${index + 1}`;
+      }
+
+      if (usedKeys.has(normalizedKey)) {
+        let counter = 2;
+        let candidate = `${normalizedKey}_${counter}`;
+
+        while (usedKeys.has(candidate)) {
+          counter += 1;
+          candidate = `${normalizedKey}_${counter}`;
+        }
+
+        normalizedKey = candidate;
+      }
+
+      usedKeys.add(normalizedKey);
+      labels[normalizedKey] = rawLabel;
+    });
+
+    return labels;
+  };
+
+  const worksheetToNormalizedJson = (worksheet) => {
+    const { headerRowIndex, matrix } = detectHeaderRowIndex(worksheet);
+
+    if (headerRowIndex < 0 || !matrix.length) {
+      return {
+        headers: [],
+        displayLabels: {},
+        rows: [],
+      };
+    }
+
+    const headerRow = cleanRowValues(matrix[headerRowIndex] || []);
+    const displayLabels = buildDisplayLabelsFromHeaderRow(headerRow);
+    const normalizedHeaders = Object.keys(displayLabels);
+
+    if (!normalizedHeaders.length) {
+      return {
+        headers: [],
+        displayLabels: {},
+        rows: [],
+      };
+    }
+
+    const rows = [];
+
+    for (
+      let rowIndex = headerRowIndex + 1;
+      rowIndex < matrix.length;
+      rowIndex += 1
+    ) {
+      const rawRow = matrix[rowIndex] || [];
+      const cleanedRow = cleanRowValues(rawRow);
+
+      const hasAnyValue = cleanedRow.some((value) => value !== "");
+      if (!hasAnyValue) continue;
+
+      const newRow = {};
+      let hasMappedValue = false;
+
+      normalizedHeaders.forEach((key, columnIndex) => {
+        const rawValue = cleanedRow[columnIndex] ?? "";
+        newRow[key] = normalizeNumericCellValue(key, rawValue);
+
+        if (String(rawValue).trim() !== "") {
+          hasMappedValue = true;
+        }
+      });
+
+      if (hasMappedValue) {
+        rows.push(newRow);
+      }
+    }
+
+    return {
+      headers: normalizedHeaders,
+      displayLabels,
+      rows,
+    };
+  };
+
+  const resetAll = () => {
+    setSelectedFiles([]);
+    setRejectedFiles([]);
+    setHeaderCheck({
+      passed: false,
+      referenceFileName: "",
+      referenceHeaders: [],
+      mismatches: [],
+      reason: "",
+    });
+    setExcelHeaderLabels({});
+    setRawRows([]);
+    setValidatedRows([]);
+    setValidationOrderedKeys([]);
+    setSelectedRow(null);
+    setIsPreparing(false);
+    setIsValidating(false);
+    setIsUploading(false);
+    setHasValidated(false);
+    setUploadCompleted(false);
+    setSelectedFileName("");
+    setDirectoryLabel("");
+    setMobileActiveTab("files");
+    setRecordViewMode("selected");
+
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (folderInputRef.current) folderInputRef.current.value = "";
+  };
+
+  const prepareSelectedFiles = async (incomingFiles, sourceType = "files") => {
     if (!incomingFiles?.length) return;
 
     setIsPreparing(true);
     setHasValidated(false);
     setValidatedRows([]);
-    setPreviewColumns([]);
-    setRawMergedRows([]);
-    setValidationSummary({
-      totalFiles: 0,
-      totalRecords: 0,
-      passed: 0,
-      failed: 0,
-    });
+    setValidationOrderedKeys([]);
+    setUploadCompleted(false);
+    setSelectedRow(null);
+    setRecordViewMode("selected");
 
     try {
-      const asArray = Array.from(incomingFiles);
+      await new Promise((resolve) => requestAnimationFrame(resolve));
 
-      const { valid: xlsxValid, rejected: xlsxRejected } = filterXlsxFiles(asArray);
-      const { valid: uniqueValid, rejected: duplicateRejected } = dedupeByFileName(xlsxValid);
+      const incomingArray = Array.from(incomingFiles);
 
-      const combinedRejected = [...xlsxRejected, ...duplicateRejected];
-      setRejectedFiles(combinedRejected);
-      setSelectedFiles(uniqueValid);
+      const { valid: validImportFiles, rejected: invalidFiles } =
+        filterValidImportFiles(incomingArray);
 
-      if (!uniqueValid.length) {
+      const { valid: uniqueFiles, rejected: duplicateFiles } =
+        dedupeByFileName(validImportFiles);
+
+      const combinedRejected = [...invalidFiles, ...duplicateFiles];
+      const batchType = getBatchFileType(uniqueFiles);
+
+      if (batchType === "mixed") {
+        const mixedRejected = uniqueFiles.map((file) => ({
+          fileName: file.name,
+          reason:
+            "Cannot combine CSV and Excel files in the same upload. Please upload only one file type per batch.",
+        }));
+
+        setRejectedFiles([...combinedRejected, ...mixedRejected]);
+        setSelectedFiles([]);
         setHeaderCheck({
           passed: false,
           referenceFileName: "",
           referenceHeaders: [],
           mismatches: [],
+          reason:
+            "Mixed file types detected. CSV and Excel cannot be uploaded together in one batch.",
         });
-        setRawMergedRows([]);
-        setValidationSummary({
-          totalFiles: 0,
-          totalRecords: 0,
-          passed: 0,
-          failed: 0,
-        });
+        setExcelHeaderLabels({});
+        setRawRows([]);
+        setSelectedFileName("");
+        setDirectoryLabel("");
 
-        if (combinedRejected.length > 0) {
-          await showWarning(
-            "No valid files selected",
-            "Please select valid .xlsx files with unique file names."
-          );
-        }
+        useSwalErrorAlert(
+          "Mixed file types not allowed",
+          "CSV and Excel files cannot be uploaded together in one batch. Please upload only CSV files or only Excel files."
+        );
         return;
       }
 
-      const fileMeta = [];
+      setRejectedFiles(combinedRejected);
+      setSelectedFiles(uniqueFiles);
+
+      if (sourceType === "folder" && uniqueFiles.length > 0) {
+        const relativePath =
+          uniqueFiles[0]?.webkitRelativePath || uniqueFiles[0]?.path || "";
+        const folderName = relativePath.includes("/")
+          ? relativePath.split("/")[0]
+          : "Selected Folder";
+        setDirectoryLabel(folderName);
+      } else {
+        setDirectoryLabel("Selected Files");
+      }
+
+      if (!uniqueFiles.length) {
+        setHeaderCheck({
+          passed: false,
+          referenceFileName: "",
+          referenceHeaders: [],
+          mismatches: [],
+          reason: "No valid Excel or CSV files selected.",
+        });
+        setExcelHeaderLabels({});
+        setRawRows([]);
+        useSwalErrorAlert(
+          "No valid files selected",
+          "Please select .xlsx or .csv files with unique file names."
+        );
+        return;
+      }
+
+      const parsedFiles = await Promise.all(
+        uniqueFiles.map(async (file, index) => {
+          const workbook = await readWorkbook(file);
+          const sheetName = getFirstSheetName(workbook);
+
+          if (!sheetName) {
+            return {
+              fileName: file.name,
+              index,
+              error: "No worksheet found.",
+            };
+          }
+
+          const worksheet = workbook.Sheets[sheetName];
+          const { headers, displayLabels, rows } =
+            worksheetToNormalizedJson(worksheet);
+
+          if (!headers.length) {
+            return {
+              fileName: file.name,
+              index,
+              error: `No valid header row detected within the first ${HEADER_SCAN_LIMIT} rows.`,
+            };
+          }
+
+          return {
+            fileName: file.name,
+            index,
+            headers,
+            displayLabels,
+            rows,
+          };
+        })
+      );
+
+      parsedFiles.sort((a, b) => a.index - b.index);
+
       const mismatches = [];
+      const fileMeta = [];
       let referenceHeaders = [];
+      let referenceDisplayLabels = {};
       let referenceFileName = "";
 
-      for (let i = 0; i < uniqueValid.length; i += 1) {
-        const file = uniqueValid[i];
-        const workbook = await readWorkbookFromFile(file);
-        const sheetName = getFirstSheetName(workbook);
-
-        if (!sheetName) {
+      parsedFiles.forEach((parsed, index) => {
+        if (parsed.error) {
           mismatches.push({
-            fileName: file.name,
-            reason: "No worksheet found.",
+            fileName: parsed.fileName,
+            reason: parsed.error,
             expectedHeaders: referenceHeaders,
             actualHeaders: [],
           });
-          continue;
+          return;
         }
 
-        const worksheet = workbook.Sheets[sheetName];
-        const headers = getSheetHeadersExact(worksheet);
-        const rows = sheetToJsonPreserveHeaders(worksheet);
+        if (index === 0) {
+          referenceHeaders = parsed.headers;
+          referenceDisplayLabels = parsed.displayLabels;
+          referenceFileName = parsed.fileName;
+          fileMeta.push(parsed);
+          return;
+        }
 
-        if (i === 0) {
-          referenceHeaders = headers;
-          referenceFileName = file.name;
-        } else if (!headersAreExactMatch(referenceHeaders, headers)) {
+        if (!headersAreExactMatch(referenceHeaders, parsed.headers)) {
           mismatches.push({
-            fileName: file.name,
-            reason: buildMismatchReason(referenceHeaders, headers),
+            fileName: parsed.fileName,
+            reason: buildMismatchReason(referenceHeaders, parsed.headers),
             expectedHeaders: referenceHeaders,
-            actualHeaders: headers,
+            actualHeaders: parsed.headers,
           });
+          return;
         }
 
-        fileMeta.push({
-          file,
-          fileName: file.name,
-          headers,
-          rows,
-        });
-      }
-
-      const headerPassed = mismatches.length === 0;
-      setHeaderCheck({
-        passed: headerPassed,
-        referenceFileName,
-        referenceHeaders,
-        mismatches,
+        fileMeta.push(parsed);
       });
 
-      if (!headerPassed) {
-        setRawMergedRows([]);
-        setValidationSummary({
-          totalFiles: uniqueValid.length,
-          totalRecords: 0,
-          passed: 0,
-          failed: 0,
+      if (mismatches.length > 0) {
+        setHeaderCheck({
+          passed: false,
+          referenceFileName,
+          referenceHeaders,
+          mismatches,
+          reason:
+            "One or more selected files have different columns. Entire batch was ignored.",
         });
+        setExcelHeaderLabels({});
+        setRawRows([]);
+        useSwalErrorAlert(
+          "Column mismatch detected",
+          "One or more files have different columns, or no valid header was detected within the first 10 rows. Entire selected batch was ignored."
+        );
         return;
       }
 
-      const merged = [];
-      for (const meta of fileMeta) {
-        meta.rows.forEach((row, idx) => {
-          merged.push({
+      const consolidatedRows = [];
+      fileMeta.forEach((meta) => {
+        meta.rows.forEach((row, index) => {
+          consolidatedRows.push({
             ...row,
-            fileName: meta.fileName,
-            rowNo: idx + 1,
+            filename: meta.fileName,
+            row_no: index + 1,
           });
         });
+      });
+
+      setHeaderCheck({
+        passed: true,
+        referenceFileName,
+        referenceHeaders,
+        mismatches: [],
+        reason: "",
+      });
+
+      setExcelHeaderLabels(referenceDisplayLabels);
+      setRawRows(consolidatedRows);
+
+      if (uniqueFiles.length > 0) {
+        setSelectedFileName(uniqueFiles[0].name);
       }
 
-      setRawMergedRows(merged);
-      setPreviewColumns([...referenceHeaders, "fileName", "rowNo"]);
-      setValidationSummary({
-        totalFiles: uniqueValid.length,
-        totalRecords: merged.length,
-        passed: 0,
-        failed: 0,
-      });
+      if (consolidatedRows.length) {
+        setMobileActiveTab("preview");
+      } else {
+        setMobileActiveTab("files");
+        useSwalErrorAlert(
+          "No data found",
+          "The selected files do not contain data rows."
+        );
+      }
     } catch (error) {
       console.error(error);
-      await showError("Preparation Error", error.message || "Failed to read Excel files.");
+      useSwalErrorAlert(
+        "Preparation Error",
+        error?.message || "Failed to read selected Excel / CSV files."
+      );
     } finally {
       setIsPreparing(false);
     }
@@ -384,187 +2268,281 @@ export default function ExcelBatchUploadModal({
 
   const handleChooseFiles = async (event) => {
     const files = event.target.files;
-    await prepareSelectedFiles(files);
+    await prepareSelectedFiles(files, "files");
     event.target.value = "";
   };
 
   const handleChooseFolder = async (event) => {
     const files = event.target.files;
-    await prepareSelectedFiles(files);
+    await prepareSelectedFiles(files, "folder");
     event.target.value = "";
   };
 
-  const normalizeValidateResponse = (responseData, fallbackRows) => {
-    /**
-     * Supported shapes:
-     * 1) { data: [...] }
-     * 2) { rows: [...] }
-     * 3) { data: { rows: [...] } }
-     * 4) array directly
-     *
-     * Expected row-level fields from API may vary:
-     * - status / validationStatus / resultStatus
-     * - errorLog / errorMsg / errormsg / remarks
-     *
-     * If the API returns nothing row-level, we fallback to the original rows.
-     */
-    let rows = [];
+  const handleDropFiles = async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const files = Array.from(event.dataTransfer?.files || []);
+    if (!files.length) return;
+
+    await prepareSelectedFiles(files, "files");
+  };
+
+  const handleDragOver = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  const parseValidationJsonArray = (value) => {
+    if (typeof value !== "string" || !value.trim()) return [];
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      console.error("Failed to parse validation result JSON:", error);
+      return [];
+    }
+  };
+
+  const getValidationSourceRows = (responseData) => {
+    if (
+      Array.isArray(responseData?.data) &&
+      typeof responseData.data[0]?.result === "string"
+    ) {
+      return parseValidationJsonArray(responseData.data[0].result);
+    }
+
+    if (
+      Array.isArray(responseData) &&
+      typeof responseData[0]?.result === "string"
+    ) {
+      return parseValidationJsonArray(responseData[0].result);
+    }
+
+    if (typeof responseData?.result === "string") {
+      return parseValidationJsonArray(responseData.result);
+    }
+
+    if (Array.isArray(responseData?.data)) {
+      return responseData.data;
+    }
 
     if (Array.isArray(responseData)) {
-      rows = responseData;
-    } else if (Array.isArray(responseData?.data)) {
-      rows = responseData.data;
-    } else if (Array.isArray(responseData?.rows)) {
-      rows = responseData.rows;
-    } else if (Array.isArray(responseData?.data?.rows)) {
-      rows = responseData.data.rows;
-    } else if (Array.isArray(responseData?.data?.data)) {
-      rows = responseData.data.data;
+      return responseData;
     }
 
-    if (!rows.length) {
-      rows = fallbackRows.map((row) => ({
-        ...row,
-        status: "Passed",
-        errorLog: "",
-      }));
-    }
+    return [];
+  };
 
-    const normalized = rows.map((row, index) => {
-      const status =
-        row.status ||
-        row.validationStatus ||
-        row.resultStatus ||
-        row.result ||
-        "Passed";
+  const normalizeValidateResponse = (responseData, fallbackRows = []) => {
+    const apiRows = getValidationSourceRows(responseData);
 
-      const errorLog =
-        row.errorLog ||
-        row.errorMsg ||
-        row.errormsg ||
-        row.remarks ||
-        row.message ||
-        "";
-
+    if (!apiRows.length) {
+      const fallbackKeys = Object.keys(fallbackRows?.[0] || {});
       return {
-        ...fallbackRows[index],
-        ...row,
-        status: String(status),
-        errorLog: String(errorLog || ""),
+        rows: fallbackRows.map((row) => ({
+          ...row,
+          status: "PASSED",
+          error_log: "",
+        })),
+        headerLabels: {
+          ...excelHeaderLabels,
+          status: "Status",
+          error_log: "Error Log",
+        },
+        orderedKeys: [
+          ...fallbackKeys.filter(
+            (key) =>
+              key !== "status" &&
+              key !== "validationstatus" &&
+              key !== "validation_status" &&
+              key !== "errorlog" &&
+              key !== "error_log"
+          ),
+          "status",
+          "error_log",
+        ],
       };
+    }
+
+    const normalizedRows = [];
+    const orderedKeys = [];
+    const headerLabels = {};
+    const seenKeys = new Set();
+
+    const statusAliases = new Set([
+      "status",
+      "validationstatus",
+      "validation_status",
+    ]);
+    const errorAliases = new Set([
+      "error_log",
+      "errorlog",
+      "errormsg",
+      "error_msg",
+      "errormessage",
+    ]);
+
+    const registerOrderedKey = (key, label) => {
+      if (!key || seenKeys.has(key)) return;
+      seenKeys.add(key);
+      orderedKeys.push(key);
+      headerLabels[key] = label;
+    };
+
+    apiRows.forEach((apiRow) => {
+      const newRow = {};
+      let resolvedStatus = "";
+      let resolvedErrorLog = "";
+
+      Object.entries(apiRow || {}).forEach(([rawKey, rawValue]) => {
+        const normalizedKey = normalizeHeaderKey(rawKey);
+
+        if (statusAliases.has(normalizedKey)) {
+          if (!resolvedStatus && String(rawValue ?? "").trim() !== "") {
+            resolvedStatus = String(rawValue ?? "");
+          }
+          registerOrderedKey("status", "Status");
+          return;
+        }
+
+        if (errorAliases.has(normalizedKey)) {
+          if (!resolvedErrorLog && String(rawValue ?? "").trim() !== "") {
+            resolvedErrorLog = String(rawValue ?? "");
+          }
+          registerOrderedKey("error_log", "Error Log");
+          return;
+        }
+
+        registerOrderedKey(normalizedKey, rawKey);
+        newRow[normalizedKey] = rawValue ?? "";
+      });
+
+      newRow.status = String(resolvedStatus || "PASSED").toUpperCase();
+      newRow.error_log = String(resolvedErrorLog || "");
+
+      if (!seenKeys.has("status")) {
+        registerOrderedKey("status", "Status");
+      }
+
+      if (!seenKeys.has("error_log")) {
+        registerOrderedKey("error_log", "Error Log");
+      }
+
+      normalizedRows.push(newRow);
     });
 
-    return normalized;
+    return {
+      rows: normalizedRows,
+      headerLabels,
+      orderedKeys,
+    };
   };
 
   const handleValidate = async () => {
     if (!selectedFiles.length) {
-      await showWarning("No files selected", "Please select .xlsx files first.");
-      return;
-    }
-
-    if (!headerCheck.passed) {
-      await showWarning(
-        "Header mismatch",
-        "All selected files must have the same exact Excel column names and order."
+      useSwalErrorAlert(
+        "No files selected",
+        "Please select .xlsx or .csv files first."
       );
       return;
     }
 
-    if (!rawMergedRows.length) {
-      await showWarning("No records found", "No data rows were found in the selected files.");
+    if (!headerCheck.passed) {
+      useSwalErrorAlert(
+        "Header mismatch",
+        "All selected files must have the same exact columns."
+      );
+      return;
+    }
+
+    if (!rawRows.length) {
+      useSwalErrorAlert(
+        "No records found",
+        "No data rows were found in the selected files."
+      );
       return;
     }
 
     setIsValidating(true);
 
+    setHasValidated(false);
+    setValidatedRows([]);
+    setValidationOrderedKeys([]);
+    setExcelHeaderLabels({});
+    setSelectedRow(null);
+    setMobileActiveTab("preview");
+    setRecordViewMode("selected");
+
     try {
-      const payload = {
-        json_data: rawMergedRows,
+      const glData = {
+        dt1: rawRows,
+        mode: "validate",
+        compCode: companyCode,
+        docCode: uploadedDocType,
       };
 
-      const response = await axios.post(validateApiUrl, payload);
-      const normalizedRows = normalizeValidateResponse(response.data, rawMergedRows);
+      const payload = { json_data: glData };
+      const response = await postRequest(validateApiUrl, JSON.stringify(payload));
 
-      const allColumns = new Set();
-      normalizedRows.forEach((row) => {
-        Object.keys(row).forEach((key) => allColumns.add(key));
-      });
+      const normalizedResult = normalizeValidateResponse(response.data, rawRows);
 
-      const orderedBaseColumns = headerCheck.referenceHeaders || [];
-      const tailColumns = ["fileName", "rowNo", "status", "errorLog"];
-      const remaining = Array.from(allColumns).filter(
-        (c) => !orderedBaseColumns.includes(c) && !tailColumns.includes(c)
-      );
+      setValidatedRows(normalizedResult.rows);
+      setValidationOrderedKeys(normalizedResult.orderedKeys);
+      setExcelHeaderLabels(normalizedResult.headerLabels);
+      setHasValidated(true);
 
-      const finalColumns = [
-        ...orderedBaseColumns,
-        "fileName",
-        "rowNo",
-        ...remaining,
-        "status",
-        "errorLog",
-      ];
-
-      const passedCount = normalizedRows.filter(
-        (row) => String(row.status).toLowerCase() === "passed"
+      const failedCount = normalizedResult.rows.filter(
+        (row) => String(row.status || "").toUpperCase() !== "PASSED"
       ).length;
 
-      const failedCount = normalizedRows.length - passedCount;
-
-      setValidatedRows(normalizedRows);
-      setPreviewColumns(finalColumns);
-      setHasValidated(true);
-      setValidationSummary({
-        totalFiles: selectedFiles.length,
-        totalRecords: normalizedRows.length,
-        passed: passedCount,
-        failed: failedCount,
-      });
-
       if (failedCount > 0) {
-        await showWarning(
+        useSwalErrorAlert(
           "Validation completed with errors",
-          `${failedCount} record(s) failed validation. Upload is disabled until all errors are fixed.`
+          `${failedCount} record(s) failed validation.`
         );
       } else {
-        await showSuccess(
+        useSwalSuccessAlert(
           "Validation successful",
           "All records passed validation. You can now upload."
         );
       }
     } catch (error) {
       console.error(error);
-      await showError(
+
+      setHasValidated(false);
+      setValidatedRows([]);
+      setValidationOrderedKeys([]);
+      setExcelHeaderLabels({});
+
+      useSwalErrorAlert(
         "Validation Failed",
-        error?.response?.data?.message || error.message || "Failed to validate data."
+        error?.response?.data?.message ||
+          error?.message ||
+          "Failed to validate imported records."
       );
     } finally {
       setIsValidating(false);
     }
   };
 
-  const canUpload = useMemo(() => {
-    return (
-      hasValidated &&
-      validatedRows.length > 0 &&
-      validationSummary.failed === 0 &&
-      !isUploading &&
-      !isValidating
-    );
-  }, [
-    hasValidated,
-    validatedRows.length,
-    validationSummary.failed,
-    isUploading,
-    isValidating,
-  ]);
-
   const handleUpload = async () => {
-    if (!canUpload) {
-      await showWarning(
+    if (!hasValidated || !validatedRows.length) {
+      useSwalErrorAlert(
         "Upload not allowed",
-        "Please make sure validation is complete and there are no failed records."
+        "Please validate the records first."
+      );
+      return;
+    }
+
+    const failedCount = validatedRows.filter(
+      (row) => String(row.status || "").toUpperCase() !== "PASSED"
+    ).length;
+
+    if (failedCount > 0) {
+      useSwalErrorAlert(
+        "Upload blocked",
+        "There are failed validation records. Upload cannot continue."
       );
       return;
     }
@@ -577,19 +2555,21 @@ export default function ExcelBatchUploadModal({
       };
 
       const response = await axios.post(uploadApiUrl, payload);
+      setUploadCompleted(true);
 
-      await showSuccess(
-        "Upload successful",
-        response?.data?.message || "The validated records were uploaded successfully."
+      useSwalSuccessAlert(
+        "Upload Successful",
+        response?.data?.message || "Records were uploaded successfully."
       );
-
-      resetAll();
-      onClose?.();
     } catch (error) {
       console.error(error);
-      await showError(
+      setUploadCompleted(false);
+
+      useSwalErrorAlert(
         "Upload Failed",
-        error?.response?.data?.message || error.message || "Failed to upload records."
+        error?.response?.data?.message ||
+          error?.message ||
+          "Failed to upload records."
       );
     } finally {
       setIsUploading(false);
@@ -598,529 +2578,619 @@ export default function ExcelBatchUploadModal({
 
   const handleDownloadErrors = () => {
     const errorRows = validatedRows.filter(
-      (row) => String(row.status).toLowerCase() !== "passed"
+      (row) => String(row.status || "").toUpperCase() !== "PASSED"
     );
 
     if (!errorRows.length) {
-      Swal.fire({
-        icon: "info",
-        title: "No errors found",
-        text: "There are no failed records to export.",
-        confirmButtonColor: "#2563eb",
-      });
+      useSwalErrorAlert("No errors found", "There are no failed records.");
       return;
     }
 
-    const ws = XLSX.utils.json_to_sheet(errorRows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Errors");
-    XLSX.writeFile(wb, "Excel_Upload_Error_Log.xlsx");
-  };
-
-  const previewRows = useMemo(() => {
-    if (validatedRows.length) return validatedRows;
-    return rawMergedRows;
-  }, [validatedRows, rawMergedRows]);
-
-  const visibleRows = useMemo(() => {
-    return previewRows.slice(0, 200);
-  }, [previewRows]);
-
-  const getStatusBadge = (status) => {
-    const normalized = String(status || "").toLowerCase();
-    if (normalized === "passed") {
-      return (
-        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">
-          <CheckCircle2 size={14} />
-          Passed
-        </span>
-      );
-    }
-
-    if (!normalized) {
-      return (
-        <span className="inline-flex items-center gap-1 rounded-full bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-600">
-          Pending
-        </span>
-      );
-    }
-
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-xs font-semibold text-red-700">
-        <XCircle size={14} />
-        Failed
-      </span>
+    useSwalErrorAlert(
+      "Export removed",
+      "Error log download is no longer available."
     );
   };
 
+  const displayRows = useMemo(() => {
+    if (isValidating) return [];
+    return hasValidated ? validatedRows : rawRows;
+  }, [isValidating, hasValidated, validatedRows, rawRows]);
+
+  const totalFiles = selectedFiles.length;
+  const totalRecordsAllFiles = displayRows.length;
+  const passedCountAllFiles = hasValidated
+    ? validatedRows.filter(
+        (row) => String(row.status || "").toUpperCase() === "PASSED"
+      ).length
+    : 0;
+  const failedCountAllFiles = hasValidated
+    ? validatedRows.length - passedCountAllFiles
+    : 0;
+
+  const activeDisplayRows = useMemo(() => {
+    if (isValidating) return [];
+
+    const hasFilenameColumn = displayRows.some((row) =>
+      Object.prototype.hasOwnProperty.call(row || {}, "filename")
+    );
+
+    let rows = displayRows;
+
+    if (recordViewMode === "all") {
+      rows = displayRows;
+    } else if (recordViewMode === "passed") {
+      rows = displayRows.filter(
+        (row) => String(row.status || "").toUpperCase() === "PASSED"
+      );
+    } else if (recordViewMode === "failed") {
+      rows = displayRows.filter(
+        (row) => String(row.status || "").toUpperCase() !== "PASSED"
+      );
+    } else {
+      rows =
+        selectedFileName && hasFilenameColumn
+          ? displayRows.filter((row) => row.filename === selectedFileName)
+          : displayRows;
+    }
+
+    return rows.slice(0, PREVIEW_ROW_LIMIT);
+  }, [displayRows, selectedFileName, isValidating, recordViewMode]);
+
+  const totalRecords = activeDisplayRows.length;
+  const passedCount = activeDisplayRows.filter(
+    (row) => String(row.status || "").toUpperCase() === "PASSED"
+  ).length;
+  const failedCount = activeDisplayRows.filter(
+    (row) => String(row.status || "").toUpperCase() !== "PASSED"
+  ).length;
+
+  const getTextLength = (value) => {
+    if (value === null || value === undefined) return 0;
+    return String(value).trim().length;
+  };
+
+  const getDynamicColumnWidth = (key, label, rows) => {
+    const MIN_WIDTH = 100;
+    const MAX_WIDTH = 360;
+    const PIXELS_PER_CHAR = 8;
+    const CELL_PADDING = 36;
+
+    const fixedWidths = {
+      filename: 220,
+      row_no: 90,
+      status: 120,
+      error_log: 260,
+    };
+
+    if (fixedWidths[key]) {
+      return fixedWidths[key];
+    }
+
+    let maxLength = getTextLength(label);
+    const sampleRows = rows.slice(0, WIDTH_SAMPLE_LIMIT);
+
+    sampleRows.forEach((row) => {
+      const cellValue = row?.[key];
+      const cellLength = getTextLength(cellValue);
+      if (cellLength > maxLength) {
+        maxLength = cellLength;
+      }
+    });
+
+    const computedWidth = maxLength * PIXELS_PER_CHAR + CELL_PADDING;
+
+    return Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, computedWidth));
+  };
+
+  const tableColumns = useMemo(() => {
+    if (isValidating) return [];
+    if (!displayRows.length) return [];
+
+    const allKeys = new Set();
+    displayRows.forEach((row) => {
+      Object.keys(row || {}).forEach((key) => allKeys.add(key));
+    });
+
+    const orderedBase = hasValidated
+      ? validationOrderedKeys
+      : [...(headerCheck.referenceHeaders || []), "filename", "row_no"];
+
+    const tail = hasValidated ? [] : ["status", "error_log"];
+
+    const remaining = Array.from(allKeys).filter(
+      (key) => !orderedBase.includes(key) && !tail.includes(key)
+    );
+
+    const finalKeys = [
+      ...orderedBase.filter((key) => allKeys.has(key)),
+      ...remaining,
+      ...tail.filter((key) => allKeys.has(key)),
+    ].filter(
+      (key, index, arr) =>
+        arr.indexOf(key) === index &&
+        key !== "validationstatus" &&
+        key !== "validation_status" &&
+        key !== "errorlog"
+    );
+
+    return finalKeys.map((key) => {
+      const displayLabel =
+        excelHeaderLabels[key] ||
+        (key === "filename"
+          ? "File Name"
+          : key === "row_no"
+          ? "Row No"
+          : key === "status"
+          ? "Status"
+          : key === "error_log"
+          ? "Error Log"
+          : key);
+
+      const isNumericColumn = isNumericColumnKey(key);
+
+      const column = {
+        key,
+        label: displayLabel,
+        sortable: true,
+        filterable: true,
+        width: getDynamicColumnWidth(key, displayLabel, displayRows),
+        renderType: isNumericColumn ? "number" : undefined,
+        className:
+          key === "status"
+            ? "text-center"
+            : isNumericColumn
+            ? "text-right"
+            : "",
+      };
+
+      if (isNumericColumn) {
+        column.render = (row) => {
+          const failed =
+            String(row?.status || "").toUpperCase() !== "PASSED" &&
+            String(row?.status || "").trim() !== "";
+
+          return (
+            <span className={failed ? "text-red-600" : ""}>
+              {String(row[key] ?? "")}
+            </span>
+          );
+        };
+        return column;
+      }
+
+      column.render = (row) => {
+        const failed =
+          String(row?.status || "").toUpperCase() !== "PASSED" &&
+          String(row?.status || "").trim() !== "";
+
+        if (key === "status") {
+          const value = String(row[key] ?? "").toUpperCase();
+
+          if (value === "PASSED") {
+            return (
+              <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                PASSED
+              </span>
+            );
+          }
+
+          if (value === "FAILED" || value === "ERROR") {
+            return (
+              <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
+                {value}
+              </span>
+            );
+          }
+
+          return (
+            <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+              {value || "PENDING"}
+            </span>
+          );
+        }
+
+        if (key === "error_log") {
+          return (
+            <span className={failed ? "text-red-600" : "text-slate-500"}>
+              {String(row[key] ?? "")}
+            </span>
+          );
+        }
+
+        return (
+          <span className={failed ? "text-red-600" : ""}>
+            {String(row[key] ?? "")}
+          </span>
+        );
+      };
+
+      return column;
+    });
+  }, [
+    isValidating,
+    displayRows,
+    hasValidated,
+    headerCheck.referenceHeaders,
+    excelHeaderLabels,
+    validationOrderedKeys,
+  ]);
+
+  const fileListRows = useMemo(() => {
+    return selectedFiles.map((file) => {
+      const fileRows = displayRows.filter((row) => row.filename === file.name);
+      const filePassed = fileRows.filter(
+        (row) => String(row.status || "").toUpperCase() === "PASSED"
+      ).length;
+      const fileFailed = fileRows.filter(
+        (row) => String(row.status || "").toUpperCase() !== "PASSED"
+      ).length;
+
+      return {
+        fileName: file.name,
+        recordCount: fileRows.length,
+        passed: filePassed,
+        failed: fileFailed,
+      };
+    });
+  }, [selectedFiles, displayRows]);
+
+  const hasTableColumns = tableColumns.length > 0;
+  const showFooterBusy = isPreparing || isValidating || isUploading;
+
+  const summaryButtonClass = (mode) =>
+    `rounded-md px-2 py-1 transition ${
+      recordViewMode === mode
+        ? "bg-blue-500 text-white"
+        : "bg-white text-slate-600 hover:bg-slate-100"
+    }`;
+
   if (!isOpen) return null;
+
+  const renderFilesPanel = () => (
+    <div className="flex w-full shrink-0 flex-col border-b border-slate-200 bg-slate-50 sm:w-[310px] sm:border-b-0 sm:border-r">
+      <div className="border-b border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-600">
+        <div className="grid grid-cols-[1fr_60px] gap-2">
+          <div className="truncate">Name</div>
+          <div className="text-center">Count</div>
+        </div>
+      </div>
+
+      <div className="max-h-[180px] min-h-0 overflow-auto bg-white text-slate-700 sm:max-h-none sm:flex-1">
+        {fileListRows.length === 0 ? (
+          <div className="px-3 py-4 text-xs text-slate-400">No file selected</div>
+        ) : (
+          fileListRows.map((item) => {
+            const isActive =
+              selectedFileName === item.fileName && recordViewMode === "selected";
+
+            return (
+              <button
+                key={item.fileName}
+                type="button"
+                onClick={() => {
+                  setSelectedFileName(item.fileName);
+                  setRecordViewMode("selected");
+                }}
+                className={`grid w-full grid-cols-[1fr_60px] gap-2 border-b border-slate-100 px-3 py-2 text-left text-xs transition ${
+                  isActive
+                    ? "bg-blue-500 text-white"
+                    : "bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                <span className="truncate">{item.fileName}</span>
+                <span className="text-center">{item.recordCount}</span>
+              </button>
+            );
+          })
+        )}
+      </div>
+
+      <div className="border-t border-slate-200 bg-slate-50 p-3">
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isPreparing || isValidating || isUploading}
+            className="flex items-center justify-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-2.5 text-xs font-medium text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 sm:py-2"
+          >
+            <Upload size={14} />
+            Search File
+          </button>
+
+          <button
+            type="button"
+            onClick={handleValidate}
+            disabled={
+              isPreparing ||
+              isValidating ||
+              !selectedFiles.length ||
+              !headerCheck.passed ||
+              !rawRows.length
+            }
+            className="flex items-center justify-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-2.5 text-xs font-medium text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 sm:py-2"
+          >
+            <RefreshCcw size={14} />
+            Validate
+          </button>
+
+          <button
+            type="button"
+            onClick={resetAll}
+            disabled={isPreparing || isValidating || isUploading}
+            className="flex items-center justify-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-2.5 text-xs font-medium text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 sm:py-2"
+          >
+            <Trash2 size={14} />
+            Clear
+          </button>
+
+          <button
+            type="button"
+            onClick={handleUpload}
+            disabled={
+              isUploading ||
+              !hasValidated ||
+              !validatedRows.length ||
+              failedCountAllFiles > 0
+            }
+            className="flex items-center justify-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 py-2.5 text-xs font-medium text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 sm:py-2"
+          >
+            <Send size={14} />
+            Upload
+          </button>
+        </div>
+
+        <div className="mt-2 grid grid-cols-1 gap-2 text-xs">
+          <button
+            type="button"
+            onClick={() => folderInputRef.current?.click()}
+            disabled={isPreparing || isValidating || isUploading}
+            className="rounded-lg border border-blue-200 bg-blue-50 px-2 py-2.5 font-medium text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 sm:py-2"
+          >
+            <span className="inline-flex items-center gap-1">
+              <FolderOpen size={14} />
+              Search Folder
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderPreviewPanel = () => (
+    <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-white">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden p-2">
+        {isPreparing ? (
+          <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <LoadingSpinner />
+              <div className="text-sm font-medium text-slate-700">
+                Loading imported file(s)...
+              </div>
+              <div className="text-xs text-slate-500">
+                Please wait while the file data is being prepared
+              </div>
+            </div>
+          </div>
+        ) : isValidating ? (
+          <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <LoadingSpinner />
+              <div className="text-sm font-medium text-slate-700">
+                Validating records...
+              </div>
+              <div className="text-xs text-slate-500">
+                Please wait while the table is being reloaded
+              </div>
+            </div>
+          </div>
+        ) : !hasTableColumns ? (
+          <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50">
+            <div className="text-center">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
+                <FileSpreadsheet size={22} className="text-blue-600" />
+              </div>
+              <div className="text-sm font-medium text-slate-700">
+                No data loaded yet
+              </div>
+              <div className="mt-1 text-xs text-slate-500">
+                Select Excel / CSV file(s) or a folder to preview records
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="min-h-0 flex-1 overflow-x-auto">
+            <SearchGlobalReportTable
+              ref={tableRef}
+              columns={tableColumns}
+              data={activeDisplayRows}
+              showFilters={true}
+              showGlobalSearch={true}
+              showGroupBy={true}
+              isLoading={isPreparing}
+              isFetching={isUploading}
+              autoFit={false}
+              autoFillGrid={false}
+              pagination={false}
+              docType="Excel / CSV Upload Preview"
+              onRowDoubleClick={(row) => setSelectedRow(row)}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <AnimatePresence>
       <motion.div
-        className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/55 p-4"
+        className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/55 p-0 sm:p-3 backdrop-blur-[1px]"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
+        onDragOver={handleDragOver}
+        onDrop={handleDropFiles}
       >
         <motion.div
-          initial={{ opacity: 0, y: 16, scale: 0.98 }}
+          initial={{ opacity: 0, y: 14, scale: 0.99 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 10, scale: 0.98 }}
+          exit={{ opacity: 0, y: 10, scale: 0.99 }}
           transition={{ duration: 0.18 }}
-          className="flex h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
+          className="flex h-[100dvh] w-screen flex-col overflow-hidden rounded-none border-0 bg-white shadow-2xl sm:h-[74vh] sm:w-[98vw] sm:max-w-[1680px] sm:rounded-xl sm:border sm:border-slate-300"
+          onDragOver={handleDragOver}
+          onDrop={handleDropFiles}
         >
-          {/* Header */}
-          <div className="bg-gradient-to-r from-blue-700 via-blue-600 to-cyan-500 px-6 py-5 text-white">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-bold tracking-tight">{title}</h2>
-                <p className="mt-1 text-sm text-white/90">
-                  Select .xlsx files or a folder → validate → review → upload
-                </p>
+          <div className="flex flex-col gap-2 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+            <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-700">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100">
+                <FileSpreadsheet size={16} className="text-blue-600" />
               </div>
-
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-xl p-2 text-white/90 transition hover:bg-white/15 hover:text-white"
-              >
-                <X size={20} />
-              </button>
+              <div className="flex min-w-0 flex-col">
+                <span className="truncate">{title}</span>
+                <span className="text-[11px] font-normal text-slate-500">
+                  Upload, validate, review, and submit Excel or CSV records
+                </span>
+              </div>
             </div>
 
-            {/* Step indicator */}
-            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs font-semibold">
-              <div className="rounded-full bg-white/20 px-3 py-1">1 Select Files</div>
-              <div className="text-white/70">→</div>
-              <div className="rounded-full bg-white/20 px-3 py-1">2 Validate</div>
-              <div className="text-white/70">→</div>
-              <div className="rounded-full bg-white/20 px-3 py-1">3 Review</div>
-              <div className="text-white/70">→</div>
-              <div className="rounded-full bg-white/20 px-3 py-1">4 Upload</div>
-            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-600 shadow-sm transition hover:border-red-300 hover:bg-red-50 hover:text-red-600 sm:px-3 sm:py-1.5"
+            >
+              <X size={14} />
+              Close
+            </button>
           </div>
 
-          {/* Body */}
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden bg-slate-50 p-5">
-            {/* Upload Panel */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="grid gap-4 lg:grid-cols-[1.25fr_.75fr]">
-                <div>
-                  <div className="rounded-2xl border-2 border-dashed border-blue-200 bg-gradient-to-br from-blue-50 to-cyan-50 p-6">
-                    <div className="flex flex-col items-start gap-4">
-                      <div className="flex items-center gap-3">
-                        <div className="rounded-2xl bg-blue-100 p-3 text-blue-700">
-                          <FileSpreadsheet size={22} />
-                        </div>
-                        <div>
-                          <div className="text-base font-semibold text-slate-800">
-                            Upload .xlsx Files Only
-                          </div>
-                          <div className="text-sm text-slate-500">
-                            Duplicate file names are blocked. All selected files must have the same exact headers.
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap gap-3">
-                        <button
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
-                        >
-                          <Upload size={16} />
-                          Choose Files
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => folderInputRef.current?.click()}
-                          className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                        >
-                          <FolderOpen size={16} />
-                          Choose Folder
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={handleValidate}
-                          disabled={
-                            isPreparing ||
-                            isValidating ||
-                            !selectedFiles.length ||
-                            !headerCheck.passed ||
-                            !rawMergedRows.length
-                          }
-                          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm transition ${
-                            isPreparing ||
-                            isValidating ||
-                            !selectedFiles.length ||
-                            !headerCheck.passed ||
-                            !rawMergedRows.length
-                              ? "cursor-not-allowed bg-slate-200 text-slate-500"
-                              : "bg-emerald-600 text-white hover:bg-emerald-700"
-                          }`}
-                        >
-                          <RefreshCcw size={16} />
-                          {isValidating ? "Validating..." : hasValidated ? "Revalidate" : "Validate Data"}
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={resetAll}
-                          className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                        >
-                          <Trash2 size={16} />
-                          Clear
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={handleDownloadErrors}
-                          disabled={!validatedRows.some((row) => String(row.status).toLowerCase() !== "passed")}
-                          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
-                            validatedRows.some((row) => String(row.status).toLowerCase() !== "passed")
-                              ? "border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                              : "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
-                          }`}
-                        >
-                          <FileWarning size={16} />
-                          Download Errors
-                        </button>
-                      </div>
-
-                      <div className="text-xs text-slate-500">
-                        Rules: only <span className="font-semibold">.xlsx</span>, no duplicate file names, exact same headers and order across all files.
-                      </div>
-
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        multiple
-                        accept=".xlsx"
-                        onChange={handleChooseFiles}
-                        className="hidden"
-                      />
-
-                      <input
-                        ref={folderInputRef}
-                        type="file"
-                        onChange={handleChooseFolder}
-                        className="hidden"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* File checks */}
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="mb-3 text-sm font-semibold text-slate-800">
-                    Selected Files Check
-                  </div>
-
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      {selectedFiles.length > 0 && rejectedFiles.every((r) => !r.reason.includes(".xlsx")) ? (
-                        <CheckCircle2 size={16} className="text-emerald-600" />
-                      ) : (
-                        <AlertTriangle size={16} className="text-amber-600" />
-                      )}
-                      <span className="text-slate-700">Only .xlsx files allowed</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {!rejectedFiles.some((r) => r.reason.toLowerCase().includes("duplicate")) ? (
-                        <CheckCircle2 size={16} className="text-emerald-600" />
-                      ) : (
-                        <XCircle size={16} className="text-red-600" />
-                      )}
-                      <span className="text-slate-700">Duplicate file names are not allowed</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {headerCheck.passed && selectedFiles.length > 0 ? (
-                        <CheckCircle2 size={16} className="text-emerald-600" />
-                      ) : (
-                        <XCircle size={16} className="text-red-600" />
-                      )}
-                      <span className="text-slate-700">All files must have identical headers and order</span>
-                    </div>
-                  </div>
-
-                  {!!headerCheck.referenceHeaders.length && (
-                    <div className="mt-4 rounded-xl bg-white p-3 text-xs text-slate-600">
-                      <div className="font-semibold text-slate-700">
-                        Reference File: {headerCheck.referenceFileName}
-                      </div>
-                      <div className="mt-2 break-words">
-                        {headerCheck.referenceHeaders.join(" | ")}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Rejected files */}
-              {rejectedFiles.length > 0 && (
-                <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4">
-                  <div className="mb-2 text-sm font-semibold text-red-700">
-                    Rejected Files
-                  </div>
-                  <div className="space-y-2 text-sm">
-                    {rejectedFiles.map((item, idx) => (
-                      <div
-                        key={`${item.fileName}-${idx}`}
-                        className="flex items-start gap-2 text-red-700"
-                      >
-                        <XCircle size={16} className="mt-0.5 shrink-0" />
-                        <div>
-                          <span className="font-semibold">{item.fileName}</span>
-                          <span className="ml-2">{item.reason}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Header mismatches */}
-              {!headerCheck.passed && headerCheck.mismatches.length > 0 && (
-                <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4">
-                  <div className="mb-2 text-sm font-semibold text-red-700">
-                    Column Mismatch Detected
-                  </div>
-
-                  <div className="space-y-3">
-                    {headerCheck.mismatches.map((item, idx) => (
-                      <div
-                        key={`${item.fileName}-${idx}`}
-                        className="rounded-xl border border-red-100 bg-white p-3 text-sm"
-                      >
-                        <div className="font-semibold text-slate-800">{item.fileName}</div>
-                        <div className="mt-1 text-red-700">{item.reason}</div>
-
-                        <div className="mt-2 text-xs text-slate-600">
-                          <div>
-                            <span className="font-semibold">Expected:</span>{" "}
-                            {item.expectedHeaders.join(" | ")}
-                          </div>
-                          <div className="mt-1">
-                            <span className="font-semibold">Found:</span>{" "}
-                            {item.actualHeaders.join(" | ")}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Selected file list */}
-              {selectedFiles.length > 0 && (
-                <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-                  <div className="mb-3 text-sm font-semibold text-slate-800">
-                    Accepted Files
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    {selectedFiles.map((file) => (
-                      <span
-                        key={file.name}
-                        className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700"
-                      >
-                        <CheckCircle2 size={14} />
-                        {file.name}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Summary Cards */}
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <SummaryCard
-                label="Total Files"
-                value={validationSummary.totalFiles}
-                icon={<FileSpreadsheet size={18} />}
-                tone="blue"
-              />
-              <SummaryCard
-                label="Total Records"
-                value={validationSummary.totalRecords}
-                icon={<Upload size={18} />}
-                tone="slate"
-              />
-              <SummaryCard
-                label="Passed"
-                value={validationSummary.passed}
-                icon={<CheckCircle2 size={18} />}
-                tone="emerald"
-              />
-              <SummaryCard
-                label="Failed"
-                value={validationSummary.failed}
-                icon={<XCircle size={18} />}
-                tone="red"
-              />
-            </div>
-
-            {/* Table */}
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-                <div>
-                  <div className="text-sm font-semibold text-slate-800">
-                    Preview Data
-                  </div>
-                  <div className="text-xs text-slate-500">
-                    Showing up to 200 rows for preview
-                  </div>
-                </div>
-
-                <div className="text-xs text-slate-500">
-                  {isPreparing
-                    ? "Reading files..."
-                    : isValidating
-                    ? "Validating data..."
-                    : isUploading
-                    ? "Uploading..."
-                    : hasValidated
-                    ? "Validation completed"
-                    : "Waiting for validation"}
-                </div>
-              </div>
-
-              <div className="min-h-0 flex-1 overflow-auto">
-                {previewColumns.length === 0 || visibleRows.length === 0 ? (
-                  <div className="flex h-full items-center justify-center p-8 text-center text-sm text-slate-500">
-                    No preview data yet. Select valid .xlsx files with matching headers, then validate.
-                  </div>
-                ) : (
-                  <table className="min-w-full border-separate border-spacing-0 text-sm">
-                    <thead className="sticky top-0 z-10 bg-slate-100">
-                      <tr>
-                        {previewColumns.map((column) => (
-                          <th
-                            key={column}
-                            className="border-b border-r border-slate-200 px-3 py-2 text-left font-semibold text-slate-700 first:border-l"
-                          >
-                            {column}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      {visibleRows.map((row, rowIndex) => {
-                        const failed = String(row.status || "").toLowerCase() !== "" &&
-                          String(row.status || "").toLowerCase() !== "passed";
-
-                        return (
-                          <tr
-                            key={`${row.fileName || "row"}-${row.rowNo || rowIndex}-${rowIndex}`}
-                            className={failed ? "bg-red-50/60" : "bg-white"}
-                          >
-                            {previewColumns.map((column) => (
-                              <td
-                                key={`${rowIndex}-${column}`}
-                                className="border-b border-r border-slate-100 px-3 py-2 align-top text-slate-700 first:border-l"
-                              >
-                                {column === "status" ? (
-                                  getStatusBadge(row[column])
-                                ) : column === "errorLog" ? (
-                                  <span className={failed ? "text-red-700" : "text-slate-500"}>
-                                    {String(row[column] ?? "")}
-                                  </span>
-                                ) : (
-                                  <span>{String(row[column] ?? "")}</span>
-                                )}
-                              </td>
-                            ))}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="flex items-center justify-between border-t border-slate-200 bg-white px-5 py-4">
-            <div className="text-xs text-slate-500">
-              Exact Excel column names are preserved in the JSON payload.
-            </div>
-
-            <div className="flex items-center gap-3">
+          <div className="border-b border-slate-200 bg-white px-3 py-2 sm:hidden">
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={onClose}
-                className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                Close
-              </button>
-
-              <button
-                type="button"
-                onClick={handleUpload}
-                disabled={!canUpload}
-                className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold shadow-sm transition ${
-                  canUpload
-                    ? "bg-blue-600 text-white hover:bg-blue-700"
-                    : "cursor-not-allowed bg-slate-200 text-slate-500"
+                onClick={() => setMobileActiveTab("files")}
+                className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                  mobileActiveTab === "files"
+                    ? "border-blue-500 bg-blue-500 text-white"
+                    : "border-slate-300 bg-white text-slate-600"
                 }`}
               >
-                <Send size={16} />
-                {isUploading ? "Uploading..." : "Upload"}
+                <Files size={14} />
+                Files
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMobileActiveTab("preview")}
+                className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition ${
+                  mobileActiveTab === "preview"
+                    ? "border-blue-500 bg-blue-500 text-white"
+                    : "border-slate-300 bg-white text-slate-600"
+                }`}
+              >
+                <Table2 size={14} />
+                Preview
               </button>
             </div>
           </div>
+
+          <div className="hidden min-h-0 flex-1 overflow-hidden bg-white sm:flex">
+            {renderFilesPanel()}
+            {renderPreviewPanel()}
+          </div>
+
+          <div className="flex min-h-0 flex-1 overflow-hidden bg-white sm:hidden">
+            {mobileActiveTab === "files" ? renderFilesPanel() : renderPreviewPanel()}
+          </div>
+
+          <div className="flex flex-col gap-2 border-t border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+              <span>Total File/s : {totalFiles}</span>
+
+              <button
+                type="button"
+                onClick={() => setRecordViewMode("all")}
+                className={summaryButtonClass("all")}
+              >
+                Total Record/s : {totalRecordsAllFiles}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (!hasValidated) return;
+                  setRecordViewMode("passed");
+                }}
+                disabled={!hasValidated}
+                className={`${summaryButtonClass("passed")} disabled:cursor-not-allowed disabled:opacity-50`}
+              >
+                Total Record/s (Passed) : {passedCountAllFiles}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (!hasValidated) return;
+                  setRecordViewMode("failed");
+                }}
+                disabled={!hasValidated}
+                className={`${summaryButtonClass("failed")} disabled:cursor-not-allowed disabled:opacity-50`}
+              >
+                Total Record/s (Failed) : {failedCountAllFiles}
+              </button>
+
+              {recordViewMode === "selected" && selectedFileName ? (
+                <span className="rounded-md bg-white px-2 py-1 text-slate-500">
+                  Viewing file: {selectedFileName} ({totalRecords})
+                </span>
+              ) : recordViewMode === "all" ? (
+                <span className="rounded-md bg-white px-2 py-1 text-slate-500">
+                  Viewing: All records from all Excel / CSV files
+                </span>
+              ) : recordViewMode === "passed" ? (
+                <span className="rounded-md bg-white px-2 py-1 text-slate-500">
+                  Viewing: Passed records only from all Excel / CSV files
+                </span>
+              ) : recordViewMode === "failed" ? (
+                <span className="rounded-md bg-white px-2 py-1 text-slate-500">
+                  Viewing: Failed records only from all Excel / CSV files
+                </span>
+              ) : null}
+            </div>
+
+            <div className="flex min-w-[28px] items-center justify-end">
+              {showFooterBusy ? (
+                <div className="flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-500 [animation-delay:-0.3s]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-500 [animation-delay:-0.15s]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-500" />
+                </div>
+              ) : uploadCompleted ? (
+                <div className="h-2 w-2 rounded-full bg-emerald-500" />
+              ) : selectedFileName ? (
+                <div className="h-2 w-2 rounded-full bg-blue-500" />
+              ) : (
+                <div className="h-2 w-2 rounded-full bg-slate-300" />
+              )}
+            </div>
+          </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept=".xlsx,.csv"
+            onChange={handleChooseFiles}
+            className="hidden"
+          />
+
+          <input
+            ref={folderInputRef}
+            type="file"
+            onChange={handleChooseFolder}
+            className="hidden"
+          />
         </motion.div>
       </motion.div>
     </AnimatePresence>
-  );
-}
-
-function SummaryCard({ label, value, icon, tone = "slate" }) {
-  const toneMap = {
-    blue: {
-      wrap: "border-blue-200 bg-blue-50",
-      icon: "bg-blue-100 text-blue-700",
-      text: "text-blue-800",
-    },
-    slate: {
-      wrap: "border-slate-200 bg-slate-50",
-      icon: "bg-slate-200 text-slate-700",
-      text: "text-slate-800",
-    },
-    emerald: {
-      wrap: "border-emerald-200 bg-emerald-50",
-      icon: "bg-emerald-100 text-emerald-700",
-      text: "text-emerald-800",
-    },
-    red: {
-      wrap: "border-red-200 bg-red-50",
-      icon: "bg-red-100 text-red-700",
-      text: "text-red-800",
-    },
-  };
-
-  const styles = toneMap[tone] || toneMap.slate;
-
-  return (
-    <div className={`rounded-2xl border p-4 shadow-sm ${styles.wrap}`}>
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
-            {label}
-          </div>
-          <div className={`mt-2 text-2xl font-bold ${styles.text}`}>{value}</div>
-        </div>
-
-        <div className={`rounded-xl p-3 ${styles.icon}`}>{icon}</div>
-      </div>
-    </div>
   );
 }
