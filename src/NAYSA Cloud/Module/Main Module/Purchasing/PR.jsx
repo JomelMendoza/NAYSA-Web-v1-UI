@@ -9,7 +9,12 @@ import {
   faSearch,
   faMinus,
   faTrashAlt,
+  faBoxOpen,
+  faWarehouse,
+  faQrcode,
+  faTableCellsLarge,
 } from "@fortawesome/free-solid-svg-icons";
+
 
 // Lookup/Modal
 import BranchLookupModal from "../../../Lookup/SearchBranchRef";
@@ -24,6 +29,7 @@ import AllTranDocNo from "../../../Lookup/SearchDocNo.jsx";
 import GlobalLookupModalv1 from "../../../Lookup/SearchGlobalLookupv1.jsx";
 import JobCodeLookupModal from "../../../Lookup/SearchJobCodesRef.jsx";
 import ExcelBatchUploadModal from "../../../Lookup/SearchGlobalExcelBatchUpload.jsx";
+import BarcodeQrReaderModal from "../../../Lookup/SearchGlobalQRBarCodeReader.jsx";
 import FieldRenderer from "@/NAYSA Cloud/Global/FieldRenderer.jsx";
 
 // Configuration
@@ -71,7 +77,8 @@ import {
   useSwalInfoAlert,
   useSwalConfirmAlert,
   useSwalHandleOpenSpecsModal,
-  useSwalSuccessAlert
+  useSwalSuccessAlert,
+  useSwalErrorAlert,
 } from "@/NAYSA Cloud/Global/behavior.jsx";
 
 import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
@@ -174,6 +181,7 @@ import Header from "@/NAYSA Cloud/Components/Header";
     noReprints: "0",
     prCancelled: "",
     userCode:currentUserRow?.userCode||"",
+    showScannerOpen:false,
 
     // Detail lines (PR dt1)
     detailRows: [],
@@ -266,6 +274,7 @@ import Header from "@/NAYSA Cloud/Components/Header";
     showSignatoryModal,
     showPostModal,
     showUploadModal,
+    showScannerOpen,
 
     rcLookupModalOpen,
     rcLookupContext,
@@ -793,6 +802,70 @@ const handleAddBlankRow = (index) => {
     updateTotalsDisplay(totalQty);
   };
 
+const handleAddByQR = () => {
+  setShowTypeDropdown(false);
+  updateState({showScannerOpen:true})
+};
+
+
+
+const handleScanItem = async (scannedValue) => {
+  try {
+    // sample only
+    // replace this with your actual lookup logic / API call
+    // scannedValue can be barcode, qr text, itemCode, etc.
+
+    const matchedItem = itemList?.find(
+      (x) =>
+        x.itemCode === scannedValue ||
+        x.barcode === scannedValue ||
+        x.qrCode === scannedValue
+    );
+
+    if (!matchedItem) {
+      useSwalErrorAlert(
+        "Item not found",
+        `No item matched the scanned value: ${scannedValue}`
+      );
+      return;
+    }
+
+    const newRow = {
+      invType: typeCode,
+      groupId: "",
+      prStatus: "O",
+      itemCode: matchedItem.itemCode || "",
+      serviceCode: matchedItem.serviceCode || "",
+      serviceName: matchedItem.serviceName || "",
+      itemName: matchedItem.itemName || "",
+      uomCode: matchedItem.uomCode || (isJobOrder ? "Lot" : ""),
+      qtyOnHand: matchedItem.qtyOnHand || "0.000000",
+      qtyAlloc: matchedItem.qtyAlloc || "0.000000",
+      qtyNeeded: "0.000000",
+      uomCode2: matchedItem.uomCode2 || "",
+      uomQty2: matchedItem.uomQty2 || "0.000000",
+      dateNeeded: headerDateNeeded,
+      itemSpecs: matchedItem.itemSpecs || "",
+      poQty: matchedItem.poQty || "0.000000",
+      rrQty: matchedItem.rrQty || "0.000000",
+      joNo: "",
+    };
+
+    const updatedRows = [...detailRows, newRow];
+    updateState({ detailRows: updatedRows });
+
+    const totalQty = updatedRows.reduce(
+      (acc, r) => acc + (parseFormattedNumber(r.qtyNeeded) || 0),
+      0
+    );
+
+    updateTotalsDisplay(totalQty);
+    updateState({showScannerOpen:false})
+  } catch (error) {
+    console.error("Scan item error:", error);
+    useSwalErrorAlert("Scan Error", "Unable to process scanned item.");
+  }
+};
 
 
   // const handleOpenMSLookup = () => {
@@ -2071,44 +2144,132 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
           <div className="global-tran-tab-footer-main-div-ui">
             <div className="global-tran-tab-footer-button-div-ui">
               <div className="relative inline-block">
+ 
+ 
   {/* Dropdown overlay (absolute so it will NOT expand layout) */}
   {!isJobOrder && showTypeDropdown && (
-    <div className="absolute bottom-[110%] left-0 mb-2 bg-white dark:bg-slate-800 border rounded-md shadow-lg z-[9999] min-w-[140px]">
-      <button
-        type="button"
-        className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-slate-700"
-        onClick={() => handleSelectTypeAndAddRow("FG")}
-      >
-        FG
-      </button>
+  
+      <div className="absolute bottom-[110%] left-0 mb-3 z-[9999] w-[240px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.18)] backdrop-blur-sm dark:border-slate-700 dark:bg-slate-800">
+        <div className="border-b border-slate-100 px-4 py-3 dark:border-slate-700">
+          <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">
+            Add Item
+          </div>
+          
+        </div>
+
+        <div className="p-2">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-100 dark:hover:bg-slate-700"
+            onClick={() => {
+              setShowTypeDropdown(false);
+              handleSelectTypeAndAddRow("FG");
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200">
+                <FontAwesomeIcon icon={faBoxOpen} />
+              </span>
+              <div className="flex flex-col items-start">
+                <span>Finished Goods</span>
+                <span className="text-[11px] font-normal text-slate-400 dark:text-slate-500">
+                  Add FG item
+                </span>
+              </div>
+            </div>
+            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500 dark:bg-slate-700 dark:text-slate-300">
+              FG
+            </span>
+          </button>
+
+          <button
+            type="button"
+            className="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-100 dark:hover:bg-slate-700"
+            onClick={() => {
+              setShowTypeDropdown(false);
+              handleOpenMSLookup(false, "PRMS");
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200">
+                <FontAwesomeIcon icon={faTableCellsLarge} />
+              </span>
+              <div className="flex flex-col items-start">
+                <span>Material Supplies</span>
+                <span className="text-[11px] font-normal text-slate-400 dark:text-slate-500">
+                  Add MS Item
+                </span>
+              </div>
+            </div>
+            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500 dark:bg-slate-700 dark:text-slate-300">
+              MS
+            </span>
+          </button>
+
+          <button
+            type="button"
+            className="mt-1 flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-100 dark:hover:bg-slate-700"
+            onClick={() => {
+              setShowTypeDropdown(false);
+              handleSelectTypeAndAddRow("RM");
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200">
+                <FontAwesomeIcon icon={faWarehouse} />
+              </span>
+              <div className="flex flex-col items-start">
+                <span>Raw Material</span>
+                <span className="text-[11px] font-normal text-slate-400 dark:text-slate-500">
+                  Add RM Item
+                </span>
+              </div>
+            </div>
+            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500 dark:bg-slate-700 dark:text-slate-300">
+              RM
+            </span>
+          </button>
+
+          <div className="my-2 border-t border-slate-100 dark:border-slate-700" />
+
+          <button
+            type="button"
+            className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium text-blue-700 transition-all duration-150 hover:bg-blue-50 hover:text-blue-900 dark:text-blue-300 dark:hover:bg-slate-700"
+            onClick={() => {
+              setShowTypeDropdown(false);
+              handleAddByQR();
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-slate-700 dark:text-blue-300">
+                <FontAwesomeIcon icon={faQrcode} />
+              </span>
+              <div className="flex flex-col items-start">
+                <span>QR Code / Barcode</span>
+                <span className="text-[11px] font-normal text-slate-400 dark:text-slate-500">
+                  Scan using camera
+                </span>
+              </div>
+            </div>
+            <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-600 dark:bg-slate-700 dark:text-blue-300">
+              Scan
+            </span>
+          </button>
+        </div>
+      </div>
+
+      )}
 
       <button
-        type="button"
-        className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-slate-700"
-         onClick={() => handleOpenMSLookup(false,"PRMS")}
-        // onClick={handleOpenMSLookup(false,"PRMS")}
+        onClick={handleAddRowClick}
+        className={`global-tran-tab-footer-button-add-ui`}
       >
-        MS
+        <FontAwesomeIcon icon={faPlus} className="mr-2" />
+        Add
       </button>
 
-      <button
-        type="button"
-        className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-slate-700"
-        onClick={() => handleSelectTypeAndAddRow("RM")}
-      >
-        RM
-      </button>
-    </div>
-  )}
 
-  <button
-    onClick={handleAddRowClick}
-    className={`global-tran-tab-footer-button-add-ui`}
-
-  >
-    <FontAwesomeIcon icon={faPlus} className="mr-2" />
-    Add
-  </button>
+  
   </div>
       </div>
   
@@ -2240,13 +2401,7 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
         <ExcelBatchUploadModal 
           isOpen={showUploadModal}
           uploadedDocType={docType}
-          companyCode={companyInfo?.compCode||""}
-          // params={{
-          //   DocumentID: documentID,
-          //   DocumentName: documentName,
-          //   BranchName: branchName,
-          //   DocumentNo: documentNo,
-          // }}
+          companyInfo={companyInfo}
           onClose={() => updateState({ showUploadModal: false })}
         />
       )}
@@ -2274,7 +2429,16 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
         onCancel={() => updateState({ msLookupModalOpen: false })}
         singleSelect={itemSingleSelect}
          />
-        )}      
+        )}
+
+
+      <BarcodeQrReaderModal
+       isOpen={showScannerOpen}
+        onClose={() => updateState({ showScannerOpen: false })}
+        onScan={(scannedValue) => {
+          handleScanItem(scannedValue);
+        }}
+      />      
 
 
 

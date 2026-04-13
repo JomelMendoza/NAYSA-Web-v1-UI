@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { postRequest } from "@/NAYSA Cloud/Configuration/BaseURL";
 import { exportGenericHistoryExcel, exportGenericQueryExcel } from "@/NAYSA Cloud/Global/report";
 import { LoadingSpinner } from "@/NAYSA Cloud/Global/utilities.jsx";
+
 import {
   format,
   subDays,
@@ -49,6 +50,7 @@ import { useSwalErrorAlert } from "@/NAYSA Cloud/Global/behavior.jsx";
 import { useReturnToDate } from "@/NAYSA Cloud/Global/dates";
 import { useSelectedHSColConfig } from "@/NAYSA Cloud/Global/selectedData";
 import Header, { HeaderSpacer } from "@/NAYSA Cloud/Components/Header";
+import ExportFileNameModal from "@/NAYSA Cloud/Lookup/SearchExport.jsx";
 import { useAuth } from "@/NAYSA Cloud/Authentication/AuthContext.jsx";
 
 import Swal from "sweetalert2";
@@ -301,6 +303,14 @@ const AllTranHistory = (props) => {
         "",
     };
   });
+
+  const [exportModal, setExportModal] = useState({
+        isOpen: false,
+        title: "Export File",
+        confirmText: "Export",
+        defaultFileName: "",
+        type: null,
+      });
 
   // Handle external clicks for menus
   useEffect(() => {
@@ -1298,272 +1308,200 @@ const AllTranHistory = (props) => {
     return `${yyyy}${mm}${dd}_${hh}${mi}${ss}`;
   };
 
-  const handleExportExcel_All = async () => {
-    const tabKeys = Object.keys(tabData || {});
-    if (!tabKeys.length) {
-      alert("No data to export. Please Apply Filter first.");
-      return;
-    }
+  const sanitizeFileName = (name) =>
+  String(name ?? "")
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, "")
+    .replace(/\s+/g, " ")
+    .substring(0, 120);
 
-    setExporting(true);
-    try {
-      const now = new Date();
-      const datePart = now.toISOString().slice(0, 10).replace(/-/g, "");
-      const timePart = now.toTimeString().slice(0, 8).replace(/:/g, "");
-      const defaultFileName = `${exportName} ${datePart}_${timePart}`;
+const openExportModal = (type) => {
+  const defaultFileName = `${exportName} ${getDateTimeStamp()}`;
 
-      const { value: fileName } = await Swal.fire({
-        input: "text",
-        inputLabel: "Export File Name:",
-        inputValue: defaultFileName,
-        width: "520px",
-        showCancelButton: true,
-        confirmButtonText: "Export",
-        customClass: {
-          input: "swal-wide-input",
-        },
-        inputValidator: (value) => {
-          if (!value || value.trim() === "") {
-            return "File name cannot be empty!";
-          }
-        },
-      });
-
-      if (!fileName) return;
-      const reportName = fileName.trim();
-      const start = dates?.[0] ? format(dates[0], "yyyy-MM-dd") : null;
-      const end = dates?.[1] ? format(dates[1], "yyyy-MM-dd") : null;
-      const exportData = { Data: {} };
-      const columnConfigsMap = {};
-
-      Object.keys(tabData || {}).forEach((tabKey) => {
-        const sheetName = tabKey
-          .replace(/_/g, " ")
-          .replace(/\b\w/g, (c) => c.toUpperCase())
-          .slice(0, 31);
-
-        const groupCols = groupByByTab[tabKey] || [];
-        const hiddenCols = userHiddenColsByTab[tabKey] || [];
-
-        const cols = getColumnsForTab(tabKey).filter(
-          (c) => !c.hidden && !hiddenCols.includes(c.key) && !groupCols.includes(c.key)
-        );
-
-        const rows = Array.isArray(tabData[tabKey]) ? tabData[tabKey] : [];
-        exportData.Data[sheetName] = rows;
-        columnConfigsMap[sheetName] = cols;
-      });
-
-      const payload = {
-        ReportName: reportName,
-        UserCode: currentUserRow?.userCode ||  "",
-        Branch: branchCode || "",
-        StartDate: start,
-        EndDate: end,
-        JsonData: exportData,
-        companyName: companyInfo?.compName || "",
-        companyAddress: companyInfo?.compAddr || "",
-        companyTelNo: companyInfo?.telNo || ""
-      };
-
-      await exportGenericHistoryExcel(payload, columnConfigsMap);
-    } catch (err) {
-      console.error("Error exporting excel:", err);
-    } finally {
-      setExporting(false);
-    }
+  const titleMap = {
+    excel_all: "Export Excel",
+    excel: "Export Excel",
+    csv: "Export CSV",
+    pdf: "Export PDF",
+    image: "Export Image",
   };
 
-  const handleExportExcel = async () => {
-    
-    if (!visibleCols.length || !filteredData.length) return;
+  setExportModal({
+    isOpen: true,
+    title: titleMap[type] || "Export File",
+    confirmText: "Export",
+    defaultFileName,
+    type,
+  });
+};
 
-    try {
-      const activeTabFileName = activeTab
-        ? `${activeTab.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())} ${getDateTimeStamp()}`
-        : `History ${getDateTimeStamp()}`;
+const closeExportModal = () => {
+  setExportModal({
+    isOpen: false,
+    title: "Export File",
+    confirmText: "Export",
+    defaultFileName: "",
+    type: null,
+  });
+};
 
-      const formatMMddyyyyNoSlash = (dateValue) => {
-        if (!dateValue) return "";
-        return format(new Date(dateValue), "MMddyyyy");
-      };
+const handleExportExcel = async (customFileName) => {
+  if (!visibleCols.length || !filteredData.length) return;
 
-      const reportTitle = activeTab
-        ? `${activeTab.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())} ${formatMMddyyyyNoSlash(
-            dates?.[0]
-          )} to ${formatMMddyyyyNoSlash(dates?.[1])}`
-        : `History ${formatMMddyyyyNoSlash(dates?.[0])} to ${formatMMddyyyyNoSlash(dates?.[1])}`;
+  try {
+    const fileName = sanitizeFileName(customFileName);
+    if (!fileName) return;
 
-      const { value: fileName } = await Swal.fire({
-        input: "text",
-        inputLabel: "Export File Name:",
-        inputValue: activeTabFileName,
-        width: "400px",
-        showCancelButton: true,
-        confirmButtonText: "Export",
-        inputValidator: (value) => {
-          if (!value || value.trim() === "") {
-            return "File name cannot be empty!";
-          }
-        },
-      });
+    const formatMMddyyyyNoSlash = (dateValue) => {
+      if (!dateValue) return "";
+      return format(new Date(dateValue), "MMddyyyy");
+    };
 
-      if (!fileName) return;
+    const reportTitle = activeTab
+      ? `${activeTab.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())} ${formatMMddyyyyNoSlash(
+          dates?.[0]
+        )} to ${formatMMddyyyyNoSlash(dates?.[1])}`
+      : `History ${formatMMddyyyyNoSlash(dates?.[0])} to ${formatMMddyyyyNoSlash(dates?.[1])}`;
 
-      const exportData = groupBy.length > 0 ? groupedStructure : filteredData;
-      await exportGenericQueryExcel(
-        exportData,
-        grandTotals,
-        visibleCols,
-        groupBy,
-        baseColumns,
-        expandedGroups,
-        7,
-        fileName,
-        currentUserRow?.userName,
-        companyInfo?.compName,
-        companyInfo?.compAddr,
-        companyInfo?.telNo,
-        reportTitle
-      );
-    } catch (err) {
-      console.error("Error exporting Excel:", err);
-    }
-  };
+    const exportData = groupBy.length > 0 ? groupedStructure : filteredData;
 
-  const handleExportCsv = async () => {
-    if (!visibleCols.length || !filteredData.length) return;
+    await exportGenericQueryExcel(
+      exportData,
+      grandTotals,
+      visibleCols,
+      groupBy,
+      baseColumns,
+      expandedGroups,
+      7,
+      fileName,
+      currentUserRow?.userName,
+      companyInfo?.compName,
+      companyInfo?.compAddr,
+      companyInfo?.telNo,
+      reportTitle
+    );
+  } catch (err) {
+    console.error("Error exporting Excel:", err);
+  }
+};
 
-    try {
-      const defaultFileName = `${exportName} ${getDateTimeStamp()}`;
-      const { value: fileName } = await Swal.fire({
-        title: "Enter File Name",
-        input: "text",
-        inputLabel: "Export CSV File Name:",
-        inputValue: defaultFileName,
-        width: "400px",
-        showCancelButton: true,
-        confirmButtonText: "Export CSV",
-        inputValidator: (value) => {
-          if (!value || value.trim() === "") return "File name cannot be empty!";
-        },
-      });
 
-      if (!fileName) return;
+ const handleExportCsv = async (customFileName) => {
+  if (!visibleCols.length || !filteredData.length) return;
 
-      const rowsToExport = filteredData;
-      const headerRow = visibleCols
+  try {
+    const fileName = sanitizeFileName(customFileName);
+    if (!fileName) return;
+
+    const rowsToExport = filteredData;
+    const headerRow = visibleCols
+      .map((col) => {
+        let header = String(col.label ?? "");
+        header = header.replace(/,/g, "");
+        header = header.toUpperCase().replace(/\s+/g, "_");
+        return `"${header.replace(/"/g, '""')}"`;
+      })
+      .join(",");
+
+    const csvLines = [headerRow];
+
+    rowsToExport.forEach((row) => {
+      const line = visibleCols
         .map((col) => {
-          let header = String(col.label ?? "");
-          header = header.replace(/,/g, "");
-          header = header.toUpperCase().replace(/\s+/g, "_");
-          return `"${header.replace(/"/g, '""')}"`;
+          const formatted = formatCellValue(row[col.key], col);
+          const noCommas = String(
+            React.isValidElement(formatted) ? formatted.props?.children ?? "" : formatted ?? ""
+          ).replace(/,/g, "");
+          return `"${String(noCommas).replace(/"/g, '""')}"`;
         })
         .join(",");
+      csvLines.push(line);
+    });
 
-      const csvLines = [headerRow];
+    const blob = new Blob([csvLines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `${fileName}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error("Error exporting CSV:", err);
+  }
+};
 
-      rowsToExport.forEach((row) => {
-        const line = visibleCols
-          .map((col) => {
-            const formatted = formatCellValue(row[col.key], col);
-            const noCommas = String(
-              React.isValidElement(formatted) ? formatted.props?.children ?? "" : formatted ?? ""
-            ).replace(/,/g, "");
-            return `"${String(noCommas).replace(/"/g, '""')}"`;
-          })
-          .join(",");
-        csvLines.push(line);
-      });
+const handleExportPdf = async (customFileName) => {
+  if (!exportContainerRef.current || !displayRows.length) return;
 
-      const blob = new Blob([csvLines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", `${fileName}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error("Error exporting CSV:", err);
+  try {
+    const fileName = sanitizeFileName(customFileName);
+    if (!fileName) return;
+
+    const canvas = await html2canvas(exportContainerRef.current, { scale: 2, useCORS: true });
+    const imgData = canvas.toDataURL("image/png");
+
+    const pdf = new jsPDF("l", "mm", "a4");
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const imgWidthPx = canvas.width;
+    const imgHeightPx = canvas.height;
+    const ratio = Math.min(pdfWidth / imgWidthPx, pdfHeight / imgHeightPx);
+    const imgWidth = imgWidthPx * ratio;
+    const imgHeight = imgHeightPx * ratio;
+    const x = (pdfWidth - imgWidth) / 2;
+    const y = 5;
+
+    pdf.addImage(imgData, "PNG", x, y, imgWidth, imgHeight);
+    pdf.save(`${fileName}.pdf`);
+  } catch (err) {
+    console.error("Error exporting PDF:", err);
+  }
+};
+
+const handleExportImage = async (customFileName) => {
+  if (!exportContainerRef.current || !displayRows.length) return;
+
+  try {
+    const fileName = sanitizeFileName(customFileName);
+    if (!fileName) return;
+
+    const canvas = await html2canvas(exportContainerRef.current, { scale: 2, useCORS: true });
+    const imgData = canvas.toDataURL("image/png");
+
+    const link = document.createElement("a");
+    link.href = imgData;
+    link.download = `${fileName}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (err) {
+    console.error("Error exporting image:", err);
+  }
+};
+
+const handleExportConfirm = async (enteredFileName) => {
+  try {
+    const safeFileName = sanitizeFileName(enteredFileName);
+    if (!safeFileName) return;
+
+    if (exportModal.type === "excel") {
+      await handleExportExcel(safeFileName);
+    } else if (exportModal.type === "csv") {
+      await handleExportCsv(safeFileName);
+    } else if (exportModal.type === "pdf") {
+      await handleExportPdf(safeFileName);
+    } else if (exportModal.type === "image") {
+      await handleExportImage(safeFileName);
     }
-  };
+  } finally {
+    closeExportModal();
+  }
+};
 
-  const handleExportPdf = async () => {
-    if (!exportContainerRef.current || !displayRows.length) return;
 
-    try {
-      const canvas = await html2canvas(exportContainerRef.current, { scale: 2, useCORS: true });
-      const imgData = canvas.toDataURL("image/png");
 
-      const defaultFileName = `${exportName} ${getDateTimeStamp()}`;
-      const { value: fileName } = await Swal.fire({
-        title: "Enter File Name",
-        input: "text",
-        inputLabel: "Export PDF File Name:",
-        inputValue: defaultFileName,
-        width: "400px",
-        showCancelButton: true,
-        confirmButtonText: "Export PDF",
-        inputValidator: (value) => {
-          if (!value || value.trim() === "") return "File name cannot be empty!";
-        },
-      });
-
-      if (!fileName) return;
-
-      const pdf = new jsPDF("l", "mm", "a4");
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgWidthPx = canvas.width;
-      const imgHeightPx = canvas.height;
-      const ratio = Math.min(pdfWidth / imgWidthPx, pdfHeight / imgHeightPx);
-      const imgWidth = imgWidthPx * ratio;
-      const imgHeight = imgHeightPx * ratio;
-      const x = (pdfWidth - imgWidth) / 2;
-      const y = 5;
-
-      pdf.addImage(imgData, "PNG", x, y, imgWidth, imgHeight);
-      pdf.save(`${fileName}.pdf`);
-    } catch (err) {
-      console.error("Error exporting PDF:", err);
-    }
-  };
-
-  const handleExportImage = async () => {
-    if (!exportContainerRef.current || !displayRows.length) return;
-
-    try {
-      const canvas = await html2canvas(exportContainerRef.current, { scale: 2, useCORS: true });
-      const imgData = canvas.toDataURL("image/png");
-
-      const defaultFileName = `${exportName} ${getDateTimeStamp()}`;
-      const { value: fileName } = await Swal.fire({
-        title: "Enter File Name",
-        input: "text",
-        inputLabel: "Export Image File Name:",
-        inputValue: defaultFileName,
-        width: "400px",
-        showCancelButton: true,
-        confirmButtonText: "Export Image",
-        inputValidator: (value) => {
-          if (!value || value.trim() === "") return "File name cannot be empty!";
-        },
-      });
-
-      if (!fileName) return;
-
-      const link = document.createElement("a");
-      link.href = imgData;
-      link.download = `${fileName}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (err) {
-      console.error("Error exporting image:", err);
-    }
-  };
 
   const numberAlignClass = (col) =>
     isNumericColumn(col) || col?.classNames?.includes("text-right")
@@ -2114,12 +2052,51 @@ const AllTranHistory = (props) => {
                           className="text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 transition flex items-center justify-center h-8 px-3">
                     <FontAwesomeIcon icon={faFileExport} className="mr-1" /> Export
                   </button>
-                  {showExportMenu && (
+                 {showExportMenu && (
                     <div className="absolute right-0 mt-1 min-w-[120px] rounded-lg shadow-lg bg-white ring-1 ring-black/10 z-[60] overflow-hidden py-1">
-                      <button onClick={async () => { setShowExportMenu(false); await handleExportExcel(); }} className="flex items-center w-full px-4 py-2 text-xs hover:bg-blue-50 transition-colors"><FontAwesomeIcon icon={faFileExcel} className="mr-2 text-green-600" /> Excel</button>
-                      <button onClick={async () => { setShowExportMenu(false); await handleExportCsv(); }} className="flex items-center w-full px-4 py-2 text-xs hover:bg-blue-50 transition-colors"><FontAwesomeIcon icon={faFileCsv} className="mr-2 text-emerald-600" /> CSV</button>
-                      <button onClick={async () => { setShowExportMenu(false); await handleExportPdf(); }} className="flex items-center w-full px-4 py-2 text-xs hover:bg-blue-50 transition-colors"><FontAwesomeIcon icon={faFilePdf} className="mr-2 text-red-600" /> PDF</button>
-                      <button onClick={async () => { setShowExportMenu(false); await handleExportImage(); }} className="flex items-center w-full px-4 py-2 text-xs hover:bg-blue-50 transition-colors"><FontAwesomeIcon icon={faFileImage} className="mr-2 text-blue-600" /> Image</button>
+                      <button
+                        onClick={() => {
+                          setShowExportMenu(false);
+                          openExportModal("excel");
+                        }}
+                        className="flex items-center w-full px-4 py-2 text-xs hover:bg-blue-50 transition-colors"
+                      >
+                        <FontAwesomeIcon icon={faFileExcel} className="mr-2 text-green-600" />
+                        Excel
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setShowExportMenu(false);
+                          openExportModal("csv");
+                        }}
+                        className="flex items-center w-full px-4 py-2 text-xs hover:bg-blue-50 transition-colors"
+                      >
+                        <FontAwesomeIcon icon={faFileCsv} className="mr-2 text-emerald-600" />
+                        CSV
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setShowExportMenu(false);
+                          openExportModal("pdf");
+                        }}
+                        className="flex items-center w-full px-4 py-2 text-xs hover:bg-blue-50 transition-colors"
+                      >
+                        <FontAwesomeIcon icon={faFilePdf} className="mr-2 text-red-600" />
+                        PDF
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setShowExportMenu(false);
+                          openExportModal("image");
+                        }}
+                        className="flex items-center w-full px-4 py-2 text-xs hover:bg-blue-50 transition-colors"
+                      >
+                        <FontAwesomeIcon icon={faFileImage} className="mr-2 text-blue-600" />
+                        Image
+                      </button>
                     </div>
                   )}
                 </div>
@@ -2858,6 +2835,8 @@ const AllTranHistory = (props) => {
               Apply
             </button>
           </div>
+
+
         </div>
 
         <style jsx="true">{`
@@ -2889,7 +2868,17 @@ const AllTranHistory = (props) => {
         `}</style>
       </Modal>
 
-      {(loading || exporting) && <LoadingSpinner />}
+
+      <ExportFileNameModal
+        isOpen={exportModal.isOpen}
+        title={exportModal.title}
+        defaultFileName={exportModal.defaultFileName}
+        confirmText={exportModal.confirmText}
+        onClose={closeExportModal}
+        onConfirm={handleExportConfirm}
+      />
+
+      {(loading || exporting) && <LoadingSpinner />}     
     </>
   );
 };
