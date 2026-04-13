@@ -26,7 +26,7 @@ import DocumentSignatories from "../../../Lookup/SearchSignatory.jsx";
 import AllTranHistory from "../../../Lookup/SearchGlobalTranHistory.jsx";
 import RCLookupModal from "../../../Lookup/SearchRCMast.jsx";
 import AllTranDocNo from "../../../Lookup/SearchDocNo.jsx";
-import GlobalLookupModalv1 from "../../../Lookup/SearchGlobalLookupv1.jsx";
+import ItemMastLookupModal from "../../../Lookup/SearchItemMast.jsx";
 import JobCodeLookupModal from "../../../Lookup/SearchJobCodesRef.jsx";
 import ExcelBatchUploadModal from "../../../Lookup/SearchGlobalExcelBatchUpload.jsx";
 import BarcodeQrReaderModal from "../../../Lookup/SearchGlobalQRBarCodeReader.jsx";
@@ -148,6 +148,8 @@ import Header from "@/NAYSA Cloud/Components/Header";
     isFetchDisabled: true,
     showAllTranDocNo:false,
     itemSingleSelect:false,
+    itemLookupEndPoint:"",
+    selectedDocType:"",
     branchCode: currentUserRow?.branchCode||"",
     branchName: currentUserRow?.BranchName||"",
     reqRcCode: "",
@@ -260,7 +262,9 @@ import Header from "@/NAYSA Cloud/Components/Header";
     showAllTranDocNo,
     showJobCodesModal,
     itemSingleSelect,
+    selectedDocType,
     selectedRowIndex,
+    itemLookupEndPoint,
 
     
     detailRows,
@@ -610,6 +614,7 @@ const handleCloseMSLookup = (selectedItems) => {
   }
 
   // Per Item Selection
+  console.log(itemSingleSelect)
   if (itemSingleSelect) {
     const singleItem = itemsArray[0];
     const isDuplicate = detailRows.some(row => row.itemCode === singleItem.itemCode);
@@ -877,7 +882,9 @@ const handleScanItem = async (scannedValue) => {
   
   const handleAddItem = async (index,invType) => {
 
-      updateState({ selectedRowIndex: index}); 
+      updateState({ selectedRowIndex: index,
+                    itemSingleSelect:true,
+      }); 
       await handleOpenMSLookup(true,invType);
       return;
   };
@@ -889,27 +896,30 @@ const handleScanItem = async (scannedValue) => {
   
         setShowTypeDropdown(false);
         updateState({ isLoading: true,
-                      itemSingleSelect : itemSingleSelect });
+                      itemSingleSelect : itemSingleSelect,
+                      itemLookupEndPoint : "getInvLookupMS",
+                      selectedDocType: docType});
     
-        const endpoint ="getInvLookupMS"
+        // const endpoint ="getInvLookupMS"
 
         
 
-        const response = await fetchDataJson(endpoint, { userCode, docType, branchCode });
-        const custData = response?.data?.[0]?.result ? JSON.parse(response.data[0].result) : [];
+        // const response = await fetchDataJson(endpoint, { userCode, docType, branchCode });
+        // const custData = response?.data?.[0]?.result ? JSON.parse(response.data[0].result) : [];
     
   
-        const colConfig = await useSelectedHSColConfig("AllMastItemLookup");
+        // const colConfig = await useSelectedHSColConfig("AllMastItemLookup");
   
   
-       if (custData.length === 0) {
-          useSwalInfoAlert("MS Master Data" ,"No records found")
-           updateState({ isLoading: false });
-          return; 
-        }
+      //  if (custData.length === 0) {
+      //     useSwalInfoAlert("MS Master Data" ,"No records found")
+      //      updateState({ isLoading: false });
+      //     return; 
+      //   }
     
-        updateState({ globalLookupRow: custData,
-                      globalLookupHeader:colConfig,
+        updateState({ 
+                      // globalLookupRow: custData,
+                      // globalLookupHeader:colConfig,
                       msLookupModalOpen: true,
                       isLoading: false
           });
@@ -1948,12 +1958,17 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
                                 readOnly
                                 onChange={(e) => handleDetailChange(index, 'itemCode', e.target.value)}
                               />
-                                {!isFormDisabled && Number(row.poQty || 0) === 0 && row.prStatus === "O" && (
-                                <FontAwesomeIcon 
-                                  icon={faMagnifyingGlass} 
-                                  className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
-                                  onClick={() => handleAddItem(index,"PR"+row.invType)}                                                                
-                                />)}
+                                 {!isFormDisabled &&
+                                    Number(row.poQty || 0) === 0 &&
+                                    row.prStatus === "O" &&
+                                    row.invType !== "" &&
+                                    row.invType != null && (
+                                      <FontAwesomeIcon
+                                        icon={faMagnifyingGlass}
+                                        className="absolute right-2 text-blue-600 text-lg cursor-pointer hover:text-blue-900"
+                                        onClick={() => handleAddItem(index, "PR" + row.invType)}
+                                      />
+                                    )}
                               </div>
                           </td>
           
@@ -2418,16 +2433,15 @@ const hasExistingPO = detailRows.some(row => (parseFloat(row.poQty) || 0) > 0);
       )}
 
 
-    {msLookupModalOpen && (
-        <GlobalLookupModalv1
+
+         {msLookupModalOpen && (
+        <ItemMastLookupModal
         isOpen={msLookupModalOpen}
-        data={globalLookupRow}
-        btnCaption="Get Selected Items"
-        title="Master Data"
-        endpoint={globalLookupHeader}
+        endpoint={itemLookupEndPoint}
         onClose={handleCloseMSLookup}
         onCancel={() => updateState({ msLookupModalOpen: false })}
-        singleSelect={itemSingleSelect}
+        enableMultiSelect={!itemSingleSelect}
+        docType={selectedDocType}
          />
         )}
 
