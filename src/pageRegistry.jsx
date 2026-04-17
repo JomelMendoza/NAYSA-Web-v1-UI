@@ -197,6 +197,8 @@ import AuditTrail from "./NAYSA Cloud/Query/AuditTrail/AuditTail.jsx";
 
 // import UniversalReportModal from "./NAYSA Cloud/Printing/UniversalReport"
 import UniversalReportModal from "./NAYSA Cloud/Printing/UniversalReportModal.jsx";
+import PRInq from "./NAYSA Cloud/Module/Main Module/Purchasing/PRInq.jsx";
+
 
 // ... ensure all other components (SVI, SOA, etc.) are imported above ...
 
@@ -283,6 +285,8 @@ export const pageRegistry = {
   PostMSAJ,
   MonthendGLProcessingModal,
   YearendGLProcessingModal,
+
+  PRInq,
 
   // Printing
   // These keys now point to the Universal component but inject the specific module prop
