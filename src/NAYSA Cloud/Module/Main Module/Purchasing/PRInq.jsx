@@ -30,7 +30,6 @@ import PayeeMastLookupModal from "../../../Lookup/SearchVendMast";
 import RCLookupModal from "../../../Lookup/SearchRCMast.jsx";
 import MSLookupModal from "../../../Lookup/SearchMSMast.jsx";
 
-
 // ── static stage field labels only ───────────────────────────────────────────
 const stageDetails = {
   pr: {
@@ -97,8 +96,7 @@ const stageStatusLabel = {
 
 const safeArray = (value) => (Array.isArray(value) ? value : []);
 
-const joinCodeName = (code, name) =>
-  [code, name].filter(Boolean).join(" - ");
+const joinCodeName = (code, name) => [code, name].filter(Boolean).join(" - ");
 
 const formatDateDisplay = (value) => {
   if (!value) return "";
@@ -234,12 +232,21 @@ const aggregatePRInqRows = (rows) => {
     const prId = item.prId || item.pr_id || "";
     const prDate = item.prDate || item.pr_date || "";
     const prStatus = item.prStatus || item.pr_status || "";
-    const prStatusDesc = item.prStatusDesc || item.pr_stat_desc || prStatus || "";
-    const branchCode = item.branchCode || item.branchcode || item.branch_code || "";
+    const prStatusDesc =
+      item.prStatusDesc || item.pr_stat_desc || prStatus || "";
+    const branchCode =
+      item.branchCode || item.branchcode || item.branch_code || "";
     const rcCode = item.rcCode || item.rc_code || "";
-    const rcName = item.rcName || item.rc_name || item.rcDesc || item.rc_desc || "";
-    const preparedBy = item.preparedBy || item.prepared_by || item.userCode || item.user_code || "";
-    const preparedDate = item.preparedDate || item.prepared_date || item.date_stamp || "";
+    const rcName =
+      item.rcName || item.rc_name || item.rcDesc || item.rc_desc || "";
+    const preparedBy =
+      item.preparedBy ||
+      item.prepared_by ||
+      item.userCode ||
+      item.user_code ||
+      "";
+    const preparedDate =
+      item.preparedDate || item.prepared_date || item.date_stamp || "";
     const remarks = item.remarks || item.specs || item.item_specs || "";
     const prType = item.prType || item.pr_type || "";
     const delDate = item.delDate || item.del_date || "";
@@ -358,7 +365,7 @@ const aggregatePRInqRows = (rows) => {
       "PR Qty": formatNumber(line.prQty, 6),
       "PO Qty": formatNumber(line.poQty, 6),
       "RR Qty": formatNumber(line.rrQty, 6),
-      "Balance": formatNumber(line.prBalance, 6),
+      Balance: formatNumber(line.prBalance, 6),
       "Date Needed": formatDateDisplay(line.delDate || delDate),
       Specs: line.itemSpecs || "—",
     }));
@@ -630,7 +637,12 @@ function DrilldownModal({
                           label.includes("APCM") || label.includes("APDM");
                         const isNet = label.includes("Net Payable");
 
-                        const isPoNumberRow = label === "PR Number";
+                        const isPoNumberRow =
+                          label === "PR Number" ||
+                          label === "PO Number" ||
+                          label === "RR Number" ||
+                          label === "APV Number" ||
+                          label === "CV Number";
 
                         return (
                           <div
@@ -689,21 +701,31 @@ function DrilldownModal({
                           <table className="min-w-full text-[11px]">
                             <thead className="bg-slate-50 text-slate-400">
                               <tr>
-                                {Object.keys(doc.Details[0] || {}).map((col) => (
-                                  <th key={col} className="whitespace-nowrap px-3 py-2 text-left font-semibold">
-                                    {col}
-                                  </th>
-                                ))}
+                                {Object.keys(doc.Details[0] || {}).map(
+                                  (col) => (
+                                    <th
+                                      key={col}
+                                      className="whitespace-nowrap px-3 py-2 text-left font-semibold"
+                                    >
+                                      {col}
+                                    </th>
+                                  ),
+                                )}
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                               {doc.Details.map((line, lineIdx) => (
                                 <tr key={lineIdx}>
-                                  {Object.keys(doc.Details[0] || {}).map((col) => (
-                                    <td key={col} className="whitespace-nowrap px-3 py-2 text-slate-700">
-                                      {line[col] || "—"}
-                                    </td>
-                                  ))}
+                                  {Object.keys(doc.Details[0] || {}).map(
+                                    (col) => (
+                                      <td
+                                        key={col}
+                                        className="whitespace-nowrap px-3 py-2 text-slate-700"
+                                      >
+                                        {line[col] || "—"}
+                                      </td>
+                                    ),
+                                  )}
                                 </tr>
                               ))}
                             </tbody>
@@ -888,7 +910,9 @@ export default function PRInq() {
 
   const summary = useMemo(() => {
     const total = data.length;
-    const activePO = data.filter((row) => row.currentStatus === "For PO").length;
+    const activePO = data.filter(
+      (row) => row.currentStatus === "For PO",
+    ).length;
     const forAPV = data.filter((row) => row.currentStatus === "For APV").length;
     const completedCV = data.filter(
       (row) => row.currentStatus === "Completed",
@@ -1064,9 +1088,9 @@ export default function PRInq() {
       dot: "bg-slate-400",
     },
     "For RR": {
-  cls: "bg-sky-100 text-sky-700 border border-sky-200",
-  dot: "bg-sky-500",
-},
+      cls: "bg-sky-100 text-sky-700 border border-sky-200",
+      dot: "bg-sky-500",
+    },
   };
 
   const agingConfig = (d) =>
@@ -1152,7 +1176,6 @@ export default function PRInq() {
     ];
   }, [data]);
 
-
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_#dbeafe_0,_transparent_28%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_45%,#f8fafc_100%)] p-3 font-sans text-slate-900 md:p-6">
       {loading && <LoadingSpinner />}
@@ -1169,7 +1192,8 @@ export default function PRInq() {
                 PR Tracker
               </h1>
               <p className="mt-2 max-w-xl text-sm leading-relaxed text-blue-200">
-                Monitor the full procurement lifecycle from PR, PO, RR, APV, up to CV with live filters and document drilldown.
+                Monitor the full procurement lifecycle from PR, PO, RR, APV, up
+                to CV with live filters and document drilldown.
               </p>
             </div>
 
@@ -1566,7 +1590,9 @@ export default function PRInq() {
                     </tr>
                   ) : (
                     filteredData.map((row) => {
-                      const sc = statusConfig[row.currentStatus] || statusConfig["Open PR"];
+                      const sc =
+                        statusConfig[row.currentStatus] ||
+                        statusConfig["Open PR"];
 
                       return (
                         <tr
@@ -1600,7 +1626,6 @@ export default function PRInq() {
                               {row.branch} -{" "}
                               {row.departmentDisplay || row.department}
                             </div>
-                          
                           </td>
 
                           <td className="px-5 py-4 text-right">
