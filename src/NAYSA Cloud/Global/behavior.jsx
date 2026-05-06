@@ -727,14 +727,15 @@ export const useSwalDeleteConfirm = async (
     showCancelButton: true,
     confirmButtonText: confirmText,
     cancelButtonText: "Cancel",
+    focusCancel: true,
     reverseButtons: false,
     buttonsStyling: false,
 
-    width: 360,
+   width: 360,
     padding: "0",
     background: "#ffffff",
 
-    customClass: {
+  customClass: {
       popup: "swal-sonner-delete-popup",
       htmlContainer: "swal-sonner-delete-html",
       actions: "swal-sonner-delete-actions",

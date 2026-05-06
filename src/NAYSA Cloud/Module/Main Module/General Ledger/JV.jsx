@@ -972,8 +972,8 @@ const JV = () => {
     }
     Swal.fire({
       icon: "success",
-      title: "Transaction Copied",
-      text: "Identifiers cleared. You can now modify and save this as a new JV.",
+      title: "Copy Completed",
+      text: "Update the required details before saving as a new Transaction",
       timer: 2000,
       showConfirmButton: false,
     });
