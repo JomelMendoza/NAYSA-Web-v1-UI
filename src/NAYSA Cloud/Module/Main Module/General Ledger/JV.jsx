@@ -2579,6 +2579,7 @@ const handleTranDocNoSelection = async (data) => {
             isOpen={showAccountModal}
             onClose={handleCloseAccountModal}
             source={accountModalSource}
+            customParam="ActiveAll"
           />
         )}
 
