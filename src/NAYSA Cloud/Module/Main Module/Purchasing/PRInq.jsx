@@ -386,7 +386,7 @@ const aggregatePRInqRows = (rows) => {
     ];
 
     const poDocs = poNos.map((po) => ({
-      "PO Number": po,
+      "PO Number": po, // This must match the label checked in DrilldownModal
       "Ref PR": prNo,
       "PO Qty": formatNumber(group.totalPOQty, 6),
       Items: uniqueDetailLines.length,
@@ -616,19 +616,6 @@ function DrilldownModal({
 
                     <div className="divide-y divide-slate-100">
                       {Object.entries(doc).map(([label, value]) => {
-                        if (
-                          extraDocs.length > 1 &&
-                          [
-                            "PR Number",
-                            "PO Number",
-                            "RR Number",
-                            "APV Number",
-                            "CV Number",
-                          ].includes(label)
-                        ) {
-                          return null;
-                        }
-
                         if (label === "Details") {
                           return null;
                         }
@@ -674,18 +661,16 @@ function DrilldownModal({
                                 {value || "—"}
                               </span>
 
-                              {isPoNumberRow && (
-                                <button
-                                  type="button"
-                                  title="View Document"
-                                  onClick={() =>
-                                    onViewDocument?.(row, stageKey)
-                                  }
-                                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-blue-500 hover:bg-blue-50 hover:text-blue-600"
-                                >
-                                  <Eye size={14} />
-                                </button>
-                              )}
+                              {isPoNumberRow && value && value !== "—" && value !== "Pending" && (
+  <button
+    type="button"
+    title="View Document"
+    onClick={() => onViewDocument?.(row, stageKey, value)}
+    className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-blue-500 hover:bg-blue-50 hover:text-blue-600"
+  >
+    <Eye size={14} />
+  </button>
+)}
                             </div>
                           </div>
                         );
@@ -805,16 +790,38 @@ export default function PRInq() {
 
   const navigate = useNavigate();
 
-  const handleViewPRDocument = (row) => {
-    const prNo = row?.prNo || "";
-    const branchCode = row?.branch || row?.branchCode || "";
+  // Generic handler to navigate to specific transaction pages
+  const handleViewDocument = (row, stageKey, selectedDocNo = "") => {
+  const branchCode = row?.branch || row?.branchCode || "";
 
-    if (!prNo || !branchCode) return;
-
-    navigate(
-      `/page/PR?prNo=${encodeURIComponent(prNo)}&branchCode=${encodeURIComponent(branchCode)}`,
-    );
+  const routeMap = {
+    pr: { path: "/page/PR", param: "prNo", value: row.prNo },
+    po: { path: "/page/PO", param: "poNo", value: row.poNo },
+    rr: { path: "/page/RR", param: "rrNo", value: row.rrNo },
+    apv: { path: "/page/APV", param: "apvNo", value: row.apvNo },
+    cv: { path: "/page/CV", param: "cvNo", value: row.cvNo },
   };
+
+  const config = routeMap[stageKey];
+
+  const docNo = String(selectedDocNo || config?.value || "")
+    .split("\n")[0]
+    .trim();
+
+  if (!config || !docNo || !branchCode) {
+    console.warn(`Missing data for navigation: ${stageKey}`, {
+      stageKey,
+      docNo,
+      branchCode,
+      row,
+    });
+    return;
+  }
+
+  navigate(
+    `${config.path}?${config.param}=${encodeURIComponent(docNo)}&branchCode=${encodeURIComponent(branchCode)}&viewOnly=Y&source=flowProgress`,
+  );
+};
 
   const stageList = [
     { key: "pr", label: "PR", name: "Purchase Requisition", icon: FileText },
@@ -1805,10 +1812,9 @@ export default function PRInq() {
           stageList={stageList}
           onClose={() => setDrilldown(null)}
           onStage={(key) => setDrilldown({ row: drilldown.row, stageKey: key })}
-          onViewDocument={(row, stageKey) => {
-            if (stageKey !== "pr") return;
-            handleViewPRDocument(row);
-          }}
+         onViewDocument={(row, stageKey, selectedDocNo) => {
+  handleViewDocument(row, stageKey, selectedDocNo);
+}}
         />
       )}
 
